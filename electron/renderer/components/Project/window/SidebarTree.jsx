@@ -535,6 +535,19 @@ const SidebarTree = ({
       case "openInMediaViewer":
         window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
         break;
+      case "openInBrowser": {
+        const url = "ppoo-file://file/" + encodeURI(filePath.replace(/\\/g, "/")).replace(/#/g, "%23");
+        window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url, config: { type: "browser", title: "Browser", url } } }));
+        break;
+      }
+      case "openInExternalBrowser": {
+        try { await window.electronAPI.openFile(filePath, "system"); }
+        catch {
+          const fileUrl = "file:///" + filePath.replace(/\\/g, "/");
+          try { await window.electronAPI.openUrl(fileUrl); } catch {}
+        }
+        break;
+      }
       case "openInTerminal": {
         window.dispatchEvent(new CustomEvent("open-terminal", { detail: { dir: parentDir } }));
         break;

@@ -249,6 +249,25 @@ const ContentArea = ({
         for (const p of targetPaths) window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: p } }));
         return;
       }
+      case "openInBrowser": {
+        for (const p of targetPaths) {
+          const url = "ppoo-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
+          window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url, config: { type: "browser", title: "Browser", url } } }));
+        }
+        return;
+      }
+      case "openInExternalBrowser": {
+        for (const p of targetPaths) {
+          // try external browser via OS default (shell.openPath)
+          try { await window.electronAPI.openFile(p, "system"); }
+          catch {
+            // fallback to file:// url via shell
+            const fileUrl = "file:///" + p.replace(/\\/g, "/");
+            try { await window.electronAPI.openUrl(fileUrl); } catch {}
+          }
+        }
+        return;
+      }
       default: {
         if (action.startsWith("openWithEditor:")) {
           const editorId = action.slice("openWithEditor:".length);

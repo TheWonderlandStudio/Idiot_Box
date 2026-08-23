@@ -163,6 +163,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   gitStatus:  (rootPath)             => ipcRenderer.invoke("git:status", rootPath),
   gitDiff:    (rootPath, filePath)   => ipcRenderer.invoke("git:diff", rootPath, filePath),
   gitDiffAll: (rootPath)             => ipcRenderer.invoke("git:diffAll", rootPath),
+  gitBranch:  (rootPath)             => ipcRenderer.invoke("git:branch", rootPath),
+  gitLog:     (rootPath, n)          => ipcRenderer.invoke("git:log", rootPath, n),
+  gitStage:   (rootPath, rel)        => ipcRenderer.invoke("git:stage", rootPath, rel),
+  gitUnstage: (rootPath, rel)        => ipcRenderer.invoke("git:unstage", rootPath, rel),
+  gitStageAll: (rootPath)            => ipcRenderer.invoke("git:stageAll", rootPath),
+  gitUnstageAll: (rootPath)          => ipcRenderer.invoke("git:unstageAll", rootPath),
+  gitDiscard: (rootPath, rel)        => ipcRenderer.invoke("git:discard", rootPath, rel),
+  gitCommit:  (rootPath, msg)        => ipcRenderer.invoke("git:commit", rootPath, msg),
+  gitPush:    (rootPath)             => ipcRenderer.invoke("git:push", rootPath),
+  gitPull:    (rootPath)             => ipcRenderer.invoke("git:pull", rootPath),
+  gitFetch:   (rootPath)             => ipcRenderer.invoke("git:fetch", rootPath),
 
   // ── Canvas (Visual Project Map) ────────────────────────────────────────────
   scanCanvas:        (rootPath) => ipcRenderer.invoke("canvas:scan",        rootPath),

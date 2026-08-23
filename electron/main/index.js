@@ -394,6 +394,76 @@ ipcMain.handle("git:diffAll", async (_e, rootPath) => {
     return String(out || "");
   } catch { return ""; }
 });
+ipcMain.handle("git:branch", async (_e, rootPath) => {
+  if (!rootPath) return { branch: "", isRepo: false };
+  const { execSync } = require("child_process");
+  try {
+    execSync("git rev-parse --is-inside-work-tree", { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true });
+  } catch { return { branch: "", isRepo: false }; }
+  try {
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true }).trim();
+    let ahead = 0, behind = 0;
+    try {
+      const ab = execSync("git rev-list --left-right --count HEAD...@{upstream} 2>nul || git rev-list --left-right --count HEAD...origin/HEAD 2>nul || echo '0 0'", { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true, shell: true }).trim();
+      const parts = ab.split(/\s+/); ahead = parseInt(parts[0]||"0",10)||0; behind = parseInt(parts[1]||"0",10)||0;
+    } catch {}
+    return { branch, isRepo: true, ahead, behind };
+  } catch { return { branch: "HEAD", isRepo: true, ahead: 0, behind: 0 }; }
+});
+ipcMain.handle("git:log", async (_e, rootPath, limit = 20) => {
+  if (!rootPath) return [];
+  try {
+    const { execSync } = require("child_process");
+    const n = Math.min(Math.max(parseInt(limit,10)||20, 1), 100);
+    const fmt = "%H%x1f%an%x1f%ae%x1f%ar%x1f%s%x1f%D";
+    const out = execSync(`git log --oneline -n ${n} --pretty=format:"${fmt}"`, { cwd: rootPath, timeout: 3000, encoding: "utf8", windowsHide: true });
+    return out.split("\n").filter(Boolean).map((l) => {
+      const [hash, author, email, relTime, msg, refs] = l.split("\x1f");
+      return { hash: hash?.slice(0,7), fullHash: hash, author, email, relTime, msg, refs: refs||"" };
+    });
+  } catch { return []; }
+});
+ipcMain.handle("git:stage", async (_e, rootPath, relPath) => {
+  if (!rootPath || !relPath) return { ok:false, error:"missing path" };
+  try { const { execSync } = require("child_process"); execSync(`git add -- "${relPath.replace(/"/g,'\\"')}"`, { cwd: rootPath, timeout: 4000, windowsHide: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
+});
+ipcMain.handle("git:unstage", async (_e, rootPath, relPath) => {
+  if (!rootPath || !relPath) return { ok:false, error:"missing path" };
+  try { const { execSync } = require("child_process"); execSync(`git restore --staged -- "${relPath.replace(/"/g,'\\"')}" 2>nul || git reset HEAD -- "${relPath.replace(/"/g,'\\"')}"`, { cwd: rootPath, timeout: 4000, windowsHide: true, shell: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
+});
+ipcMain.handle("git:stageAll", async (_e, rootPath) => {
+  if (!rootPath) return { ok:false };
+  try { const { execSync } = require("child_process"); execSync(`git add -A`, { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
+});
+ipcMain.handle("git:unstageAll", async (_e, rootPath) => {
+  if (!rootPath) return { ok:false };
+  try { const { execSync } = require("child_process"); execSync(`git reset HEAD`, { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
+});
+ipcMain.handle("git:discard", async (_e, rootPath, relPath) => {
+  if (!rootPath || !relPath) return { ok:false };
+  try { const { execSync } = require("child_process"); execSync(`git checkout -- "${relPath.replace(/"/g,'\\"')}" 2>nul; git clean -f -- "${relPath.replace(/"/g,'\\"')}" 2>nul; git restore -- "${relPath.replace(/"/g,'\\"')}" 2>nul`, { cwd: rootPath, timeout: 4000, windowsHide: true, shell: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
+});
+ipcMain.handle("git:commit", async (_e, rootPath, message) => {
+  if (!rootPath || !message?.trim()) return { ok:false, error: "Empty message" };
+  try {
+    const { execSync } = require("child_process");
+    const safe = message.replace(/"/g,'\\"').replace(/\n/g,' ');
+    execSync(`git commit -m "${safe}"`, { cwd: rootPath, timeout: 6000, encoding: "utf8", windowsHide: true });
+    return { ok:true };
+  } catch(e){ return { ok:false, error: e.stderr?.toString() || e.message || String(e) }; }
+});
+ipcMain.handle("git:push", async (_e, rootPath) => {
+  if (!rootPath) return { ok:false };
+  try { const { execSync } = require("child_process"); const out = execSync(`git push`, { cwd: rootPath, timeout: 15000, encoding:"utf8", windowsHide:true }); return { ok:true, out }; } catch(e){ return { ok:false, error: e.message }; }
+});
+ipcMain.handle("git:pull", async (_e, rootPath) => {
+  if (!rootPath) return { ok:false };
+  try { const { execSync } = require("child_process"); const out = execSync(`git pull`, { cwd: rootPath, timeout: 15000, encoding:"utf8", windowsHide:true }); return { ok:true, out }; } catch(e){ return { ok:false, error: e.message }; }
+});
+ipcMain.handle("git:fetch", async (_e, rootPath) => {
+  if (!rootPath) return { ok:false };
+  try { const { execSync } = require("child_process"); const out = execSync(`git fetch`, { cwd: rootPath, timeout: 15000, encoding:"utf8", windowsHide:true }); return { ok:true, out }; } catch(e){ return { ok:false, error: e.message }; }
+});
 
 // ─── Project config (tabs state + pin config) ──────────────────────────────────
 const PIN_DIR  = ".project_config";
@@ -973,6 +1043,9 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh")  },
       ];
     } else if (type === "file") {
+      const singlePath = selectedPaths.length === 1 ? selectedPaths[0] : "";
+      const ext = singlePath ? path.extname(singlePath).toLowerCase() : "";
+      const isHtml = [".html", ".htm", ".xhtml", ".shtml"].includes(ext);
       const openWithSubmenu = [
         { label: "System Default", accelerator: "Ctrl+Enter", click: () => act("openWithSystem") },
         { type: "separator" },
@@ -983,6 +1056,11 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Open",                    accelerator: "Enter",        click: () => act("open")     },
         { label: "Open in New Editor Tab",                               click: () => act("openInNewEditorTab") },
         { label: "Open with", submenu: openWithSubmenu },
+        ...(isHtml ? [
+          sep,
+          { label: "Open in Browser",                accelerator: "Alt+B", click: () => act("openInBrowser") },
+          { label: "Open in External Browser",                       click: () => act("openInExternalBrowser") },
+        ] : []),
         sep,
         { label: "Rename",                  accelerator: "F2",           click: () => act("rename")    },
         { label: "Delete",                  accelerator: "Delete",       click: () => act("delete")    },
@@ -1583,47 +1661,73 @@ ipcMain.handle("settings:openWindow", () => openSettingsWindow());
 
 // ─── App menu ─────────────────────────────────────────────────────────────────
 let autoSaveEnabled = false;
-const recentProjects = [];
+const RECENT_FILE = path.join(app.getPath("userData"), "recent-projects.json");
+let recentProjects = [];
 const MAX_RECENT = 10;
 
+function loadRecentProjects() {
+  try {
+    const arr = JSON.parse(fs.readFileSync(RECENT_FILE, "utf8"));
+    if (Array.isArray(arr)) recentProjects = arr.filter((p) => typeof p === "string").slice(0, MAX_RECENT);
+  } catch {}
+}
+function saveRecentProjects() {
+  try { fs.writeFileSync(RECENT_FILE, JSON.stringify(recentProjects, null, 2)); } catch {}
+}
+// load at startup
+try { loadRecentProjects(); } catch {}
+
 function addRecentProject(projectPath) {
+  if (!projectPath) return;
   const idx = recentProjects.indexOf(projectPath);
   if (idx >= 0) recentProjects.splice(idx, 1);
   recentProjects.unshift(projectPath);
   if (recentProjects.length > MAX_RECENT) recentProjects.pop();
+  saveRecentProjects();
+  try { Menu.setApplicationMenu(buildMenu()); } catch {}
+}
+function clearRecentProjects() {
+  recentProjects = [];
+  saveRecentProjects();
+  try { Menu.setApplicationMenu(buildMenu()); } catch {}
 }
 
 function buildMenu() {
   const template = [
     {
       label: "File", submenu: [
-        { label: "Open Project", accelerator: "CmdOrCtrl+O", click: async () => { const r = await dialog.showOpenDialog({ title: "Open Project", properties: ["openDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:openProject", r.filePaths[0]); } } },
-        { label: "New Project",  accelerator: "CmdOrCtrl+Shift+N", click: async () => { const r = await dialog.showOpenDialog({ title: "Select folder for new project", properties: ["openDirectory","createDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:newProject", r.filePaths[0]); } } },
-        { type: "separator" },
-        { label: "Load Extension…", click: () => sendToRenderer("menu:loadExtension", null) },
+        { label: "Open Project…", accelerator: "CmdOrCtrl+O", click: async () => { const r = await dialog.showOpenDialog({ title: "Open Project", properties: ["openDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:openProject", r.filePaths[0]); } } },
+        { label: "Open File…", accelerator: "CmdOrCtrl+Shift+O", click: async () => { const r = await dialog.showOpenDialog({ title: "Open File", properties: ["openFile"] }); if (!r.canceled && r.filePaths.length) { const fp = r.filePaths[0]; const lastWin = BrowserWindow.getAllWindows()[0]; if (lastWin) lastWin.webContents.send("editor:openFile", { filePath: fp }); } } },
+        { label: "New Project…",  accelerator: "CmdOrCtrl+N", click: async () => { const r = await dialog.showOpenDialog({ title: "Select folder for new project", properties: ["openDirectory","createDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:newProject", r.filePaths[0]); } } },
         { type: "separator" },
         {
           label: "Open Recent", submenu: recentProjects.length
-            ? recentProjects.map((p, i) => ({ label: `${i + 1}. ${p}`, click: () => { lastProjectPath = p; sendToRenderer("menu:openProject", p); } }))
+            ? [
+                ...recentProjects.map((p, i) => ({ label: `${i + 1}. ${path.basename(p)}  —  ${p}`, click: () => { lastProjectPath = p; addRecentProject(p); sendToRenderer("menu:openProject", p); } })),
+                { type: "separator" },
+                { label: "Clear Recently Opened", click: () => clearRecentProjects() },
+              ]
             : [{ label: "No recent projects", enabled: false }],
         },
         { type: "separator" },
         { label: "Save",            accelerator: "CmdOrCtrl+S",          click: () => sendToRenderer("menu:saveFile", null) },
-        { label: "Save As",         accelerator: "CmdOrCtrl+Shift+S",    click: () => sendToRenderer("menu:saveFileAs", null) },
-        { label: "AutoSave", type: "checkbox", checked: autoSaveEnabled, click: (item) => { autoSaveEnabled = item.checked; sendToRenderer("menu:toggleAutoSave", item.checked); } },
+        { label: "Save As…",         accelerator: "CmdOrCtrl+Shift+S",    click: () => sendToRenderer("menu:saveFileAs", null) },
+        { label: "Save All",        accelerator: "CmdOrCtrl+K S",        click: () => sendToRenderer("menu:saveFile", null) },
+        { label: "Auto Save", type: "checkbox", checked: autoSaveEnabled, click: (item) => { autoSaveEnabled = item.checked; sendToRenderer("menu:toggleAutoSave", item.checked); } },
         { type: "separator" },
-        { label: "Save Project", click: () => sendToRenderer("menu:saveProject", null) },
+        { label: "Close Editor",    accelerator: "CmdOrCtrl+W", click: () => sendToRenderer("menu:closeProject", null) },
+        { label: "Close Project", click: () => { lastProjectPath = null; sendToRenderer("menu:closeProject", null); } },
         { type: "separator" },
-        { label: "Close Project", accelerator: "CmdOrCtrl+W", click: () => { lastProjectPath = null; sendToRenderer("menu:closeProject", null); } },
+        { label: "New Window", accelerator: "CmdOrCtrl+Shift+N", click: () => createWindow() },
         { type: "separator" },
-        { label: "Open New Window", accelerator: "CmdOrCtrl+Shift+W", click: () => createWindow() },
-        { label: "Close App",        accelerator: "CmdOrCtrl+Q", click: () => app.quit() },
+        { label: "Exit",        accelerator: process.platform === "win32" ? "Alt+F4" : "CmdOrCtrl+Q", role: "quit" },
       ],
     },
     {
       label: "Edit", submenu: [
         { label: "Undo",  accelerator: "CmdOrCtrl+Z", click: () => sendToRenderer("menu:undo", null) },
-        { label: "Redo",  accelerator: "CmdOrCtrl+Shift+Z", click: () => sendToRenderer("menu:redo", null) },
+        { label: "Redo",  accelerator: "CmdOrCtrl+Y", click: () => sendToRenderer("menu:redo", null) },
+        { label: "Redo (Alt)",  accelerator: "CmdOrCtrl+Shift+Z", click: () => sendToRenderer("menu:redo", null) },
         { type: "separator" },
         { label: "Cut",   accelerator: "CmdOrCtrl+X", click: () => sendToRenderer("menu:cut", null) },
         { label: "Copy",  accelerator: "CmdOrCtrl+C", click: () => sendToRenderer("menu:copy", null) },
@@ -1632,47 +1736,68 @@ function buildMenu() {
         { label: "Select All", accelerator: "CmdOrCtrl+A", click: () => sendToRenderer("menu:selectAll", null) },
         { type: "separator" },
         { label: "Find",      accelerator: "CmdOrCtrl+F", click: () => sendToRenderer("menu:find", null) },
-        { label: "Find Next", accelerator: "CmdOrCtrl+G", click: () => sendToRenderer("menu:findNext", null) },
-        { label: "Find Previous", accelerator: "CmdOrCtrl+Shift+G", click: () => sendToRenderer("menu:findPrevious", null) },
+        { label: "Find Next", accelerator: "F3", click: () => sendToRenderer("menu:findNext", null) },
+        { label: "Find Previous", accelerator: "Shift+F3", click: () => sendToRenderer("menu:findPrevious", null) },
         { label: "Replace",   accelerator: "CmdOrCtrl+H", click: () => sendToRenderer("menu:replace", null) },
       ],
     },
     {
       label: "View", submenu: [
         { label: "Command Palette…", accelerator: "CmdOrCtrl+Shift+P", click: () => sendToRenderer("menu:commandPalette", null) },
+        { label: "Quick Open…", accelerator: "CmdOrCtrl+P", click: () => sendToRenderer("menu:commandPalette", null) },
         { type: "separator" },
         { label: "Toggle Full Screen", accelerator: "F11", click: () => sendToRenderer("menu:fullscreen", null) },
         { type: "separator" },
-        { label: "Reset Layout", accelerator: "CmdOrCtrl+R", click: () => sendToRenderer("menu:resetLayout", null) },
+        { label: "Reset Layout", accelerator: "CmdOrCtrl+Alt+R", click: () => sendToRenderer("menu:resetLayout", null) },
         { type: "separator" },
-        { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow(); if (win) win.webContents.toggleDevTools(); } },
+        { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
+      ],
+    },
+    {
+      label: "Git", submenu: [
+        { label: "Refresh Status", accelerator: "CmdOrCtrl+Shift+G", click: () => sendToRenderer("git:refresh", null) },
+        { type: "separator" },
+        { label: "Commit…", accelerator: "CmdOrCtrl+Enter", click: () => sendToRenderer("git:commit", null) },
+        { label: "Commit All & Push", click: () => sendToRenderer("git:commit", null) },
+        { type: "separator" },
+        { label: "Pull", click: () => sendToRenderer("git:pull", null) },
+        { label: "Push", click: () => sendToRenderer("git:push", null) },
+        { label: "Fetch", click: () => sendToRenderer("git:fetch", null) },
+        { type: "separator" },
+        { label: "View Diff (All)", click: () => sendToRenderer("git:diffAll", null) },
+        { label: "Show Log", click: () => sendToRenderer("git:log", null) },
       ],
     },
     {
       label: "Terminal", submenu: [
-        { label: "New Terminal", accelerator: "Ctrl+Shift+T", click: () => sendToRenderer("menu:newTerminal", null) },
-        { label: "Split Terminal Right", accelerator: "Ctrl+Shift+\\", click: () => sendToRenderer("menu:splitTerminalRight", null) },
-        { label: "Split Terminal Down", accelerator: "Ctrl+Shift+-", click: () => sendToRenderer("menu:splitTerminalDown", null) },
+        { label: "New Terminal", accelerator: "Ctrl+`", click: () => sendToRenderer("menu:newTerminal", null) },
+        { label: "Split Terminal Right", accelerator: "Ctrl+Shift+5", click: () => sendToRenderer("menu:splitTerminalRight", null) },
+        { label: "Split Terminal Down", accelerator: "Ctrl+Shift+\\", click: () => sendToRenderer("menu:splitTerminalDown", null) },
         { type: "separator" },
         { label: "Clear Terminal", accelerator: "Ctrl+K", click: () => sendToRenderer("menu:clearTerminal", null) },
         { label: "Kill Terminal", click: () => sendToRenderer("menu:killTerminal", null) },
       ],
     },
-    { label: "Settings", click: openSettingsWindow },
+    { label: "Settings", accelerator: "CmdOrCtrl+,", click: openSettingsWindow },
     {
       label: "Window", submenu: [
         { label: "Minimize", accelerator: "CmdOrCtrl+M", role: "minimize" },
         { label: "Zoom", role: "zoom" },
         { type: "separator" },
-        { label: "Reset Window", accelerator: "CmdOrCtrl+R", click: () => sendToRenderer("menu:resetLayout", null) },
+        { label: "Reset Window Layout", click: () => sendToRenderer("menu:resetLayout", null) },
         { type: "separator" },
-        { label: "Close Window", role: "close" },
+        { label: "Close Window", accelerator: "CmdOrCtrl+Shift+W", role: "close" },
       ],
     },
     {
       label: "Help", submenu: [
-        { label: "About", click: () => { const win = BrowserWindow.getFocusedWindow(); if (win) dialog.showMessageBox(win, { type: "info", title: "About", message: "Idiot Box", detail: "A VS Code-like editor built with Electron, React, and Monaco." }); } },
-        { label: "Report Issue", click: () => shell.openExternal("https://github.com/YOUR_USERNAME/YOUR_REPO/issues") },
+        { label: "About Idiot Box", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) dialog.showMessageBox(win, { type: "info", title: "About Idiot Box", message: "Idiot Box v0.1.0", detail: "A VS Code-like editor built with Electron, React, and Monaco.\n\n© 2026 Idiot Box" }); } },
+        { type: "separator" },
+        { label: "Keyboard Shortcuts", accelerator: "CmdOrCtrl+K CmdOrCtrl+S", click: () => sendToRenderer("menu:commandPalette", null) },
+        { label: "Toggle Developer Tools", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
+        { type: "separator" },
+        { label: "Report Issue", click: () => shell.openExternal("https://github.com/anomalyco/opencode/issues") },
+        { label: "View on GitHub", click: () => shell.openExternal("https://github.com/anomalyco/opencode") },
       ],
     },
   ];
