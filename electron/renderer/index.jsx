@@ -19,7 +19,6 @@ import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortPanel from "./components/Port/index.jsx";
-import LogPanel from "./components/Log/index.jsx";
 
 import PortManager from "./components/PortManager/index.jsx";
 
@@ -54,7 +53,6 @@ const DEFAULT_JSON = {
             children: [
               { type: "tab", name: "Project", component: "projectPanel" },
               { type: "tab", name: "Terminal", component: "terminal", id: "terminal-tab" },
-              { type: "tab", name: "Log", component: "logPanel" },
             ],
           },
         ],
@@ -87,7 +85,6 @@ const factory = (node) => {
     case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "problems":          return <ProblemsPanel />;
     case "gitPanel":          return <GitPanel />;
-    case "logPanel":          return <LogPanel />;
     case "portPanel":         return <PortPanel />;
     case "portManager":       return <PortManager />;
     default:                  return null;

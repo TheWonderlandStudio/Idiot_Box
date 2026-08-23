@@ -1342,7 +1342,7 @@
           return dispatcher;
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var React24 = require_react(), Internals = {
+        var React23 = require_react(), Internals = {
           d: {
             f: noop2,
             r: function() {
@@ -1360,7 +1360,7 @@
           },
           p: 0,
           findDOMNode: null
-        }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React24.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+        }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React23.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
         "function" === typeof Map && null != Map.prototype && "function" === typeof Map.prototype.forEach && "function" === typeof Set && null != Set.prototype && "function" === typeof Set.prototype.clear && "function" === typeof Set.prototype.forEach || console.error(
           "React depends on Map and Set built-in types. Make sure that you load a polyfill in older browsers. https://reactjs.org/link/react-polyfills"
         );
@@ -2895,7 +2895,7 @@
           "number" === type && getActiveElement2(node.ownerDocument) === node || node.defaultValue === "" + value || (node.defaultValue = "" + value);
         }
         function validateOptionProps(element, props) {
-          null == props.value && ("object" === typeof props.children && null !== props.children ? React24.Children.forEach(props.children, function(child) {
+          null == props.value && ("object" === typeof props.children && null !== props.children ? React23.Children.forEach(props.children, function(child) {
             null == child || "string" === typeof child || "number" === typeof child || "bigint" === typeof child || didWarnInvalidChild || (didWarnInvalidChild = true, console.error(
               "Cannot infer the option value of complex children. Pass a `value` prop or use a plain string as children to <option>."
             ));
@@ -18527,14 +18527,14 @@
           ));
         }
         "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-        var Scheduler = require_scheduler(), React24 = require_react(), ReactDOM4 = require_react_dom(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+        var Scheduler = require_scheduler(), React23 = require_react(), ReactDOM4 = require_react_dom(), assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
         Symbol.for("react.scope");
         var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
         Symbol.for("react.legacy_hidden");
         Symbol.for("react.tracing_marker");
         var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
         Symbol.for("react.view_transition");
-        var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React24.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM4.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, NotPending = Object.freeze({
+        var MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, ReactSharedInternals = React23.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM4.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, NotPending = Object.freeze({
           pending: false,
           data: null,
           method: null,
@@ -21322,7 +21322,7 @@
           }
         };
         (function() {
-          var isomorphicReactPackageVersion = React24.version;
+          var isomorphicReactPackageVersion = React23.version;
           if ("19.2.8" !== isomorphicReactPackageVersion)
             throw Error(
               'Incompatible React versions: The "react" and "react-dom" packages must have the exact same version. Instead got:\n  - react:      ' + (isomorphicReactPackageVersion + "\n  - react-dom:  19.2.8\nLearn more: https://react.dev/warnings/version-mismatch")
@@ -21676,18 +21676,18 @@
         function isValidElement(object) {
           return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
         }
-        var React24 = require_react(), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React24.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty5 = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
+        var React23 = require_react(), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React23.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty5 = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
           return null;
         };
-        React24 = {
+        React23 = {
           react_stack_bottom_frame: function(callStackForError) {
             return callStackForError();
           }
         };
         var specialPropKeyWarningShown;
         var didWarnAboutElementRef = {};
-        var unknownOwnerDebugStack = React24.react_stack_bottom_frame.bind(
-          React24,
+        var unknownOwnerDebugStack = React23.react_stack_bottom_frame.bind(
+          React23,
           UnknownOwner
         )();
         var unknownOwnerDebugTask = createTask(getTaskName(UnknownOwner));
@@ -108380,7 +108380,7 @@ ${val.stack}`;
   });
 
   // electron/renderer/index.jsx
-  var import_react24 = __toESM(require_react());
+  var import_react23 = __toESM(require_react());
   var import_client4 = __toESM(require_client());
 
   // node_modules/flexlayout-react/dist/index.js
@@ -503776,11 +503776,7 @@ ${h3.join(`
     (0, import_react13.useEffect)(() => {
       const handler = (e) => {
         const dir = e.detail?.dir;
-        if (!dir) {
-          console.warn("[Terminal] open-terminal received no dir", e.detail);
-          return;
-        }
-        console.log("[Terminal] open-terminal", dir, "tabId", tabId);
+        if (!dir) return;
         setCwd(dir);
         const ensureTerminal = () => {
           if (termRef.current) {
@@ -503795,14 +503791,11 @@ ${h3.join(`
                 window.dispatchEvent(new CustomEvent("focus-terminal-tab"));
               } catch {
               }
-            } catch (err) {
-              console.error("[Terminal] writeToTerminal failed", err);
+            } catch {
             }
           } else if (initTerminalRef.current) {
-            console.log("[Terminal] init via open-terminal", dir);
             initTerminalRef.current(dir);
           } else {
-            console.log("[Terminal] no existing terminal, creating new panel for", dir);
             window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { nodeId, location: "BOTTOM" } }));
             setTimeout(() => {
               if (initTerminalRef.current) initTerminalRef.current(dir);
@@ -503951,14 +503944,6 @@ ${h3.join(`
       component: "portManager",
       description: "Scan and open localhost development ports",
       icon: /* @__PURE__ */ import_react14.default.createElement("svg", { width: "24", height: "24", viewBox: "0 0 16 16", fill: "none" }, /* @__PURE__ */ import_react14.default.createElement("rect", { x: "2", y: "4", width: "12", height: "8", rx: "1.5", stroke: "#569cd6", strokeWidth: "1.2", fill: "none" }), /* @__PURE__ */ import_react14.default.createElement("path", { d: "M6 8H10M8 6V10", stroke: "#569cd6", strokeWidth: "1.2", strokeLinecap: "round" })),
-      config: {}
-    },
-    {
-      id: "log",
-      name: "Log",
-      component: "logPanel",
-      description: "Application logs and output console",
-      icon: /* @__PURE__ */ import_react14.default.createElement("svg", { width: "24", height: "24", viewBox: "0 0 16 16", fill: "none" }, /* @__PURE__ */ import_react14.default.createElement("rect", { x: "3", y: "3", width: "10", height: "10", rx: "1", stroke: "#dcdcaa", strokeWidth: "1.2", fill: "none" }), /* @__PURE__ */ import_react14.default.createElement("path", { d: "M6 6H10M6 8H10M6 10H8", stroke: "#dcdcaa", strokeWidth: "1", strokeLinecap: "round" })),
       config: {}
     },
     {
@@ -507010,100 +506995,6 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
   // electron/renderer/components/Port/index.jsx
   var Port_default = PortManager_default;
 
-  // electron/renderer/components/Log/index.jsx
-  var import_react23 = __toESM(require_react());
-  var LogPanel = () => {
-    const [logs, setLogs] = (0, import_react23.useState)([]);
-    const [input, setInput] = (0, import_react23.useState)("");
-    const inputRef = (0, import_react23.useRef)(null);
-    (0, import_react23.useEffect)(() => {
-      const sampleLogs = [
-        "\u{1F4E6} App started",
-        "\u{1F310} Loading extensions...",
-        "\u2705 Extensions loaded",
-        "\u{1F4C1} Project panel ready",
-        "\u2328\uFE0F Terminal panel ready"
-      ];
-      setLogs(sampleLogs);
-    }, []);
-    const addLog = (message) => {
-      setLogs((prev) => {
-        const newLogs = [...prev, message];
-        return newLogs.length > 50 ? newLogs.slice(-50) : newLogs;
-      });
-    };
-    const handleSend = () => {
-      if (!input.trim()) return;
-      const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-      addLog(`[${timestamp}] ${input}`);
-      setInput("");
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
-    };
-    (0, import_react23.useEffect)(() => {
-      const handleKey = (e) => {
-        if (e.key === "Escape") {
-          setLogs([]);
-        }
-      };
-      document.addEventListener("keydown", handleKey);
-      return () => document.removeEventListener("keydown", handleKey);
-    }, []);
-    return /* @__PURE__ */ import_react23.default.createElement("div", { style: {
-      padding: 12,
-      background: "#1e1e1e",
-      color: "#cccccc",
-      fontFamily: "monospace",
-      fontSize: 12,
-      overflow: "auto",
-      height: "100%"
-    } }, /* @__PURE__ */ import_react23.default.createElement("div", { style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-      paddingBottom: 4,
-      borderBottom: "1px solid #3a3a3a"
-    } }, /* @__PURE__ */ import_react23.default.createElement("span", null, "Log Panel"), /* @__PURE__ */ import_react23.default.createElement(
-      "button",
-      {
-        onClick: () => setLogs([]),
-        style: { background: "none", border: "none", color: "#666", fontSize: 11, cursor: "pointer" },
-        title: "Clear logs"
-      },
-      "\u2715"
-    )), /* @__PURE__ */ import_react23.default.createElement("div", { style: { height: "calc(100% - 40px)", overflowY: "auto", marginBottom: 8 } }, logs.map((log3, i2) => /* @__PURE__ */ import_react23.default.createElement("div", { key: i2, style: { margin: "4px 0", whiteSpace: "pre-wrap" } }, log3))), /* @__PURE__ */ import_react23.default.createElement("div", { style: {
-      display: "flex",
-      gap: 8,
-      padding: "4px 0",
-      borderTop: "1px solid #3a3a3a"
-    } }, /* @__PURE__ */ import_react23.default.createElement(
-      "input",
-      {
-        ref: inputRef,
-        value: input,
-        onChange: (e) => setInput(e.target.value),
-        onKeyDown: (e) => {
-          if (e.key === "Enter") {
-            handleSend();
-          }
-        },
-        placeholder: "Type a command or press ESC to clear",
-        style: {
-          flex: 1,
-          background: "#252525",
-          border: "none",
-          padding: "6px 8px",
-          color: "#cccccc",
-          fontSize: 12,
-          outline: "none"
-        }
-      }
-    ), /* @__PURE__ */ import_react23.default.createElement("button", { onClick: handleSend, style: { background: "none", border: "none", color: "#0645ad", fontSize: 11, cursor: "pointer" } }, "Go")));
-  };
-  var Log_default = LogPanel;
-
   // electron/renderer/index.jsx
   var DEFAULT_JSON = {
     global: {
@@ -507138,8 +507029,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
               weight: 35,
               children: [
                 { type: "tab", name: "Project", component: "projectPanel" },
-                { type: "tab", name: "Terminal", component: "terminal", id: "terminal-tab" },
-                { type: "tab", name: "Log", component: "logPanel" }
+                { type: "tab", name: "Terminal", component: "terminal", id: "terminal-tab" }
               ]
             }
           ]
@@ -507165,31 +507055,29 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
   var factory = (node) => {
     switch (node.getComponent()) {
       case "mediaViewer":
-        return /* @__PURE__ */ import_react24.default.createElement(MediaViewer_default, null);
+        return /* @__PURE__ */ import_react23.default.createElement(MediaViewer_default, null);
       case "panel3":
-        return /* @__PURE__ */ import_react24.default.createElement(Browser_default, { config: node.getConfig(), nodeId: node.getId() });
+        return /* @__PURE__ */ import_react23.default.createElement(Browser_default, { config: node.getConfig(), nodeId: node.getId() });
       case "projectPanel":
-        return /* @__PURE__ */ import_react24.default.createElement(Project_default, null);
+        return /* @__PURE__ */ import_react23.default.createElement(Project_default, null);
       case "editor":
-        return /* @__PURE__ */ import_react24.default.createElement(Editor_default, { config: node.getConfig(), nodeId: node.getId() });
+        return /* @__PURE__ */ import_react23.default.createElement(Editor_default, { config: node.getConfig(), nodeId: node.getId() });
       case "terminal":
-        return /* @__PURE__ */ import_react24.default.createElement(Terminal_default, { config: node.getConfig(), nodeId: node.getId() });
+        return /* @__PURE__ */ import_react23.default.createElement(Terminal_default, { config: node.getConfig(), nodeId: node.getId() });
       case "blank":
-        return /* @__PURE__ */ import_react24.default.createElement(Blank_default, { config: node.getConfig(), nodeId: node.getId() });
+        return /* @__PURE__ */ import_react23.default.createElement(Blank_default, { config: node.getConfig(), nodeId: node.getId() });
       case "componentPreview":
-        return /* @__PURE__ */ import_react24.default.createElement(ComponentPreview_default, { config: node.getConfig(), nodeId: node.getId() });
+        return /* @__PURE__ */ import_react23.default.createElement(ComponentPreview_default, { config: node.getConfig(), nodeId: node.getId() });
       case "canvas":
-        return /* @__PURE__ */ import_react24.default.createElement(Canvas_default, { config: node.getConfig(), nodeId: node.getId() });
+        return /* @__PURE__ */ import_react23.default.createElement(Canvas_default, { config: node.getConfig(), nodeId: node.getId() });
       case "problems":
-        return /* @__PURE__ */ import_react24.default.createElement(Problems_default, null);
+        return /* @__PURE__ */ import_react23.default.createElement(Problems_default, null);
       case "gitPanel":
-        return /* @__PURE__ */ import_react24.default.createElement(GitPanel_default, null);
-      case "logPanel":
-        return /* @__PURE__ */ import_react24.default.createElement(Log_default, null);
+        return /* @__PURE__ */ import_react23.default.createElement(GitPanel_default, null);
       case "portPanel":
-        return /* @__PURE__ */ import_react24.default.createElement(Port_default, null);
+        return /* @__PURE__ */ import_react23.default.createElement(Port_default, null);
       case "portManager":
-        return /* @__PURE__ */ import_react24.default.createElement(PortManager_default, null);
+        return /* @__PURE__ */ import_react23.default.createElement(PortManager_default, null);
       default:
         return null;
     }
@@ -507241,13 +507129,13 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
     }
   };
   var App = () => {
-    const modelRef = (0, import_react24.useRef)(null);
-    const readyRef = (0, import_react24.useRef)(false);
-    const currentProjectRef = (0, import_react24.useRef)(null);
-    const saveTabsTimer = (0, import_react24.useRef)(null);
-    const lastBrowserTabsetRef = (0, import_react24.useRef)(null);
-    const [, setTick] = (0, import_react24.useState)(0);
-    const getBiggestTabsetId = (0, import_react24.useCallback)((m) => {
+    const modelRef = (0, import_react23.useRef)(null);
+    const readyRef = (0, import_react23.useRef)(false);
+    const currentProjectRef = (0, import_react23.useRef)(null);
+    const saveTabsTimer = (0, import_react23.useRef)(null);
+    const lastBrowserTabsetRef = (0, import_react23.useRef)(null);
+    const [, setTick] = (0, import_react23.useState)(0);
+    const getBiggestTabsetId = (0, import_react23.useCallback)((m) => {
       let biggest = null;
       let maxArea = -1;
       let maxTabs = -1;
@@ -507279,7 +507167,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       }
       return biggest;
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       window.__flexModel = modelRef;
       window.__getLayoutJSON = () => modelRef.current ? modelRef.current.toJson() : null;
       return () => {
@@ -507337,7 +507225,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       }
       setTick((t) => t + 1);
     };
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       window.electronAPI.loadSession().then((session) => {
         const json = session && session.layout ? JSON.parse(JSON.stringify(session.layout)) : DEFAULT_JSON;
         if (session && session.layout) {
@@ -507356,7 +507244,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         setTick((t) => t + 1);
       });
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handleOpen = async (folderPath) => {
         doSaveProjectTabs();
         currentProjectRef.current = folderPath;
@@ -507383,7 +507271,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         u4();
       };
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const unsub = window.electronAPI.onChromeCreateTab((url) => {
         const m = modelRef.current;
         if (!m) return;
@@ -507433,7 +507321,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       });
       return unsub;
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handlers = [
         window.electronAPI.onMenuEvent("menu:undo", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "undo" } }))),
         window.electronAPI.onMenuEvent("menu:redo", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "redo" } }))),
@@ -507459,14 +507347,14 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       ];
       return () => handlers.forEach((u) => u());
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handler = () => {
         if (modelRef.current) modelRef.current.doAction(Actions.selectTab("terminal-tab"));
       };
       window.addEventListener("focus-terminal-tab", handler);
       return () => window.removeEventListener("focus-terminal-tab", handler);
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handler = (e) => {
         const url = e.detail?.url;
         if (!url) return;
@@ -507475,7 +507363,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       window.addEventListener("open-in-browser", handler);
       return () => window.removeEventListener("open-in-browser", handler);
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handler = (e) => {
         const m = modelRef.current;
         if (!m) return;
@@ -507511,7 +507399,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       window.addEventListener("add-terminal-panel", handler);
       return () => window.removeEventListener("add-terminal-panel", handler);
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const addPanel = (component, name, config) => {
         const m = modelRef.current;
         if (!m) return;
@@ -507559,7 +507447,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         window.removeEventListener("add-canvas-panel", onCanvas);
       };
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const onFs = () => {
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {
         });
@@ -507569,7 +507457,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       window.addEventListener("app:fullscreen", onFs);
       return () => window.removeEventListener("app:fullscreen", onFs);
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handler = (e) => {
         const m = modelRef.current;
         const nodeId = e.detail?.nodeId;
@@ -507583,14 +507471,14 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       window.addEventListener("close-flex-tab", handler);
       return () => window.removeEventListener("close-flex-tab", handler);
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const unsub = window.electronAPI.onMenuEvent("menu:resetLayout", () => {
         modelRef.current = Model.fromJson(DEFAULT_JSON);
         setTick((t) => t + 1);
       });
       return unsub;
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handler = () => {
         try {
           window.electronAPI.openSettingsWindow?.();
@@ -507600,7 +507488,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       window.addEventListener("browser:openSettings", handler);
       return () => window.removeEventListener("browser:openSettings", handler);
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const clickHandler = (e) => {
         const a = e.target.closest?.("a[href]");
         if (!a) return;
@@ -507676,7 +507564,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         window.open = origOpen;
       };
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const handler = (e) => {
         if ((e.ctrlKey || e.metaKey) && String(e.key || "").toLowerCase() === "w" && !e.shiftKey && !e.altKey) {
           e.preventDefault();
@@ -507701,7 +507589,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         document.removeEventListener("keydown", handler, true);
       };
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm"];
       const findActiveEditorTab = (m) => {
         try {
@@ -507807,7 +507695,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         window.removeEventListener("open-file-in-new-editor-tab", onNewTab);
       };
     }, []);
-    (0, import_react24.useEffect)(() => {
+    (0, import_react23.useEffect)(() => {
       const activeEditorPath2 = () => {
         const m = modelRef.current;
         if (!m) return null;
@@ -507834,7 +507722,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       return () => unsubs.forEach((u) => u());
     }, []);
     if (!readyRef.current) return null;
-    return /* @__PURE__ */ import_react24.default.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#0d0d0d" } }, /* @__PURE__ */ import_react24.default.createElement("div", { style: { flex: 1, minHeight: 0 } }, /* @__PURE__ */ import_react24.default.createElement(
+    return /* @__PURE__ */ import_react23.default.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#0d0d0d" } }, /* @__PURE__ */ import_react23.default.createElement("div", { style: { flex: 1, minHeight: 0 } }, /* @__PURE__ */ import_react23.default.createElement(
       Layout,
       {
         model: modelRef.current,
@@ -507884,7 +507772,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
             const title = cfg?.title || "Browser";
             const favicon = cfg?.favicon;
             const nId = node.getId();
-            renderValues.content = /* @__PURE__ */ import_react24.default.createElement(
+            renderValues.content = /* @__PURE__ */ import_react23.default.createElement(
               "div",
               {
                 style: { display: "flex", alignItems: "center", gap: 4, overflow: "hidden" },
@@ -507894,7 +507782,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
                   window.dispatchEvent(new CustomEvent("browser:tabContextMenu", { detail: { nodeId: nId } }));
                 }
               },
-              favicon ? /* @__PURE__ */ import_react24.default.createElement(
+              favicon ? /* @__PURE__ */ import_react23.default.createElement(
                 "img",
                 {
                   src: favicon,
@@ -507905,14 +507793,14 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
                     e.target.style.display = "none";
                   }
                 }
-              ) : /* @__PURE__ */ import_react24.default.createElement("svg", { width: 14, height: 14, viewBox: "0 0 16 16", fill: "#888", style: { flexShrink: 0 } }, /* @__PURE__ */ import_react24.default.createElement("circle", { cx: "8", cy: "8", r: "7" })),
-              /* @__PURE__ */ import_react24.default.createElement("span", { title, style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 } }, title.slice(0, 10))
+              ) : /* @__PURE__ */ import_react23.default.createElement("svg", { width: 14, height: 14, viewBox: "0 0 16 16", fill: "#888", style: { flexShrink: 0 } }, /* @__PURE__ */ import_react23.default.createElement("circle", { cx: "8", cy: "8", r: "7" })),
+              /* @__PURE__ */ import_react23.default.createElement("span", { title, style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 } }, title.slice(0, 10))
             );
           }
         },
         onRenderTabSet: (node, renderValues) => {
           renderValues.buttons.push(
-            /* @__PURE__ */ import_react24.default.createElement(
+            /* @__PURE__ */ import_react23.default.createElement(
               "button",
               {
                 key: "add",
@@ -507930,12 +507818,12 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
                 },
                 title: "Add Panel"
               },
-              /* @__PURE__ */ import_react24.default.createElement("svg", { width: "12", height: "12", viewBox: "0 0 16 16", fill: "#fff" }, /* @__PURE__ */ import_react24.default.createElement("rect", { x: "7", y: "1", width: "2", height: "14", rx: "1" }), /* @__PURE__ */ import_react24.default.createElement("rect", { x: "1", y: "7", width: "14", height: "2", rx: "1" }))
+              /* @__PURE__ */ import_react23.default.createElement("svg", { width: "12", height: "12", viewBox: "0 0 16 16", fill: "#fff" }, /* @__PURE__ */ import_react23.default.createElement("rect", { x: "7", y: "1", width: "2", height: "14", rx: "1" }), /* @__PURE__ */ import_react23.default.createElement("rect", { x: "1", y: "7", width: "14", height: "2", rx: "1" }))
             )
           );
         }
       }
-    )), /* @__PURE__ */ import_react24.default.createElement(
+    )), /* @__PURE__ */ import_react23.default.createElement(
       "div",
       {
         style: {
@@ -507953,8 +507841,8 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
           whiteSpace: "nowrap"
         }
       },
-      /* @__PURE__ */ import_react24.default.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, overflow: "hidden" } }, /* @__PURE__ */ import_react24.default.createElement("span", { style: { opacity: 0.9 } }, "Idiot Box"), /* @__PURE__ */ import_react24.default.createElement("span", { id: "pw-hostbar-left", style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0, overflow: "hidden" } })),
-      /* @__PURE__ */ import_react24.default.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14 } }, /* @__PURE__ */ import_react24.default.createElement("div", { id: "pw-hostbar-right", style: { display: "flex", alignItems: "center", gap: 10 } }), /* @__PURE__ */ import_react24.default.createElement(
+      /* @__PURE__ */ import_react23.default.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, overflow: "hidden" } }, /* @__PURE__ */ import_react23.default.createElement("span", { style: { opacity: 0.9 } }, "Idiot Box"), /* @__PURE__ */ import_react23.default.createElement("span", { id: "pw-hostbar-left", style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0, overflow: "hidden" } })),
+      /* @__PURE__ */ import_react23.default.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14 } }, /* @__PURE__ */ import_react23.default.createElement("div", { id: "pw-hostbar-right", style: { display: "flex", alignItems: "center", gap: 10 } }), /* @__PURE__ */ import_react23.default.createElement(
         "button",
         {
           onClick: () => window.dispatchEvent(new CustomEvent("add-canvas-panel")),
@@ -507970,7 +507858,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
           }
         },
         "Canvas"
-      ), /* @__PURE__ */ import_react24.default.createElement(
+      ), /* @__PURE__ */ import_react23.default.createElement(
         "button",
         {
           onClick: () => window.dispatchEvent(new CustomEvent("command-palette:open")),
@@ -507987,9 +507875,9 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         },
         "Palette"
       ))
-    ), /* @__PURE__ */ import_react24.default.createElement(CommandPalette_default, null), /* @__PURE__ */ import_react24.default.createElement(QuickOpen_default, null), /* @__PURE__ */ import_react24.default.createElement(SearchPanel_default, null));
+    ), /* @__PURE__ */ import_react23.default.createElement(CommandPalette_default, null), /* @__PURE__ */ import_react23.default.createElement(QuickOpen_default, null), /* @__PURE__ */ import_react23.default.createElement(SearchPanel_default, null));
   };
-  import_client4.default.createRoot(document.getElementById("root")).render(/* @__PURE__ */ import_react24.default.createElement(App, null));
+  import_client4.default.createRoot(document.getElementById("root")).render(/* @__PURE__ */ import_react23.default.createElement(App, null));
 })();
 /*! Bundled license information:
 

@@ -111,19 +111,6 @@ const PANEL_TYPES = [
     config: {},
   },
   {
-    id: "log",
-    name: "Log",
-    component: "logPanel",
-    description: "Application logs and output console",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-        <rect x="3" y="3" width="10" height="10" rx="1" stroke="#dcdcaa" strokeWidth="1.2" fill="none" />
-        <path d="M6 6H10M6 8H10M6 10H8" stroke="#dcdcaa" strokeWidth="1" strokeLinecap="round" />
-      </svg>
-    ),
-    config: {},
-  },
-  {
     id: "problems",
     name: "Problems",
     component: "problems",
