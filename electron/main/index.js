@@ -4,10 +4,25 @@ const path    = require("path");
 const fs      = require("fs");
 const { pathToFileURL } = require("url");
 const { spawn } = require("child_process");
-const chokidar = require("chokidar");
-const pty     = require("node-pty");
-const esbuild = require("esbuild");
-const { ElectronChromeExtensions } = require("electron-chrome-extensions");
+let chokidar = null;
+try { chokidar = require("chokidar"); } catch (e) { console.warn("[main] chokidar not available:", e.message); }
+let pty = null;
+try { pty = require("node-pty"); } catch (e) { console.warn("[main] node-pty not available:", e.message); }
+let esbuild = null;
+try { esbuild = require("esbuild"); } catch (e) { console.warn("[main] esbuild not available:", e.message); }
+let ElectronChromeExtensions = null;
+try { ({ ElectronChromeExtensions } = require("electron-chrome-extensions")); } catch (e) { console.warn("[main] electron-chrome-extensions not available:", e.message); }
+
+// ─── Global error handlers — prevent crash on missing optional deps ──────────
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+  try {
+    dialog.showErrorBox("Idiot Box — Error", String(err?.message || err));
+  } catch {}
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
 
 // ─── Custom scheme: extension-host file access ───────────────────────────────
 // The web-worker extension host runs in a sandboxed worker that cannot
@@ -43,6 +58,9 @@ const queuedBundle = (fn) => new Promise((resolve, reject) => {
 });
 
 ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } = {}) => {
+  if (!esbuild) {
+    return { ok: false, error: "esbuild not available - run `npm install` or reinstall the app" };
+  }
   if (typeof source !== "string" || !source.trim()) {
     return { ok: false, error: "Empty source" };
   }
@@ -825,6 +843,10 @@ function makeDebouncer(delay = 150) {
 }
 
 ipcMain.handle("fs:watch", (event, rootPath) => {
+  if (!chokidar) {
+    console.warn("[fs:watch] chokidar not available, skipping watcher for", rootPath);
+    return;
+  }
   const wcId = event.sender.id;
   const key  = watcherKey(rootPath, wcId);
   if (watchers.has(key)) return;
@@ -1130,6 +1152,11 @@ function termKey(sender, tabId) { return `${sender.id}:${tabId}`; }
 ipcMain.handle("terminal:getProjectPath", () => lastProjectPath);
 
 ipcMain.handle("terminal:open", async (event, { tabId, cwd, forceRestart }) => {
+  if (!pty) {
+    console.error("[terminal:open] node-pty not available, cannot spawn terminal");
+    try { event.sender.send("terminal:data", { tabId, data: "\r\n\x1b[31mnode-pty not available - run `npm install` and rebuild\x1b[0m\r\n" }); } catch {}
+    return false;
+  }
   const key = termKey(event.sender, tabId);
 
   if (termProcesses.has(key)) {
@@ -1986,7 +2013,10 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  ElectronChromeExtensions.handleCRXProtocol(session.defaultSession);
+  if (ElectronChromeExtensions) {
+    try { ElectronChromeExtensions.handleCRXProtocol(session.defaultSession); } catch (e) { console.warn("[electron-chrome-extensions] handleCRXProtocol failed:", e.message); }
+  }
+  if (ElectronChromeExtensions) {
   chromeExt = new ElectronChromeExtensions({
     license: "GPL-3.0",
     session: session.defaultSession,
@@ -2064,6 +2094,7 @@ app.whenReady().then(async () => {
     // Safety net: show anyway after 1s
     setTimeout(showSettled, 1000);
   });
+  } // end if (ElectronChromeExtensions)
 
   loadChromeExtensions();
   const PP_FILE_MIME = {

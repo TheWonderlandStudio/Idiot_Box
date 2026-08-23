@@ -50,6 +50,7 @@
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^5.0.0",
     "electron-chrome-extensions": "^4.9.0",
+    "esbuild": "^0.25.6",
     "flexlayout-react": "^0.8.19",
     "monaco-editor": "^0.56.0",
     "node-pty": "^1.1.0",
@@ -59,8 +60,7 @@
   },
   "devDependencies": {
     "electron": "^43.2.0",
-    "electron-builder": "^24.9.1",
-    "esbuild": "^0.25.6"
+    "electron-builder": "^24.9.1"
   },
   "build": {
     "appId": "com.thewonderlandstudio.idiotbox",
@@ -88,7 +88,8 @@
     ],
     "asar": true,
     "asarUnpack": [
-      "**/node-pty/**"
+      "**/node-pty/**",
+      "**/esbuild/**"
     ],
     "win": {
       "target": [
