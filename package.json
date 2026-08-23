@@ -2,6 +2,8 @@
   "name": "idiot-box",
   "version": "0.1.0",
   "private": true,
+  "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
+  "author": "TheWonderlandStudio <https://github.com/TheWonderlandStudio>",
   "main": "electron/main/index.js",
   "scripts": {
     "build:workers": "node build/copy-ext-host-assets.cjs && esbuild electron/renderer/workers/editor.worker.entry.js --bundle --outfile=electron/renderer/editor.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/textmate.worker.entry.js --bundle --outfile=electron/renderer/textmate.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/ts.worker.entry.js --bundle --outfile=electron/renderer/ts.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/html.worker.entry.js --bundle --outfile=electron/renderer/html.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/css.worker.entry.js --bundle --outfile=electron/renderer/css.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/json.worker.entry.js --bundle --outfile=electron/renderer/json.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/ext-host.worker.entry.js --bundle --outfile=electron/renderer/extensionHost.worker.js --platform=browser --format=esm",
@@ -9,7 +11,12 @@
     "build:renderer": "node build/build-renderer.cjs",
     "build:settings": "esbuild electron/renderer/settings-entry.jsx --bundle --outfile=electron/renderer/settings-bundle.js --platform=browser --loader:.css=css --loader:.jsx=jsx",
     "build": "npm run build:workers && npm run build:preload && npm run build:renderer && npm run build:settings",
-    "start": "npm run build && electron ."
+    "start": "npm run build && electron .",
+    "pack": "electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:win:dir": "npm run build && electron-builder --win nsis --dir",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@codingame/monaco-vscode-api": "^36.0.0",
@@ -52,6 +59,57 @@
   },
   "devDependencies": {
     "electron": "^43.2.0",
+    "electron-builder": "^24.9.1",
     "esbuild": "^0.25.6"
+  },
+  "build": {
+    "appId": "com.thewonderlandstudio.idiotbox",
+    "productName": "Idiot Box",
+    "copyright": "© 2026 Idiot Box",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/.cache/**/*",
+      "!**/*.map",
+      "!**/*.ts",
+      "!electron/renderer/**/*.jsx"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/renderer/assets/",
+        "to": "assets",
+        "filter": ["**/*"]
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node-pty/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "electron/renderer/assets/idot_box.png",
+      "publisherName": "TheWonderlandStudio"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Idiot Box",
+      "artifactName": "Idiot-Box-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": null
   }
 }

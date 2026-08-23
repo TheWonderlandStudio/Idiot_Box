@@ -1,5 +1,19 @@
 node_modules
 out/
+dist/
 .canvas/
 electron/renderer/worker/extensionHost.worker.js
+# electron-builder cache & artifacts
+dist
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.snap
+*.deb
+*.rpm
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
