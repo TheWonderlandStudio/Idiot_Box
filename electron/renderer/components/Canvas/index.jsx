@@ -418,9 +418,21 @@ const CardPreview = React.memo(function CardPreview({ file, rel, liveSourcesRef,
     if (!/export\s+default|function|const|class/i.test(source) && /^\s*</.test(source.trim())) {
       codeToTranspile = `export default function PreviewSnippet() { return (\n${source}\n); }`;
     }
-    const res = await transpilePooled(() =>
-      window.electronAPI.bundleComponent(codeToTranspile, file.absPath, window.__currentProjectPath)
-    );
+    if (!window.electronAPI?.bundleComponent) {
+      setStatus("error");
+      setError("Preview bundler not available — restart the app after `npm install`");
+      return;
+    }
+    let res;
+    try {
+      res = await transpilePooled(() =>
+        window.electronAPI.bundleComponent(codeToTranspile, file.absPath, window.__currentProjectPath)
+      );
+    } catch (e) {
+      setStatus("error");
+      setError(e?.message || String(e) || "Bundling failed");
+      return;
+    }
     if (!res?.ok) {
       setStatus("error");
       setError(res?.error || "Bundling failed");
@@ -753,7 +765,14 @@ const CanvasPanel = ({ nodeId, config }) => {
     return m;
   }, [scan]);
 
-  const layout = useMemo(() => computeLayout(flatGroups, manual, naturalSizes), [flatGroups, manual, naturalSizes]);
+  const layout = useMemo(() => {
+    try {
+      return computeLayout(flatGroups, manual, naturalSizes);
+    } catch (e) {
+      console.error("[Canvas] layout error:", e);
+      return { cards: new Map(), groups: new Map(), parent: new Map(), total: { w: 800, h: 600 } };
+    }
+  }, [flatGroups, manual, naturalSizes]);
 
   // Manual drags never run the auto-layout engine: while a pointer is down we
   // overlay a transient position/size on top of the computed layout, and only

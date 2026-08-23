@@ -559,7 +559,21 @@ const ComponentPreview = ({ nodeId, config }) => {
       codeToTranspile = `export default function PreviewSnippet() { return (\n${source}\n); }`;
     }
 
-    const res = await window.electronAPI.bundleComponent(codeToTranspile, path, window.__currentProjectPath);
+    if (!window.electronAPI?.bundleComponent) {
+      setTranspileError("Preview bundler not available — restart the app after `npm install`");
+      setPreviewCode(null);
+      setComponentToRender(null);
+      return;
+    }
+    let res;
+    try {
+      res = await window.electronAPI.bundleComponent(codeToTranspile, path, window.__currentProjectPath);
+    } catch (e) {
+      setTranspileError(e?.message || String(e) || "Bundling failed");
+      setPreviewCode(null);
+      setComponentToRender(null);
+      return;
+    }
     if (!res?.ok) {
       setTranspileError(res?.error || "Bundling failed");
       setPreviewCode(null);

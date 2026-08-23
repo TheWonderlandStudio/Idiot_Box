@@ -68,9 +68,8 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
     return { ok: false, error: "Missing file path" };
   }
   return queuedBundle(async () => {
-    try {
-      const srcDir = path.join(projectRoot || path.dirname(filePath), "src");
-      const result = await esbuild.build({
+    const tryBuild = async (useAlias) => {
+      const opts = {
         stdin: {
           contents: source,
           resolveDir: path.dirname(filePath),
@@ -83,22 +82,54 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
         target: "es2020",
         jsx: "automatic",
         loader: {
+          ".js": "jsx",
+          ".jsx": "jsx",
+          ".ts": "tsx",
+          ".tsx": "tsx",
           ".css": "empty", ".scss": "empty", ".less": "empty", ".pcss": "empty",
           ".png": "dataurl", ".jpg": "dataurl", ".jpeg": "dataurl", ".gif": "dataurl", ".webp": "dataurl", ".svg": "dataurl",
         },
         external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
-        alias: { "@": srcDir },
         absWorkingDir: projectRoot || path.dirname(filePath),
         write: false,
         logLevel: "silent",
         define: { "process.env.NODE_ENV": '"development"' },
-      });
+      };
+      if (useAlias) {
+        try {
+          const srcDir = path.join(projectRoot || path.dirname(filePath), "src");
+          if (fs.existsSync(srcDir) && fs.statSync(srcDir).isDirectory()) {
+            opts.alias = { "@": srcDir };
+          }
+        } catch {}
+      }
+      return esbuild.build(opts);
+    };
+    try {
+      let result;
+      try {
+        result = await tryBuild(true);
+      } catch (aliasErr) {
+        // retry without alias - alias often fails if src not found
+        const msg = aliasErr?.errors?.[0]?.text || aliasErr?.message || "";
+        if (msg.includes("@") || msg.includes("src")) {
+          result = await tryBuild(false);
+        } else {
+          throw aliasErr;
+        }
+      }
+      if (!result.outputFiles?.[0]) throw new Error("Empty bundle output");
       return { ok: true, code: result.outputFiles[0].text };
     } catch (err) {
       const e = err?.errors?.[0];
       const loc = e?.location;
       const where = loc ? ` (${path.basename(loc.file || filePath)}:${loc.line}:${loc.column})` : "";
-      return { ok: false, error: `${e?.text || err?.message || String(err)}${where}` };
+      const detail = e?.text || err?.message || String(err);
+      // Provide more helpful hint for common failures
+      let hint = "";
+      if (detail.includes("Could not resolve")) hint = "\nHint: check import path / missing node_modules. Run `npm install` in project.";
+      if (detail.includes("Unexpected")) hint = "\nHint: JSX syntax error — check component file.";
+      return { ok: false, error: `${detail}${where}${hint}` };
     }
   });
 });
