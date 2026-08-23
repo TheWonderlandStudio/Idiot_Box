@@ -595,8 +595,9 @@ const BrowserPanel = (props) => {
           ref={webviewRefCb}
           src={navUrl}
           preload={WEBVIEW_PRELOAD}
-          allowpopups
-          allowfullscreen
+          // webview is a custom Electron element - use string attrs to avoid React boolean warnings
+          allowpopups=""
+          allowFullScreen=""
         />
       </div>
     </div>

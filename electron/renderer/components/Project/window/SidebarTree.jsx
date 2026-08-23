@@ -67,7 +67,7 @@ const FolderNode = ({
   showHidden, showFolders, showFiles, showPreview,
   onFileClick, onFileDblClick, onFileCtxMenu,
   onExternalDrop,
-  getGitStatus,
+  getGitStatus = () => null,
 }) => {
   const isOpen     = expandedSet.has(entry.path);
   const isSelected = selectedPath === entry.path;

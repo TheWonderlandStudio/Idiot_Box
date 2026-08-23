@@ -1,3 +1,5 @@
 node_modules
 out/
 .canvas/
+electron/renderer/worker/extensionHost.worker.js
+

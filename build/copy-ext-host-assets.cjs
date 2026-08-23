@@ -145,3 +145,15 @@ s = s.replace(/'sha256-[A-Za-z0-9+/=]+'/, `'sha256-${hash}'`);
 
 fs.writeFileSync(out, s);
 console.log("Copied ext-host iframe:", out, "| CSP sha256-" + hash);
+
+// Also copy extensionHost.worker.js to worker/ for the iframe's ppooc URL (worker/extensionHost.worker.js)
+try {
+  const workerSrc = path.join(__dirname, "..", "electron", "renderer", "extensionHost.worker.js");
+  const workerDest = path.join(outDir, "extensionHost.worker.js");
+  if (fs.existsSync(workerSrc)) {
+    fs.copyFileSync(workerSrc, workerDest);
+    console.log("Copied extensionHost.worker.js to worker/", workerDest);
+  }
+} catch (e) {
+  console.warn("Failed to copy extensionHost.worker.js to worker/", e.message);
+}

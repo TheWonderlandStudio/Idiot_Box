@@ -116135,8 +116135,8 @@ ${val.stack}`;
           ref: webviewRefCb,
           src: navUrl,
           preload: WEBVIEW_PRELOAD,
-          allowpopups: true,
-          allowfullscreen: true
+          allowpopups: "",
+          allowFullScreen: ""
         }
       ))
     );
@@ -117418,7 +117418,7 @@ ${msg}`);
     onFileDblClick,
     onFileCtxMenu,
     onExternalDrop,
-    getGitStatus
+    getGitStatus = () => null
   }) => {
     const isOpen = expandedSet.has(entry.path);
     const isSelected = selectedPath === entry.path;
