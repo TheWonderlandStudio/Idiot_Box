@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
-  "author": "TheWonderlandStudio <https://github.com/TheWonderlandStudio>",
+  "author": {
+    "name": "TheWonderlandStudio",
+    "email": "support@thewonderlandstudio.com",
+    "url": "https://github.com/TheWonderlandStudio"
+  },
   "main": "electron/main/index.js",
   "scripts": {
     "build:workers": "node build/copy-ext-host-assets.cjs && esbuild electron/renderer/workers/editor.worker.entry.js --bundle --outfile=electron/renderer/editor.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/textmate.worker.entry.js --bundle --outfile=electron/renderer/textmate.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/ts.worker.entry.js --bundle --outfile=electron/renderer/ts.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/html.worker.entry.js --bundle --outfile=electron/renderer/html.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/css.worker.entry.js --bundle --outfile=electron/renderer/css.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/json.worker.entry.js --bundle --outfile=electron/renderer/json.worker.js --platform=browser --format=iife && esbuild electron/renderer/workers/ext-host.worker.entry.js --bundle --outfile=electron/renderer/extensionHost.worker.js --platform=browser --format=esm",
@@ -65,7 +69,8 @@
   "build": {
     "appId": "com.thewonderlandstudio.idiotbox",
     "productName": "Idiot Box",
-    "copyright": "© 2026 Idiot Box",
+    "copyright": "Copyright © 2026 TheWonderlandStudio",
+    "legalTrademarks": "TheWonderlandStudio",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -99,7 +104,9 @@
         }
       ],
       "icon": "electron/renderer/assets/idot_box.png",
-      "publisherName": "TheWonderlandStudio"
+      "publisherName": "TheWonderlandStudio",
+      "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
@@ -109,7 +116,10 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Idiot Box",
       "artifactName": "Idiot-Box-Setup-${version}.${ext}",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "displayLanguageSelector": false,
+      "installerHeaderIcon": "electron/renderer/assets/idot_box.png",
+      "uninstallDisplayName": "Idiot Box"
     },
     "publish": null
   }
