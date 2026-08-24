@@ -70,7 +70,6 @@
     "appId": "com.thewonderlandstudio.idiotbox",
     "productName": "Idiot Box",
     "copyright": "Copyright © 2026 TheWonderlandStudio",
-    "legalTrademarks": "TheWonderlandStudio",
     "directories": {
       "output": "dist",
       "buildResources": "build"
