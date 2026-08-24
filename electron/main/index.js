@@ -1869,13 +1869,24 @@ function createWindow() {
   try {
     const s = JSON.parse(fs.readFileSync(SESSION_FILE, "utf8"));
     if (s.window) {
-      winState = { width: s.window.width || 1280, height: s.window.height || 720, x: s.window.x, y: s.window.y };
-      wasMaximized = s.window.maximized || false;
+      const w = parseInt(s.window.width, 10);
+      const h = parseInt(s.window.height, 10);
+      const x = s.window.x != null ? parseInt(s.window.x, 10) : undefined;
+      const y = s.window.y != null ? parseInt(s.window.y, 10) : undefined;
+      winState = {
+        width: Number.isFinite(w) && w >= 800 ? Math.min(w, 3000) : 1280,
+        height: Number.isFinite(h) && h >= 600 ? Math.min(h, 2000) : 720,
+        ...(Number.isFinite(x) ? { x } : {}),
+        ...(Number.isFinite(y) ? { y } : {}),
+      };
+      wasMaximized = !!s.window.maximized;
     }
   } catch {}
 
   const win = new BrowserWindow({
     ...winState,
+    minWidth: 900,
+    minHeight: 600,
     backgroundColor: "#0d0d0d",
     icon: path.join(__dirname, "../renderer/assets/idot_box.png"),
     show: false,
@@ -1884,6 +1895,16 @@ function createWindow() {
       contextIsolation: true, nodeIntegration: false, webviewTag: true,
     },
   });
+
+  // Ensure window is not off-screen after display config change
+  try {
+    const { screen } = require("electron");
+    const bounds = win.getBounds();
+    const area = screen.getDisplayMatching(bounds).workArea;
+    const inArea = bounds.x >= area.x - 100 && bounds.x <= area.x + area.width - 100 &&
+                   bounds.y >= area.y - 100 && bounds.y <= area.y + area.height - 100;
+    if (!inArea) win.center();
+  } catch {}
 
   win.webContents.setBackgroundThrottling(false);
 
@@ -1935,10 +1956,7 @@ function createWindow() {
     if (pending) pending.resolve([wc, win]);
   });
 
-  // TEMP ext-host self-check (remove later)
-  const checkLog = path.join(process.env.TEMP || "/tmp", "opencode", "ppoo-check.log");
-  const checkErr = path.join(process.env.TEMP || "/tmp", "opencode", "ppoo-console-errors.log");
-  // console-message new API (Electron 43+): (event, params) where params = {level, message, lineNumber, sourceId}
+  // Lightweight console forwarding — only log warnings/errors to main console
   win.webContents.on("console-message", (...args) => {
     let level, message, line, sourceId;
     if (args.length === 2 && args[1] && typeof args[1] === "object") {
@@ -1946,98 +1964,70 @@ function createWindow() {
     } else {
       [, level, message, line, sourceId] = args;
     }
-    if (level >= 1) {
-      try { fs.appendFileSync(checkErr, `[${level}] ${message} (${sourceId}:${line})\n`); } catch {}
+    if (level >= 2) {
+      console.warn(`[renderer:${level}] ${message} (${sourceId}:${line})`);
     }
   });
-  win.webContents.once("did-finish-load", () => {
-    setTimeout(async () => {
-      try {
-        const res = await win.webContents.executeJavaScript(`(async () => {
-          const r1 = await fetch('file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/electron/renderer/extensions/demo-extension/package.json').then(r => r.status).catch(e => 'ERR:' + e.message);
-          const r2 = await fetch('data:application/json,%7B%22x%22%3A1%7D').then(r => r.status).catch(e => 'ERR:' + e.message);
-          return JSON.stringify({ fileFetch: r1, dataFetch: r2 });
-        })()`);
-        fs.appendFileSync(checkLog, "\nFETCHTEST " + res);
-      } catch (e) {
-        fs.appendFileSync(checkLog, "\nFETCHTEST ERR " + String(e));
-      }
-      for (let i = 0; i < 30; i++) {
-        try {
-          const res = await Promise.race([
-            win.webContents.executeJavaScript(`(async () => {
-            const m = window.__flexModel && window.__flexModel.current;
-            let editorPaths = [];
-            if (m) {
-              const walk = (n) => {
-                if (n.getType?.() === 'tab' && n.getComponent?.() === 'editor') editorPaths.push(n.getConfig?.()?.filePath || null);
-                n.getChildren?.()?.forEach(walk);
-              };
-              walk(m.getRoot());
-            }
-            let ext = null;
-            if (window.__ppooExtCheck) {
-              try { ext = await window.__ppooExtCheck(); } catch (e) { ext = { err: String(e) }; }
-            }
-            return JSON.stringify({
-              monaco: !!document.querySelector('.monaco-editor'),
-              iframe: !!document.querySelector('iframe[src*=webWorkerExtensionHostIframe]'),
-              editorPaths,
-              ext,
-              resources: performance.getEntriesByType('resource').map(e => e.name.split('/').pop()).slice(-12),
-              rootChildren: document.getElementById('root') ? document.getElementById('root').children.length : -1,
-            });
-          })()`),
-            new Promise((resolve) => setTimeout(() => resolve("POLLTIMEOUT"), 12000)),
-          ]);
-          fs.appendFileSync(checkLog, "\n" + (typeof res === "string" ? res : "POLLTIMEOUT"));
-          const parsed = (() => { try { return JSON.parse(res); } catch { return {}; } })();
-          if (parsed.ext?.commandResult && parsed.monaco) break;
-        } catch (e) {
-          fs.appendFileSync(checkLog, "\n" + JSON.stringify({ selfCheckError: String(e) }));
-        }
-        await new Promise((r) => setTimeout(r, 3000));
-      }
-      // Phase 2: open a real file and re-check editor still works
-      try {
-        const root = path.join(__dirname, "../..");
-        const pj = path.join(root, "package.json");
-        await win.webContents.executeJavaScript(`(() => {
-          window.__currentProjectPath = ${JSON.stringify(root)};
-          window.dispatchEvent(new CustomEvent("project:opened", { detail: { path: ${JSON.stringify(root)} } }));
-          window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: ${JSON.stringify(pj)} } }));
-        })()`);
-      } catch {}
-      await new Promise((r) => setTimeout(r, 12000));
-      try {
-        const res = await win.webContents.executeJavaScript(`JSON.stringify({
-          monaco: !!document.querySelector('.monaco-editor'),
-          statusText: (document.body.innerText.match(/Ln \\d+, Col \\d+.*/) || [null])[0],
-        })`);
-        fs.appendFileSync(checkLog, "\nPHASE2 " + res);
-      } catch (e) {
-        fs.appendFileSync(checkLog, "\nPHASE2 " + JSON.stringify({ err: String(e) }));
-      }
-    }, 6000);
-  });
-  // END TEMP
 
-  if (wasMaximized) win.maximize();
-  win.show();
-
+  // Load first, show when ready — prevents white flash and ensures correct restore bounds
   win.loadFile(path.join(__dirname, "../renderer/index.html"));
 
-  // Save session on close — grabs layout JSON from renderer first
+  win.once("ready-to-show", () => {
+    try {
+      if (wasMaximized) win.maximize();
+    } catch {}
+    if (!win.isDestroyed()) win.show();
+    // Workaround for Windows restore-down flicker — force a layout pass after show
+    setTimeout(() => {
+      try {
+        if (!win.isDestroyed()) win.webContents.invalidate();
+      } catch {}
+    }, 100);
+  });
+
+  // Gracefully handle maximize / unmaximize / restore without crashing layout
+  const safeInvalidate = () => {
+    try {
+      if (!win.isDestroyed()) win.webContents.invalidate();
+      // Notify renderer to re-flow flexlayout after window state change
+      win.webContents.send("window:stateChanged", { maximized: win.isMaximized() });
+    } catch {}
+  };
+  win.on("maximize", safeInvalidate);
+  win.on("unmaximize", safeInvalidate);
+  win.on("restore", safeInvalidate);
+  win.on("resize", () => {
+    // Debounced invalidate to avoid flood during drag-resize
+    clearTimeout(win._resizeTimer);
+    win._resizeTimer = setTimeout(safeInvalidate, 120);
+  });
+
+  // Save session on close — use normal bounds when maximized so restore-down is correct size
   win.on("close", async () => {
     try {
-      const bounds = win.getBounds();
-      const maximized = win.isMaximized();
+      let bounds;
+      let maximized = false;
+      try { maximized = win.isMaximized(); } catch {}
+      try {
+        if (maximized && typeof win.getNormalBounds === "function") {
+          bounds = win.getNormalBounds();
+        } else {
+          bounds = win.getBounds();
+        }
+      } catch {
+        bounds = win.getBounds();
+      }
       let layout = null;
       try { layout = await win.webContents.executeJavaScript("window.__getLayoutJSON()"); } catch {}
-      const data = {
-        window: { width: bounds.width, height: bounds.height, x: bounds.x, y: bounds.y, maximized },
-        layout,
+      // Sanitize bounds — never save 0 or fullscreen-sized normal bounds that would make restore-down cover screen
+      const sane = {
+        width: Math.max(900, Math.min(bounds.width || 1280, 3000)),
+        height: Math.max(600, Math.min(bounds.height || 720, 2000)),
+        x: bounds.x,
+        y: bounds.y,
+        maximized,
       };
+      const data = { window: sane, layout };
       fs.writeFileSync(SESSION_FILE, JSON.stringify(data, null, 2));
     } catch {}
   });

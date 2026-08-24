@@ -414,15 +414,25 @@ const ComponentPreview = ({ nodeId, config }) => {
       const entries = await window.electronAPI.readDirAll(dir);
       let results = [];
       for (const entry of entries) {
-        if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist" || entry.name === "build") continue;
+        if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist" || entry.name === "build" || entry.name === ".git" || entry.name === "out" || entry.name === ".next") continue;
         if (entry.isDir) {
           const sub = await scanProjectFiles(entry.path);
           results = results.concat(sub);
-        } else if (/\.(jsx|tsx)$/i.test(entry.name)) {
-          results.push(entry.path);
+          if (results.length > 400) break; // cap to avoid huge lists
+        } else if (/\.(jsx|tsx|js|ts)$/i.test(entry.name)) {
+          // only keep js/ts that likely contain JSX/component (quick peek: contains < or React)
+          if (/\.(jsx|tsx)$/i.test(entry.name)) {
+            results.push(entry.path);
+          } else {
+            // for .js/.ts, peek first 4k for jsx-ish content to avoid flooding list with non-components
+            try {
+              const head = await window.electronAPI.readTextFile(entry.path).then(t => (t||"").slice(0, 4000));
+              if (/<[A-Za-z]/.test(head) || /React|export\s+default|function\s+[A-Z]/.test(head)) results.push(entry.path);
+            } catch { results.push(entry.path); }
+          }
         }
       }
-      return results;
+      return results.slice(0, 400);
     } catch {
       return [];
     }
@@ -432,9 +442,16 @@ const ComponentPreview = ({ nodeId, config }) => {
     const root = window.__currentProjectPath;
     if (root) {
       const files = await scanProjectFiles(root);
+      // ensure currently selected file stays in list
+      if (filePath && !files.includes(filePath) && /\.(jsx|tsx|js|ts)$/i.test(filePath)) {
+        files.unshift(filePath);
+      }
       setProjectFiles(files);
       if (!filePath && files.length > 0) {
         setFilePath(files[0]);
+      }
+      if (files.length === 0 && filePath) {
+        // keep current file even if scan empty
       }
     } else {
       setProjectFiles([]);
@@ -788,11 +805,16 @@ const ComponentPreview = ({ nodeId, config }) => {
             {projectFiles.length === 0 ? (
               <option value="">{filePath ? fileName : "No JSX files found"}</option>
             ) : (
-              projectFiles.map((p) => (
-                <option key={p} value={p}>
-                  {p.split(/[\\/]/).pop()} ({p.replace(/.*[\\/]([^\\/]+[\\/][^\\/]+)$/, "$1")})
-                </option>
-              ))
+              <>
+                {filePath && !projectFiles.includes(filePath) && (
+                  <option value={filePath}>{fileName} (current)</option>
+                )}
+                {projectFiles.map((p) => (
+                  <option key={p} value={p}>
+                    {p.split(/[\\/]/).pop()} ({p.replace(/.*[\\/]([^\\/]+[\\/][^\\/]+)$/, "$1")})
+                  </option>
+                ))}
+              </>
             )}
           </select>
         </div>

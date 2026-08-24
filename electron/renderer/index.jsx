@@ -492,6 +492,26 @@ const App = () => {
     return () => window.removeEventListener("browser:openSettings", handler);
   }, []);
 
+  // Handle window maximize/restore/resize — force flexlayout to reflow (fixes restore-down crash/black)
+  useEffect(() => {
+    const doRedraw = () => {
+      const m = modelRef.current;
+      if (!m) return;
+      try { forceLayoutRedraw(m); } catch {}
+      // Extra tick to let flexlayout recalc after DOM settles
+      setTimeout(() => { try { forceLayoutRedraw(m); } catch {} }, 80);
+    };
+    const onWinState = window.electronAPI?.onWindowStateChanged
+      ? window.electronAPI.onWindowStateChanged(() => setTimeout(doRedraw, 40))
+      : () => {};
+    const onResize = () => doRedraw();
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      try { onWinState(); } catch {}
+    };
+  }, []);
+
   // ── Navigation isolation: main window never navigates ──────────────────────
   // All link clicks / history pushes / redirects stay in Browser panel or iframe.
   useEffect(() => {

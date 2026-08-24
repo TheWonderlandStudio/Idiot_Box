@@ -180,6 +180,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveCanvasLayout:  (rootPath, data) => ipcRenderer.invoke("canvas:saveLayout", rootPath, data),
   loadCanvasLayout:  (rootPath) => ipcRenderer.invoke("canvas:loadLayout",  rootPath),
 
+  // ── Window state ────────────────────────────────────────────────────────────
+  onWindowStateChanged: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("window:stateChanged", handler);
+    return () => ipcRenderer.removeListener("window:stateChanged", handler);
+  },
+
   // ── Session ─────────────────────────────────────────────────────────────────
   saveSession:   (data) => ipcRenderer.invoke("session:save", data),
   loadSession:   ()     => ipcRenderer.invoke("session:load"),
