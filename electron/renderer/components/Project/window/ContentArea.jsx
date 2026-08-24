@@ -28,7 +28,13 @@ const PreviewIcon = ({ entry, showPreview, size }) => {
     if (entry.isDir) return;
     window.electronAPI.getFilePreview(entry.path).then((r) => {
       if (!mounted.current) return;
-      if (r) PREVIEW_CACHE.set(entry.path, r);
+      if (r) {
+        if (PREVIEW_CACHE.size >= 200) {
+          const firstKey = PREVIEW_CACHE.keys().next().value;
+          PREVIEW_CACHE.delete(firstKey);
+        }
+        PREVIEW_CACHE.set(entry.path, r);
+      }
       setPreview(r);
     });
     return () => { mounted.current = false; };
@@ -638,11 +644,10 @@ const ContentArea = ({
     if (renamingPath) { e.preventDefault(); return; }
     const sel    = selectedItemsRef.current;
     const toDrag = sel.size > 0 && sel.has(entry.path) ? [...sel] : [entry.path];
-    // Store for internal drop fallback (read by resolveInternalDraggedPaths)
-    window.__ppooDragPaths = toDrag;
-    // Provide file:// URIs so external apps receive actual file references
+    window.__ibxDragPaths = toDrag;
     const uris = toDrag.map((p) => `file:///${p.replace(/\\/g, "/")}`).join("\n");
     e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("application/ibx-paths", JSON.stringify(toDrag));
     e.dataTransfer.setData("text/uri-list", uris);
     e.dataTransfer.setData("text/plain", toDrag.join("\n"));
   }, [renamingPath]);

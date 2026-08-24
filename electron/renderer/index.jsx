@@ -197,11 +197,7 @@ const App = () => {
     const m = modelRef.current;
     if (!m) return;
 
-    const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm"];
-
     for (const filePath of tabs) {
-      const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
-      if (IMAGE_VIDEO_EXTS.includes(ext)) continue;
       if (findTabByFilePath(m.getRoot(), filePath)) continue; // already open
 
       const name = filePath.replace(/.*[\\/]/, "") || filePath;
@@ -754,10 +750,10 @@ const App = () => {
       factory={factory}
       onDrop={(node, e) => {
         // Intercept file drops from the Project Panel onto any tabset.
-        // window.__ppooDragPaths is set by ContentArea/SidebarTree dragStart.
-        const paths = window.__ppooDragPaths;
+        // window.__ibxDragPaths is set by ContentArea/SidebarTree dragStart.
+        const paths = window.__ibxDragPaths;
         if (!paths?.length) return;
-        window.__ppooDragPaths = null;
+        window.__ibxDragPaths = null;
 
         const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm"];
         const m = modelRef.current;
@@ -816,7 +812,7 @@ const App = () => {
                   <circle cx="8" cy="8" r="7" />
                 </svg>
               )}
-              <span title={title} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{title.slice(0, 10)}</span>
+              <span title={title} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{title.length > 14 ? title.slice(0, 12) + "…" : title}</span>
             </div>
           );
         }

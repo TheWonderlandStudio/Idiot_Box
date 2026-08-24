@@ -1,9 +1,17 @@
+const fs = require('fs');
+const path = require('path');
 const esbuild = require('esbuild');
 
-// Phase B: REAL Node/Desktop Extension Host bundle (run by utilityProcess).
+const entry = path.join(__dirname, '..', 'electron', 'host', 'node-extension-host.js');
+
+if (!fs.existsSync(entry)) {
+  console.log('[build-node-host] Node extension host entry not present, skipping.');
+  process.exit(0);
+}
+
 esbuild
   .build({
-    entryPoints: ['electron/host/node-extension-host.js'],
+    entryPoints: [entry],
     bundle: true,
     outfile: 'electron/host/node-extension-host.bundle.mjs',
     platform: 'node',
@@ -12,3 +20,4 @@ esbuild
     logLevel: 'info',
   })
   .catch(() => process.exit(1));
+

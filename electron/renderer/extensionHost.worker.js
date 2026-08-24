@@ -136282,7 +136282,6 @@ var ActivationOperation = class ActivationOperation2 {
     await this._activate();
   }
   async _activate() {
-    globalThis.__ppooProbe && globalThis.__ppooProbe("activator._activate id=" + this._id.value);
     try {
       this._value = await this._host.actualActivateExtension(this._id, this._reason);
     } catch (err) {
@@ -143478,7 +143477,6 @@ var AbstractExtHostExtensionService = AbstractExtHostExtensionService_1 = class 
         );
       },
       actualActivateExtension: async (extensionId, reason) => {
-        globalThis.__ppooProbe && globalThis.__ppooProbe("svc.actualActivate id=" + extensionId.value + " reason=" + reason.activationEvent);
         if (ExtensionDescriptionRegistry.isHostExtension(extensionId, this._myRegistry, this._globalRegistry)) {
           await this._mainThreadExtensionsProxy.$activateExtension(extensionId, reason);
           return new HostExtension();
@@ -187633,10 +187631,7 @@ var ExtHostExtensionService = class extends AbstractExtHostExtensionService {
       performance.mark(`code/extHost/willFetchExtensionCode/${extensionId}`);
     }
     const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
-    globalThis.__ppooProbe(`browserUri=${browserUri.toString(true)}`);
-    globalThis.__ppooProbe("before-fetch");
-    const response = await Promise.race([fetch(browserUri.toString(true)), new Promise((_, rej) => setTimeout(() => rej(new Error("EXTHOST-DBG fetch-timeout")), 8e3))]);
-    this.logService.error("EXTHOST-DBG after-fetch status=" + response.status);
+    const response = await fetch(browserUri.toString(true));
     if (extensionId) {
       performance.mark(`code/extHost/didFetchExtensionCode/${extensionId}`);
     }
@@ -187644,7 +187639,6 @@ var ExtHostExtensionService = class extends AbstractExtHostExtensionService {
       throw new Error(response.statusText);
     }
     const source = await response.text();
-    globalThis.__ppooProbe("source-len=" + source.length);
     const sourceURL = `${module.toString(true)}#vscode-extension`;
     const fullSource = `${source}
 //# sourceURL=${sourceURL}`;
@@ -187952,7 +187946,7 @@ function connectToRenderer(protocol) {
 }
 var onTerminate = (reason) => nativeClose();
 function isInitMessage(a) {
-  return !!a && typeof a === "object" && a.type === "vscode.init" && (a.data instanceof Map || a.data && typeof a.data === "object");
+  return !!a && typeof a === "object" && a.type === "vscode.init" && a.data instanceof Map;
 }
 function create() {
   mark(`code/extHost/willConnectToRenderer`);
@@ -187964,8 +187958,7 @@ function create() {
       }
       connectToRenderer(res.protocol).then((data2) => {
         mark(`code/extHost/didWaitForInitData`);
-        const portMap = message.data instanceof Map ? message.data : new Map(Object.entries(message.data || {}));
-        const extHostMain = new ExtensionHostMain(data2.protocol, data2.initData, hostUtil, null, portMap);
+        const extHostMain = new ExtensionHostMain(data2.protocol, data2.initData, hostUtil, null, message.data);
         patchFetching((uri) => extHostMain.asBrowserUri(uri));
         patchWorker((uri) => extHostMain.asBrowserUri(uri), () => extHostMain.getAllStaticBrowserUris());
         onTerminate = (reason) => extHostMain.terminate(reason);
@@ -187979,10 +187972,10 @@ var data = create();
 self.onmessage = (e) => data.onmessage(e.data);
 
 // electron/renderer/workers/ext-host.worker.entry.js
-globalThis.__ppooNativePost = self.postMessage.bind(self);
-globalThis.__ppooProbe = (dbg) => {
+globalThis.__ibxNativePost = self.postMessage.bind(self);
+globalThis.__ibxProbe = (dbg) => {
   try {
-    globalThis.__ppooNativePost({ __ppooProbe: true, dbg });
+    globalThis.__ibxNativePost({ __ibxProbe: true, dbg });
   } catch {
   }
 };

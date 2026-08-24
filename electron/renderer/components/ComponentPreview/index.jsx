@@ -90,18 +90,7 @@ const SampleComponent = () => {
   );
 };
 
-const ComponentPreview = ({ nodeId, config }) => {
-  const [filePath, setFilePath] = useState(config?.filePath || null);
-  const [projectFiles, setProjectFiles] = useState([]);
-  const [bgMode, setBgMode] = useState("dark"); // "dark" | "light" | "grid"
-  const [zoom, setZoom] = useState(1.0);
-  const [transpileError, setTranspileError] = useState(null);
-  const [previewCode, setPreviewCode] = useState(null);
-  const [ComponentToRender, setComponentToRender] = useState(null); // legacy, not used in iframe isolated mode
-  const [lastUpdateKey, setLastUpdateKey] = useState(0);
-  const [sampleMode, setSampleMode] = useState(false);
-
-  const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:#2a1717;border:1px solid #732222;border-radius:6px;color:#f44747;font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
+const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:#2a1717;border:1px solid #732222;border-radius:6px;color:#f44747;font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
 <script>
 (function(){
   const forwardNav = (url, target) => {
@@ -316,6 +305,17 @@ const ComponentPreview = ({ nodeId, config }) => {
 })();
 <\/script>
 </body></html>`;
+
+const ComponentPreview = ({ nodeId, config }) => {
+  const [filePath, setFilePath] = useState(config?.filePath || null);
+  const [projectFiles, setProjectFiles] = useState([]);
+  const [bgMode, setBgMode] = useState("dark"); // "dark" | "light" | "grid"
+  const [zoom, setZoom] = useState(1.0);
+  const [transpileError, setTranspileError] = useState(null);
+  const [previewCode, setPreviewCode] = useState(null);
+  const [ComponentToRender, setComponentToRender] = useState(null); // legacy, not used in iframe isolated mode
+  const [lastUpdateKey, setLastUpdateKey] = useState(0);
+  const [sampleMode, setSampleMode] = useState(false);
 
   // Iframe sandbox — full isolation from main window navigation (allow-scripts + allow-same-origin + allow-forms, but NO allow-top-navigation / allow-popups)
   const iframeRef = useRef(null);

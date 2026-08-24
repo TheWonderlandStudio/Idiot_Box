@@ -21772,7 +21772,7 @@
           }
           function o2() {
           }
-          function s15() {
+          function s16() {
             this.overflowByte = -1;
           }
           function a(t3, e3) {
@@ -21786,7 +21786,7 @@
           }
           function h3(t3, e3) {
             var r3 = [], i3 = 0, n3 = 0, o3 = 0;
-            t: for (var s16 = 0; s16 < t3.length; s16++) for (var a2 = t3[s16], c2 = 0; c2 < a2.length; c2++) if (r3.push(a2[c2]), 2 === r3.length) {
+            t: for (var s17 = 0; s17 < t3.length; s17++) for (var a2 = t3[s17], c2 = 0; c2 < a2.length; c2++) if (r3.push(a2[c2]), 2 === r3.length) {
               if (0 === i3) {
                 if (255 === r3[0] && 254 === r3[1]) return "utf-16le";
                 if (254 === r3[0] && 255 === r3[1]) return "utf-16be";
@@ -21795,19 +21795,19 @@
             }
             return o3 > n3 ? "utf-16be" : o3 < n3 ? "utf-16le" : e3 || "utf-16le";
           }
-          e2.utf16be = n2, n2.prototype.encoder = o2, n2.prototype.decoder = s15, n2.prototype.bomAware = true, o2.prototype.write = function(t3) {
+          e2.utf16be = n2, n2.prototype.encoder = o2, n2.prototype.decoder = s16, n2.prototype.bomAware = true, o2.prototype.write = function(t3) {
             for (var e3 = i2.from(t3, "ucs2"), r3 = 0; r3 < e3.length; r3 += 2) {
               var n3 = e3[r3];
               e3[r3] = e3[r3 + 1], e3[r3 + 1] = n3;
             }
             return e3;
           }, o2.prototype.end = function() {
-          }, s15.prototype.write = function(t3) {
+          }, s16.prototype.write = function(t3) {
             if (0 == t3.length) return "";
             var e3 = i2.alloc(t3.length + 1), r3 = 0, n3 = 0;
             for (-1 !== this.overflowByte && (e3[0] = t3[0], e3[1] = this.overflowByte, r3 = 1, n3 = 2); r3 < t3.length - 1; r3 += 2, n3 += 2) e3[n3] = t3[r3 + 1], e3[n3 + 1] = t3[r3];
             return this.overflowByte = r3 == t3.length - 1 ? t3[t3.length - 1] : -1, e3.slice(0, n3).toString("ucs2");
-          }, s15.prototype.end = function() {
+          }, s16.prototype.end = function() {
             this.overflowByte = -1;
           }, e2.utf16 = a, a.prototype.encoder = c, a.prototype.decoder = f, c.prototype.write = function(t3) {
             return this.encoder.write(t3);
@@ -21898,7 +21898,7 @@
             }
             this.lastNeed = 0, this.lastTotal = 0, this.lastChar = i2.allocUnsafe(e3);
           }
-          function s15(t3) {
+          function s16(t3) {
             return t3 <= 127 ? 0 : t3 >> 5 == 6 ? 2 : t3 >> 4 == 14 ? 3 : t3 >> 3 == 30 ? 4 : t3 >> 6 == 2 ? -1 : -2;
           }
           function a(t3) {
@@ -21959,8 +21959,8 @@
             var r3 = (function(t4, e4, r4) {
               var i4 = e4.length - 1;
               if (i4 < r4) return 0;
-              var n3 = s15(e4[i4]);
-              return n3 >= 0 ? (n3 > 0 && (t4.lastNeed = n3 - 1), n3) : --i4 < r4 || -2 === n3 ? 0 : (n3 = s15(e4[i4])) >= 0 ? (n3 > 0 && (t4.lastNeed = n3 - 2), n3) : --i4 < r4 || -2 === n3 ? 0 : (n3 = s15(e4[i4])) >= 0 ? (n3 > 0 && (2 === n3 ? n3 = 0 : t4.lastNeed = n3 - 3), n3) : 0;
+              var n3 = s16(e4[i4]);
+              return n3 >= 0 ? (n3 > 0 && (t4.lastNeed = n3 - 1), n3) : --i4 < r4 || -2 === n3 ? 0 : (n3 = s16(e4[i4])) >= 0 ? (n3 > 0 && (t4.lastNeed = n3 - 2), n3) : --i4 < r4 || -2 === n3 ? 0 : (n3 = s16(e4[i4])) >= 0 ? (n3 > 0 && (2 === n3 ? n3 = 0 : t4.lastNeed = n3 - 3), n3) : 0;
             })(this, t3, e3);
             if (!this.lastNeed) return t3.toString("utf8", e3);
             this.lastTotal = r3;
@@ -21974,7 +21974,7 @@
           "use strict";
           var i2 = r2(774).Buffer;
           e2._dbcs = h3;
-          for (var n2 = -1, o2 = -2, s15 = -10, a = -1e3, c = new Array(256), f = 0; f < 256; f++) c[f] = n2;
+          for (var n2 = -1, o2 = -2, s16 = -10, a = -1e3, c = new Array(256), f = 0; f < 256; f++) c[f] = n2;
           function h3(t3, e3) {
             if (this.encodingName = t3.encodingName, !t3) throw new Error("DBCS codec is called without the data.");
             if (!t3.table) throw new Error("Encoding '" + this.encodingName + "' has no data.");
@@ -21983,13 +21983,13 @@
             for (var i3 = 0; i3 < r3.length; i3++) this._addDecodeChunk(r3[i3]);
             if ("function" == typeof t3.gb18030) {
               this.gb18030 = t3.gb18030();
-              var s16 = this.decodeTables.length;
+              var s17 = this.decodeTables.length;
               this.decodeTables.push(c.slice(0));
               var f2 = this.decodeTables.length;
               this.decodeTables.push(c.slice(0));
               var h4 = this.decodeTables[0];
               for (i3 = 129; i3 <= 254; i3++) for (var u2 = this.decodeTables[a - h4[i3]], p2 = 48; p2 <= 57; p2++) {
-                if (u2[p2] === n2) u2[p2] = a - s16;
+                if (u2[p2] === n2) u2[p2] = a - s17;
                 else if (u2[p2] > a) throw new Error("gb18030 decode tables conflict at byte 2");
                 for (var d2 = this.decodeTables[a - u2[p2]], l2 = 129; l2 <= 254; l2++) {
                   if (d2[l2] === n2) d2[l2] = a - f2;
@@ -22050,7 +22050,7 @@
                   r3[e3++] = 65536 + 1024 * (a2 - 55296) + (c2 - 56320);
                 } else if (a2 > 4080 && a2 <= 4095) {
                   for (var f2 = 4095 - a2 + 2, h4 = [], u2 = 0; u2 < f2; u2++) h4.push(n3.charCodeAt(o3++));
-                  r3[e3++] = s15 - this.decodeTableSeq.length, this.decodeTableSeq.push(h4);
+                  r3[e3++] = s16 - this.decodeTableSeq.length, this.decodeTableSeq.push(h4);
                 } else r3[e3++] = a2;
               }
               else {
@@ -22065,10 +22065,10 @@
             return void 0 === this.encodeTable[e3] && (this.encodeTable[e3] = c.slice(0)), this.encodeTable[e3];
           }, h3.prototype._setEncodeChar = function(t3, e3) {
             var r3 = this._getEncodeBucket(t3), i3 = 255 & t3;
-            r3[i3] <= s15 ? this.encodeTableSeq[s15 - r3[i3]][-1] = e3 : r3[i3] == n2 && (r3[i3] = e3);
+            r3[i3] <= s16 ? this.encodeTableSeq[s16 - r3[i3]][-1] = e3 : r3[i3] == n2 && (r3[i3] = e3);
           }, h3.prototype._setEncodeSequence = function(t3, e3) {
             var r3, i3 = t3[0], o3 = this._getEncodeBucket(i3), a2 = 255 & i3;
-            o3[a2] <= s15 ? r3 = this.encodeTableSeq[s15 - o3[a2]] : (r3 = {}, o3[a2] !== n2 && (r3[-1] = o3[a2]), o3[a2] = s15 - this.encodeTableSeq.length, this.encodeTableSeq.push(r3));
+            o3[a2] <= s16 ? r3 = this.encodeTableSeq[s16 - o3[a2]] : (r3 = {}, o3[a2] !== n2 && (r3[-1] = o3[a2]), o3[a2] = s16 - this.encodeTableSeq.length, this.encodeTableSeq.push(r3));
             for (var c2 = 1; c2 < t3.length - 1; c2++) {
               var f2 = r3[i3];
               "object" == typeof f2 ? r3 = f2 : (r3 = r3[i3] = {}, void 0 !== f2 && (r3[-1] = f2));
@@ -22084,7 +22084,7 @@
                   var p2 = h4 << 8 >>> 0;
                   this._fillEncodeTable(u2, p2, r3) ? n3 = true : o3[u2] = true;
                 }
-              } else f2 <= s15 && (this._setEncodeSequence(this.decodeTableSeq[s15 - f2], h4), n3 = true);
+              } else f2 <= s16 && (this._setEncodeSequence(this.decodeTableSeq[s16 - f2], h4), n3 = true);
             }
             return n3;
           }, u.prototype.write = function(t3) {
@@ -22111,8 +22111,8 @@
                 "number" == typeof p2 ? u2 = p2 : null == p2 && void 0 !== (p2 = o3[-1]) && (u2 = p2, a2 = h4), o3 = void 0;
               } else if (h4 >= 0) {
                 var l2 = this.encodeTable[h4 >> 8];
-                if (void 0 !== l2 && (u2 = l2[255 & h4]), u2 <= s15) {
-                  o3 = this.encodeTableSeq[s15 - u2];
+                if (void 0 !== l2 && (u2 = l2[255 & h4]), u2 <= s16) {
+                  o3 = this.encodeTableSeq[s16 - u2];
                   continue;
                 }
                 if (u2 == n2 && this.gb18030) {
@@ -22150,8 +22150,8 @@
                   r3 = a - l2;
                   continue;
                 }
-                if (!(l2 <= s15)) throw new Error("iconv-lite internal error: invalid decoding table value " + l2 + " at " + r3 + "/" + b2);
-                for (var w2 = this.decodeTableSeq[s15 - l2], m = 0; m < w2.length - 1; m++) l2 = w2[m], e3[p2++] = 255 & l2, e3[p2++] = l2 >> 8;
+                if (!(l2 <= s16)) throw new Error("iconv-lite internal error: invalid decoding table value " + l2 + " at " + r3 + "/" + b2);
+                for (var w2 = this.decodeTableSeq[s16 - l2], m = 0; m < w2.length - 1; m++) l2 = w2[m], e3[p2++] = 255 & l2, e3[p2++] = l2 >> 8;
                 l2 = w2[w2.length - 1];
               }
               if (l2 >= 65536) {
@@ -22180,15 +22180,15 @@
           };
         }, 249: (t2, e2, r2) => {
           "use strict";
-          var i2, n2 = r2(774).Buffer, o2 = r2(557), s15 = r2(209), a = t2.exports;
+          var i2, n2 = r2(774).Buffer, o2 = r2(557), s16 = r2(209), a = t2.exports;
           a.encodings = null, a.defaultCharUnicode = "\uFFFD", a.defaultCharSingleByte = "?", a.encode = function(t3, e3, r3) {
             t3 = "" + (t3 || "");
-            var i3 = a.getEncoder(e3, r3), o3 = i3.write(t3), s16 = i3.end();
-            return s16 && s16.length > 0 ? n2.concat([o3, s16]) : o3;
+            var i3 = a.getEncoder(e3, r3), o3 = i3.write(t3), s17 = i3.end();
+            return s17 && s17.length > 0 ? n2.concat([o3, s17]) : o3;
           }, a.decode = function(t3, e3, r3) {
             "string" == typeof t3 && (a.skipDecodeWarning || (console.error("Iconv-lite warning: decode()-ing strings is deprecated. Refer to https://github.com/ashtuchkin/iconv-lite/wiki/Use-Buffers-when-decoding"), a.skipDecodeWarning = true), t3 = n2.from("" + (t3 || ""), "binary"));
-            var i3 = a.getDecoder(e3, r3), o3 = i3.write(t3), s16 = i3.end();
-            return s16 ? o3 + s16 : o3;
+            var i3 = a.getDecoder(e3, r3), o3 = i3.write(t3), s17 = i3.end();
+            return s17 ? o3 + s17 : o3;
           }, a.encodingExists = function(t3) {
             try {
               return a.getCodec(t3), true;
@@ -22198,7 +22198,7 @@
           }, a.toEncoding = a.encode, a.fromEncoding = a.decode, a._codecDataCache = { __proto__: null }, a.getCodec = function(t3) {
             if (!a.encodings) {
               var e3 = r2(336);
-              a.encodings = { __proto__: null }, s15(a.encodings, e3);
+              a.encodings = { __proto__: null }, s16(a.encodings, e3);
             }
             for (var i3 = a._canonicalizeEncoding(t3), n3 = {}; ; ) {
               var o3 = a._codecDataCache[i3];
@@ -22245,19 +22245,19 @@
           };
         }, 251: (t2, e2) => {
           e2.read = function(t3, e3, r2, i2, n2) {
-            var o2, s15, a = 8 * n2 - i2 - 1, c = (1 << a) - 1, f = c >> 1, h3 = -7, u = r2 ? n2 - 1 : 0, p = r2 ? -1 : 1, d = t3[e3 + u];
+            var o2, s16, a = 8 * n2 - i2 - 1, c = (1 << a) - 1, f = c >> 1, h3 = -7, u = r2 ? n2 - 1 : 0, p = r2 ? -1 : 1, d = t3[e3 + u];
             for (u += p, o2 = d & (1 << -h3) - 1, d >>= -h3, h3 += a; h3 > 0; o2 = 256 * o2 + t3[e3 + u], u += p, h3 -= 8) ;
-            for (s15 = o2 & (1 << -h3) - 1, o2 >>= -h3, h3 += i2; h3 > 0; s15 = 256 * s15 + t3[e3 + u], u += p, h3 -= 8) ;
+            for (s16 = o2 & (1 << -h3) - 1, o2 >>= -h3, h3 += i2; h3 > 0; s16 = 256 * s16 + t3[e3 + u], u += p, h3 -= 8) ;
             if (0 === o2) o2 = 1 - f;
             else {
-              if (o2 === c) return s15 ? NaN : 1 / 0 * (d ? -1 : 1);
-              s15 += Math.pow(2, i2), o2 -= f;
+              if (o2 === c) return s16 ? NaN : 1 / 0 * (d ? -1 : 1);
+              s16 += Math.pow(2, i2), o2 -= f;
             }
-            return (d ? -1 : 1) * s15 * Math.pow(2, o2 - i2);
+            return (d ? -1 : 1) * s16 * Math.pow(2, o2 - i2);
           }, e2.write = function(t3, e3, r2, i2, n2, o2) {
-            var s15, a, c, f = 8 * o2 - n2 - 1, h3 = (1 << f) - 1, u = h3 >> 1, p = 23 === n2 ? Math.pow(2, -24) - Math.pow(2, -77) : 0, d = i2 ? 0 : o2 - 1, l2 = i2 ? 1 : -1, b2 = e3 < 0 || 0 === e3 && 1 / e3 < 0 ? 1 : 0;
-            for (e3 = Math.abs(e3), isNaN(e3) || e3 === 1 / 0 ? (a = isNaN(e3) ? 1 : 0, s15 = h3) : (s15 = Math.floor(Math.log(e3) / Math.LN2), e3 * (c = Math.pow(2, -s15)) < 1 && (s15--, c *= 2), (e3 += s15 + u >= 1 ? p / c : p * Math.pow(2, 1 - u)) * c >= 2 && (s15++, c /= 2), s15 + u >= h3 ? (a = 0, s15 = h3) : s15 + u >= 1 ? (a = (e3 * c - 1) * Math.pow(2, n2), s15 += u) : (a = e3 * Math.pow(2, u - 1) * Math.pow(2, n2), s15 = 0)); n2 >= 8; t3[r2 + d] = 255 & a, d += l2, a /= 256, n2 -= 8) ;
-            for (s15 = s15 << n2 | a, f += n2; f > 0; t3[r2 + d] = 255 & s15, d += l2, s15 /= 256, f -= 8) ;
+            var s16, a, c, f = 8 * o2 - n2 - 1, h3 = (1 << f) - 1, u = h3 >> 1, p = 23 === n2 ? Math.pow(2, -24) - Math.pow(2, -77) : 0, d = i2 ? 0 : o2 - 1, l2 = i2 ? 1 : -1, b2 = e3 < 0 || 0 === e3 && 1 / e3 < 0 ? 1 : 0;
+            for (e3 = Math.abs(e3), isNaN(e3) || e3 === 1 / 0 ? (a = isNaN(e3) ? 1 : 0, s16 = h3) : (s16 = Math.floor(Math.log(e3) / Math.LN2), e3 * (c = Math.pow(2, -s16)) < 1 && (s16--, c *= 2), (e3 += s16 + u >= 1 ? p / c : p * Math.pow(2, 1 - u)) * c >= 2 && (s16++, c /= 2), s16 + u >= h3 ? (a = 0, s16 = h3) : s16 + u >= 1 ? (a = (e3 * c - 1) * Math.pow(2, n2), s16 += u) : (a = e3 * Math.pow(2, u - 1) * Math.pow(2, n2), s16 = 0)); n2 >= 8; t3[r2 + d] = 255 & a, d += l2, a /= 256, n2 -= 8) ;
+            for (s16 = s16 << n2 | a, f += n2; f > 0; t3[r2 + d] = 255 & s16, d += l2, s16 /= 256, f -= 8) ;
             t3[r2 + d - l2] |= 128 * b2;
           };
         }, 267: (t2) => {
@@ -22269,9 +22269,9 @@
           e2.Buffer = c, e2.SlowBuffer = function(t3) {
             return +t3 != t3 && (t3 = 0), c.alloc(+t3);
           }, e2.INSPECT_MAX_BYTES = 50;
-          const s15 = 2147483647;
+          const s16 = 2147483647;
           function a(t3) {
-            if (t3 > s15) throw new RangeError('The value "' + t3 + '" is invalid for option "size"');
+            if (t3 > s16) throw new RangeError('The value "' + t3 + '" is invalid for option "size"');
             const e3 = new Uint8Array(t3);
             return Object.setPrototypeOf(e3, c.prototype), e3;
           }
@@ -22333,7 +22333,7 @@
             return i3 = void 0 === e3 && void 0 === r3 ? new Uint8Array(t3) : void 0 === r3 ? new Uint8Array(t3, e3) : new Uint8Array(t3, e3, r3), Object.setPrototypeOf(i3, c.prototype), i3;
           }
           function l2(t3) {
-            if (t3 >= s15) throw new RangeError("Attempt to allocate Buffer larger than maximum size: 0x" + s15.toString(16) + " bytes");
+            if (t3 >= s16) throw new RangeError("Attempt to allocate Buffer larger than maximum size: 0x" + s16.toString(16) + " bytes");
             return 0 | t3;
           }
           function b2(t3, e3) {
@@ -22411,18 +22411,18 @@
             throw new TypeError("val must be string, number or Buffer");
           }
           function m(t3, e3, r3, i3, n3) {
-            let o3, s16 = 1, a2 = t3.length, c2 = e3.length;
+            let o3, s17 = 1, a2 = t3.length, c2 = e3.length;
             if (void 0 !== i3 && ("ucs2" === (i3 = String(i3).toLowerCase()) || "ucs-2" === i3 || "utf16le" === i3 || "utf-16le" === i3)) {
               if (t3.length < 2 || e3.length < 2) return -1;
-              s16 = 2, a2 /= 2, c2 /= 2, r3 /= 2;
+              s17 = 2, a2 /= 2, c2 /= 2, r3 /= 2;
             }
             function f2(t4, e4) {
-              return 1 === s16 ? t4[e4] : t4.readUInt16BE(e4 * s16);
+              return 1 === s17 ? t4[e4] : t4.readUInt16BE(e4 * s17);
             }
             if (n3) {
               let i4 = -1;
               for (o3 = r3; o3 < a2; o3++) if (f2(t3, o3) === f2(e3, -1 === i4 ? 0 : o3 - i4)) {
-                if (-1 === i4 && (i4 = o3), o3 - i4 + 1 === c2) return i4 * s16;
+                if (-1 === i4 && (i4 = o3), o3 - i4 + 1 === c2) return i4 * s17;
               } else -1 !== i4 && (o3 -= o3 - i4), i4 = -1;
             } else for (r3 + c2 > a2 && (r3 = a2 - c2), o3 = r3; o3 >= 0; o3--) {
               let r4 = true;
@@ -22439,13 +22439,13 @@
             const n3 = t3.length - r3;
             i3 ? (i3 = Number(i3)) > n3 && (i3 = n3) : i3 = n3;
             const o3 = e3.length;
-            let s16;
-            for (i3 > o3 / 2 && (i3 = o3 / 2), s16 = 0; s16 < i3; ++s16) {
-              const i4 = parseInt(e3.substr(2 * s16, 2), 16);
-              if (H2(i4)) return s16;
-              t3[r3 + s16] = i4;
+            let s17;
+            for (i3 > o3 / 2 && (i3 = o3 / 2), s17 = 0; s17 < i3; ++s17) {
+              const i4 = parseInt(e3.substr(2 * s17, 2), 16);
+              if (H2(i4)) return s17;
+              t3[r3 + s17] = i4;
             }
-            return s16;
+            return s17;
           }
           function B2(t3, e3, r3, i3) {
             return W(J2(e3, t3.length - r3), t3, r3, i3);
@@ -22464,7 +22464,7 @@
             return W((function(t4, e4) {
               let r4, i4, n3;
               const o3 = [];
-              for (let s16 = 0; s16 < t4.length && !((e4 -= 2) < 0); ++s16) r4 = t4.charCodeAt(s16), i4 = r4 >> 8, n3 = r4 % 256, o3.push(n3), o3.push(i4);
+              for (let s17 = 0; s17 < t4.length && !((e4 -= 2) < 0); ++s17) r4 = t4.charCodeAt(s17), i4 = r4 >> 8, n3 = r4 % 256, o3.push(n3), o3.push(i4);
               return o3;
             })(e3, t3.length - r3), t3, r3, i3);
           }
@@ -22477,10 +22477,10 @@
             let n3 = e3;
             for (; n3 < r3; ) {
               const e4 = t3[n3];
-              let o3 = null, s16 = e4 > 239 ? 4 : e4 > 223 ? 3 : e4 > 191 ? 2 : 1;
-              if (n3 + s16 <= r3) {
+              let o3 = null, s17 = e4 > 239 ? 4 : e4 > 223 ? 3 : e4 > 191 ? 2 : 1;
+              if (n3 + s17 <= r3) {
                 let r4, i4, a2, c2;
-                switch (s16) {
+                switch (s17) {
                   case 1:
                     e4 < 128 && (o3 = e4);
                     break;
@@ -22494,7 +22494,7 @@
                     r4 = t3[n3 + 1], i4 = t3[n3 + 2], a2 = t3[n3 + 3], 128 == (192 & r4) && 128 == (192 & i4) && 128 == (192 & a2) && (c2 = (15 & e4) << 18 | (63 & r4) << 12 | (63 & i4) << 6 | 63 & a2, c2 > 65535 && c2 < 1114112 && (o3 = c2));
                 }
               }
-              null === o3 ? (o3 = 65533, s16 = 1) : o3 > 65535 && (o3 -= 65536, i3.push(o3 >>> 10 & 1023 | 55296), o3 = 56320 | 1023 & o3), i3.push(o3), n3 += s16;
+              null === o3 ? (o3 = 65533, s17 = 1) : o3 > 65535 && (o3 -= 65536, i3.push(o3 >>> 10 & 1023 | 55296), o3 = 56320 | 1023 & o3), i3.push(o3), n3 += s17;
             }
             return (function(t4) {
               const e4 = t4.length;
@@ -22504,7 +22504,7 @@
               return r4;
             })(i3);
           }
-          e2.kMaxLength = s15, c.TYPED_ARRAY_SUPPORT = (function() {
+          e2.kMaxLength = s16, c.TYPED_ARRAY_SUPPORT = (function() {
             try {
               const t3 = new Uint8Array(1), e3 = { foo: function() {
                 return 42;
@@ -22604,13 +22604,13 @@
             if (i3 >= n3) return -1;
             if (e3 >= r3) return 1;
             if (this === t3) return 0;
-            let o3 = (n3 >>>= 0) - (i3 >>>= 0), s16 = (r3 >>>= 0) - (e3 >>>= 0);
-            const a2 = Math.min(o3, s16), f2 = this.slice(i3, n3), h4 = t3.slice(e3, r3);
+            let o3 = (n3 >>>= 0) - (i3 >>>= 0), s17 = (r3 >>>= 0) - (e3 >>>= 0);
+            const a2 = Math.min(o3, s17), f2 = this.slice(i3, n3), h4 = t3.slice(e3, r3);
             for (let t4 = 0; t4 < a2; ++t4) if (f2[t4] !== h4[t4]) {
-              o3 = f2[t4], s16 = h4[t4];
+              o3 = f2[t4], s17 = h4[t4];
               break;
             }
-            return o3 < s16 ? -1 : s16 < o3 ? 1 : 0;
+            return o3 < s17 ? -1 : s17 < o3 ? 1 : 0;
           }, c.prototype.includes = function(t3, e3, r3) {
             return -1 !== this.indexOf(t3, e3, r3);
           }, c.prototype.indexOf = function(t3, e3, r3) {
@@ -22691,15 +22691,15 @@
             F2(e3, i3, n3, t3, r3, 7);
             let o3 = Number(e3 & BigInt(4294967295));
             t3[r3++] = o3, o3 >>= 8, t3[r3++] = o3, o3 >>= 8, t3[r3++] = o3, o3 >>= 8, t3[r3++] = o3;
-            let s16 = Number(e3 >> BigInt(32) & BigInt(4294967295));
-            return t3[r3++] = s16, s16 >>= 8, t3[r3++] = s16, s16 >>= 8, t3[r3++] = s16, s16 >>= 8, t3[r3++] = s16, r3;
+            let s17 = Number(e3 >> BigInt(32) & BigInt(4294967295));
+            return t3[r3++] = s17, s17 >>= 8, t3[r3++] = s17, s17 >>= 8, t3[r3++] = s17, s17 >>= 8, t3[r3++] = s17, r3;
           }
           function R(t3, e3, r3, i3, n3) {
             F2(e3, i3, n3, t3, r3, 7);
             let o3 = Number(e3 & BigInt(4294967295));
             t3[r3 + 7] = o3, o3 >>= 8, t3[r3 + 6] = o3, o3 >>= 8, t3[r3 + 5] = o3, o3 >>= 8, t3[r3 + 4] = o3;
-            let s16 = Number(e3 >> BigInt(32) & BigInt(4294967295));
-            return t3[r3 + 3] = s16, s16 >>= 8, t3[r3 + 2] = s16, s16 >>= 8, t3[r3 + 1] = s16, s16 >>= 8, t3[r3] = s16, r3 + 8;
+            let s17 = Number(e3 >> BigInt(32) & BigInt(4294967295));
+            return t3[r3 + 3] = s17, s17 >>= 8, t3[r3 + 2] = s17, s17 >>= 8, t3[r3 + 1] = s17, s17 >>= 8, t3[r3] = s17, r3 + 8;
           }
           function j2(t3, e3, r3, i3, n3, o3) {
             if (r3 + i3 > t3.length) throw new RangeError("Index out of range");
@@ -22821,16 +22821,16 @@
               const i4 = Math.pow(2, 8 * r3 - 1);
               N(this, t3, e3, r3, i4 - 1, -i4);
             }
-            let n3 = 0, o3 = 1, s16 = 0;
-            for (this[e3] = 255 & t3; ++n3 < r3 && (o3 *= 256); ) t3 < 0 && 0 === s16 && 0 !== this[e3 + n3 - 1] && (s16 = 1), this[e3 + n3] = (t3 / o3 | 0) - s16 & 255;
+            let n3 = 0, o3 = 1, s17 = 0;
+            for (this[e3] = 255 & t3; ++n3 < r3 && (o3 *= 256); ) t3 < 0 && 0 === s17 && 0 !== this[e3 + n3 - 1] && (s17 = 1), this[e3 + n3] = (t3 / o3 | 0) - s17 & 255;
             return e3 + r3;
           }, c.prototype.writeIntBE = function(t3, e3, r3, i3) {
             if (t3 = +t3, e3 >>>= 0, !i3) {
               const i4 = Math.pow(2, 8 * r3 - 1);
               N(this, t3, e3, r3, i4 - 1, -i4);
             }
-            let n3 = r3 - 1, o3 = 1, s16 = 0;
-            for (this[e3 + n3] = 255 & t3; --n3 >= 0 && (o3 *= 256); ) t3 < 0 && 0 === s16 && 0 !== this[e3 + n3 + 1] && (s16 = 1), this[e3 + n3] = (t3 / o3 | 0) - s16 & 255;
+            let n3 = r3 - 1, o3 = 1, s17 = 0;
+            for (this[e3 + n3] = 255 & t3; --n3 >= 0 && (o3 *= 256); ) t3 < 0 && 0 === s17 && 0 !== this[e3 + n3 + 1] && (s17 = 1), this[e3 + n3] = (t3 / o3 | 0) - s17 & 255;
             return e3 + r3;
           }, c.prototype.writeInt8 = function(t3, e3, r3) {
             return t3 = +t3, e3 >>>= 0, r3 || N(this, t3, e3, 1, 127, -128), t3 < 0 && (t3 = 255 + t3 + 1), this[e3] = 255 & t3, e3 + 1;
@@ -22878,9 +22878,9 @@
             let n3;
             if (e3 >>>= 0, r3 = void 0 === r3 ? this.length : r3 >>> 0, t3 || (t3 = 0), "number" == typeof t3) for (n3 = e3; n3 < r3; ++n3) this[n3] = t3;
             else {
-              const o3 = c.isBuffer(t3) ? t3 : c.from(t3, i3), s16 = o3.length;
-              if (0 === s16) throw new TypeError('The value "' + t3 + '" is invalid for argument "value"');
-              for (n3 = 0; n3 < r3 - e3; ++n3) this[n3 + e3] = o3[n3 % s16];
+              const o3 = c.isBuffer(t3) ? t3 : c.from(t3, i3), s17 = o3.length;
+              if (0 === s17) throw new TypeError('The value "' + t3 + '" is invalid for argument "value"');
+              for (n3 = 0; n3 < r3 - e3; ++n3) this[n3 + e3] = o3[n3 % s17];
             }
             return this;
           };
@@ -22940,14 +22940,14 @@
             const i3 = t3.length;
             let n3 = null;
             const o3 = [];
-            for (let s16 = 0; s16 < i3; ++s16) {
-              if (r3 = t3.charCodeAt(s16), r3 > 55295 && r3 < 57344) {
+            for (let s17 = 0; s17 < i3; ++s17) {
+              if (r3 = t3.charCodeAt(s17), r3 > 55295 && r3 < 57344) {
                 if (!n3) {
                   if (r3 > 56319) {
                     (e3 -= 3) > -1 && o3.push(239, 191, 189);
                     continue;
                   }
-                  if (s16 + 1 === i3) {
+                  if (s17 + 1 === i3) {
                     (e3 -= 3) > -1 && o3.push(239, 191, 189);
                     continue;
                   }
@@ -23031,16 +23031,16 @@
             var e3 = a(t3), r3 = e3[0], i3 = e3[1];
             return 3 * (r3 + i3) / 4 - i3;
           }, e2.toByteArray = function(t3) {
-            var e3, r3, o3 = a(t3), s16 = o3[0], c2 = o3[1], f = new n2((function(t4, e4, r4) {
+            var e3, r3, o3 = a(t3), s17 = o3[0], c2 = o3[1], f = new n2((function(t4, e4, r4) {
               return 3 * (e4 + r4) / 4 - r4;
-            })(0, s16, c2)), h3 = 0, u = c2 > 0 ? s16 - 4 : s16;
+            })(0, s17, c2)), h3 = 0, u = c2 > 0 ? s17 - 4 : s17;
             for (r3 = 0; r3 < u; r3 += 4) e3 = i2[t3.charCodeAt(r3)] << 18 | i2[t3.charCodeAt(r3 + 1)] << 12 | i2[t3.charCodeAt(r3 + 2)] << 6 | i2[t3.charCodeAt(r3 + 3)], f[h3++] = e3 >> 16 & 255, f[h3++] = e3 >> 8 & 255, f[h3++] = 255 & e3;
             return 2 === c2 && (e3 = i2[t3.charCodeAt(r3)] << 2 | i2[t3.charCodeAt(r3 + 1)] >> 4, f[h3++] = 255 & e3), 1 === c2 && (e3 = i2[t3.charCodeAt(r3)] << 10 | i2[t3.charCodeAt(r3 + 1)] << 4 | i2[t3.charCodeAt(r3 + 2)] >> 2, f[h3++] = e3 >> 8 & 255, f[h3++] = 255 & e3), f;
           }, e2.fromByteArray = function(t3) {
-            for (var e3, i3 = t3.length, n3 = i3 % 3, o3 = [], s16 = 16383, a2 = 0, f = i3 - n3; a2 < f; a2 += s16) o3.push(c(t3, a2, a2 + s16 > f ? f : a2 + s16));
+            for (var e3, i3 = t3.length, n3 = i3 % 3, o3 = [], s17 = 16383, a2 = 0, f = i3 - n3; a2 < f; a2 += s17) o3.push(c(t3, a2, a2 + s17 > f ? f : a2 + s17));
             return 1 === n3 ? (e3 = t3[i3 - 1], o3.push(r2[e3 >> 2] + r2[e3 << 4 & 63] + "==")) : 2 === n3 && (e3 = (t3[i3 - 2] << 8) + t3[i3 - 1], o3.push(r2[e3 >> 10] + r2[e3 >> 4 & 63] + r2[e3 << 2 & 63] + "=")), o3.join("");
           };
-          for (var r2 = [], i2 = [], n2 = "undefined" != typeof Uint8Array ? Uint8Array : Array, o2 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", s15 = 0; s15 < 64; ++s15) r2[s15] = o2[s15], i2[o2.charCodeAt(s15)] = s15;
+          for (var r2 = [], i2 = [], n2 = "undefined" != typeof Uint8Array ? Uint8Array : Array, o2 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", s16 = 0; s16 < 64; ++s16) r2[s16] = o2[s16], i2[o2.charCodeAt(s16)] = s16;
           function a(t3) {
             var e3 = t3.length;
             if (e3 % 4 > 0) throw new Error("Invalid string. Length must be a multiple of 4");
@@ -23048,8 +23048,8 @@
             return -1 === r3 && (r3 = e3), [r3, r3 === e3 ? 0 : 4 - r3 % 4];
           }
           function c(t3, e3, i3) {
-            for (var n3, o3, s16 = [], a2 = e3; a2 < i3; a2 += 3) n3 = (t3[a2] << 16 & 16711680) + (t3[a2 + 1] << 8 & 65280) + (255 & t3[a2 + 2]), s16.push(r2[(o3 = n3) >> 18 & 63] + r2[o3 >> 12 & 63] + r2[o3 >> 6 & 63] + r2[63 & o3]);
-            return s16.join("");
+            for (var n3, o3, s17 = [], a2 = e3; a2 < i3; a2 += 3) n3 = (t3[a2] << 16 & 16711680) + (t3[a2 + 1] << 8 & 65280) + (255 & t3[a2 + 2]), s17.push(r2[(o3 = n3) >> 18 & 63] + r2[o3 >> 12 & 63] + r2[o3 >> 6 & 63] + r2[63 & o3]);
+            return s17.join("");
           }
           i2["-".charCodeAt(0)] = 62, i2["_".charCodeAt(0)] = 63;
         }, 557: (t2, e2) => {
@@ -23094,25 +23094,25 @@
           function o2(t3, e3) {
             this.encodeBuf = e3.encodeBuf;
           }
-          function s15(t3, e3) {
+          function s16(t3, e3) {
             this.decodeBuf = e3.decodeBuf;
           }
-          e2._sbcs = n2, n2.prototype.encoder = o2, n2.prototype.decoder = s15, o2.prototype.write = function(t3) {
+          e2._sbcs = n2, n2.prototype.encoder = o2, n2.prototype.decoder = s16, o2.prototype.write = function(t3) {
             for (var e3 = i2.alloc(t3.length), r3 = 0; r3 < t3.length; r3++) e3[r3] = this.encodeBuf[t3.charCodeAt(r3)];
             return e3;
           }, o2.prototype.end = function() {
-          }, s15.prototype.write = function(t3) {
-            for (var e3 = this.decodeBuf, r3 = i2.alloc(2 * t3.length), n3 = 0, o3 = 0, s16 = 0; s16 < t3.length; s16++) n3 = 2 * t3[s16], r3[o3 = 2 * s16] = e3[n3], r3[o3 + 1] = e3[n3 + 1];
+          }, s16.prototype.write = function(t3) {
+            for (var e3 = this.decodeBuf, r3 = i2.alloc(2 * t3.length), n3 = 0, o3 = 0, s17 = 0; s17 < t3.length; s17++) n3 = 2 * t3[s17], r3[o3 = 2 * s17] = e3[n3], r3[o3 + 1] = e3[n3 + 1];
             return r3.toString("ucs2");
-          }, s15.prototype.end = function() {
+          }, s16.prototype.end = function() {
           };
         }, 774: (t2, e2, r2) => {
           "use strict";
-          var i2, n2 = r2(287), o2 = n2.Buffer, s15 = {};
-          for (i2 in n2) n2.hasOwnProperty(i2) && "SlowBuffer" !== i2 && "Buffer" !== i2 && (s15[i2] = n2[i2]);
-          var a = s15.Buffer = {};
+          var i2, n2 = r2(287), o2 = n2.Buffer, s16 = {};
+          for (i2 in n2) n2.hasOwnProperty(i2) && "SlowBuffer" !== i2 && "Buffer" !== i2 && (s16[i2] = n2[i2]);
+          var a = s16.Buffer = {};
           for (i2 in o2) o2.hasOwnProperty(i2) && "allocUnsafe" !== i2 && "allocUnsafeSlow" !== i2 && (a[i2] = o2[i2]);
-          if (s15.Buffer.prototype = o2.prototype, a.from && a.from !== Uint8Array.from || (a.from = function(t3, e3, r3) {
+          if (s16.Buffer.prototype = o2.prototype, a.from && a.from !== Uint8Array.from || (a.from = function(t3, e3, r3) {
             if ("number" == typeof t3) throw new TypeError('The "value" argument must not be of type number. Received type ' + typeof t3);
             if (t3 && void 0 === t3.length) throw new TypeError("The first argument must be one of type string, Buffer, ArrayBuffer, Array, or Array-like Object. Received type " + typeof t3);
             return o2(t3, e3, r3);
@@ -23121,11 +23121,11 @@
             if (t3 < 0 || t3 >= 2 * (1 << 30)) throw new RangeError('The value "' + t3 + '" is invalid for option "size"');
             var i3 = o2(t3);
             return e3 && 0 !== e3.length ? "string" == typeof r3 ? i3.fill(e3, r3) : i3.fill(e3) : i3.fill(0), i3;
-          }), !s15.kStringMaxLength) try {
-            s15.kStringMaxLength = process.binding("buffer").kStringMaxLength;
+          }), !s16.kStringMaxLength) try {
+            s16.kStringMaxLength = process.binding("buffer").kStringMaxLength;
           } catch (t3) {
           }
-          s15.constants || (s15.constants = { MAX_LENGTH: s15.kMaxLength }, s15.kStringMaxLength && (s15.constants.MAX_STRING_LENGTH = s15.kStringMaxLength)), t2.exports = s15;
+          s16.constants || (s16.constants = { MAX_LENGTH: s16.kMaxLength }, s16.kStringMaxLength && (s16.constants.MAX_STRING_LENGTH = s16.kStringMaxLength)), t2.exports = s16;
         }, 792: (t2, e2, r2) => {
           "use strict";
           var i2 = r2(774).Buffer;
@@ -23188,20 +23188,20 @@
           function o2(t3, e3) {
             for (var r3 in t3) e3[r3] = t3[r3];
           }
-          function s15(t3, e3, r3) {
+          function s16(t3, e3, r3) {
             return n2(t3, e3, r3);
           }
-          n2.from && n2.alloc && n2.allocUnsafe && n2.allocUnsafeSlow ? t2.exports = i2 : (o2(i2, e2), e2.Buffer = s15), s15.prototype = Object.create(n2.prototype), o2(n2, s15), s15.from = function(t3, e3, r3) {
+          n2.from && n2.alloc && n2.allocUnsafe && n2.allocUnsafeSlow ? t2.exports = i2 : (o2(i2, e2), e2.Buffer = s16), s16.prototype = Object.create(n2.prototype), o2(n2, s16), s16.from = function(t3, e3, r3) {
             if ("number" == typeof t3) throw new TypeError("Argument must not be a number");
             return n2(t3, e3, r3);
-          }, s15.alloc = function(t3, e3, r3) {
+          }, s16.alloc = function(t3, e3, r3) {
             if ("number" != typeof t3) throw new TypeError("Argument must be a number");
             var i3 = n2(t3);
             return void 0 !== e3 ? "string" == typeof r3 ? i3.fill(e3, r3) : i3.fill(e3) : i3.fill(0), i3;
-          }, s15.allocUnsafe = function(t3) {
+          }, s16.allocUnsafe = function(t3) {
             if ("number" != typeof t3) throw new TypeError("Argument must be a number");
             return n2(t3);
-          }, s15.allocUnsafeSlow = function(t3) {
+          }, s16.allocUnsafeSlow = function(t3) {
             if ("number" != typeof t3) throw new TypeError("Argument must be a number");
             return i2.SlowBuffer(t3);
           };
@@ -23211,9 +23211,9 @@
           function n2(t3, e3) {
             this.enc = t3.encodingName, this.bomAware = t3.bomAware, "base64" === this.enc ? this.encoder = c : "utf8" === this.enc ? this.encoder = u : "cesu8" === this.enc && (this.enc = "utf8", this.encoder = f, "\u{1F4A9}" !== i2.from("eda0bdedb2a9", "hex").toString() && (this.decoder = h3, this.defaultCharUnicode = e3.defaultCharUnicode));
           }
-          t2.exports = { utf8: { type: "_internal", bomAware: true }, cesu8: { type: "_internal", bomAware: true }, unicode11utf8: "utf8", ucs2: { type: "_internal", bomAware: true }, utf16le: "ucs2", binary: { type: "_internal" }, base64: { type: "_internal" }, hex: { type: "_internal" }, _internal: n2 }, n2.prototype.encoder = a, n2.prototype.decoder = s15;
+          t2.exports = { utf8: { type: "_internal", bomAware: true }, cesu8: { type: "_internal", bomAware: true }, unicode11utf8: "utf8", ucs2: { type: "_internal", bomAware: true }, utf16le: "ucs2", binary: { type: "_internal" }, base64: { type: "_internal" }, hex: { type: "_internal" }, _internal: n2 }, n2.prototype.encoder = a, n2.prototype.decoder = s16;
           var o2 = r2(141).I;
-          function s15(t3, e3) {
+          function s16(t3, e3) {
             this.decoder = new o2(e3.enc);
           }
           function a(t3, e3) {
@@ -23230,9 +23230,9 @@
           function u(t3, e3) {
             this.highSurrogate = "";
           }
-          s15.prototype.write = function(t3) {
+          s16.prototype.write = function(t3) {
             return i2.isBuffer(t3) || (t3 = i2.from(t3)), this.decoder.write(t3);
-          }, s15.prototype.end = function() {
+          }, s16.prototype.end = function() {
             return this.decoder.end();
           }, a.prototype.write = function(t3) {
             return i2.from(t3, this.enc);
@@ -23251,8 +23251,8 @@
           }, f.prototype.end = function() {
           }, h3.prototype.write = function(t3) {
             for (var e3 = this.acc, r3 = this.contBytes, i3 = this.accBytes, n3 = "", o3 = 0; o3 < t3.length; o3++) {
-              var s16 = t3[o3];
-              128 != (192 & s16) ? (r3 > 0 && (n3 += this.defaultCharUnicode, r3 = 0), s16 < 128 ? n3 += String.fromCharCode(s16) : s16 < 224 ? (e3 = 31 & s16, r3 = 1, i3 = 1) : s16 < 240 ? (e3 = 15 & s16, r3 = 2, i3 = 1) : n3 += this.defaultCharUnicode) : r3 > 0 ? (e3 = e3 << 6 | 63 & s16, i3++, 0 === --r3 && (n3 += 2 === i3 && e3 < 128 && e3 > 0 || 3 === i3 && e3 < 2048 ? this.defaultCharUnicode : String.fromCharCode(e3))) : n3 += this.defaultCharUnicode;
+              var s17 = t3[o3];
+              128 != (192 & s17) ? (r3 > 0 && (n3 += this.defaultCharUnicode, r3 = 0), s17 < 128 ? n3 += String.fromCharCode(s17) : s17 < 224 ? (e3 = 31 & s17, r3 = 1, i3 = 1) : s17 < 240 ? (e3 = 15 & s17, r3 = 2, i3 = 1) : n3 += this.defaultCharUnicode) : r3 > 0 ? (e3 = e3 << 6 | 63 & s17, i3++, 0 === --r3 && (n3 += 2 === i3 && e3 < 128 && e3 > 0 || 3 === i3 && e3 < 2048 ? this.defaultCharUnicode : String.fromCharCode(e3))) : n3 += this.defaultCharUnicode;
             }
             return this.acc = e3, this.contBytes = r3, this.accBytes = i3, n3;
           }, h3.prototype.end = function() {
@@ -103584,16 +103584,16 @@
   }
   function removeShortMatches2(sequence1, sequence2, sequenceDiffs) {
     const result = [];
-    for (const s15 of sequenceDiffs) {
+    for (const s16 of sequenceDiffs) {
       const last = result[result.length - 1];
       if (!last) {
-        result.push(s15);
+        result.push(s16);
         continue;
       }
-      if (s15.seq1Range.start - last.seq1Range.endExclusive <= 2 || s15.seq2Range.start - last.seq2Range.endExclusive <= 2) {
-        result[result.length - 1] = new SequenceDiff2(last.seq1Range.join(s15.seq1Range), last.seq2Range.join(s15.seq2Range));
+      if (s16.seq1Range.start - last.seq1Range.endExclusive <= 2 || s16.seq2Range.start - last.seq2Range.endExclusive <= 2) {
+        result[result.length - 1] = new SequenceDiff2(last.seq1Range.join(s16.seq1Range), last.seq2Range.join(s16.seq2Range));
       } else {
-        result.push(s15);
+        result.push(s16);
       }
     }
     return result;
@@ -104657,50 +104657,50 @@ ${val.stack}`;
           const lcsLengths = new Array2D2(sequence1.length, sequence2.length);
           const directions = new Array2D2(sequence1.length, sequence2.length);
           const lengths = new Array2D2(sequence1.length, sequence2.length);
-          for (let s15 = 0; s15 < sequence1.length; s15++) {
+          for (let s16 = 0; s16 < sequence1.length; s16++) {
             for (let s23 = 0; s23 < sequence2.length; s23++) {
               if (!timeout2.isValid()) {
                 return DiffAlgorithmResult2.trivialTimedOut(sequence1, sequence2);
               }
-              const horizontalLen = s15 === 0 ? 0 : lcsLengths.get(s15 - 1, s23);
-              const verticalLen = s23 === 0 ? 0 : lcsLengths.get(s15, s23 - 1);
+              const horizontalLen = s16 === 0 ? 0 : lcsLengths.get(s16 - 1, s23);
+              const verticalLen = s23 === 0 ? 0 : lcsLengths.get(s16, s23 - 1);
               let extendedSeqScore;
-              if (sequence1.getElement(s15) === sequence2.getElement(s23)) {
-                if (s15 === 0 || s23 === 0) {
+              if (sequence1.getElement(s16) === sequence2.getElement(s23)) {
+                if (s16 === 0 || s23 === 0) {
                   extendedSeqScore = 0;
                 } else {
-                  extendedSeqScore = lcsLengths.get(s15 - 1, s23 - 1);
+                  extendedSeqScore = lcsLengths.get(s16 - 1, s23 - 1);
                 }
-                if (s15 > 0 && s23 > 0 && directions.get(s15 - 1, s23 - 1) === 3) {
-                  extendedSeqScore += lengths.get(s15 - 1, s23 - 1);
+                if (s16 > 0 && s23 > 0 && directions.get(s16 - 1, s23 - 1) === 3) {
+                  extendedSeqScore += lengths.get(s16 - 1, s23 - 1);
                 }
-                extendedSeqScore += equalityScore ? equalityScore(s15, s23) : 1;
+                extendedSeqScore += equalityScore ? equalityScore(s16, s23) : 1;
               } else {
                 extendedSeqScore = -1;
               }
               const newValue = Math.max(horizontalLen, verticalLen, extendedSeqScore);
               if (newValue === extendedSeqScore) {
-                const prevLen = s15 > 0 && s23 > 0 ? lengths.get(s15 - 1, s23 - 1) : 0;
-                lengths.set(s15, s23, prevLen + 1);
-                directions.set(s15, s23, 3);
+                const prevLen = s16 > 0 && s23 > 0 ? lengths.get(s16 - 1, s23 - 1) : 0;
+                lengths.set(s16, s23, prevLen + 1);
+                directions.set(s16, s23, 3);
               } else if (newValue === horizontalLen) {
-                lengths.set(s15, s23, 0);
-                directions.set(s15, s23, 1);
+                lengths.set(s16, s23, 0);
+                directions.set(s16, s23, 1);
               } else if (newValue === verticalLen) {
-                lengths.set(s15, s23, 0);
-                directions.set(s15, s23, 2);
+                lengths.set(s16, s23, 0);
+                directions.set(s16, s23, 2);
               }
-              lcsLengths.set(s15, s23, newValue);
+              lcsLengths.set(s16, s23, newValue);
             }
           }
           const result = [];
           let lastAligningPosS1 = sequence1.length;
           let lastAligningPosS2 = sequence2.length;
-          function reportDecreasingAligningPositions(s15, s23) {
-            if (s15 + 1 !== lastAligningPosS1 || s23 + 1 !== lastAligningPosS2) {
-              result.push(new SequenceDiff2(new OffsetRange2(s15 + 1, lastAligningPosS1), new OffsetRange2(s23 + 1, lastAligningPosS2)));
+          function reportDecreasingAligningPositions(s16, s23) {
+            if (s16 + 1 !== lastAligningPosS1 || s23 + 1 !== lastAligningPosS2) {
+              result.push(new SequenceDiff2(new OffsetRange2(s16 + 1, lastAligningPosS1), new OffsetRange2(s23 + 1, lastAligningPosS2)));
             }
-            lastAligningPosS1 = s15;
+            lastAligningPosS1 = s16;
             lastAligningPosS2 = s23;
           }
           let s1 = sequence1.length - 1;
@@ -105898,17 +105898,17 @@ ${val.stack}`;
           Object.defineProperty(t2, "__esModule", { value: true }), t2.UseOnigurumaFindOptions = t2.DebugFlags = void 0, t2.DebugFlags = { InDebugMode: "undefined" != typeof process && !!process.env.VSCODE_TEXTMATE_DEBUG }, t2.UseOnigurumaFindOptions = false;
         }, 151: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.applyStateStackDiff = t2.diffStateStacksRefEq = void 0;
-          const s15 = n2(752);
+          const s16 = n2(752);
           t2.diffStateStacksRefEq = function(e3, t3) {
             let n3 = 0;
-            const s16 = [];
+            const s17 = [];
             let r2 = e3, i2 = t3;
-            for (; r2 !== i2; ) r2 && (!i2 || r2.depth >= i2.depth) ? (n3++, r2 = r2.parent) : (s16.push(i2.toStateStackFrame()), i2 = i2.parent);
-            return { pops: n3, newFrames: s16.reverse() };
+            for (; r2 !== i2; ) r2 && (!i2 || r2.depth >= i2.depth) ? (n3++, r2 = r2.parent) : (s17.push(i2.toStateStackFrame()), i2 = i2.parent);
+            return { pops: n3, newFrames: s17.reverse() };
           }, t2.applyStateStackDiff = function(e3, t3) {
             let n3 = e3;
             for (let e4 = 0; e4 < t3.pops; e4++) n3 = n3.parent;
-            for (const e4 of t3.newFrames) n3 = s15.StateStackImpl.pushFrame(n3, e4);
+            for (const e4 of t3.newFrames) n3 = s16.StateStackImpl.pushFrame(n3, e4);
             return n3;
           };
         }, 490: (e2, t2) => {
@@ -105920,45 +105920,45 @@ ${val.stack}`;
             static _getKey(e3, t3, n3) {
               return `${e3}|${t3}|${n3}`;
             }
-            static _get(e3, t3, s16) {
-              const r2 = this._getKey(e3, t3, s16);
+            static _get(e3, t3, s17) {
+              const r2 = this._getKey(e3, t3, s17);
               let i2 = this._map.get(r2);
-              return i2 || (i2 = new n2(e3, t3, s16), this._map.set(r2, i2)), i2;
+              return i2 || (i2 = new n2(e3, t3, s17), this._map.set(r2, i2)), i2;
             }
-            static from(e3, t3, s16) {
-              return new n2(e3, t3, s16);
+            static from(e3, t3, s17) {
+              return new n2(e3, t3, s17);
             }
             with(e3) {
               return e3 ? n2._get(e3.fontFamily || this.fontFamily, e3.fontSize || this.fontSize, e3.lineHeight || this.lineHeight) : this;
             }
           }
-          var s15;
-          t2.FontAttribute = n2, n2._map = /* @__PURE__ */ new Map(), (s15 = t2.EncodedTokenAttributes || (t2.EncodedTokenAttributes = {})).toBinaryStr = function(e3) {
+          var s16;
+          t2.FontAttribute = n2, n2._map = /* @__PURE__ */ new Map(), (s16 = t2.EncodedTokenAttributes || (t2.EncodedTokenAttributes = {})).toBinaryStr = function(e3) {
             return e3.toString(2).padStart(32, "0");
-          }, s15.print = function(e3) {
-            const t3 = s15.getLanguageId(e3), n3 = s15.getTokenType(e3), r2 = s15.getFontStyle(e3), i2 = s15.getForeground(e3), o2 = s15.getBackground(e3);
+          }, s16.print = function(e3) {
+            const t3 = s16.getLanguageId(e3), n3 = s16.getTokenType(e3), r2 = s16.getFontStyle(e3), i2 = s16.getForeground(e3), o2 = s16.getBackground(e3);
             console.log({ languageId: t3, tokenType: n3, fontStyle: r2, foreground: i2, background: o2 });
-          }, s15.getLanguageId = function(e3) {
+          }, s16.getLanguageId = function(e3) {
             return (255 & e3) >>> 0;
-          }, s15.getTokenType = function(e3) {
+          }, s16.getTokenType = function(e3) {
             return (768 & e3) >>> 8;
-          }, s15.containsBalancedBrackets = function(e3) {
+          }, s16.containsBalancedBrackets = function(e3) {
             return !!(1024 & e3);
-          }, s15.getFontStyle = function(e3) {
+          }, s16.getFontStyle = function(e3) {
             return (30720 & e3) >>> 11;
-          }, s15.getForeground = function(e3) {
+          }, s16.getForeground = function(e3) {
             return (16744448 & e3) >>> 15;
-          }, s15.getBackground = function(e3) {
+          }, s16.getBackground = function(e3) {
             return (4278190080 & e3) >>> 24;
-          }, s15.set = function(e3, t3, n3, r2, i2, o2, a) {
-            let c = s15.getLanguageId(e3), l2 = s15.getTokenType(e3), u = s15.containsBalancedBrackets(e3) ? 1 : 0, h3 = s15.getFontStyle(e3), p = s15.getForeground(e3), d = s15.getBackground(e3);
+          }, s16.set = function(e3, t3, n3, r2, i2, o2, a) {
+            let c = s16.getLanguageId(e3), l2 = s16.getTokenType(e3), u = s16.containsBalancedBrackets(e3) ? 1 : 0, h3 = s16.getFontStyle(e3), p = s16.getForeground(e3), d = s16.getBackground(e3);
             return 0 !== t3 && (c = t3), 8 !== n3 && (l2 = n3), null !== r2 && (u = r2 ? 1 : 0), -1 !== i2 && (h3 = i2), 0 !== o2 && (p = o2), 0 !== a && (d = a), (c | l2 << 8 | u << 10 | h3 << 11 | p << 15 | d << 24) >>> 0;
           }, t2.toOptionalTokenType = function(e3) {
             return e3;
           };
         }, 214: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.BasicScopeAttributesProvider = t2.BasicScopeAttributes = void 0;
-          const s15 = n2(807);
+          const s16 = n2(807);
           class r2 {
             constructor(e3, t3) {
               this.languageId = e3, this.tokenType = t3;
@@ -105967,7 +105967,7 @@ ${val.stack}`;
           t2.BasicScopeAttributes = r2;
           class i2 {
             constructor(e3, t3) {
-              this._getBasicScopeAttributes = new s15.CachedFn(((e4) => {
+              this._getBasicScopeAttributes = new s16.CachedFn(((e4) => {
                 const t4 = this._scopeToLanguage(e4), n3 = this._toStandardTokenType(e4);
                 return new r2(t4, n3);
               })), this._defaultAttributes = new r2(e3, 8), this._embeddedLanguagesMatcher = new o2(Object.entries(t3 || {}));
@@ -106003,7 +106003,7 @@ ${val.stack}`;
               if (0 === e3.length) this.values = null, this.scopesRegExp = null;
               else {
                 this.values = new Map(e3);
-                const t3 = e3.map((([e4, t4]) => s15.escapeRegExpCharacters(e4)));
+                const t3 = e3.map((([e4, t4]) => s16.escapeRegExpCharacters(e4)));
                 t3.sort(), t3.reverse(), this.scopesRegExp = new RegExp(`^((${t3.join(")|(")}))($|\\.)`, "");
               }
             }
@@ -106015,16 +106015,16 @@ ${val.stack}`;
           }
         }, 929: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.LineFonts = t2.FontInfo = t2.LineTokens = t2.BalancedBracketSelectors = t2.StateStackImpl = t2.AttributedScopeStack = t2.Grammar = t2.createGrammar = void 0;
-          const s15 = n2(185), r2 = n2(490), i2 = n2(916), o2 = n2(810), a = n2(666), c = n2(63), l2 = n2(807), u = n2(214), h3 = n2(398);
-          function p(e3, t3, n3, s16, r3) {
-            const o3 = i2.createMatchers(t3, d), c2 = a.RuleFactory.getCompiledRuleId(n3, s16, r3.repository);
+          const s16 = n2(185), r2 = n2(490), i2 = n2(916), o2 = n2(810), a = n2(666), c = n2(63), l2 = n2(807), u = n2(214), h3 = n2(398);
+          function p(e3, t3, n3, s17, r3) {
+            const o3 = i2.createMatchers(t3, d), c2 = a.RuleFactory.getCompiledRuleId(n3, s17, r3.repository);
             for (const n4 of o3) e3.push({ debugSelector: t3, matcher: n4.matcher, ruleId: c2, grammar: r3, priority: n4.priority });
           }
           function d(e3, t3) {
             if (t3.length < e3.length) return false;
             let n3 = 0;
             return e3.every(((e4) => {
-              for (let s16 = n3; s16 < t3.length; s16++) if (f(t3[s16], e4)) return n3 = s16 + 1, true;
+              for (let s17 = n3; s17 < t3.length; s17++) if (f(t3[s17], e4)) return n3 = s17 + 1, true;
               return false;
             }));
           }
@@ -106034,12 +106034,12 @@ ${val.stack}`;
             const n3 = t3.length;
             return e3.length > n3 && e3.substr(0, n3) === t3 && "." === e3[n3];
           }
-          t2.createGrammar = function(e3, t3, n3, s16, r3, i3, o3, a2) {
-            return new m(e3, t3, n3, s16, r3, i3, o3, a2);
+          t2.createGrammar = function(e3, t3, n3, s17, r3, i3, o3, a2) {
+            return new m(e3, t3, n3, s17, r3, i3, o3, a2);
           };
           class m {
-            constructor(e3, t3, n3, s16, r3, o3, a2, c2) {
-              if (this._rootScopeName = e3, this.balancedBracketSelectors = o3, this._onigLib = c2, this._basicScopeAttributesProvider = new u.BasicScopeAttributesProvider(n3, s16), this._rootId = -1, this._lastRuleId = 0, this._ruleId2desc = [null], this._includedGrammars = {}, this._grammarRepository = a2, this._grammar = g2(t3, null), this._injections = null, this._tokenTypeMatchers = [], r3) for (const e4 of Object.keys(r3)) {
+            constructor(e3, t3, n3, s17, r3, o3, a2, c2) {
+              if (this._rootScopeName = e3, this.balancedBracketSelectors = o3, this._onigLib = c2, this._basicScopeAttributesProvider = new u.BasicScopeAttributesProvider(n3, s17), this._rootId = -1, this._lastRuleId = 0, this._ruleId2desc = [null], this._includedGrammars = {}, this._grammarRepository = a2, this._grammar = g2(t3, null), this._injections = null, this._tokenTypeMatchers = [], r3) for (const e4 of Object.keys(r3)) {
                 const t4 = i2.createMatchers(e4, d);
                 for (const n4 of t4) this._tokenTypeMatchers.push({ matcher: n4.matcher, type: r3[e4] });
               }
@@ -106062,8 +106062,8 @@ ${val.stack}`;
             _collectInjections() {
               const e3 = [], t3 = this._rootScopeName, n3 = ((e4) => e4 === this._rootScopeName ? this._grammar : this.getExternalGrammar(e4))(t3);
               if (n3) {
-                const s16 = n3.injections;
-                if (s16) for (let t4 in s16) p(e3, t4, s16[t4], this, n3);
+                const s17 = n3.injections;
+                if (s17) for (let t4 in s17) p(e3, t4, s17[t4], this, n3);
                 const r3 = this._grammarRepository.injections(t3);
                 r3 && r3.forEach(((t4) => {
                   const n4 = this.getExternalGrammar(t4);
@@ -106076,7 +106076,7 @@ ${val.stack}`;
               return e3.sort(((e4, t4) => e4.priority - t4.priority)), e3;
             }
             getInjections() {
-              if (null === this._injections && (this._injections = this._collectInjections(), s15.DebugFlags.InDebugMode && this._injections.length > 0)) {
+              if (null === this._injections && (this._injections = this._collectInjections(), s16.DebugFlags.InDebugMode && this._injections.length > 0)) {
                 console.log(`Grammar ${this._rootScopeName} contains the following injections:`);
                 for (const e3 of this._injections) console.log(`  - ${e3.debugSelector}`);
               }
@@ -106097,24 +106097,24 @@ ${val.stack}`;
               }
             }
             tokenizeLine(e3, t3, n3 = 0) {
-              const s16 = this._tokenize(e3, t3, false, n3);
-              return { tokens: s16.lineTokens.getResult(s16.ruleStack, s16.lineLength), ruleStack: s16.ruleStack, stoppedEarly: s16.stoppedEarly, fonts: s16.lineFonts.getResult() };
+              const s17 = this._tokenize(e3, t3, false, n3);
+              return { tokens: s17.lineTokens.getResult(s17.ruleStack, s17.lineLength), ruleStack: s17.ruleStack, stoppedEarly: s17.stoppedEarly, fonts: s17.lineFonts.getResult() };
             }
             tokenizeLine2(e3, t3, n3 = 0) {
-              const s16 = this._tokenize(e3, t3, true, n3);
-              return { tokens: s16.lineTokens.getBinaryResult(s16.ruleStack, s16.lineLength), ruleStack: s16.ruleStack, stoppedEarly: s16.stoppedEarly, fonts: s16.lineFonts.getResult() };
+              const s17 = this._tokenize(e3, t3, true, n3);
+              return { tokens: s17.lineTokens.getBinaryResult(s17.ruleStack, s17.lineLength), ruleStack: s17.ruleStack, stoppedEarly: s17.stoppedEarly, fonts: s17.lineFonts.getResult() };
             }
-            _tokenize(e3, t3, n3, s16) {
+            _tokenize(e3, t3, n3, s17) {
               let i3;
               if (-1 === this._rootId && (this._rootId = a.RuleFactory.getCompiledRuleId(this._grammar.repository.$self, this, this._grammar.repository), this.getInjections()), t3 && t3 !== b2.NULL) i3 = false, t3.reset();
               else {
                 i3 = true;
-                const e4 = this._basicScopeAttributesProvider.getDefaultAttributes(), n4 = this.themeProvider.getDefaults(), s17 = r2.EncodedTokenAttributes.set(0, e4.languageId, e4.tokenType, null, n4.fontStyle, n4.foregroundId, n4.backgroundId), o3 = r2.FontAttribute.from(n4.fontFamily, n4.fontSize, n4.lineHeight), a2 = this.getRule(this._rootId).getName(null, null);
+                const e4 = this._basicScopeAttributesProvider.getDefaultAttributes(), n4 = this.themeProvider.getDefaults(), s18 = r2.EncodedTokenAttributes.set(0, e4.languageId, e4.tokenType, null, n4.fontStyle, n4.foregroundId, n4.backgroundId), o3 = r2.FontAttribute.from(n4.fontFamily, n4.fontSize, n4.lineHeight), a2 = this.getRule(this._rootId).getName(null, null);
                 let c3;
-                c3 = a2 ? _3.createRootAndLookUpScopeName(a2, s17, o3, this) : _3.createRoot("unknown", s17, o3), t3 = new b2(null, this._rootId, -1, -1, false, null, c3, c3);
+                c3 = a2 ? _3.createRootAndLookUpScopeName(a2, s18, o3, this) : _3.createRoot("unknown", s18, o3), t3 = new b2(null, this._rootId, -1, -1, false, null, c3, c3);
               }
               e3 += "\n";
-              const c2 = this.createOnigString(e3), l3 = c2.content.length, u2 = new y(n3, e3, this._tokenTypeMatchers, this.balancedBracketSelectors), p2 = new k2(), d2 = h3._tokenizeString(this, c2, i3, 0, t3, u2, p2, true, s16);
+              const c2 = this.createOnigString(e3), l3 = c2.content.length, u2 = new y(n3, e3, this._tokenTypeMatchers, this.balancedBracketSelectors), p2 = new k2(), d2 = h3._tokenizeString(this, c2, i3, 0, t3, u2, p2, true, s17);
               return o2.disposeOnigString(c2), { lineLength: l3, lineTokens: u2, lineFonts: p2, ruleStack: d2.stack, stoppedEarly: d2.stoppedEarly };
             }
           }
@@ -106123,19 +106123,19 @@ ${val.stack}`;
           }
           t2.Grammar = m;
           class _3 {
-            constructor(e3, t3, n3, s16, r3) {
-              this.parent = e3, this.scopePath = t3, this.tokenAttributes = n3, this.fontAttributes = s16, this.styleAttributes = r3;
+            constructor(e3, t3, n3, s17, r3) {
+              this.parent = e3, this.scopePath = t3, this.tokenAttributes = n3, this.fontAttributes = s17, this.styleAttributes = r3;
             }
             static fromExtension(e3, t3) {
-              let n3 = e3, s16 = e3?.scopePath ?? null;
-              for (const e4 of t3) s16 = c.ScopeStack.push(s16, e4.scopeNames), n3 = new _3(n3, s16, e4.encodedTokenAttributes, null, null);
+              let n3 = e3, s17 = e3?.scopePath ?? null;
+              for (const e4 of t3) s17 = c.ScopeStack.push(s17, e4.scopeNames), n3 = new _3(n3, s17, e4.encodedTokenAttributes, null, null);
               return n3;
             }
             static createRoot(e3, t3, n3) {
               return new _3(null, new c.ScopeStack(null, e3), t3, n3, null);
             }
-            static createRootAndLookUpScopeName(e3, t3, n3, s16) {
-              const r3 = s16.getMetadataForScope(e3), i3 = new c.ScopeStack(null, e3), o3 = s16.themeProvider.themeMatch(i3), a2 = _3.mergeAttributes(t3, r3, o3), l3 = n3.with(o3);
+            static createRootAndLookUpScopeName(e3, t3, n3, s17) {
+              const r3 = s17.getMetadataForScope(e3), i3 = new c.ScopeStack(null, e3), o3 = s17.themeProvider.themeMatch(i3), a2 = _3.mergeAttributes(t3, r3, o3), l3 = n3.with(o3);
               return new _3(null, i3, a2, l3, o3);
             }
             get scopeName() {
@@ -106157,19 +106157,19 @@ ${val.stack}`;
               }
             }
             static mergeAttributes(e3, t3, n3) {
-              let s16 = -1, i3 = 0, o3 = 0;
-              return null !== n3 && (s16 = n3.fontStyle, i3 = n3.foregroundId, o3 = n3.backgroundId), r2.EncodedTokenAttributes.set(e3, t3.languageId, t3.tokenType, null, s16, i3, o3);
+              let s17 = -1, i3 = 0, o3 = 0;
+              return null !== n3 && (s17 = n3.fontStyle, i3 = n3.foregroundId, o3 = n3.backgroundId), r2.EncodedTokenAttributes.set(e3, t3.languageId, t3.tokenType, null, s17, i3, o3);
             }
             pushAttributed(e3, t3) {
               if (null === e3) return this;
               if (-1 === e3.indexOf(" ")) return _3._pushAttributed(this, e3, t3);
               const n3 = e3.split(/ /g);
-              let s16 = this;
-              for (const e4 of n3) s16 = _3._pushAttributed(s16, e4, t3);
-              return s16;
+              let s17 = this;
+              for (const e4 of n3) s17 = _3._pushAttributed(s17, e4, t3);
+              return s17;
             }
             static _pushAttributed(e3, t3, n3) {
-              const s16 = n3.getMetadataForScope(t3), r3 = e3.scopePath.push(t3), i3 = n3.themeProvider.themeMatch(r3), o3 = _3.mergeAttributes(e3.tokenAttributes, s16, i3), a2 = e3.fontAttributes?.with(i3) ?? null;
+              const s17 = n3.getMetadataForScope(t3), r3 = e3.scopePath.push(t3), i3 = n3.themeProvider.themeMatch(r3), o3 = _3.mergeAttributes(e3.tokenAttributes, s17, i3), a2 = e3.fontAttributes?.with(i3) ?? null;
               return new _3(e3, r3, o3, a2, i3);
             }
             getScopeNames() {
@@ -106184,8 +106184,8 @@ ${val.stack}`;
           }
           t2.AttributedScopeStack = _3;
           class b2 {
-            constructor(e3, t3, n3, s16, r3, i3, o3, a2) {
-              this.parent = e3, this.ruleId = t3, this.beginRuleCapturedEOL = r3, this.endRule = i3, this.nameScopesList = o3, this.contentNameScopesList = a2, this._stackElementBrand = void 0, this.depth = this.parent ? this.parent.depth + 1 : 1, this._enterPos = n3, this._anchorPos = s16;
+            constructor(e3, t3, n3, s17, r3, i3, o3, a2) {
+              this.parent = e3, this.ruleId = t3, this.beginRuleCapturedEOL = r3, this.endRule = i3, this.nameScopesList = o3, this.contentNameScopesList = a2, this._stackElementBrand = void 0, this.depth = this.parent ? this.parent.depth + 1 : 1, this._enterPos = n3, this._anchorPos = s17;
             }
             equals(e3) {
               return null !== e3 && b2._equals(this, e3);
@@ -106217,8 +106217,8 @@ ${val.stack}`;
             safePop() {
               return this.parent ? this.parent : this;
             }
-            push(e3, t3, n3, s16, r3, i3, o3) {
-              return new b2(this, e3, t3, n3, s16, r3, i3, o3);
+            push(e3, t3, n3, s17, r3, i3, o3) {
+              return new b2(this, e3, t3, n3, s17, r3, i3, o3);
             }
             getEnterPos() {
               return this._enterPos;
@@ -106276,7 +106276,7 @@ ${val.stack}`;
           };
           class y {
             constructor(e3, t3, n3, r3) {
-              this.balancedBracketSelectors = r3, this._emitBinaryTokens = e3, this._tokenTypeOverrides = n3, s15.DebugFlags.InDebugMode ? this._lineText = t3 : this._lineText = null, this._mergeConsecutiveTokensWithEqualMetadata = !l2.containsRTL(t3), this._tokens = [], this._binaryTokens = [], this._lastTokenEndIndex = 0;
+              this.balancedBracketSelectors = r3, this._emitBinaryTokens = e3, this._tokenTypeOverrides = n3, s16.DebugFlags.InDebugMode ? this._lineText = t3 : this._lineText = null, this._mergeConsecutiveTokensWithEqualMetadata = !l2.containsRTL(t3), this._tokens = [], this._binaryTokens = [], this._lastTokenEndIndex = 0;
             }
             produce(e3, t3) {
               this.produceFromScopes(e3.contentNameScopesList, t3);
@@ -106291,7 +106291,7 @@ ${val.stack}`;
                   this.balancedBracketSelectors && (i3 = this.balancedBracketSelectors.match(t4));
                 }
                 if (i3 && (n4 = r2.EncodedTokenAttributes.set(n4, 0, 8, i3, -1, 0, 0)), this._mergeConsecutiveTokensWithEqualMetadata && this._binaryTokens.length > 0 && this._binaryTokens[this._binaryTokens.length - 1] === n4) return void (this._lastTokenEndIndex = t3);
-                if (s15.DebugFlags.InDebugMode) {
+                if (s16.DebugFlags.InDebugMode) {
                   const n5 = e3?.getScopeNames() ?? [];
                   console.log("  token: |" + this._lineText.substring(this._lastTokenEndIndex, t3).replace(/\n$/, "\\n") + "|");
                   for (let e4 = 0; e4 < n5.length; e4++) console.log("      * " + n5[e4]);
@@ -106299,7 +106299,7 @@ ${val.stack}`;
                 return this._binaryTokens.push(this._lastTokenEndIndex), this._binaryTokens.push(n4), void (this._lastTokenEndIndex = t3);
               }
               const n3 = e3?.getScopeNames() ?? [];
-              if (s15.DebugFlags.InDebugMode) {
+              if (s16.DebugFlags.InDebugMode) {
                 console.log("  token: |" + this._lineText.substring(this._lastTokenEndIndex, t3).replace(/\n$/, "\\n") + "|");
                 for (let e4 = 0; e4 < n3.length; e4++) console.log("      * " + n3[e4]);
               }
@@ -106317,8 +106317,8 @@ ${val.stack}`;
           }
           t2.LineTokens = y;
           class S2 {
-            constructor(e3, t3, n3, s16, r3) {
-              this.startIndex = e3, this.endIndex = t3, this.fontFamily = n3, this.fontSizeMultiplier = s16, this.lineHeightMultiplier = r3;
+            constructor(e3, t3, n3, s17, r3) {
+              this.startIndex = e3, this.endIndex = t3, this.fontFamily = n3, this.fontSizeMultiplier = s17, this.lineHeightMultiplier = r3;
             }
             optionsEqual(e3) {
               return this.fontFamily === e3.fontFamily && this.fontSizeMultiplier === e3.fontSizeMultiplier && this.lineHeightMultiplier === e3.lineHeightMultiplier;
@@ -106334,9 +106334,9 @@ ${val.stack}`;
             }
             produceFromScopes(e3, t3) {
               if (!e3?.fontAttributes) return void (this._lastIndex = t3);
-              const n3 = e3.fontAttributes.fontFamily, s16 = e3.fontAttributes.fontSize, r3 = e3.fontAttributes.lineHeight;
-              if (!n3 && !s16 && !r3) return void (this._lastIndex = t3);
-              const i3 = new S2(this._lastIndex, t3, n3, s16, r3), o3 = this._fonts[this._fonts.length - 1];
+              const n3 = e3.fontAttributes.fontFamily, s17 = e3.fontAttributes.fontSize, r3 = e3.fontAttributes.lineHeight;
+              if (!n3 && !s17 && !r3) return void (this._lastIndex = t3);
+              const i3 = new S2(this._lastIndex, t3, n3, s17, r3), o3 = this._fonts[this._fonts.length - 1];
               o3 && o3.endIndex === this._lastIndex && o3.optionsEqual(i3) ? o3.endIndex = i3.endIndex : this._fonts.push(i3), this._lastIndex = t3;
             }
             getResult() {
@@ -106346,7 +106346,7 @@ ${val.stack}`;
           t2.LineFonts = k2;
         }, 784: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.parseInclude = t2.TopLevelRepositoryReference = t2.TopLevelReference = t2.RelativeReference = t2.SelfReference = t2.BaseReference = t2.ScopeDependencyProcessor = t2.ExternalReferenceCollector = t2.TopLevelRepositoryRuleReference = t2.TopLevelRuleReference = void 0;
-          const s15 = n2(807);
+          const s16 = n2(807);
           class r2 {
             constructor(e3) {
               this.scopeName = e3;
@@ -106377,16 +106377,16 @@ ${val.stack}`;
               this._seenReferenceKeys.has(t3) || (this._seenReferenceKeys.add(t3), this._references.push(e3));
             }
           }
-          function a(e3, t3, n3, s16) {
+          function a(e3, t3, n3, s17) {
             const i3 = n3.lookup(e3.scopeName);
             if (!i3) {
               if (e3.scopeName === t3) throw new Error(`No grammar provided for <${t3}>`);
               return;
             }
             const o3 = n3.lookup(t3);
-            e3 instanceof r2 ? l2({ baseGrammar: o3, selfGrammar: i3 }, s16) : c(e3.ruleName, { baseGrammar: o3, selfGrammar: i3, repository: i3.repository }, s16);
+            e3 instanceof r2 ? l2({ baseGrammar: o3, selfGrammar: i3 }, s17) : c(e3.ruleName, { baseGrammar: o3, selfGrammar: i3, repository: i3.repository }, s17);
             const a2 = n3.injections(e3.scopeName);
-            if (a2) for (const e4 of a2) s16.add(new r2(e4));
+            if (a2) for (const e4 of a2) s17.add(new r2(e4));
           }
           function c(e3, t3, n3) {
             t3.repository && t3.repository[e3] && u([t3.repository[e3]], t3, n3);
@@ -106398,7 +106398,7 @@ ${val.stack}`;
             for (const o3 of e3) {
               if (n3.visitedRule.has(o3)) continue;
               n3.visitedRule.add(o3);
-              const e4 = o3.repository ? s15.mergeObjects({}, t3.repository, o3.repository) : t3.repository;
+              const e4 = o3.repository ? s16.mergeObjects({}, t3.repository, o3.repository) : t3.repository;
               Array.isArray(o3.patterns) && u(o3.patterns, { ...t3, repository: e4 }, n3);
               const a2 = o3.include;
               if (!a2) continue;
@@ -106415,9 +106415,9 @@ ${val.stack}`;
                   break;
                 case 3:
                 case 4:
-                  const s16 = h4.scopeName === t3.selfGrammar.scopeName ? t3.selfGrammar : h4.scopeName === t3.baseGrammar.scopeName ? t3.baseGrammar : void 0;
-                  if (s16) {
-                    const r3 = { baseGrammar: t3.baseGrammar, selfGrammar: s16, repository: e4 };
+                  const s17 = h4.scopeName === t3.selfGrammar.scopeName ? t3.selfGrammar : h4.scopeName === t3.baseGrammar.scopeName ? t3.baseGrammar : void 0;
+                  if (s17) {
+                    const r3 = { baseGrammar: t3.baseGrammar, selfGrammar: s17, repository: e4 };
                     4 === h4.kind ? c(h4.ruleName, r3, n3) : l2(r3, n3);
                   } else 4 === h4.kind ? n3.add(new i2(h4.scopeName, h4.ruleName)) : n3.add(new r2(h4.scopeName));
               }
@@ -106478,25 +106478,25 @@ ${val.stack}`;
             if (-1 === t3) return new f(e3);
             if (0 === t3) return new d(e3.substring(1));
             {
-              const n3 = e3.substring(0, t3), s16 = e3.substring(t3 + 1);
-              return new m(n3, s16);
+              const n3 = e3.substring(0, t3), s17 = e3.substring(t3 + 1);
+              return new m(n3, s17);
             }
           }
           t2.TopLevelRepositoryReference = m, t2.parseInclude = g2;
         }, 752: function(e2, t2, n2) {
-          var s15 = this && this.__createBinding || (Object.create ? function(e3, t3, n3, s16) {
-            void 0 === s16 && (s16 = n3), Object.defineProperty(e3, s16, { enumerable: true, get: function() {
+          var s16 = this && this.__createBinding || (Object.create ? function(e3, t3, n3, s17) {
+            void 0 === s17 && (s17 = n3), Object.defineProperty(e3, s17, { enumerable: true, get: function() {
               return t3[n3];
             } });
-          } : function(e3, t3, n3, s16) {
-            void 0 === s16 && (s16 = n3), e3[s16] = t3[n3];
+          } : function(e3, t3, n3, s17) {
+            void 0 === s17 && (s17 = n3), e3[s17] = t3[n3];
           }), r2 = this && this.__exportStar || function(e3, t3) {
-            for (var n3 in e3) "default" === n3 || Object.prototype.hasOwnProperty.call(t3, n3) || s15(t3, e3, n3);
+            for (var n3 in e3) "default" === n3 || Object.prototype.hasOwnProperty.call(t3, n3) || s16(t3, e3, n3);
           };
           Object.defineProperty(t2, "__esModule", { value: true }), r2(n2(929), t2);
         }, 398: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.LocalStackElement = t2._tokenizeString = void 0;
-          const s15 = n2(185), r2 = n2(810), i2 = n2(666), o2 = n2(807);
+          const s16 = n2(185), r2 = n2(810), i2 = n2(666), o2 = n2(807);
           class a {
             constructor(e3, t3) {
               this.stack = e3, this.stoppedEarly = t3;
@@ -106520,8 +106520,8 @@ ${val.stack}`;
                 }
                 for (let f2 = d3.pop(); f2; f2 = d3.pop()) {
                   const { ruleScanner: d4, findOptions: m2 } = u(f2.rule, e4, f2.stack.endRule, n4, r4 === h5), g3 = d4.findNextMatchSync(t4, r4, m2);
-                  if (s15.DebugFlags.InDebugMode && (console.log("  scanning for while rule"), console.log(d4.toString())), !g3) {
-                    s15.DebugFlags.InDebugMode && console.log("  popping " + f2.rule.debugName + " - " + f2.rule.debugWhileRegExp), o4 = f2.stack.pop();
+                  if (s16.DebugFlags.InDebugMode && (console.log("  scanning for while rule"), console.log(d4.toString())), !g3) {
+                    s16.DebugFlags.InDebugMode && console.log("  popping " + f2.rule.debugName + " - " + f2.rule.debugWhileRegExp), o4 = f2.stack.pop();
                     break;
                   }
                   if (g3.ruleId !== i2.whileRuleId) {
@@ -106541,14 +106541,14 @@ ${val.stack}`;
             }
             return new a(c2, false);
             function k2() {
-              s15.DebugFlags.InDebugMode && (console.log(""), console.log(`@@scanNext ${r3}: |${t3.content.substr(r3).replace(/\n$/, "\\n")}|`));
+              s16.DebugFlags.InDebugMode && (console.log(""), console.log(`@@scanNext ${r3}: |${t3.content.substr(r3).replace(/\n$/, "\\n")}|`));
               const a2 = (function(e4, t4, n4, r4, i3, a3) {
                 const c3 = (function(e5, t5, n5, r5, i4, a4) {
                   const c4 = i4.getRule(e5), { ruleScanner: u4, findOptions: h6 } = l2(c4, e5, i4.endRule, n5, r5 === a4);
                   let p3 = 0;
-                  s15.DebugFlags.InDebugMode && (p3 = o2.performanceNow());
+                  s16.DebugFlags.InDebugMode && (p3 = o2.performanceNow());
                   const d4 = u4.findNextMatchSync(t5, r5, h6);
-                  if (s15.DebugFlags.InDebugMode) {
+                  if (s16.DebugFlags.InDebugMode) {
                     const e6 = o2.performanceNow() - p3;
                     e6 > 5 && console.warn(`Rule ${c4.debugName} (${c4.id}) matching took ${e6} against '${t5}'`), console.log(`  scanning for (linePos: ${r5}, anchorPosition: ${a4})`), console.log(u4.toString()), d4 && console.log(`matched rule id: ${d4.ruleId} from ${d4.captureIndices[0].start} to ${d4.captureIndices[0].end}`);
                   }
@@ -106563,7 +106563,7 @@ ${val.stack}`;
                     if (!f4.matcher(d4)) continue;
                     const m3 = t5.getRule(f4.ruleId), { ruleScanner: g3, findOptions: _4 } = l2(m3, t5, null, r5, i4 === a4), b3 = g3.findNextMatchSync(n5, i4, _4);
                     if (!b3) continue;
-                    s15.DebugFlags.InDebugMode && (console.log(`  matched injection: ${f4.debugSelector}`), console.log(g3.toString()));
+                    s16.DebugFlags.InDebugMode && (console.log(`  matched injection: ${f4.debugSelector}`), console.log(g3.toString()));
                     const y2 = b3.captureIndices[0].start;
                     if (!(y2 >= u4) && (u4 = y2, h6 = b3.captureIndices, c4 = b3.ruleId, p3 = f4.priority, u4 === i4)) break;
                   }
@@ -106574,46 +106574,46 @@ ${val.stack}`;
                 const p2 = c3.captureIndices[0].start, d3 = h5.captureIndices[0].start;
                 return d3 < p2 || h5.priorityMatch && d3 === p2 ? h5 : c3;
               })(e3, t3, n3, r3, c2, y);
-              if (!a2) return s15.DebugFlags.InDebugMode && console.log("  no more matches."), g2(c2, _3), void (b2 = true);
+              if (!a2) return s16.DebugFlags.InDebugMode && console.log("  no more matches."), g2(c2, _3), void (b2 = true);
               const u2 = a2.captureIndices, f2 = a2.matchedRuleId, m2 = !!(u2 && u2.length > 0) && u2[0].end > r3;
               if (f2 === i2.endRuleId) {
                 const i3 = c2.getRule(e3);
-                s15.DebugFlags.InDebugMode && console.log("  popping " + i3.debugName + " - " + i3.debugEndRegExp), g2(c2, u2[0].start), c2 = c2.withContentNameScopesList(c2.nameScopesList), p(e3, t3, n3, c2, h4, d2, i3.endCaptures, u2), g2(c2, u2[0].end);
+                s16.DebugFlags.InDebugMode && console.log("  popping " + i3.debugName + " - " + i3.debugEndRegExp), g2(c2, u2[0].start), c2 = c2.withContentNameScopesList(c2.nameScopesList), p(e3, t3, n3, c2, h4, d2, i3.endCaptures, u2), g2(c2, u2[0].end);
                 const o3 = c2;
-                if (c2 = c2.parent, y = o3.getAnchorPos(), !m2 && o3.getEnterPos() === r3) return s15.DebugFlags.InDebugMode && console.error("[1] - Grammar is in an endless loop - Grammar pushed & popped a rule without advancing"), g2(c2 = o3, _3), void (b2 = true);
+                if (c2 = c2.parent, y = o3.getAnchorPos(), !m2 && o3.getEnterPos() === r3) return s16.DebugFlags.InDebugMode && console.error("[1] - Grammar is in an endless loop - Grammar pushed & popped a rule without advancing"), g2(c2 = o3, _3), void (b2 = true);
               } else {
                 const o3 = e3.getRule(f2);
                 g2(c2, u2[0].start);
                 const a3 = c2, l3 = o3.getName(t3.content, u2), S3 = c2.contentNameScopesList.pushAttributed(l3, e3);
                 if (c2 = c2.push(f2, r3, y, u2[0].end === _3, null, S3, S3), o3 instanceof i2.BeginEndRule) {
                   const r4 = o3;
-                  s15.DebugFlags.InDebugMode && console.log("  pushing " + r4.debugName + " - " + r4.debugBeginRegExp), p(e3, t3, n3, c2, h4, d2, r4.beginCaptures, u2), g2(c2, u2[0].end), y = u2[0].end;
+                  s16.DebugFlags.InDebugMode && console.log("  pushing " + r4.debugName + " - " + r4.debugBeginRegExp), p(e3, t3, n3, c2, h4, d2, r4.beginCaptures, u2), g2(c2, u2[0].end), y = u2[0].end;
                   const i3 = r4.getContentName(t3.content, u2), l4 = S3.pushAttributed(i3, e3);
-                  if (c2 = c2.withContentNameScopesList(l4), r4.endHasBackReferences && (c2 = c2.withEndRule(r4.getEndWithResolvedBackReferences(t3.content, u2))), !m2 && a3.hasSameRuleAs(c2)) return s15.DebugFlags.InDebugMode && console.error("[2] - Grammar is in an endless loop - Grammar pushed the same rule without advancing"), c2 = c2.pop(), g2(c2, _3), void (b2 = true);
+                  if (c2 = c2.withContentNameScopesList(l4), r4.endHasBackReferences && (c2 = c2.withEndRule(r4.getEndWithResolvedBackReferences(t3.content, u2))), !m2 && a3.hasSameRuleAs(c2)) return s16.DebugFlags.InDebugMode && console.error("[2] - Grammar is in an endless loop - Grammar pushed the same rule without advancing"), c2 = c2.pop(), g2(c2, _3), void (b2 = true);
                 } else if (o3 instanceof i2.BeginWhileRule) {
                   const r4 = o3;
-                  s15.DebugFlags.InDebugMode && console.log("  pushing " + r4.debugName), p(e3, t3, n3, c2, h4, d2, r4.beginCaptures, u2), g2(c2, u2[0].end), y = u2[0].end;
+                  s16.DebugFlags.InDebugMode && console.log("  pushing " + r4.debugName), p(e3, t3, n3, c2, h4, d2, r4.beginCaptures, u2), g2(c2, u2[0].end), y = u2[0].end;
                   const i3 = r4.getContentName(t3.content, u2), l4 = S3.pushAttributed(i3, e3);
-                  if (c2 = c2.withContentNameScopesList(l4), r4.whileHasBackReferences && (c2 = c2.withEndRule(r4.getWhileWithResolvedBackReferences(t3.content, u2))), !m2 && a3.hasSameRuleAs(c2)) return s15.DebugFlags.InDebugMode && console.error("[3] - Grammar is in an endless loop - Grammar pushed the same rule without advancing"), c2 = c2.pop(), g2(c2, _3), void (b2 = true);
+                  if (c2 = c2.withContentNameScopesList(l4), r4.whileHasBackReferences && (c2 = c2.withEndRule(r4.getWhileWithResolvedBackReferences(t3.content, u2))), !m2 && a3.hasSameRuleAs(c2)) return s16.DebugFlags.InDebugMode && console.error("[3] - Grammar is in an endless loop - Grammar pushed the same rule without advancing"), c2 = c2.pop(), g2(c2, _3), void (b2 = true);
                 } else {
                   const r4 = o3;
-                  if (s15.DebugFlags.InDebugMode && console.log("  matched " + r4.debugName + " - " + r4.debugMatchRegExp), p(e3, t3, n3, c2, h4, d2, r4.captures, u2), g2(c2, u2[0].end), c2 = c2.pop(), !m2) return s15.DebugFlags.InDebugMode && console.error("[4] - Grammar is in an endless loop - Grammar is not advancing, nor is it pushing/popping"), c2 = c2.safePop(), g2(c2, _3), void (b2 = true);
+                  if (s16.DebugFlags.InDebugMode && console.log("  matched " + r4.debugName + " - " + r4.debugMatchRegExp), p(e3, t3, n3, c2, h4, d2, r4.captures, u2), g2(c2, u2[0].end), c2 = c2.pop(), !m2) return s16.DebugFlags.InDebugMode && console.error("[4] - Grammar is in an endless loop - Grammar is not advancing, nor is it pushing/popping"), c2 = c2.safePop(), g2(c2, _3), void (b2 = true);
                 }
               }
               u2[0].end > r3 && (r3 = u2[0].end, n3 = false);
             }
           }
           function l2(e3, t3, n3, r3, i3) {
-            return s15.UseOnigurumaFindOptions ? { ruleScanner: e3.compile(t3, n3), findOptions: h3(r3, i3) } : { ruleScanner: e3.compileAG(t3, n3, r3, i3), findOptions: 0 };
+            return s16.UseOnigurumaFindOptions ? { ruleScanner: e3.compile(t3, n3), findOptions: h3(r3, i3) } : { ruleScanner: e3.compileAG(t3, n3, r3, i3), findOptions: 0 };
           }
           function u(e3, t3, n3, r3, i3) {
-            return s15.UseOnigurumaFindOptions ? { ruleScanner: e3.compileWhile(t3, n3), findOptions: h3(r3, i3) } : { ruleScanner: e3.compileWhileAG(t3, n3, r3, i3), findOptions: 0 };
+            return s16.UseOnigurumaFindOptions ? { ruleScanner: e3.compileWhile(t3, n3), findOptions: h3(r3, i3) } : { ruleScanner: e3.compileWhileAG(t3, n3, r3, i3), findOptions: 0 };
           }
           function h3(e3, t3) {
             let n3 = 0;
             return e3 || (n3 |= 1), t3 || (n3 |= 4), n3;
           }
-          function p(e3, t3, n3, s16, i3, o3, a2, l3) {
+          function p(e3, t3, n3, s17, i3, o3, a2, l3) {
             const u2 = (e4, t4) => {
               i3.produceFromScopes(e4, t4), o3.produceFromScopes(e4, t4);
             }, h4 = (e4, t4) => {
@@ -106628,14 +106628,14 @@ ${val.stack}`;
               if (0 === _3.length) continue;
               if (_3.start > g2) break;
               for (; m.length > 0 && m[m.length - 1].endPos <= _3.start; ) u2(m[m.length - 1].scopes, m[m.length - 1].endPos), m.pop();
-              if (m.length > 0 ? u2(m[m.length - 1].scopes, _3.start) : h4(s16, _3.start), f2.retokenizeCapturedWithRuleId) {
-                const t5 = f2.getName(p2, l3), a3 = s16.contentNameScopesList.pushAttributed(t5, e3), u3 = f2.getContentName(p2, l3), h5 = a3.pushAttributed(u3, e3), d2 = s16.push(f2.retokenizeCapturedWithRuleId, _3.start, -1, false, null, a3, h5), m2 = e3.createOnigString(p2.substring(0, _3.end));
+              if (m.length > 0 ? u2(m[m.length - 1].scopes, _3.start) : h4(s17, _3.start), f2.retokenizeCapturedWithRuleId) {
+                const t5 = f2.getName(p2, l3), a3 = s17.contentNameScopesList.pushAttributed(t5, e3), u3 = f2.getContentName(p2, l3), h5 = a3.pushAttributed(u3, e3), d2 = s17.push(f2.retokenizeCapturedWithRuleId, _3.start, -1, false, null, a3, h5), m2 = e3.createOnigString(p2.substring(0, _3.end));
                 c(e3, m2, n3 && 0 === _3.start, _3.start, d2, i3, o3, false, 0), r2.disposeOnigString(m2);
                 continue;
               }
               const b2 = f2.getName(p2, l3);
               if (null !== b2) {
-                const t5 = (m.length > 0 ? m[m.length - 1].scopes : s16.contentNameScopesList).pushAttributed(b2, e3);
+                const t5 = (m.length > 0 ? m[m.length - 1].scopes : s17.contentNameScopesList).pushAttributed(b2, e3);
                 m.push(new d(t5, _3.end));
               }
             }
@@ -106653,7 +106653,7 @@ ${val.stack}`;
             throw new Error("Near offset " + e3.pos + ": " + t3 + " ~~~" + e3.source.substr(e3.pos, 50) + "~~~");
           }
           Object.defineProperty(t2, "__esModule", { value: true }), t2.parseJSON = void 0, t2.parseJSON = function(e3, t3, o2) {
-            let a = new s15(e3), c = new r2(), l2 = 0, u = null, h3 = [], p = [];
+            let a = new s16(e3), c = new r2(), l2 = 0, u = null, h3 = [], p = [];
             function d() {
               h3.push(l2), p.push(u);
             }
@@ -106778,7 +106778,7 @@ ${val.stack}`;
             }
             return 0 !== p.length && m("unclosed constructs"), u;
           };
-          class s15 {
+          class s16 {
             constructor(e3) {
               this.source = e3, this.pos = 0, this.len = e3.length, this.line = 1, this.char = 0;
             }
@@ -106793,23 +106793,23 @@ ${val.stack}`;
           }
           function i2(e3, t3) {
             t3.value = null, t3.type = 0, t3.offset = -1, t3.len = -1, t3.line = -1, t3.char = -1;
-            let s16, r3 = e3.source, i3 = e3.pos, o2 = e3.len, a = e3.line, c = e3.char;
+            let s17, r3 = e3.source, i3 = e3.pos, o2 = e3.len, a = e3.line, c = e3.char;
             for (; ; ) {
               if (i3 >= o2) return false;
-              if (s16 = r3.charCodeAt(i3), 32 !== s16 && 9 !== s16 && 13 !== s16) {
-                if (10 !== s16) break;
+              if (s17 = r3.charCodeAt(i3), 32 !== s17 && 9 !== s17 && 13 !== s17) {
+                if (10 !== s17) break;
                 i3++, a++, c = 0;
               } else i3++, c++;
             }
-            if (t3.offset = i3, t3.line = a, t3.char = c, 34 === s16) {
+            if (t3.offset = i3, t3.line = a, t3.char = c, 34 === s17) {
               for (t3.type = 1, i3++, c++; ; ) {
                 if (i3 >= o2) return false;
-                if (s16 = r3.charCodeAt(i3), i3++, c++, 92 !== s16) {
-                  if (34 === s16) break;
+                if (s17 = r3.charCodeAt(i3), i3++, c++, 92 !== s17) {
+                  if (34 === s17) break;
                 } else i3++, c++;
               }
-              t3.value = r3.substring(t3.offset + 1, i3 - 1).replace(/\\u([0-9A-Fa-f]{4})/g, ((e4, t4) => String.fromCodePoint(parseInt(t4, 16)))).replace(/\\(.)/g, ((t4, s17) => {
-                switch (s17) {
+              t3.value = r3.substring(t3.offset + 1, i3 - 1).replace(/\\u([0-9A-Fa-f]{4})/g, ((e4, t4) => String.fromCodePoint(parseInt(t4, 16)))).replace(/\\(.)/g, ((t4, s18) => {
+                switch (s18) {
                   case '"':
                     return '"';
                   case "\\":
@@ -106831,44 +106831,44 @@ ${val.stack}`;
                 }
                 throw new Error("unreachable");
               }));
-            } else if (91 === s16) t3.type = 2, i3++, c++;
-            else if (123 === s16) t3.type = 3, i3++, c++;
-            else if (93 === s16) t3.type = 4, i3++, c++;
-            else if (125 === s16) t3.type = 5, i3++, c++;
-            else if (58 === s16) t3.type = 6, i3++, c++;
-            else if (44 === s16) t3.type = 7, i3++, c++;
-            else if (110 === s16) {
-              if (t3.type = 8, i3++, c++, s16 = r3.charCodeAt(i3), 117 !== s16) return false;
-              if (i3++, c++, s16 = r3.charCodeAt(i3), 108 !== s16) return false;
-              if (i3++, c++, s16 = r3.charCodeAt(i3), 108 !== s16) return false;
+            } else if (91 === s17) t3.type = 2, i3++, c++;
+            else if (123 === s17) t3.type = 3, i3++, c++;
+            else if (93 === s17) t3.type = 4, i3++, c++;
+            else if (125 === s17) t3.type = 5, i3++, c++;
+            else if (58 === s17) t3.type = 6, i3++, c++;
+            else if (44 === s17) t3.type = 7, i3++, c++;
+            else if (110 === s17) {
+              if (t3.type = 8, i3++, c++, s17 = r3.charCodeAt(i3), 117 !== s17) return false;
+              if (i3++, c++, s17 = r3.charCodeAt(i3), 108 !== s17) return false;
+              if (i3++, c++, s17 = r3.charCodeAt(i3), 108 !== s17) return false;
               i3++, c++;
-            } else if (116 === s16) {
-              if (t3.type = 9, i3++, c++, s16 = r3.charCodeAt(i3), 114 !== s16) return false;
-              if (i3++, c++, s16 = r3.charCodeAt(i3), 117 !== s16) return false;
-              if (i3++, c++, s16 = r3.charCodeAt(i3), 101 !== s16) return false;
+            } else if (116 === s17) {
+              if (t3.type = 9, i3++, c++, s17 = r3.charCodeAt(i3), 114 !== s17) return false;
+              if (i3++, c++, s17 = r3.charCodeAt(i3), 117 !== s17) return false;
+              if (i3++, c++, s17 = r3.charCodeAt(i3), 101 !== s17) return false;
               i3++, c++;
-            } else if (102 === s16) {
-              if (t3.type = 10, i3++, c++, s16 = r3.charCodeAt(i3), 97 !== s16) return false;
-              if (i3++, c++, s16 = r3.charCodeAt(i3), 108 !== s16) return false;
-              if (i3++, c++, s16 = r3.charCodeAt(i3), 115 !== s16) return false;
-              if (i3++, c++, s16 = r3.charCodeAt(i3), 101 !== s16) return false;
+            } else if (102 === s17) {
+              if (t3.type = 10, i3++, c++, s17 = r3.charCodeAt(i3), 97 !== s17) return false;
+              if (i3++, c++, s17 = r3.charCodeAt(i3), 108 !== s17) return false;
+              if (i3++, c++, s17 = r3.charCodeAt(i3), 115 !== s17) return false;
+              if (i3++, c++, s17 = r3.charCodeAt(i3), 101 !== s17) return false;
               i3++, c++;
             } else for (t3.type = 11; ; ) {
               if (i3 >= o2) return false;
-              if (s16 = r3.charCodeAt(i3), !(46 === s16 || s16 >= 48 && s16 <= 57 || 101 === s16 || 69 === s16 || 45 === s16 || 43 === s16)) break;
+              if (s17 = r3.charCodeAt(i3), !(46 === s17 || s17 >= 48 && s17 <= 57 || 101 === s17 || 69 === s17 || 45 === s17 || 43 === s17)) break;
               i3++, c++;
             }
             return t3.len = i3 - t3.offset, null === t3.value && (t3.value = r3.substr(t3.offset, t3.len)), e3.pos = i3, e3.line = a, e3.char = c, true;
           }
         }, 625: function(e2, t2, n2) {
-          var s15 = this && this.__createBinding || (Object.create ? function(e3, t3, n3, s16) {
-            void 0 === s16 && (s16 = n3), Object.defineProperty(e3, s16, { enumerable: true, get: function() {
+          var s16 = this && this.__createBinding || (Object.create ? function(e3, t3, n3, s17) {
+            void 0 === s17 && (s17 = n3), Object.defineProperty(e3, s17, { enumerable: true, get: function() {
               return t3[n3];
             } });
-          } : function(e3, t3, n3, s16) {
-            void 0 === s16 && (s16 = n3), e3[s16] = t3[n3];
+          } : function(e3, t3, n3, s17) {
+            void 0 === s17 && (s17 = n3), e3[s17] = t3[n3];
           }), r2 = this && this.__exportStar || function(e3, t3) {
-            for (var n3 in e3) "default" === n3 || Object.prototype.hasOwnProperty.call(t3, n3) || s15(t3, e3, n3);
+            for (var n3 in e3) "default" === n3 || Object.prototype.hasOwnProperty.call(t3, n3) || s16(t3, e3, n3);
           };
           Object.defineProperty(t2, "__esModule", { value: true }), t2.applyStateStackDiff = t2.diffStateStacksRefEq = t2.parseRawGrammar = t2.INITIAL = t2.Registry = void 0;
           const i2 = n2(752), o2 = n2(150), a = n2(583), c = n2(63), l2 = n2(784), u = n2(151);
@@ -106898,10 +106898,10 @@ ${val.stack}`;
             loadGrammar(e3) {
               return this._loadGrammar(e3, 0, null, null, null);
             }
-            async _loadGrammar(e3, t3, n3, s16, r3) {
+            async _loadGrammar(e3, t3, n3, s17, r3) {
               const i3 = new l2.ScopeDependencyProcessor(this._syncRegistry, e3);
               for (; i3.Q.length > 0; ) await Promise.all(i3.Q.map(((e4) => this._loadSingleGrammar(e4.scopeName)))), i3.processQueue();
-              return this._grammarForScopeName(e3, t3, n3, s16, r3);
+              return this._grammarForScopeName(e3, t3, n3, s17, r3);
             }
             async _loadSingleGrammar(e3) {
               return this._ensureGrammarCache.has(e3) || this._ensureGrammarCache.set(e3, this._doLoadSingleGrammar(e3)), this._ensureGrammarCache.get(e3);
@@ -106913,11 +106913,11 @@ ${val.stack}`;
                 this._syncRegistry.addGrammar(t3, n3);
               }
             }
-            async addGrammar(e3, t3 = [], n3 = 0, s16 = null) {
-              return this._syncRegistry.addGrammar(e3, t3), await this._grammarForScopeName(e3.scopeName, n3, s16);
+            async addGrammar(e3, t3 = [], n3 = 0, s17 = null) {
+              return this._syncRegistry.addGrammar(e3, t3), await this._grammarForScopeName(e3.scopeName, n3, s17);
             }
-            _grammarForScopeName(e3, t3 = 0, n3 = null, s16 = null, r3 = null) {
-              return this._syncRegistry.grammarForScopeName(e3, t3, n3, s16, r3);
+            _grammarForScopeName(e3, t3 = 0, n3 = null, s17 = null, r3 = null) {
+              return this._syncRegistry.grammarForScopeName(e3, t3, n3, s17, r3);
             }
           }, t2.INITIAL = i2.StateStackImpl.NULL, t2.parseRawGrammar = o2.parseRawGrammar;
         }, 916: (e2, t2) => {
@@ -106925,12 +106925,12 @@ ${val.stack}`;
             return !!e3 && !!e3.match(/[\w\.:]+/);
           }
           Object.defineProperty(t2, "__esModule", { value: true }), t2.createMatchers = void 0, t2.createMatchers = function(e3, t3) {
-            const s15 = [], r2 = (function(e4) {
+            const s16 = [], r2 = (function(e4) {
               let t4 = /([LR]:|[\w\.:][\w\.:\-]*|[\,\|\-\(\)])/g, n3 = t4.exec(e4);
               return { next: () => {
                 if (!n3) return null;
-                const s16 = n3[0];
-                return n3 = t4.exec(e4), s16;
+                const s17 = n3[0];
+                return n3 = t4.exec(e4), s17;
               } };
             })(e3);
             let i2 = r2.next();
@@ -106950,10 +106950,10 @@ ${val.stack}`;
                 i2 = r2.next();
               }
               let t4 = a();
-              if (s15.push({ matcher: t4, priority: e4 }), "," !== i2) break;
+              if (s16.push({ matcher: t4, priority: e4 }), "," !== i2) break;
               i2 = r2.next();
             }
-            return s15;
+            return s16;
             function o2() {
               if ("-" === i2) {
                 i2 = r2.next();
@@ -106997,16 +106997,16 @@ ${val.stack}`;
           };
         }, 150: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.parseRawGrammar = void 0;
-          const s15 = n2(578), r2 = n2(185), i2 = n2(726);
+          const s16 = n2(578), r2 = n2(185), i2 = n2(726);
           t2.parseRawGrammar = function(e3, t3 = null) {
             return null !== t3 && /\.json$/.test(t3) ? (n3 = e3, o2 = t3, r2.DebugFlags.InDebugMode ? i2.parseJSON(n3, o2, true) : JSON.parse(n3)) : (function(e4, t4) {
-              return r2.DebugFlags.InDebugMode ? s15.parseWithLocation(e4, t4, "$vscodeTextmateLocation") : s15.parsePLIST(e4);
+              return r2.DebugFlags.InDebugMode ? s16.parseWithLocation(e4, t4, "$vscodeTextmateLocation") : s16.parsePLIST(e4);
             })(e3, t3);
             var n3, o2;
           };
         }, 578: (e2, t2) => {
           function n2(e3, t3, n3) {
-            const s15 = e3.length;
+            const s16 = e3.length;
             let r2 = 0, i2 = 1, o2 = 0;
             function a(t4) {
               if (null === n3) r2 += t4;
@@ -107016,7 +107016,7 @@ ${val.stack}`;
               null === n3 ? r2 = e4 : a(e4 - r2);
             }
             function l2() {
-              for (; r2 < s15; ) {
+              for (; r2 < s16; ) {
                 let t4 = e3.charCodeAt(r2);
                 if (32 !== t4 && 9 !== t4 && 13 !== t4 && 10 !== t4) break;
                 a(1);
@@ -107027,20 +107027,20 @@ ${val.stack}`;
             }
             function h3(t4) {
               let n4 = e3.indexOf(t4, r2);
-              c(-1 !== n4 ? n4 + t4.length : s15);
+              c(-1 !== n4 ? n4 + t4.length : s16);
             }
             function p(t4) {
               let n4 = e3.indexOf(t4, r2);
               if (-1 !== n4) {
-                let s16 = e3.substring(r2, n4);
-                return c(n4 + t4.length), s16;
+                let s17 = e3.substring(r2, n4);
+                return c(n4 + t4.length), s17;
               }
               {
                 let t5 = e3.substr(r2);
-                return c(s15), t5;
+                return c(s16), t5;
               }
             }
-            s15 > 0 && 65279 === e3.charCodeAt(0) && (r2 = 1);
+            s16 > 0 && 65279 === e3.charCodeAt(0) && (r2 = 1);
             let d = 0, f = null, m = [], g2 = [], _3 = null;
             function b2(e4, t4) {
               m.push(d), g2.push(f), d = e4, f = t4;
@@ -107139,10 +107139,10 @@ ${val.stack}`;
                 return e5;
               }));
             }
-            for (; r2 < s15 && (l2(), !(r2 >= s15)); ) {
+            for (; r2 < s16 && (l2(), !(r2 >= s16)); ) {
               const c2 = e3.charCodeAt(r2);
               if (a(1), 60 !== c2) return S2("expected <");
-              if (r2 >= s15) return S2("unexpected end of input");
+              if (r2 >= s16) return S2("unexpected end of input");
               const p2 = e3.charCodeAt(r2);
               if (63 === p2) {
                 a(1), h3("?>");
@@ -107209,14 +107209,14 @@ ${val.stack}`;
             var G2;
             return f;
           }
-          Object.defineProperty(t2, "__esModule", { value: true }), t2.parsePLIST = t2.parseWithLocation = void 0, t2.parseWithLocation = function(e3, t3, s15) {
-            return n2(e3, t3, s15);
+          Object.defineProperty(t2, "__esModule", { value: true }), t2.parsePLIST = t2.parseWithLocation = void 0, t2.parseWithLocation = function(e3, t3, s16) {
+            return n2(e3, t3, s16);
           }, t2.parsePLIST = function(e3) {
             return n2(e3, null, null);
           };
         }, 583: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.SyncRegistry = void 0;
-          const s15 = n2(752);
+          const s16 = n2(752);
           t2.SyncRegistry = class {
             constructor(e3, t3) {
               this._onigLibPromise = t3, this._grammars = /* @__PURE__ */ new Map(), this._rawGrammars = /* @__PURE__ */ new Map(), this._injectionGrammars = /* @__PURE__ */ new Map(), this._theme = e3;
@@ -107249,14 +107249,14 @@ ${val.stack}`;
               if (!this._grammars.has(e3)) {
                 let o2 = this._rawGrammars.get(e3);
                 if (!o2) return null;
-                this._grammars.set(e3, s15.createGrammar(e3, o2, t3, n3, r2, i2, this, await this._onigLibPromise));
+                this._grammars.set(e3, s16.createGrammar(e3, o2, t3, n3, r2, i2, this, await this._onigLibPromise));
               }
               return this._grammars.get(e3);
             }
           };
         }, 666: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.CompiledRule = t2.RegExpSourceList = t2.RegExpSource = t2.RuleFactory = t2.BeginWhileRule = t2.BeginEndRule = t2.IncludeOnlyRule = t2.MatchRule = t2.CaptureRule = t2.Rule = t2.ruleIdToNumber = t2.ruleIdFromNumber = t2.whileRuleId = t2.endRuleId = void 0;
-          const s15 = n2(807), r2 = n2(784), i2 = /\\(\d+)/, o2 = /\\(\d+)/g;
+          const s16 = n2(807), r2 = n2(784), i2 = /\\(\d+)/, o2 = /\\(\d+)/g;
           t2.endRuleId = -1, t2.whileRuleId = -2, t2.ruleIdFromNumber = function(e3) {
             return e3;
           }, t2.ruleIdToNumber = function(e3) {
@@ -107264,23 +107264,23 @@ ${val.stack}`;
           };
           class a {
             constructor(e3, t3, n3, r3) {
-              this.$location = e3, this.id = t3, this._name = n3 || null, this._nameIsCapturing = s15.RegexSource.hasCaptures(this._name), this._contentName = r3 || null, this._contentNameIsCapturing = s15.RegexSource.hasCaptures(this._contentName);
+              this.$location = e3, this.id = t3, this._name = n3 || null, this._nameIsCapturing = s16.RegexSource.hasCaptures(this._name), this._contentName = r3 || null, this._contentNameIsCapturing = s16.RegexSource.hasCaptures(this._contentName);
             }
             get debugName() {
-              const e3 = this.$location ? `${s15.basename(this.$location.filename)}:${this.$location.line}` : "unknown";
+              const e3 = this.$location ? `${s16.basename(this.$location.filename)}:${this.$location.line}` : "unknown";
               return `${this.constructor.name}#${this.id} @ ${e3}`;
             }
             getName(e3, t3) {
-              return this._nameIsCapturing && null !== this._name && null !== e3 && null !== t3 ? s15.RegexSource.replaceCaptures(this._name, e3, t3) : this._name;
+              return this._nameIsCapturing && null !== this._name && null !== e3 && null !== t3 ? s16.RegexSource.replaceCaptures(this._name, e3, t3) : this._name;
             }
             getContentName(e3, t3) {
-              return this._contentNameIsCapturing && null !== this._contentName ? s15.RegexSource.replaceCaptures(this._contentName, e3, t3) : this._contentName;
+              return this._contentNameIsCapturing && null !== this._contentName ? s16.RegexSource.replaceCaptures(this._contentName, e3, t3) : this._contentName;
             }
           }
           t2.Rule = a;
           class c extends a {
-            constructor(e3, t3, n3, s16, r3) {
-              super(e3, t3, n3, s16), this.retokenizeCapturedWithRuleId = r3;
+            constructor(e3, t3, n3, s17, r3) {
+              super(e3, t3, n3, s17), this.retokenizeCapturedWithRuleId = r3;
             }
             dispose() {
             }
@@ -107290,14 +107290,14 @@ ${val.stack}`;
             compile(e3, t3) {
               throw new Error("Not supported!");
             }
-            compileAG(e3, t3, n3, s16) {
+            compileAG(e3, t3, n3, s17) {
               throw new Error("Not supported!");
             }
           }
           t2.CaptureRule = c;
           class l2 extends a {
-            constructor(e3, t3, n3, s16, r3) {
-              super(e3, t3, n3, null), this._match = new f(s16, this.id), this.captures = r3, this._cachedCompiledPatterns = null;
+            constructor(e3, t3, n3, s17, r3) {
+              super(e3, t3, n3, null), this._match = new f(s17, this.id), this.captures = r3, this._cachedCompiledPatterns = null;
             }
             dispose() {
               this._cachedCompiledPatterns && (this._cachedCompiledPatterns.dispose(), this._cachedCompiledPatterns = null);
@@ -107311,8 +107311,8 @@ ${val.stack}`;
             compile(e3, t3) {
               return this._getCachedCompiledPatterns(e3).compile(e3);
             }
-            compileAG(e3, t3, n3, s16) {
-              return this._getCachedCompiledPatterns(e3).compileAG(e3, n3, s16);
+            compileAG(e3, t3, n3, s17) {
+              return this._getCachedCompiledPatterns(e3).compileAG(e3, n3, s17);
             }
             _getCachedCompiledPatterns(e3) {
               return this._cachedCompiledPatterns || (this._cachedCompiledPatterns = new m(), this.collectPatterns(e3, this._cachedCompiledPatterns)), this._cachedCompiledPatterns;
@@ -107320,8 +107320,8 @@ ${val.stack}`;
           }
           t2.MatchRule = l2;
           class u extends a {
-            constructor(e3, t3, n3, s16, r3) {
-              super(e3, t3, n3, s16), this.patterns = r3.patterns, this.hasMissingPatterns = r3.hasMissingPatterns, this._cachedCompiledPatterns = null;
+            constructor(e3, t3, n3, s17, r3) {
+              super(e3, t3, n3, s17), this.patterns = r3.patterns, this.hasMissingPatterns = r3.hasMissingPatterns, this._cachedCompiledPatterns = null;
             }
             dispose() {
               this._cachedCompiledPatterns && (this._cachedCompiledPatterns.dispose(), this._cachedCompiledPatterns = null);
@@ -107332,8 +107332,8 @@ ${val.stack}`;
             compile(e3, t3) {
               return this._getCachedCompiledPatterns(e3).compile(e3);
             }
-            compileAG(e3, t3, n3, s16) {
-              return this._getCachedCompiledPatterns(e3).compileAG(e3, n3, s16);
+            compileAG(e3, t3, n3, s17) {
+              return this._getCachedCompiledPatterns(e3).compileAG(e3, n3, s17);
             }
             _getCachedCompiledPatterns(e3) {
               return this._cachedCompiledPatterns || (this._cachedCompiledPatterns = new m(), this.collectPatterns(e3, this._cachedCompiledPatterns)), this._cachedCompiledPatterns;
@@ -107341,8 +107341,8 @@ ${val.stack}`;
           }
           t2.IncludeOnlyRule = u;
           class h3 extends a {
-            constructor(e3, t3, n3, s16, r3, i3, o3, a2, c2, l3) {
-              super(e3, t3, n3, s16), this._begin = new f(r3, this.id), this.beginCaptures = i3, this._end = new f(o3 || "\uFFFF", -1), this.endHasBackReferences = this._end.hasBackReferences, this.endCaptures = a2, this.applyEndPatternLast = c2 || false, this.patterns = l3.patterns, this.hasMissingPatterns = l3.hasMissingPatterns, this._cachedCompiledPatterns = null;
+            constructor(e3, t3, n3, s17, r3, i3, o3, a2, c2, l3) {
+              super(e3, t3, n3, s17), this._begin = new f(r3, this.id), this.beginCaptures = i3, this._end = new f(o3 || "\uFFFF", -1), this.endHasBackReferences = this._end.hasBackReferences, this.endCaptures = a2, this.applyEndPatternLast = c2 || false, this.patterns = l3.patterns, this.hasMissingPatterns = l3.hasMissingPatterns, this._cachedCompiledPatterns = null;
             }
             dispose() {
               this._cachedCompiledPatterns && (this._cachedCompiledPatterns.dispose(), this._cachedCompiledPatterns = null);
@@ -107362,8 +107362,8 @@ ${val.stack}`;
             compile(e3, t3) {
               return this._getCachedCompiledPatterns(e3, t3).compile(e3);
             }
-            compileAG(e3, t3, n3, s16) {
-              return this._getCachedCompiledPatterns(e3, t3).compileAG(e3, n3, s16);
+            compileAG(e3, t3, n3, s17) {
+              return this._getCachedCompiledPatterns(e3, t3).compileAG(e3, n3, s17);
             }
             _getCachedCompiledPatterns(e3, t3) {
               if (!this._cachedCompiledPatterns) {
@@ -107376,8 +107376,8 @@ ${val.stack}`;
           }
           t2.BeginEndRule = h3;
           class p extends a {
-            constructor(e3, n3, s16, r3, i3, o3, a2, c2, l3) {
-              super(e3, n3, s16, r3), this._begin = new f(i3, this.id), this.beginCaptures = o3, this.whileCaptures = c2, this._while = new f(a2, t2.whileRuleId), this.whileHasBackReferences = this._while.hasBackReferences, this.patterns = l3.patterns, this.hasMissingPatterns = l3.hasMissingPatterns, this._cachedCompiledPatterns = null, this._cachedCompiledWhilePatterns = null;
+            constructor(e3, n3, s17, r3, i3, o3, a2, c2, l3) {
+              super(e3, n3, s17, r3), this._begin = new f(i3, this.id), this.beginCaptures = o3, this.whileCaptures = c2, this._while = new f(a2, t2.whileRuleId), this.whileHasBackReferences = this._while.hasBackReferences, this.patterns = l3.patterns, this.hasMissingPatterns = l3.hasMissingPatterns, this._cachedCompiledPatterns = null, this._cachedCompiledWhilePatterns = null;
             }
             dispose() {
               this._cachedCompiledPatterns && (this._cachedCompiledPatterns.dispose(), this._cachedCompiledPatterns = null), this._cachedCompiledWhilePatterns && (this._cachedCompiledWhilePatterns.dispose(), this._cachedCompiledWhilePatterns = null);
@@ -107397,8 +107397,8 @@ ${val.stack}`;
             compile(e3, t3) {
               return this._getCachedCompiledPatterns(e3).compile(e3);
             }
-            compileAG(e3, t3, n3, s16) {
-              return this._getCachedCompiledPatterns(e3).compileAG(e3, n3, s16);
+            compileAG(e3, t3, n3, s17) {
+              return this._getCachedCompiledPatterns(e3).compileAG(e3, n3, s17);
             }
             _getCachedCompiledPatterns(e3) {
               if (!this._cachedCompiledPatterns) {
@@ -107410,8 +107410,8 @@ ${val.stack}`;
             compileWhile(e3, t3) {
               return this._getCachedCompiledWhilePatterns(e3, t3).compile(e3);
             }
-            compileWhileAG(e3, t3, n3, s16) {
-              return this._getCachedCompiledWhilePatterns(e3, t3).compileAG(e3, n3, s16);
+            compileWhileAG(e3, t3, n3, s17) {
+              return this._getCachedCompiledWhilePatterns(e3, t3).compileAG(e3, n3, s17);
             }
             _getCachedCompiledWhilePatterns(e3, t3) {
               return this._cachedCompiledWhilePatterns || (this._cachedCompiledWhilePatterns = new m(), this._cachedCompiledWhilePatterns.push(this._while.hasBackReferences ? this._while.clone() : this._while)), this._while.hasBackReferences && this._cachedCompiledWhilePatterns.setSource(0, t3 || "\uFFFF"), this._cachedCompiledWhilePatterns;
@@ -107419,14 +107419,14 @@ ${val.stack}`;
           }
           t2.BeginWhileRule = p;
           class d {
-            static createCaptureRule(e3, t3, n3, s16, r3) {
-              return e3.registerRule(((e4) => new c(t3, e4, n3, s16, r3)));
+            static createCaptureRule(e3, t3, n3, s17, r3) {
+              return e3.registerRule(((e4) => new c(t3, e4, n3, s17, r3)));
             }
             static getCompiledRuleId(e3, t3, n3) {
               return e3.id || t3.registerRule(((r3) => {
                 if (e3.id = r3, e3.match) return new l2(e3.$vscodeTextmateLocation, e3.id, e3.name, e3.match, d._compileCaptures(e3.captures, t3, n3));
                 if (void 0 === e3.begin) {
-                  e3.repository && (n3 = s15.mergeObjects({}, n3, e3.repository));
+                  e3.repository && (n3 = s16.mergeObjects({}, n3, e3.repository));
                   let r4 = e3.patterns;
                   return void 0 === r4 && e3.include && (r4 = [{ include: e3.include }]), new u(e3.$vscodeTextmateLocation, e3.id, e3.name, e3.contentName, d._compilePatterns(r4, t3, n3));
                 }
@@ -107434,7 +107434,7 @@ ${val.stack}`;
               })), e3.id;
             }
             static _compileCaptures(e3, t3, n3) {
-              let s16 = [];
+              let s17 = [];
               if (e3) {
                 let r3 = 0;
                 for (const t4 in e3) {
@@ -107442,18 +107442,18 @@ ${val.stack}`;
                   const e4 = parseInt(t4, 10);
                   e4 > r3 && (r3 = e4);
                 }
-                for (let e4 = 0; e4 <= r3; e4++) s16[e4] = null;
+                for (let e4 = 0; e4 <= r3; e4++) s17[e4] = null;
                 for (const r4 in e3) {
                   if ("$vscodeTextmateLocation" === r4) continue;
                   const i3 = parseInt(r4, 10);
                   let o3 = 0;
-                  e3[r4].patterns && (o3 = d.getCompiledRuleId(e3[r4], t3, n3)), s16[i3] = d.createCaptureRule(t3, e3[r4].$vscodeTextmateLocation, e3[r4].name, e3[r4].contentName, o3);
+                  e3[r4].patterns && (o3 = d.getCompiledRuleId(e3[r4], t3, n3)), s17[i3] = d.createCaptureRule(t3, e3[r4].$vscodeTextmateLocation, e3[r4].name, e3[r4].contentName, o3);
                 }
               }
-              return s16;
+              return s17;
             }
             static _compilePatterns(e3, t3, n3) {
-              let s16 = [];
+              let s17 = [];
               if (e3) for (let i3 = 0, o3 = e3.length; i3 < o3; i3++) {
                 const o4 = e3[i3];
                 let a2 = -1;
@@ -107465,8 +107465,8 @@ ${val.stack}`;
                       a2 = d.getCompiledRuleId(n3[o4.include], t3, n3);
                       break;
                     case 2:
-                      let s17 = n3[e4.ruleName];
-                      s17 && (a2 = d.getCompiledRuleId(s17, t3, n3));
+                      let s18 = n3[e4.ruleName];
+                      s18 && (a2 = d.getCompiledRuleId(s18, t3, n3));
                       break;
                     case 3:
                     case 4:
@@ -107481,10 +107481,10 @@ ${val.stack}`;
                   const e4 = t3.getRule(a2);
                   let n4 = false;
                   if ((e4 instanceof u || e4 instanceof h3 || e4 instanceof p) && e4.hasMissingPatterns && 0 === e4.patterns.length && (n4 = true), n4) continue;
-                  s16.push(a2);
+                  s17.push(a2);
                 }
               }
-              return { patterns: s16, hasMissingPatterns: (e3 ? e3.length : 0) !== s16.length };
+              return { patterns: s17, hasMissingPatterns: (e3 ? e3.length : 0) !== s17.length };
             }
           }
           t2.RuleFactory = d;
@@ -107492,12 +107492,12 @@ ${val.stack}`;
             constructor(e3, t3) {
               if (e3) {
                 const t4 = e3.length;
-                let n3 = 0, s16 = [], r3 = false;
+                let n3 = 0, s17 = [], r3 = false;
                 for (let i3 = 0; i3 < t4; i3++) if ("\\" === e3.charAt(i3) && i3 + 1 < t4) {
                   const t5 = e3.charAt(i3 + 1);
-                  "z" === t5 ? (s16.push(e3.substring(n3, i3)), s16.push("$(?!\\n)(?<!\\n)"), n3 = i3 + 2) : "A" !== t5 && "G" !== t5 || (r3 = true), i3++;
+                  "z" === t5 ? (s17.push(e3.substring(n3, i3)), s17.push("$(?!\\n)(?<!\\n)"), n3 = i3 + 2) : "A" !== t5 && "G" !== t5 || (r3 = true), i3++;
                 }
-                this.hasAnchor = r3, 0 === n3 ? this.source = e3 : (s16.push(e3.substring(n3, t4)), this.source = s16.join(""));
+                this.hasAnchor = r3, 0 === n3 ? this.source = e3 : (s17.push(e3.substring(n3, t4)), this.source = s17.join(""));
               } else this.hasAnchor = false, this.source = e3;
               this.hasAnchor ? this._anchorCache = this._buildAnchorCache() : this._anchorCache = null, this.ruleId = t3, this.hasBackReferences = i2.test(this.source);
             }
@@ -107509,11 +107509,11 @@ ${val.stack}`;
             }
             resolveBackReferences(e3, t3) {
               let n3 = t3.map(((t4) => e3.substring(t4.start, t4.end)));
-              return o2.lastIndex = 0, this.source.replace(o2, ((e4, t4) => s15.escapeRegExpCharacters(n3[parseInt(t4, 10)] || "")));
+              return o2.lastIndex = 0, this.source.replace(o2, ((e4, t4) => s16.escapeRegExpCharacters(n3[parseInt(t4, 10)] || "")));
             }
             _buildAnchorCache() {
-              let e3, t3, n3, s16, r3 = [], i3 = [], o3 = [], a2 = [];
-              for (e3 = 0, t3 = this.source.length; e3 < t3; e3++) n3 = this.source.charAt(e3), r3[e3] = n3, i3[e3] = n3, o3[e3] = n3, a2[e3] = n3, "\\" === n3 && e3 + 1 < t3 && (s16 = this.source.charAt(e3 + 1), "A" === s16 ? (r3[e3 + 1] = "\uFFFF", i3[e3 + 1] = "\uFFFF", o3[e3 + 1] = "A", a2[e3 + 1] = "A") : "G" === s16 ? (r3[e3 + 1] = "\uFFFF", i3[e3 + 1] = "G", o3[e3 + 1] = "\uFFFF", a2[e3 + 1] = "G") : (r3[e3 + 1] = s16, i3[e3 + 1] = s16, o3[e3 + 1] = s16, a2[e3 + 1] = s16), e3++);
+              let e3, t3, n3, s17, r3 = [], i3 = [], o3 = [], a2 = [];
+              for (e3 = 0, t3 = this.source.length; e3 < t3; e3++) n3 = this.source.charAt(e3), r3[e3] = n3, i3[e3] = n3, o3[e3] = n3, a2[e3] = n3, "\\" === n3 && e3 + 1 < t3 && (s17 = this.source.charAt(e3 + 1), "A" === s17 ? (r3[e3 + 1] = "\uFFFF", i3[e3 + 1] = "\uFFFF", o3[e3 + 1] = "A", a2[e3 + 1] = "A") : "G" === s17 ? (r3[e3 + 1] = "\uFFFF", i3[e3 + 1] = "G", o3[e3 + 1] = "\uFFFF", a2[e3 + 1] = "G") : (r3[e3 + 1] = s17, i3[e3 + 1] = s17, o3[e3 + 1] = s17, a2[e3 + 1] = s17), e3++);
               return { A0_G0: r3.join(""), A0_G1: i3.join(""), A1_G0: o3.join(""), A1_G1: a2.join("") };
             }
             resolveAnchors(e3, t3) {
@@ -107554,8 +107554,8 @@ ${val.stack}`;
               return this._hasAnchors ? t3 ? n3 ? (this._anchorCache.A1_G1 || (this._anchorCache.A1_G1 = this._resolveAnchors(e3, t3, n3)), this._anchorCache.A1_G1) : (this._anchorCache.A1_G0 || (this._anchorCache.A1_G0 = this._resolveAnchors(e3, t3, n3)), this._anchorCache.A1_G0) : n3 ? (this._anchorCache.A0_G1 || (this._anchorCache.A0_G1 = this._resolveAnchors(e3, t3, n3)), this._anchorCache.A0_G1) : (this._anchorCache.A0_G0 || (this._anchorCache.A0_G0 = this._resolveAnchors(e3, t3, n3)), this._anchorCache.A0_G0) : this.compile(e3);
             }
             _resolveAnchors(e3, t3, n3) {
-              let s16 = this._items.map(((e4) => e4.resolveAnchors(t3, n3)));
-              return new g2(e3, s16, this._items.map(((e4) => e4.ruleId)));
+              let s17 = this._items.map(((e4) => e4.resolveAnchors(t3, n3)));
+              return new g2(e3, s17, this._items.map(((e4) => e4.ruleId)));
             }
           }
           t2.RegExpSourceList = m;
@@ -107572,17 +107572,17 @@ ${val.stack}`;
               return e3.join("\n");
             }
             findNextMatchSync(e3, t3, n3) {
-              const s16 = this.scanner.findNextMatchSync(e3, t3, n3);
-              return s16 ? { ruleId: this.rules[s16.index], captureIndices: s16.captureIndices } : null;
+              const s17 = this.scanner.findNextMatchSync(e3, t3, n3);
+              return s17 ? { ruleId: this.rules[s17.index], captureIndices: s17.captureIndices } : null;
             }
           }
           t2.CompiledRule = g2;
         }, 63: (e2, t2, n2) => {
           Object.defineProperty(t2, "__esModule", { value: true }), t2.ThemeTrieElement = t2.ThemeTrieElementRule = t2.ColorMap = t2.fontStyleToString = t2.ParsedThemeRule = t2.parseTheme = t2.StyleAttributes = t2.ScopeStack = t2.Theme = void 0;
-          const s15 = n2(807);
+          const s16 = n2(807);
           class r2 {
             constructor(e3, t3, n3) {
-              this._colorMap = e3, this._defaults = t3, this._root = n3, this._cachedMatchRoot = new s15.CachedFn(((e4) => this._root.match(e4)));
+              this._colorMap = e3, this._defaults = t3, this._root = n3, this._cachedMatchRoot = new s16.CachedFn(((e4) => this._root.match(e4)));
             }
             static createFromRawTheme(e3, t3) {
               return this.createFromParsedTheme(c(e3), t3);
@@ -107590,8 +107590,8 @@ ${val.stack}`;
             static createFromParsedTheme(e3, t3) {
               return (function(e4, t4) {
                 e4.sort(((e5, t5) => {
-                  let n4 = s15.strcmp(e5.scope, t5.scope);
-                  return 0 !== n4 ? n4 : (n4 = s15.strArrCmp(e5.parentScopes, t5.parentScopes), 0 !== n4 ? n4 : e5.index - t5.index);
+                  let n4 = s16.strcmp(e5.scope, t5.scope);
+                  return 0 !== n4 ? n4 : (n4 = s16.strArrCmp(e5.parentScopes, t5.parentScopes), 0 !== n4 ? n4 : e5.index - t5.index);
                 }));
                 let n3 = 0, i3 = "#000000", o3 = "#ffffff", c2 = "", l3 = 0, h4 = 0;
                 for (; e4.length >= 1 && "" === e4[0].scope; ) {
@@ -107617,12 +107617,12 @@ ${val.stack}`;
               const t3 = e3.scopeName, n3 = this._cachedMatchRoot.get(t3).find(((t4) => (function(e4, t5) {
                 if (0 === t5.length) return true;
                 for (let n4 = 0; n4 < t5.length; n4++) {
-                  let s16 = t5[n4], r3 = false;
-                  if (">" === s16) {
+                  let s17 = t5[n4], r3 = false;
+                  if (">" === s17) {
                     if (n4 === t5.length - 1) return false;
-                    s16 = t5[++n4], r3 = true;
+                    s17 = t5[++n4], r3 = true;
                   }
-                  for (; e4 && !o2(e4.scopeName, s16); ) {
+                  for (; e4 && !o2(e4.scopeName, s17); ) {
                     if (r3) return false;
                     e4 = e4.parent;
                   }
@@ -107675,8 +107675,8 @@ ${val.stack}`;
           }
           t2.ScopeStack = i2;
           class a {
-            constructor(e3, t3, n3, s16, r3, i3) {
-              this.fontStyle = e3, this.foregroundId = t3, this.backgroundId = n3, this.fontFamily = s16, this.fontSize = r3, this.lineHeight = i3;
+            constructor(e3, t3, n3, s17, r3, i3) {
+              this.fontStyle = e3, this.foregroundId = t3, this.backgroundId = n3, this.fontFamily = s17, this.fontSize = r3, this.lineHeight = i3;
             }
           }
           function c(e3) {
@@ -107709,26 +107709,26 @@ ${val.stack}`;
                 }
               }
               let c2 = null;
-              "string" == typeof o3.settings.foreground && s15.isValidHexColor(o3.settings.foreground) && (c2 = o3.settings.foreground);
+              "string" == typeof o3.settings.foreground && s16.isValidHexColor(o3.settings.foreground) && (c2 = o3.settings.foreground);
               let u2 = null;
-              "string" == typeof o3.settings.background && s15.isValidHexColor(o3.settings.background) && (u2 = o3.settings.background);
+              "string" == typeof o3.settings.background && s16.isValidHexColor(o3.settings.background) && (u2 = o3.settings.background);
               let h4 = "";
               "string" == typeof o3.settings.fontFamily && (h4 = o3.settings.fontFamily);
               let p2 = 0;
               "number" == typeof o3.settings.fontSize && (p2 = o3.settings.fontSize);
               let d2 = 0;
               "number" == typeof o3.settings.lineHeight && (d2 = o3.settings.lineHeight);
-              for (let t4 = 0, s16 = i4.length; t4 < s16; t4++) {
-                let s17 = i4[t4].trim().split(" "), o4 = s17[s17.length - 1], f = null;
-                s17.length > 1 && (f = s17.slice(0, s17.length - 1), f.reverse()), n3[r3++] = new l2(o4, f, e4, a2, c2, u2, h4, p2, d2);
+              for (let t4 = 0, s17 = i4.length; t4 < s17; t4++) {
+                let s18 = i4[t4].trim().split(" "), o4 = s18[s18.length - 1], f = null;
+                s18.length > 1 && (f = s18.slice(0, s18.length - 1), f.reverse()), n3[r3++] = new l2(o4, f, e4, a2, c2, u2, h4, p2, d2);
               }
             }
             return n3;
           }
           t2.StyleAttributes = a, t2.parseTheme = c;
           class l2 {
-            constructor(e3, t3, n3, s16, r3, i3, o3, a2, c2) {
-              this.scope = e3, this.parentScopes = t3, this.index = n3, this.fontStyle = s16, this.foreground = r3, this.background = i3, this.fontFamily = o3, this.fontSize = a2, this.lineHeight = c2;
+            constructor(e3, t3, n3, s17, r3, i3, o3, a2, c2) {
+              this.scope = e3, this.parentScopes = t3, this.index = n3, this.fontStyle = s17, this.foreground = r3, this.background = i3, this.fontFamily = o3, this.fontSize = a2, this.lineHeight = c2;
             }
           }
           t2.ParsedThemeRule = l2, t2.fontStyleToString = function(e3) {
@@ -107758,19 +107758,19 @@ ${val.stack}`;
           t2.ColorMap = u;
           const h3 = Object.freeze([]);
           class p {
-            constructor(e3, t3, n3, s16, r3, i3, o3, a2) {
-              this.scopeDepth = e3, this.parentScopes = t3 || h3, this.fontStyle = n3, this.foreground = s16, this.background = r3, this.fontFamily = i3, this.fontSize = o3, this.lineHeight = a2;
+            constructor(e3, t3, n3, s17, r3, i3, o3, a2) {
+              this.scopeDepth = e3, this.parentScopes = t3 || h3, this.fontStyle = n3, this.foreground = s17, this.background = r3, this.fontFamily = i3, this.fontSize = o3, this.lineHeight = a2;
             }
             clone() {
               return new p(this.scopeDepth, this.parentScopes, this.fontStyle, this.foreground, this.background, this.fontFamily, this.fontSize, this.lineHeight);
             }
             static cloneArr(e3) {
               let t3 = [];
-              for (let n3 = 0, s16 = e3.length; n3 < s16; n3++) t3[n3] = e3[n3].clone();
+              for (let n3 = 0, s17 = e3.length; n3 < s17; n3++) t3[n3] = e3[n3].clone();
               return t3;
             }
-            acceptOverwrite(e3, t3, n3, s16, r3, i3, o3) {
-              this.scopeDepth > e3 ? console.log("how did this happen?") : this.scopeDepth = e3, -1 !== t3 && (this.fontStyle = t3), 0 !== n3 && (this.foreground = n3), 0 !== s16 && (this.background = s16), "" !== r3 && (this.fontFamily = r3), 0 !== i3 && (this.fontSize = i3), 0 !== o3 && (this.lineHeight = o3);
+            acceptOverwrite(e3, t3, n3, s17, r3, i3, o3) {
+              this.scopeDepth > e3 ? console.log("how did this happen?") : this.scopeDepth = e3, -1 !== t3 && (this.fontStyle = t3), 0 !== n3 && (this.foreground = n3), 0 !== s17 && (this.background = s17), "" !== r3 && (this.fontFamily = r3), 0 !== i3 && (this.fontSize = i3), 0 !== o3 && (this.lineHeight = o3);
             }
           }
           t2.ThemeTrieElementRule = p;
@@ -107780,32 +107780,32 @@ ${val.stack}`;
             }
             static _cmpBySpecificity(e3, t3) {
               if (e3.scopeDepth !== t3.scopeDepth) return t3.scopeDepth - e3.scopeDepth;
-              let n3 = 0, s16 = 0;
-              for (; ">" === e3.parentScopes[n3] && n3++, ">" === t3.parentScopes[s16] && s16++, !(n3 >= e3.parentScopes.length || s16 >= t3.parentScopes.length); ) {
-                const r3 = t3.parentScopes[s16].length - e3.parentScopes[n3].length;
+              let n3 = 0, s17 = 0;
+              for (; ">" === e3.parentScopes[n3] && n3++, ">" === t3.parentScopes[s17] && s17++, !(n3 >= e3.parentScopes.length || s17 >= t3.parentScopes.length); ) {
+                const r3 = t3.parentScopes[s17].length - e3.parentScopes[n3].length;
                 if (0 !== r3) return r3;
-                n3++, s16++;
+                n3++, s17++;
               }
               return t3.parentScopes.length - e3.parentScopes.length;
             }
             match(e3) {
               if ("" !== e3) {
-                let t4, n3, s16 = e3.indexOf(".");
-                if (-1 === s16 ? (t4 = e3, n3 = "") : (t4 = e3.substring(0, s16), n3 = e3.substring(s16 + 1)), this._children.hasOwnProperty(t4)) return this._children[t4].match(n3);
+                let t4, n3, s17 = e3.indexOf(".");
+                if (-1 === s17 ? (t4 = e3, n3 = "") : (t4 = e3.substring(0, s17), n3 = e3.substring(s17 + 1)), this._children.hasOwnProperty(t4)) return this._children[t4].match(n3);
               }
               const t3 = this._rulesWithParentScopes.concat(this._mainRule);
               return t3.sort(d._cmpBySpecificity), t3;
             }
-            insert(e3, t3, n3, s16, r3, i3, o3, a2, c2) {
-              if ("" === t3) return void this._doInsertHere(e3, n3, s16, r3, i3, o3, a2, c2);
+            insert(e3, t3, n3, s17, r3, i3, o3, a2, c2) {
+              if ("" === t3) return void this._doInsertHere(e3, n3, s17, r3, i3, o3, a2, c2);
               let l3, u2, h4, f = t3.indexOf(".");
-              -1 === f ? (l3 = t3, u2 = "") : (l3 = t3.substring(0, f), u2 = t3.substring(f + 1)), this._children.hasOwnProperty(l3) ? h4 = this._children[l3] : (h4 = new d(this._mainRule.clone(), p.cloneArr(this._rulesWithParentScopes)), this._children[l3] = h4), h4.insert(e3 + 1, u2, n3, s16, r3, i3, o3, a2, c2);
+              -1 === f ? (l3 = t3, u2 = "") : (l3 = t3.substring(0, f), u2 = t3.substring(f + 1)), this._children.hasOwnProperty(l3) ? h4 = this._children[l3] : (h4 = new d(this._mainRule.clone(), p.cloneArr(this._rulesWithParentScopes)), this._children[l3] = h4), h4.insert(e3 + 1, u2, n3, s17, r3, i3, o3, a2, c2);
             }
             _doInsertHere(e3, t3, n3, r3, i3, o3, a2, c2) {
               if (null !== t3) {
                 for (let l3 = 0, u2 = this._rulesWithParentScopes.length; l3 < u2; l3++) {
                   let u3 = this._rulesWithParentScopes[l3];
-                  if (0 === s15.strArrCmp(u3.parentScopes, t3)) return void u3.acceptOverwrite(e3, n3, r3, i3, o3, a2, c2);
+                  if (0 === s16.strArrCmp(u3.parentScopes, t3)) return void u3.acceptOverwrite(e3, n3, r3, i3, o3, a2, c2);
                 }
                 -1 === n3 && (n3 = this._mainRule.fontStyle), 0 === r3 && (r3 = this._mainRule.foreground), 0 === i3 && (i3 = this._mainRule.background), "" === o3 && (o3 = this._mainRule.fontFamily), 0 === a2 && (a2 = this._mainRule.fontSize), 0 === c2 && (c2 = this._mainRule.lineHeight), this._rulesWithParentScopes.push(new p(e3, t3, n3, r3, i3, o3, a2, c2));
               } else this._mainRule.acceptOverwrite(e3, n3, r3, i3, o3, a2, c2);
@@ -107816,11 +107816,11 @@ ${val.stack}`;
           function n2(e3) {
             return Array.isArray(e3) ? (function(e4) {
               let t3 = [];
-              for (let s16 = 0, r3 = e4.length; s16 < r3; s16++) t3[s16] = n2(e4[s16]);
+              for (let s17 = 0, r3 = e4.length; s17 < r3; s17++) t3[s17] = n2(e4[s17]);
               return t3;
             })(e3) : "object" == typeof e3 ? (function(e4) {
               let t3 = {};
-              for (let s16 in e4) t3[s16] = n2(e4[s16]);
+              for (let s17 in e4) t3[s17] = n2(e4[s17]);
               return t3;
             })(e3) : e3;
           }
@@ -107834,7 +107834,7 @@ ${val.stack}`;
             const n3 = ~t3.lastIndexOf("/") || ~t3.lastIndexOf("\\");
             return 0 === n3 ? t3 : ~n3 == t3.length - 1 ? e3(t3.substring(0, t3.length - 1)) : t3.substr(1 + ~n3);
           };
-          let s15, r2 = /\$(\d+)|\${(\d+):\/(downcase|upcase)}/g;
+          let s16, r2 = /\$(\d+)|\${(\d+):\/(downcase|upcase)}/g;
           function i2(e3, t3) {
             return e3 < t3 ? -1 : e3 > t3 ? 1 : 0;
           }
@@ -107843,8 +107843,8 @@ ${val.stack}`;
               return null !== e3 && (r2.lastIndex = 0, r2.test(e3));
             }
             static replaceCaptures(e3, t3, n3) {
-              return e3.replace(r2, ((e4, s16, r3, i3) => {
-                let o2 = n3[parseInt(s16 || r3, 10)];
+              return e3.replace(r2, ((e4, s17, r3, i3) => {
+                let o2 = n3[parseInt(s17 || r3, 10)];
                 if (!o2) return e4;
                 {
                   let e5 = t3.substring(o2.start, o2.end);
@@ -107864,15 +107864,15 @@ ${val.stack}`;
             if (null === e3 && null === t3) return 0;
             if (!e3) return -1;
             if (!t3) return 1;
-            let n3 = e3.length, s16 = t3.length;
-            if (n3 === s16) {
-              for (let s17 = 0; s17 < n3; s17++) {
-                let n4 = i2(e3[s17], t3[s17]);
+            let n3 = e3.length, s17 = t3.length;
+            if (n3 === s17) {
+              for (let s18 = 0; s18 < n3; s18++) {
+                let n4 = i2(e3[s18], t3[s18]);
                 if (0 !== n4) return n4;
               }
               return 0;
             }
-            return n3 - s16;
+            return n3 - s17;
           }, t2.isValidHexColor = function(e3) {
             return !!(/^#[0-9a-f]{6}$/i.test(e3) || /^#[0-9a-f]{8}$/i.test(e3) || /^#[0-9a-f]{3}$/i.test(e3) || /^#[0-9a-f]{4}$/i.test(e3));
           }, t2.escapeRegExpCharacters = function(e3) {
@@ -107891,14 +107891,14 @@ ${val.stack}`;
           } : function() {
             return performance.now();
           }, t2.containsRTL = function(e3) {
-            return s15 || (s15 = /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060D\u061B-\u064A\u066D-\u066F\u0671-\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u0710\u0712-\u072F\u074D-\u07A5\u07B1-\u07EA\u07F4\u07F5\u07FA\u07FE-\u0815\u081A\u0824\u0828\u0830-\u0858\u085E-\u088E\u08A0-\u08C9\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFD3D\uFD50-\uFDC7\uFDF0-\uFDFC\uFE70-\uFEFC]|\uD802[\uDC00-\uDD1B\uDD20-\uDE00\uDE10-\uDE35\uDE40-\uDEE4\uDEEB-\uDF35\uDF40-\uDFFF]|\uD803[\uDC00-\uDD23\uDE80-\uDEA9\uDEAD-\uDF45\uDF51-\uDF81\uDF86-\uDFF6]|\uD83A[\uDC00-\uDCCF\uDD00-\uDD43\uDD4B-\uDFFF]|\uD83B[\uDC00-\uDEBB])/), s15.test(e3);
+            return s16 || (s16 = /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060D\u061B-\u064A\u066D-\u066F\u0671-\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u0710\u0712-\u072F\u074D-\u07A5\u07B1-\u07EA\u07F4\u07F5\u07FA\u07FE-\u0815\u081A\u0824\u0828\u0830-\u0858\u085E-\u088E\u08A0-\u08C9\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFD3D\uFD50-\uFDC7\uFDF0-\uFDFC\uFE70-\uFEFC]|\uD802[\uDC00-\uDD1B\uDD20-\uDE00\uDE10-\uDE35\uDE40-\uDEE4\uDEEB-\uDF35\uDF40-\uDFFF]|\uD803[\uDC00-\uDD23\uDE80-\uDEA9\uDEAD-\uDF45\uDF51-\uDF81\uDF86-\uDFF6]|\uD83A[\uDC00-\uDCCF\uDD00-\uDD43\uDD4B-\uDFFF]|\uD83B[\uDC00-\uDEBB])/), s16.test(e3);
           };
         } }, t = {};
-        return (function n2(s15) {
-          var r2 = t[s15];
+        return (function n2(s16) {
+          var r2 = t[s16];
           if (void 0 !== r2) return r2.exports;
-          var i2 = t[s15] = { exports: {} };
-          return e[s15].call(i2.exports, i2, i2.exports, n2), i2.exports;
+          var i2 = t[s16] = { exports: {} };
+          return e[s16].call(i2.exports, i2, i2.exports, n2), i2.exports;
         })(625);
       })()));
     })(main);
@@ -107991,7 +107991,7 @@ ${val.stack}`;
               const o3 = r3 ? new Uint32Array(e2 + 1) : null;
               r3 && (o3[e2] = n4);
               const a2 = new Uint8Array(e2);
-              let s16 = 0;
+              let s17 = 0;
               for (let e3 = 0; e3 < n4; e3++) {
                 const f2 = t3.charCodeAt(e3);
                 let u2 = f2, c2 = false;
@@ -107999,7 +107999,7 @@ ${val.stack}`;
                   const n5 = t3.charCodeAt(e3 + 1);
                   n5 >= 56320 && n5 <= 57343 && (u2 = 65536 + (f2 - 55296 << 10) | n5 - 56320, c2 = true);
                 }
-                r3 && (i3[e3] = s16, c2 && (i3[e3 + 1] = s16), u2 <= 127 ? o3[s16 + 0] = e3 : u2 <= 2047 ? (o3[s16 + 0] = e3, o3[s16 + 1] = e3) : u2 <= 65535 ? (o3[s16 + 0] = e3, o3[s16 + 1] = e3, o3[s16 + 2] = e3) : (o3[s16 + 0] = e3, o3[s16 + 1] = e3, o3[s16 + 2] = e3, o3[s16 + 3] = e3)), u2 <= 127 ? a2[s16++] = u2 : u2 <= 2047 ? (a2[s16++] = 192 | (1984 & u2) >>> 6, a2[s16++] = 128 | (63 & u2) >>> 0) : u2 <= 65535 ? (a2[s16++] = 224 | (61440 & u2) >>> 12, a2[s16++] = 128 | (4032 & u2) >>> 6, a2[s16++] = 128 | (63 & u2) >>> 0) : (a2[s16++] = 240 | (1835008 & u2) >>> 18, a2[s16++] = 128 | (258048 & u2) >>> 12, a2[s16++] = 128 | (4032 & u2) >>> 6, a2[s16++] = 128 | (63 & u2) >>> 0), c2 && e3++;
+                r3 && (i3[e3] = s17, c2 && (i3[e3 + 1] = s17), u2 <= 127 ? o3[s17 + 0] = e3 : u2 <= 2047 ? (o3[s17 + 0] = e3, o3[s17 + 1] = e3) : u2 <= 65535 ? (o3[s17 + 0] = e3, o3[s17 + 1] = e3, o3[s17 + 2] = e3) : (o3[s17 + 0] = e3, o3[s17 + 1] = e3, o3[s17 + 2] = e3, o3[s17 + 3] = e3)), u2 <= 127 ? a2[s17++] = u2 : u2 <= 2047 ? (a2[s17++] = 192 | (1984 & u2) >>> 6, a2[s17++] = 128 | (63 & u2) >>> 0) : u2 <= 65535 ? (a2[s17++] = 224 | (61440 & u2) >>> 12, a2[s17++] = 128 | (4032 & u2) >>> 6, a2[s17++] = 128 | (63 & u2) >>> 0) : (a2[s17++] = 240 | (1835008 & u2) >>> 18, a2[s17++] = 128 | (258048 & u2) >>> 12, a2[s17++] = 128 | (4032 & u2) >>> 6, a2[s17++] = 128 | (63 & u2) >>> 0), c2 && e3++;
               }
               this.utf16Length = n4, this.utf8Length = e2, this.utf16Value = t3, this.utf8Value = a2, this.utf16OffsetToUtf8 = i3, this.utf8OffsetToUtf16 = o3;
             }
@@ -108008,12 +108008,12 @@ ${val.stack}`;
               return t3.HEAPU8.set(this.utf8Value, n4), n4;
             }
           }
-          class s15 {
+          class s16 {
             constructor(t3) {
-              if (this.id = ++s15.LAST_ID, !o2) throw new Error("Must invoke loadWASM first.");
+              if (this.id = ++s16.LAST_ID, !o2) throw new Error("Must invoke loadWASM first.");
               this._onigBinding = o2, this.content = t3;
               const n4 = new f(t3);
-              this.utf16Length = n4.utf16Length, this.utf8Length = n4.utf8Length, this.utf16OffsetToUtf8 = n4.utf16OffsetToUtf8, this.utf8OffsetToUtf16 = n4.utf8OffsetToUtf16, this.utf8Length < 1e4 && !s15._sharedPtrInUse ? (s15._sharedPtr || (s15._sharedPtr = o2._omalloc(1e4)), s15._sharedPtrInUse = true, o2.HEAPU8.set(n4.utf8Value, s15._sharedPtr), this.ptr = s15._sharedPtr) : this.ptr = n4.createString(o2);
+              this.utf16Length = n4.utf16Length, this.utf8Length = n4.utf8Length, this.utf16OffsetToUtf8 = n4.utf16OffsetToUtf8, this.utf8OffsetToUtf16 = n4.utf8OffsetToUtf16, this.utf8Length < 1e4 && !s16._sharedPtrInUse ? (s16._sharedPtr || (s16._sharedPtr = o2._omalloc(1e4)), s16._sharedPtrInUse = true, o2.HEAPU8.set(n4.utf8Value, s16._sharedPtr), this.ptr = s16._sharedPtr) : this.ptr = n4.createString(o2);
             }
             convertUtf8OffsetToUtf16(t3) {
               return this.utf8OffsetToUtf16 ? t3 < 0 ? 0 : t3 > this.utf8Length ? this.utf16Length : this.utf8OffsetToUtf16[t3] : t3;
@@ -108022,10 +108022,10 @@ ${val.stack}`;
               return this.utf16OffsetToUtf8 ? t3 < 0 ? 0 : t3 > this.utf16Length ? this.utf8Length : this.utf16OffsetToUtf8[t3] : t3;
             }
             dispose() {
-              this.ptr === s15._sharedPtr ? s15._sharedPtrInUse = false : this._onigBinding._ofree(this.ptr);
+              this.ptr === s16._sharedPtr ? s16._sharedPtrInUse = false : this._onigBinding._ofree(this.ptr);
             }
           }
-          n3.OnigString = s15, s15.LAST_ID = 0, s15._sharedPtr = 0, s15._sharedPtrInUse = false;
+          n3.OnigString = s16, s16.LAST_ID = 0, s16._sharedPtr = 0, s16._sharedPtrInUse = false;
           class u {
             constructor(t3) {
               if (!o2) throw new Error("Must invoke loadWASM first.");
@@ -108050,7 +108050,7 @@ ${val.stack}`;
             findNextMatchSync(t3, n4, e2) {
               let r3 = a, i3 = 0;
               if ("number" == typeof e2 ? (8 & e2 && (r3 = true), i3 = e2) : "boolean" == typeof e2 && (r3 = e2), "string" == typeof t3) {
-                t3 = new s15(t3);
+                t3 = new s16(t3);
                 const e3 = this._findNextMatchSync(t3, n4, r3, i3);
                 return t3.dispose(), e3;
               }
@@ -108062,13 +108062,13 @@ ${val.stack}`;
               if (o3 = e2 ? i3._findNextOnigScannerMatchDbg(this._ptr, t3.id, t3.ptr, t3.utf8Length, t3.convertUtf16OffsetToUtf8(n4), r3) : i3._findNextOnigScannerMatch(this._ptr, t3.id, t3.ptr, t3.utf8Length, t3.convertUtf16OffsetToUtf8(n4), r3), 0 === o3) return null;
               const a2 = i3.HEAPU32;
               let f2 = o3 / 4;
-              const s16 = a2[f2++], u2 = a2[f2++];
+              const s17 = a2[f2++], u2 = a2[f2++];
               let c2 = [];
               for (let n5 = 0; n5 < u2; n5++) {
                 const e3 = t3.convertUtf8OffsetToUtf16(a2[f2++]), r4 = t3.convertUtf8OffsetToUtf16(a2[f2++]);
                 c2[n5] = { start: e3, end: r4, length: r4 - e3 };
               }
-              return { index: s16, captureIndices: c2 };
+              return { index: s17, captureIndices: c2 };
             }
           }
           n3.OnigScanner = u;
@@ -108110,7 +108110,7 @@ ${val.stack}`;
               }));
             })(n4, e2, r3, a2), l2;
           }, n3.createOnigString = function(t3) {
-            return new s15(t3);
+            return new s16(t3);
           }, n3.createOnigScanner = function(t3) {
             return new u(t3);
           }, n3.setDefaultDebugCall = function(t3) {
@@ -108145,8 +108145,8 @@ ${val.stack}`;
                 if (128 & a) {
                   var f = 63 & t4[n5++];
                   if (192 != (224 & a)) {
-                    var s15 = 63 & t4[n5++];
-                    if ((a = 224 == (240 & a) ? (15 & a) << 12 | f << 6 | s15 : (7 & a) << 18 | f << 12 | s15 << 6 | 63 & t4[n5++]) < 65536) o3 += String.fromCharCode(a);
+                    var s16 = 63 & t4[n5++];
+                    if ((a = 224 == (240 & a) ? (15 & a) << 12 | f << 6 | s16 : (7 & a) << 18 | f << 12 | s16 << 6 | 63 & t4[n5++]) < 65536) o3 += String.fromCharCode(a);
                     else {
                       var u = a - 65536;
                       o3 += String.fromCharCode(55296 | u >> 10, 56320 | 1023 & u);
@@ -108276,7 +108276,7 @@ ${val.stack}`;
               for (var i3 = 0, o3 = 0; o3 < e2; o3++) {
                 var a = S2[n5 >> 2], f = S2[n5 + 4 >> 2];
                 n5 += 8;
-                for (var s15 = 0; s15 < f; s15++) Z(t4, w2[a + s15]);
+                for (var s16 = 0; s16 < f; s16++) Z(t4, w2[a + s16]);
                 i3 += f;
               }
               return S2[r3 >> 2] = i3, 0;
@@ -110428,9 +110428,9 @@ ${val.stack}`;
       for (let i2 = 0; i2 < c.length; i2++) {
         const n2 = c[i2];
         const r2 = n2.getRect();
-        const s15 = h3 ? r2.width : r2.height;
-        initialSizes.push(s15);
-        sum2 += s15;
+        const s16 = h3 ? r2.width : r2.height;
+        initialSizes.push(s16);
+        sum2 += s16;
       }
       const startRect = c[index2].getRect();
       const startPosition = (h3 ? startRect.x : startRect.y) - ss2;
@@ -110506,7 +110506,7 @@ ${val.stack}`;
           }
         }
       }
-      const weights = sizes.map((s15) => Math.max(0.1, s15) * 100 / sum2);
+      const weights = sizes.map((s16) => Math.max(0.1, s16) * 100 / sum2);
       return weights;
     }
     /** @internal */
@@ -112444,7 +112444,7 @@ ${val.stack}`;
     const updateScrollMetrics = () => {
       if (tabStripRef.current && miniScrollRef.current) {
         const t = tabStripRef.current;
-        const s15 = miniScrollRef.current;
+        const s16 = miniScrollRef.current;
         const size3 = getElementSize(t);
         const scrollSize = getScrollSize(t);
         const position = getScrollPosition(t);
@@ -112457,20 +112457,20 @@ ${val.stack}`;
           }
           const thumbPos = position * (size3 - adjust) / scrollSize;
           if (orientation === Orientation.HORZ) {
-            s15.style.width = thumbSize + "px";
-            s15.style.left = thumbPos + "px";
+            s16.style.width = thumbSize + "px";
+            s16.style.left = thumbPos + "px";
           } else {
-            s15.style.height = thumbSize + "px";
-            s15.style.top = thumbPos + "px";
+            s16.style.height = thumbSize + "px";
+            s16.style.top = thumbPos + "px";
           }
-          s15.style.display = "block";
+          s16.style.display = "block";
         } else {
-          s15.style.display = "none";
+          s16.style.display = "none";
         }
         if (orientation === Orientation.HORZ) {
-          s15.style.bottom = "0px";
+          s16.style.bottom = "0px";
         } else {
-          s15.style.right = "0px";
+          s16.style.right = "0px";
         }
       }
     };
@@ -112512,10 +112512,10 @@ ${val.stack}`;
     const onDragMove = (x, y) => {
       if (tabStripRef.current && miniScrollRef.current) {
         const t = tabStripRef.current;
-        const s15 = miniScrollRef.current;
+        const s16 = miniScrollRef.current;
         const size3 = getElementSize(t);
         const scrollSize = getScrollSize(t);
-        const thumbSize = getElementSize(s15);
+        const thumbSize = getElementSize(s16);
         const r2 = t.getBoundingClientRect();
         let thumb = 0;
         if (orientation === Orientation.HORZ) {
@@ -114790,7 +114790,10 @@ ${val.stack}`;
   var VIDEO_EXTS_UNSUPPORTED = [".avi", ".mov", ".mkv", ".wmv", ".flv"];
   var ext = (p) => {
     try {
-      return p.slice(p.lastIndexOf(".")).toLowerCase();
+      if (!p) return "";
+      const base = p.split(/[\\/]/).pop() || "";
+      const idx = base.lastIndexOf(".");
+      return idx > 0 ? base.slice(idx).toLowerCase() : "";
     } catch {
       return "";
     }
@@ -114811,7 +114814,8 @@ ${val.stack}`;
   var toFileUrl = (p) => {
     if (!p) return null;
     const normalized = p.replace(/\\/g, "/");
-    return "file:///" + (normalized.startsWith("/") ? normalized.slice(1) : normalized);
+    const encoded = encodeURI(normalized).replace(/#/g, "%23");
+    return "file:///" + (encoded.startsWith("/") ? encoded.slice(1) : encoded);
   };
   var MediaViewer = () => {
     const [filePath, setFilePath] = (0, import_react2.useState)(null);
@@ -115219,7 +115223,7 @@ ${val.stack}`;
           /* @__PURE__ */ import_react2.default.createElement("option", { value: 1.25 }, "1.25x"),
           /* @__PURE__ */ import_react2.default.createElement("option", { value: 1.5 }, "1.5x"),
           /* @__PURE__ */ import_react2.default.createElement("option", { value: 2 }, "2.0x")
-        ), /* @__PURE__ */ import_react2.default.createElement("div", { style: dividerStyle })), type === "text" && /* @__PURE__ */ import_react2.default.createElement(import_react2.default.Fragment, null, /* @__PURE__ */ import_react2.default.createElement("button", { onClick: () => setFontSize((s15) => Math.max(9, s15 - 1)), title: "Decrease font size", style: btnStyle }, "A-"), /* @__PURE__ */ import_react2.default.createElement("span", { style: { fontSize: 11, color: "#888", minWidth: 20, textAlign: "center" } }, fontSize, "px"), /* @__PURE__ */ import_react2.default.createElement("button", { onClick: () => setFontSize((s15) => Math.min(32, s15 + 1)), title: "Increase font size", style: btnStyle }, "A+"), /* @__PURE__ */ import_react2.default.createElement(
+        ), /* @__PURE__ */ import_react2.default.createElement("div", { style: dividerStyle })), type === "text" && /* @__PURE__ */ import_react2.default.createElement(import_react2.default.Fragment, null, /* @__PURE__ */ import_react2.default.createElement("button", { onClick: () => setFontSize((s16) => Math.max(9, s16 - 1)), title: "Decrease font size", style: btnStyle }, "A-"), /* @__PURE__ */ import_react2.default.createElement("span", { style: { fontSize: 11, color: "#888", minWidth: 20, textAlign: "center" } }, fontSize, "px"), /* @__PURE__ */ import_react2.default.createElement("button", { onClick: () => setFontSize((s16) => Math.min(32, s16 + 1)), title: "Increase font size", style: btnStyle }, "A+"), /* @__PURE__ */ import_react2.default.createElement(
           "button",
           {
             onClick: () => setLineWrap((w2) => !w2),
@@ -115674,7 +115678,7 @@ ${val.stack}`;
         if (t.startsWith("__IBX_DROP__")) {
           const p = t.slice("__IBX_DROP__".length);
           if (/\.html?$/i.test(p)) {
-            const url = "ppoo-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
+            const url = "ibx-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
             goToUrlRef.current(url);
           }
           return;
@@ -116003,7 +116007,8 @@ ${val.stack}`;
       setLockOpen(next);
       if (next && lockRef.current) {
         const r2 = lockRef.current.getBoundingClientRect();
-        setPopupStyle({ left: Math.max(8, r2.left - 10), top: r2.bottom + 6 });
+        const maxLeft = Math.max(8, window.innerWidth - 300);
+        setPopupStyle({ left: Math.min(Math.max(8, r2.left - 10), maxLeft), top: r2.bottom + 6 });
       }
     }, [lockOpen]);
     (0, import_react3.useEffect)(() => {
@@ -116236,7 +116241,7 @@ ${val.stack}`;
     const [state, setState] = (0, import_react5.useState)({ open: false, label: "", defaultValue: "", resolve: null });
     const ask = (label, defaultValue = "") => new Promise((resolve3) => {
       setState({ open: true, label, defaultValue, resolve: (v3) => {
-        setState((s15) => ({ ...s15, open: false }));
+        setState((s16) => ({ ...s16, open: false }));
         resolve3(v3);
       } });
     });
@@ -116293,7 +116298,13 @@ ${val.stack}`;
       if (entry.isDir) return;
       window.electronAPI.getFilePreview(entry.path).then((r2) => {
         if (!mounted.current) return;
-        if (r2) PREVIEW_CACHE.set(entry.path, r2);
+        if (r2) {
+          if (PREVIEW_CACHE.size >= 200) {
+            const firstKey = PREVIEW_CACHE.keys().next().value;
+            PREVIEW_CACHE.delete(firstKey);
+          }
+          PREVIEW_CACHE.set(entry.path, r2);
+        }
         setPreview(r2);
       });
       return () => {
@@ -116346,9 +116357,9 @@ ${val.stack}`;
       const segs = relative2 ? relative2.split(/[\\/]/) : [];
       crumbs.push({ label: rootName, path: rootPath });
       let b2 = rootPath;
-      for (const s15 of segs) {
-        b2 = b2 + "/" + s15;
-        crumbs.push({ label: s15, path: b2 });
+      for (const s16 of segs) {
+        b2 = b2 + "/" + s16;
+        crumbs.push({ label: s16, path: b2 });
       }
     }
     const eyeLabel = selectedCount > 0 ? `${selectedCount} selected` : itemCount != null ? `${itemCount} items` : "";
@@ -116542,8 +116553,8 @@ ${msg}`);
         // ── Open ────────────────────────────────────────────────────────────
         case "open": {
           for (const p of targetPaths) {
-            const s15 = await window.electronAPI.stat(p);
-            if (s15.isDir) onNavigate(p);
+            const s16 = await window.electronAPI.stat(p);
+            if (s16.isDir) onNavigate(p);
             else await window.electronAPI.openFile(p, settingsRef.current.defaultEditor ?? "system");
           }
           return;
@@ -116562,6 +116573,27 @@ ${msg}`);
           for (const p of targetPaths) window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: p } }));
           return;
         }
+        case "openInBrowser": {
+          for (const p of targetPaths) {
+            const url = "ppoo-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
+            window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url, config: { type: "browser", title: "Browser", url } } }));
+          }
+          return;
+        }
+        case "openInExternalBrowser": {
+          for (const p of targetPaths) {
+            try {
+              await window.electronAPI.openFile(p, "system");
+            } catch {
+              const fileUrl = "file:///" + p.replace(/\\/g, "/");
+              try {
+                await window.electronAPI.openUrl(fileUrl);
+              } catch {
+              }
+            }
+          }
+          return;
+        }
         default: {
           if (action.startsWith("openWithEditor:")) {
             const editorId = action.slice("openWithEditor:".length);
@@ -116572,8 +116604,8 @@ ${msg}`);
         }
         case "openInTerminal": {
           for (const p of targetPaths) {
-            const s15 = await window.electronAPI.stat(p);
-            const dir2 = s15.isDir ? p : p.replace(/[\\/][^\\/]*$/, "");
+            const s16 = await window.electronAPI.stat(p);
+            const dir2 = s16.isDir ? p : p.replace(/[\\/][^\\/]*$/, "");
             window.dispatchEvent(new CustomEvent("open-terminal", { detail: { dir: dir2 } }));
           }
           return;
@@ -116728,8 +116760,8 @@ ${msg}`);
         case "pinToSidebar": {
           const rp = rootPathRef.current;
           for (const p of targetPaths) {
-            const s15 = await window.electronAPI.stat(p);
-            if (s15.isDir) {
+            const s16 = await window.electronAPI.stat(p);
+            if (s16.isDir) {
               const relPath = p.length > rp.length ? p.slice(rp.length + 1) : p.replace(/.*[\\/]/, "");
               const existing = await window.electronAPI.readPinConfig(rp);
               if (!existing.includes(relPath)) {
@@ -116948,9 +116980,10 @@ ${msg}`);
       }
       const sel = selectedItemsRef.current;
       const toDrag = sel.size > 0 && sel.has(entry.path) ? [...sel] : [entry.path];
-      window.__ppooDragPaths = toDrag;
+      window.__ibxDragPaths = toDrag;
       const uris = toDrag.map((p) => `file:///${p.replace(/\\/g, "/")}`).join("\n");
       e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("application/ibx-paths", JSON.stringify(toDrag));
       e.dataTransfer.setData("text/uri-list", uris);
       e.dataTransfer.setData("text/plain", toDrag.join("\n"));
     }, [renamingPath]);
@@ -117667,7 +117700,7 @@ ${msg}`);
     }, [rootPath, childCache]);
     const rootName = rootPath ? rootPath.split(/[\\/]/).filter(Boolean).pop() : "";
     const handleExternalDrop = (0, import_react8.useCallback)(async (e, targetDir) => {
-      if (window.__ppooDragPaths?.length) return false;
+      if (window.__ibxDragPaths?.length) return false;
       const dt2 = e.dataTransfer;
       if (!dt2) return false;
       const hasFiles = dt2.types?.includes("Files");
@@ -117740,15 +117773,15 @@ ${failed.join(", ")}`);
       e.preventDefault();
       e.stopPropagation();
       setDropTarget(null);
-      if (window.__ppooDragPaths?.length) {
-        const paths = window.__ppooDragPaths;
-        window.__ppooDragPaths = null;
+      if (window.__ibxDragPaths?.length) {
+        const paths = window.__ibxDragPaths;
+        window.__ibxDragPaths = null;
         onDrop(rootPath, paths);
         return;
       }
       if (await handleExternalDrop(e, rootPath)) return;
       try {
-        const paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths"));
+        const paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths"));
         if (paths?.length) onDrop(rootPath, paths);
       } catch {
       }
@@ -117764,14 +117797,14 @@ ${failed.join(", ")}`);
       e.preventDefault();
       e.stopPropagation();
       if (await handleExternalDrop(e, rootPath)) return;
-      if (window.__ppooDragPaths?.length) {
-        const paths = window.__ppooDragPaths;
-        window.__ppooDragPaths = null;
+      if (window.__ibxDragPaths?.length) {
+        const paths = window.__ibxDragPaths;
+        window.__ibxDragPaths = null;
         onDrop(rootPath, paths);
         return;
       }
       try {
-        const paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths"));
+        const paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths"));
         if (paths?.length) onDrop(rootPath, paths);
       } catch {
       }
@@ -117953,6 +117986,23 @@ ${err.message}`);
         case "openInMediaViewer":
           window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
           break;
+        case "openInBrowser": {
+          const url = "ppoo-file://file/" + encodeURI(filePath.replace(/\\/g, "/")).replace(/#/g, "%23");
+          window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url, config: { type: "browser", title: "Browser", url } } }));
+          break;
+        }
+        case "openInExternalBrowser": {
+          try {
+            await window.electronAPI.openFile(filePath, "system");
+          } catch {
+            const fileUrl = "file:///" + filePath.replace(/\\/g, "/");
+            try {
+              await window.electronAPI.openUrl(fileUrl);
+            } catch {
+            }
+          }
+          break;
+        }
         case "openInTerminal": {
           window.dispatchEvent(new CustomEvent("open-terminal", { detail: { dir: parentDir } }));
           break;
@@ -118379,14 +118429,14 @@ ${err.message}`);
     const startXRef = (0, import_react10.useRef)(0);
     const startWRef = (0, import_react10.useRef)(SIDEBAR_DEFAULT);
     (0, import_react10.useEffect)(() => {
-      window.electronAPI.readSettings().then((s15) => {
-        if (s15.zoom) setZoom(s15.zoom);
+      window.electronAPI.readSettings().then((s16) => {
+        if (s16.zoom) setZoom(s16.zoom);
       });
     }, []);
     const handleZoom = (0, import_react10.useCallback)((val) => {
       setZoom(val);
-      window.electronAPI.readSettings().then((s15) => {
-        window.electronAPI.writeSettings({ ...s15, zoom: val });
+      window.electronAPI.readSettings().then((s16) => {
+        window.electronAPI.writeSettings({ ...s16, zoom: val });
       });
     }, []);
     const navHistoryRef = (0, import_react10.useRef)({ stack: [], cursor: -1 });
@@ -119540,8 +119590,8 @@ ${failedDrop.join(", ")}`);
     return result;
   }
   function withoutDuplicates(array2) {
-    const s15 = new Set(array2);
-    return Array.from(s15);
+    const s16 = new Set(array2);
+    return Array.from(s16);
   }
   function asArray(x) {
     return Array.isArray(x) ? x : [x];
@@ -126369,11 +126419,11 @@ ${stackTraceFormattedLines.join("\n")}
     const last = segments.pop();
     let curr = settingsTreeRoot;
     for (let i2 = 0; i2 < segments.length; i2++) {
-      const s15 = segments[i2];
-      let obj = curr[s15];
+      const s16 = segments[i2];
+      let obj = curr[s16];
       switch (typeof obj) {
         case "undefined":
-          obj = curr[s15] = /* @__PURE__ */ Object.create(null);
+          obj = curr[s16] = /* @__PURE__ */ Object.create(null);
           break;
         case "object":
           if (obj === null) {
@@ -132930,10 +132980,10 @@ ${stackTraceFormattedLines.join("\n")}
     }
   };
   var HSLA = class _HSLA {
-    constructor(h3, s15, l2, a) {
+    constructor(h3, s16, l2, a) {
       this._hslaBrand = void 0;
       this.h = Math.max(Math.min(360, h3), 0) | 0;
-      this.s = roundFloat(Math.max(Math.min(1, s15), 0), 3);
+      this.s = roundFloat(Math.max(Math.min(1, s16), 0), 3);
       this.l = roundFloat(Math.max(Math.min(1, l2), 0), 3);
       this.a = roundFloat(Math.max(Math.min(1, a), 0), 3);
     }
@@ -132948,11 +132998,11 @@ ${stackTraceFormattedLines.join("\n")}
       const max = Math.max(r2, g2, b2);
       const min = Math.min(r2, g2, b2);
       let h3 = 0;
-      let s15 = 0;
+      let s16 = 0;
       const l2 = (min + max) / 2;
       const chroma = max - min;
       if (chroma > 0) {
-        s15 = Math.min(l2 <= 0.5 ? chroma / (2 * l2) : chroma / (2 - 2 * l2), 1);
+        s16 = Math.min(l2 <= 0.5 ? chroma / (2 * l2) : chroma / (2 - 2 * l2), 1);
         switch (max) {
           case r2:
             h3 = (g2 - b2) / chroma + (g2 < b2 ? 6 : 0);
@@ -132967,7 +133017,7 @@ ${stackTraceFormattedLines.join("\n")}
         h3 *= 60;
         h3 = Math.round(h3);
       }
-      return new _HSLA(h3, s15, l2, a);
+      return new _HSLA(h3, s16, l2, a);
     }
     static _hue2rgb(p, q2, t) {
       if (t < 0) {
@@ -132990,15 +133040,15 @@ ${stackTraceFormattedLines.join("\n")}
     static toRGBA(hsla) {
       const h3 = hsla.h / 360;
       const {
-        s: s15,
+        s: s16,
         l: l2,
         a
       } = hsla;
       let r2, g2, b2;
-      if (s15 === 0) {
+      if (s16 === 0) {
         r2 = g2 = b2 = l2;
       } else {
-        const q2 = l2 < 0.5 ? l2 * (1 + s15) : l2 + s15 - l2 * s15;
+        const q2 = l2 < 0.5 ? l2 * (1 + s16) : l2 + s16 - l2 * s16;
         const p = 2 * l2 - q2;
         r2 = _HSLA._hue2rgb(p, q2, h3 + 1 / 3);
         g2 = _HSLA._hue2rgb(p, q2, h3);
@@ -133008,10 +133058,10 @@ ${stackTraceFormattedLines.join("\n")}
     }
   };
   var HSVA = class _HSVA {
-    constructor(h3, s15, v3, a) {
+    constructor(h3, s16, v3, a) {
       this._hsvaBrand = void 0;
       this.h = Math.max(Math.min(360, h3), 0) | 0;
-      this.s = roundFloat(Math.max(Math.min(1, s15), 0), 3);
+      this.s = roundFloat(Math.max(Math.min(1, s16), 0), 3);
       this.v = roundFloat(Math.max(Math.min(1, v3), 0), 3);
       this.a = roundFloat(Math.max(Math.min(1, a), 0), 3);
     }
@@ -133025,7 +133075,7 @@ ${stackTraceFormattedLines.join("\n")}
       const cmax = Math.max(r2, g2, b2);
       const cmin = Math.min(r2, g2, b2);
       const delta = cmax - cmin;
-      const s15 = cmax === 0 ? 0 : delta / cmax;
+      const s16 = cmax === 0 ? 0 : delta / cmax;
       let m;
       if (delta === 0) {
         m = 0;
@@ -133036,16 +133086,16 @@ ${stackTraceFormattedLines.join("\n")}
       } else {
         m = (r2 - g2) / delta + 4;
       }
-      return new _HSVA(Math.round(m * 60), s15, cmax, rgba.a);
+      return new _HSVA(Math.round(m * 60), s16, cmax, rgba.a);
     }
     static toRGBA(hsva) {
       const {
         h: h3,
-        s: s15,
+        s: s16,
         v: v3,
         a
       } = hsva;
-      const c = v3 * s15;
+      const c = v3 * s16;
       const x = c * (1 - Math.abs(h3 / 60 % 2 - 1));
       const m = v3 - c;
       let [r2, g2, b2] = [0, 0, 0];
@@ -138954,13 +139004,13 @@ ${stackTraceFormattedLines.join("\n")}
     return VSBuffer.wrap(out);
   }
   function decodeHexChar(str, position) {
-    const s15 = str.charCodeAt(position);
-    if (s15 >= 48 && s15 <= 57) {
-      return s15 - 48;
-    } else if (s15 >= 97 && s15 <= 102) {
-      return s15 - 87;
-    } else if (s15 >= 65 && s15 <= 70) {
-      return s15 - 55;
+    const s16 = str.charCodeAt(position);
+    if (s16 >= 48 && s16 <= 57) {
+      return s16 - 48;
+    } else if (s16 >= 97 && s16 <= 102) {
+      return s16 - 87;
+    } else if (s16 >= 65 && s16 <= 70) {
+      return s16 - 55;
     } else {
       throw new SyntaxError(`Invalid hex character at position ${position}`);
     }
@@ -138997,10 +139047,10 @@ ${stackTraceFormattedLines.join("\n")}
   function booleanHash(b2, initialHashVal) {
     return numberHash(b2 ? 433 : 863, initialHashVal);
   }
-  function stringHash(s15, hashVal) {
+  function stringHash(s16, hashVal) {
     hashVal = numberHash(149417, hashVal);
-    for (let i2 = 0, length = s15.length; i2 < length; i2++) {
-      hashVal = numberHash(s15.charCodeAt(i2), hashVal);
+    for (let i2 = 0, length = s16.length; i2 < length; i2++) {
+      hashVal = numberHash(s16.charCodeAt(i2), hashVal);
     }
     return hashVal;
   }
@@ -140804,7 +140854,7 @@ ${stackTraceFormattedLines.join("\n")}
     }, debugLocation);
   }
   function debouncedObservable2(observable, debounceMs, debugLocation = DebugLocation.ofCaller()) {
-    const s15 = observableSignal("handleTimeout");
+    const s16 = observableSignal("handleTimeout");
     let currentValue = void 0;
     let timeout2 = void 0;
     const d = derivedOpts({
@@ -140814,7 +140864,7 @@ ${stackTraceFormattedLines.join("\n")}
       }
     }, (reader) => {
       const val = observable.read(reader);
-      s15.read(reader);
+      s16.read(reader);
       if (val !== currentValue) {
         const debounceDuration = typeof debounceMs === "number" ? debounceMs : debounceMs(currentValue, val);
         if (debounceDuration === 0) {
@@ -140826,7 +140876,7 @@ ${stackTraceFormattedLines.join("\n")}
         }
         timeout2 = setTimeout(() => {
           currentValue = val;
-          s15.trigger(void 0);
+          s16.trigger(void 0);
         }, debounceDuration);
       }
       return currentValue;
@@ -146855,7 +146905,7 @@ ${stackTraceFormattedLines.join("\n")}
     return code === CharCode.Space || code === CharCode.Tab || code === CharCode.LineFeed || code === CharCode.CarriageReturn;
   }
   var wordSeparators = /* @__PURE__ */ new Set();
-  "()[]{}<>`'\"-/;:,.?!".split("").forEach((s15) => wordSeparators.add(s15.charCodeAt(0)));
+  "()[]{}<>`'\"-/;:,.?!".split("").forEach((s16) => wordSeparators.add(s16.charCodeAt(0)));
   function isWordSeparator(code) {
     return isWhitespace2(code) || wordSeparators.has(code);
   }
@@ -147679,7 +147729,7 @@ ${appendEscapedMarkdownCodeBlockFence(code, langId)}
   }
   function parseHrefAndDimensions(href) {
     const dimensions = [];
-    const splitted = href.split("|").map((s15) => s15.trim());
+    const splitted = href.split("|").map((s16) => s16.trim());
     href = splitted[0];
     const parameters = splitted[1];
     if (parameters) {
@@ -147752,7 +147802,7 @@ ${appendEscapedMarkdownCodeBlockFence(code, langId)}
     statusContainer2 = createStatusContainer();
     parent.appendChild(ariaContainer);
   }
-  function alert(msg) {
+  function alert2(msg) {
     if (!ariaContainer) {
       return;
     }
@@ -149359,7 +149409,7 @@ ${appendEscapedMarkdownCodeBlockFence(code, langId)}
         }
         if (isWindows && typeof item === "string" && item.startsWith("file:///")) {
           const itemLower = item.toLowerCase();
-          return source.some((s15) => typeof s15 === "string" && s15.toLowerCase() === itemLower);
+          return source.some((s16) => typeof s16 === "string" && s16.toLowerCase() === itemLower);
         }
         return false;
       }
@@ -157999,7 +158049,7 @@ ${appendEscapedMarkdownCodeBlockFence(code, langId)}
       }
       this._currentCssStyle = cssStyle;
       if (!this._styleSheet) {
-        this._styleSheet = createStyleSheet(void 0, (s15) => s15.textContent = cssStyle, this._store);
+        this._styleSheet = createStyleSheet(void 0, (s16) => s16.textContent = cssStyle, this._store);
       } else {
         this._styleSheet.textContent = cssStyle;
       }
@@ -159192,7 +159242,7 @@ ${appendEscapedMarkdownCodeBlockFence(code, langId)}
       this._onDidChangeScreenReaderOptimized.fire();
     }
     alert(message) {
-      alert(message);
+      alert2(message);
     }
     status(message) {
       status(message);
@@ -162006,7 +162056,7 @@ ${appendEscapedMarkdownCodeBlockFence(code, langId)}
       this.spliceables = spliceables;
     }
     splice(start, deleteCount, elements) {
-      this.spliceables.forEach((s15) => s15.splice(start, deleteCount, elements));
+      this.spliceables.forEach((s16) => s16.splice(start, deleteCount, elements));
     }
   };
 
@@ -164169,9 +164219,9 @@ ${appendEscapedMarkdownCodeBlockFence(code, langId)}
       if (focus.length > 0 && focus[0] === this.previouslyFocused) {
         const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
         if (typeof ariaLabel === "string") {
-          alert(ariaLabel);
+          alert2(ariaLabel);
         } else if (ariaLabel) {
-          alert(ariaLabel.get());
+          alert2(ariaLabel.get());
         }
       }
       this.previouslyFocused = -1;
@@ -171781,7 +171831,7 @@ ${escape(text2)}
     renderLabel(element) {
       let classNames2 = [];
       if (typeof this.options.classNames === "string") {
-        classNames2 = this.options.classNames.split(/\s+/g).filter((s15) => !!s15);
+        classNames2 = this.options.classNames.split(/\s+/g).filter((s16) => !!s16);
       } else if (this.options.classNames) {
         classNames2 = this.options.classNames;
       }
@@ -177107,7 +177157,7 @@ ${graph.toString()}`;
       this._orthogonalEndSash = sash;
     }
     get sashes() {
-      return this.sashItems.map((s15) => s15.sash);
+      return this.sashItems.map((s16) => s16.sash);
     }
     set startSnappingEnabled(startSnappingEnabled) {
       if (this._startSnappingEnabled === startSnappingEnabled) {
@@ -177621,13 +177671,13 @@ ${graph.toString()}`;
             orthogonalEndSash: this.orthogonalEndSash
           };
           const sash = this.orientation === Orientation2.VERTICAL ? new Sash(this.sashContainer, {
-            getHorizontalSashTop: (s15) => this.getSashPosition(s15),
+            getHorizontalSashTop: (s16) => this.getSashPosition(s16),
             getHorizontalSashWidth: this.getSashOrthogonalSize
           }, {
             ...opts,
             orientation: Orientation2.HORIZONTAL
           }) : new Sash(this.sashContainer, {
-            getVerticalSashLeft: (s15) => this.getSashPosition(s15),
+            getVerticalSashLeft: (s16) => this.getSashPosition(s16),
             getVerticalSashHeight: this.getSashOrthogonalSize
           }, {
             ...opts,
@@ -179327,7 +179377,7 @@ ${graph.toString()}`;
       } else {
         alertText = localize(22, "Info: {0}", this.message.content);
       }
-      alert(alertText);
+      alert2(alertText);
       this.state = "open";
     }
     _hideMessage() {
@@ -182269,9 +182319,9 @@ ${graph.toString()}`;
     }
     alertResults(results) {
       if (!results) {
-        alert(localize(37, "No results"));
+        alert2(localize(37, "No results"));
       } else {
-        alert(localize(38, "{0} results", results));
+        alert2(localize(38, "{0} results", results));
       }
     }
     dispose() {
@@ -184005,7 +184055,7 @@ ${graph.toString()}`;
             deep
           } = e;
           if (node.collapsible && !deep && this.isDOMFocused()) {
-            alert(node.collapsed ? localize(42, "collapsed") : localize(43, "expanded"));
+            alert2(node.collapsed ? localize(42, "collapsed") : localize(43, "expanded"));
           }
         }));
       }
@@ -203651,7 +203701,7 @@ ${graph.toString()}`;
     for (const s1ToS2 of s1ToS2Map) {
       const s0ToS1Map2 = nextS0ToS1MapWithS1LengthOf(s1ToS2.lengthBefore);
       if (s1ToS2.modified) {
-        const s0Length = sumLengths(s0ToS1Map2, (s15) => s15.lengthBefore);
+        const s0Length = sumLengths(s0ToS1Map2, (s16) => s16.lengthBefore);
         const s0EndOffset = lengthAdd(s0offset, s0Length);
         pushEdit(s0offset, s0EndOffset, s1ToS2.lengthAfter);
         s0offset = s0EndOffset;
@@ -213325,7 +213375,7 @@ ${graph.toString()}`;
       });
     }
     refreshAllVisibleLineTokens() {
-      const ranges = LineRange.joinMany([...this._attachedViewStates].map(([_3, s15]) => s15.lineRanges));
+      const ranges = LineRange.joinMany([...this._attachedViewStates].map(([_3, s16]) => s16.lineRanges));
       this.refreshRanges(ranges);
     }
     refreshRanges(ranges) {
@@ -220387,7 +220437,7 @@ ${graph.toString()}`;
       this._init = new Lazy(() => {
         const saneLabel = mainItem.label ?? "";
         const saneSortLabel = parseLabelWithIcons(saneLabel).text.trim();
-        const saneAriaLabel = mainItem.ariaLabel || [saneLabel, this.saneDescription, this.saneDetail].map((s15) => getCodiconAriaLabel(s15)).filter((s15) => !!s15).join(", ");
+        const saneAriaLabel = mainItem.ariaLabel || [saneLabel, this.saneDescription, this.saneDetail].map((s16) => getCodiconAriaLabel(s16)).filter((s16) => !!s16).join(", ");
         return {
           saneLabel,
           saneSortLabel,
@@ -222093,7 +222143,7 @@ ${graph.toString()}`;
       return localize(2228, "Quick Tree");
     }
     getAriaLabel(element) {
-      return element.ariaLabel || [element.label, element.description].map((s15) => getCodiconAriaLabel(s15)).filter((s15) => !!s15).join(", ");
+      return element.ariaLabel || [element.label, element.description].map((s16) => getCodiconAriaLabel(s16)).filter((s16) => !!s16).join(", ");
     }
     getWidgetRole() {
       return "tree";
@@ -225035,22 +225085,22 @@ Ensure your bundler properly bundles modules referenced by "new URL(${examplePat
       return {
         weight: iconFont.weight,
         style: iconFont.style,
-        src: iconFont.src.map((s15) => ({
-          format: s15.format,
-          location: s15.location.toString()
+        src: iconFont.src.map((s16) => ({
+          format: s16.format,
+          location: s16.location.toString()
         }))
       };
     }
     IconFontDefinition2.toJSONObject = toJSONObject;
     function fromJSONObject(json) {
-      const stringOrUndef = (s15) => isString(s15) ? s15 : void 0;
-      if (json && Array.isArray(json.src) && json.src.every((s15) => isString(s15.format) && isString(s15.location))) {
+      const stringOrUndef = (s16) => isString(s16) ? s16 : void 0;
+      if (json && Array.isArray(json.src) && json.src.every((s16) => isString(s16.format) && isString(s16.location))) {
         return {
           weight: stringOrUndef(json.weight),
           style: stringOrUndef(json.style),
-          src: json.src.map((s15) => ({
-            format: s15.format,
-            location: URI.parse(s15.location)
+          src: json.src.map((s16) => ({
+            format: s16.format,
+            location: URI.parse(s16.location)
           }))
         };
       }
@@ -226948,8 +226998,8 @@ ${this._themeCSS}`;
       }
       exports.clean = clean;
       function clean(version, loose) {
-        var s15 = parse10(version.trim().replace(/^[=v]+/, ""), loose);
-        return s15 ? s15.version : null;
+        var s16 = parse10(version.trim().replace(/^[=v]+/, ""), loose);
+        return s16 ? s16.version : null;
       }
       exports.SemVer = SemVer;
       function SemVer(version, loose) {
@@ -238730,222 +238780,222 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
   // node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/index.js
   var manifest = { name: "theme-defaults", displayName: "%displayName%", description: "%description%", categories: ["Themes"], version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, contributes: { themes: [{ id: "Light 2026", label: "%light2026ThemeLabel%", uiTheme: "vs", path: "./themes/2026-light.json" }, { id: "Dark 2026", label: "%dark2026ThemeLabel%", uiTheme: "vs-dark", path: "./themes/2026-dark.json" }, { id: "Dark+", label: "%darkPlusColorThemeLabel%", uiTheme: "vs-dark", path: "./themes/dark_plus.json" }, { id: "Dark Modern", label: "%darkModernThemeLabel%", uiTheme: "vs-dark", path: "./themes/dark_modern.json" }, { id: "Light+", label: "%lightPlusColorThemeLabel%", uiTheme: "vs", path: "./themes/light_plus.json" }, { id: "Light Modern", label: "%lightModernThemeLabel%", uiTheme: "vs", path: "./themes/light_modern.json" }, { id: "Visual Studio Dark", label: "%darkColorThemeLabel%", uiTheme: "vs-dark", path: "./themes/dark_vs.json" }, { id: "Visual Studio Light", label: "%lightColorThemeLabel%", uiTheme: "vs", path: "./themes/light_vs.json" }, { id: "Default High Contrast", label: "%hcColorThemeLabel%", uiTheme: "hc-black", path: "./themes/hc_black.json" }, { id: "Default High Contrast Light", label: "%lightHcColorThemeLabel%", uiTheme: "hc-light", path: "./themes/hc_light.json" }], iconThemes: [{ id: "vs-minimal", label: "%minimalIconThemeLabel%", path: "./fileicons/vs_minimal-icon-theme.json" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl, whenReady } = registerExtension(manifest, void 0, { "system": true });
-  registerFileUrl("fileicons/images/document-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/document-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 278 });
-  registerFileUrl("fileicons/images/document-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/document-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 278 });
-  registerFileUrl("fileicons/images/folder-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 615 });
-  registerFileUrl("fileicons/images/folder-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 615 });
-  registerFileUrl("fileicons/images/folder-open-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-open-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 494 });
-  registerFileUrl("fileicons/images/folder-open-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-open-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 494 });
-  registerFileUrl("fileicons/images/root-folder-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 1061 });
-  registerFileUrl("fileicons/images/root-folder-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 1061 });
-  registerFileUrl("fileicons/images/root-folder-open-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-open-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 930 });
-  registerFileUrl("fileicons/images/root-folder-open-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-open-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 930 });
-  registerFileUrl("fileicons/vs_minimal-icon-theme.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/vs_minimal-icon-theme.json").toString(), { "mimeType": "application/json", "size": 1094 });
-  registerFileUrl("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1495 });
-  registerFileUrl("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 545 });
-  registerFileUrl("themes/2026-dark.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/2026-dark.json").toString(), { "mimeType": "application/json", "size": 16539 });
-  registerFileUrl("themes/2026-light.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/2026-light.json").toString(), { "mimeType": "application/json", "size": 16608 });
-  registerFileUrl("themes/dark_modern.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/dark_modern.json").toString(), { "mimeType": "application/json", "size": 4670 });
-  registerFileUrl("themes/dark_plus.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/dark_plus.json").toString(), { "mimeType": "application/json", "size": 3684 });
-  registerFileUrl("themes/dark_vs.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/dark_vs.json").toString(), { "mimeType": "application/json", "size": 6313 });
-  registerFileUrl("themes/hc_black.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/hc_black.json").toString(), { "mimeType": "application/json", "size": 7081 });
-  registerFileUrl("themes/hc_light.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/hc_light.json").toString(), { "mimeType": "application/json", "size": 8776 });
-  registerFileUrl("themes/light_modern.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/light_modern.json").toString(), { "mimeType": "application/json", "size": 5468 });
-  registerFileUrl("themes/light_plus.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/light_plus.json").toString(), { "mimeType": "application/json", "size": 3725 });
-  registerFileUrl("themes/light_vs.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/light_vs.json").toString(), { "mimeType": "application/json", "size": 7114 });
+  registerFileUrl("fileicons/images/document-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/document-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 278 });
+  registerFileUrl("fileicons/images/document-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/document-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 278 });
+  registerFileUrl("fileicons/images/folder-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 615 });
+  registerFileUrl("fileicons/images/folder-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 615 });
+  registerFileUrl("fileicons/images/folder-open-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-open-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 494 });
+  registerFileUrl("fileicons/images/folder-open-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/folder-open-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 494 });
+  registerFileUrl("fileicons/images/root-folder-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 1061 });
+  registerFileUrl("fileicons/images/root-folder-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 1061 });
+  registerFileUrl("fileicons/images/root-folder-open-dark.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-open-dark.svg").toString(), { "mimeType": "image/svg+xml", "size": 930 });
+  registerFileUrl("fileicons/images/root-folder-open-light.svg", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/root-folder-open-light.svg").toString(), { "mimeType": "image/svg+xml", "size": 930 });
+  registerFileUrl("fileicons/vs_minimal-icon-theme.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/vs_minimal-icon-theme.json").toString(), { "mimeType": "application/json", "size": 1094 });
+  registerFileUrl("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1495 });
+  registerFileUrl("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 545 });
+  registerFileUrl("themes/2026-dark.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/2026-dark.json").toString(), { "mimeType": "application/json", "size": 16539 });
+  registerFileUrl("themes/2026-light.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/2026-light.json").toString(), { "mimeType": "application/json", "size": 16608 });
+  registerFileUrl("themes/dark_modern.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/dark_modern.json").toString(), { "mimeType": "application/json", "size": 4670 });
+  registerFileUrl("themes/dark_plus.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/dark_plus.json").toString(), { "mimeType": "application/json", "size": 3684 });
+  registerFileUrl("themes/dark_vs.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/dark_vs.json").toString(), { "mimeType": "application/json", "size": 6313 });
+  registerFileUrl("themes/hc_black.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/hc_black.json").toString(), { "mimeType": "application/json", "size": 7081 });
+  registerFileUrl("themes/hc_light.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/hc_light.json").toString(), { "mimeType": "application/json", "size": 8776 });
+  registerFileUrl("themes/light_modern.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/light_modern.json").toString(), { "mimeType": "application/json", "size": 5468 });
+  registerFileUrl("themes/light_plus.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/light_plus.json").toString(), { "mimeType": "application/json", "size": 3725 });
+  registerFileUrl("themes/light_vs.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-theme-defaults-default-extension/resources/light_vs.json").toString(), { "mimeType": "application/json", "size": 7114 });
 
   // node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/index.js
   var manifest2 = { name: "typescript", description: "%description%", displayName: "%displayName%", version: "10.0.0", author: "vscode", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ./build/update-grammars.mjs" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "typescript", aliases: ["TypeScript", "ts", "typescript"], extensions: [".ts", ".cts", ".mts"], firstLine: "^#!.*\\b(deno|bun|ts-node)\\b", configuration: "./language-configuration.json" }, { id: "typescriptreact", aliases: ["TypeScript JSX", "TypeScript React", "tsx"], extensions: [".tsx"], configuration: "./language-configuration.json" }, { id: "jsonc", filenames: ["tsconfig.json", "jsconfig.json"], filenamePatterns: ["tsconfig.*.json", "jsconfig.*.json", "tsconfig-*.json", "jsconfig-*.json"] }, { id: "json", extensions: [".tsbuildinfo"] }], grammars: [{ language: "typescript", scopeName: "source.ts", path: "./syntaxes/TypeScript.tmLanguage.json", unbalancedBracketScopes: ["keyword.operator.relational", "storage.type.function.arrow", "keyword.operator.bitwise.shift", "meta.brace.angle", "punctuation.definition.tag", "keyword.operator.assignment.compound.bitwise.ts"], tokenTypes: { "punctuation.definition.template-expression": "other", "entity.name.type.instance.jsdoc": "other", "entity.name.function.tagged-template": "other", "meta.import string.quoted": "other", "variable.other.jsdoc": "other" } }, { language: "typescriptreact", scopeName: "source.tsx", path: "./syntaxes/TypeScriptReact.tmLanguage.json", unbalancedBracketScopes: ["keyword.operator.relational", "storage.type.function.arrow", "keyword.operator.bitwise.shift", "punctuation.definition.tag", "keyword.operator.assignment.compound.bitwise.ts"], embeddedLanguages: { "meta.tag.tsx": "jsx-tags", "meta.tag.without-attributes.tsx": "jsx-tags", "meta.tag.attributes.tsx": "typescriptreact", "meta.embedded.expression.tsx": "typescriptreact" }, tokenTypes: { "punctuation.definition.template-expression": "other", "entity.name.type.instance.jsdoc": "other", "entity.name.function.tagged-template": "other", "meta.import string.quoted": "other", "variable.other.jsdoc": "other" } }, { scopeName: "documentation.injection.ts", path: "./syntaxes/jsdoc.ts.injection.tmLanguage.json", injectTo: ["source.ts", "source.tsx"] }, { scopeName: "documentation.injection.js.jsx", path: "./syntaxes/jsdoc.js.injection.tmLanguage.json", injectTo: ["source.js", "source.js.jsx"] }], semanticTokenScopes: [{ language: "typescript", scopes: { property: ["variable.other.property.ts"], "property.readonly": ["variable.other.constant.property.ts"], variable: ["variable.other.readwrite.ts"], "variable.readonly": ["variable.other.constant.object.ts"], "function": ["entity.name.function.ts"], namespace: ["entity.name.type.module.ts"], "variable.defaultLibrary": ["support.variable.ts"], "function.defaultLibrary": ["support.function.ts"] } }, { language: "typescriptreact", scopes: { property: ["variable.other.property.tsx"], "property.readonly": ["variable.other.constant.property.tsx"], variable: ["variable.other.readwrite.tsx"], "variable.readonly": ["variable.other.constant.object.tsx"], "function": ["entity.name.function.tsx"], namespace: ["entity.name.type.module.tsx"], "variable.defaultLibrary": ["support.variable.tsx"], "function.defaultLibrary": ["support.function.tsx"] } }], snippets: [{ language: "typescript", path: "./snippets/typescript.code-snippets" }, { language: "typescriptreact", path: "./snippets/typescript.code-snippets" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl2, whenReady: whenReady2 } = registerExtension(manifest2, void 0, { "system": true });
-  registerFileUrl2("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 2710 });
-  registerFileUrl2("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 3517 });
-  registerFileUrl2("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 150 });
-  registerFileUrl2("snippets/typescript.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/typescript.code-snippets").toString(), { "size": 5041 });
-  registerFileUrl2("syntaxes/TypeScript.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/TypeScript.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 193979 });
-  registerFileUrl2("syntaxes/TypeScriptReact.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/TypeScriptReact.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 189082 });
-  registerFileUrl2("syntaxes/jsdoc.js.injection.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/jsdoc.js.injection.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 302 });
-  registerFileUrl2("syntaxes/jsdoc.ts.injection.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/jsdoc.ts.injection.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 298 });
+  registerFileUrl2("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 2710 });
+  registerFileUrl2("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 3517 });
+  registerFileUrl2("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 150 });
+  registerFileUrl2("snippets/typescript.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/typescript.code-snippets").toString(), { "size": 5041 });
+  registerFileUrl2("syntaxes/TypeScript.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/TypeScript.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 193979 });
+  registerFileUrl2("syntaxes/TypeScriptReact.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/TypeScriptReact.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 189082 });
+  registerFileUrl2("syntaxes/jsdoc.js.injection.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/jsdoc.js.injection.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 302 });
+  registerFileUrl2("syntaxes/jsdoc.ts.injection.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-typescript-basics-default-extension/resources/jsdoc.ts.injection.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 298 });
 
   // node_modules/@codingame/monaco-vscode-javascript-default-extension/index.js
   var manifest3 = { name: "javascript", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "0.10.x" }, categories: ["Programming Languages"], contributes: { configurationDefaults: { "[javascript]": { "editor.maxTokenizationLineLength": 2500 } }, languages: [{ id: "javascriptreact", aliases: ["JavaScript JSX", "JavaScript React", "jsx"], extensions: [".jsx"], configuration: "./javascript-language-configuration.json" }, { id: "javascript", aliases: ["JavaScript", "javascript", "js"], extensions: [".js", ".es6", ".mjs", ".cjs", ".pac"], filenames: ["jakefile"], firstLine: "^#!.*\\bnode", mimetypes: ["text/javascript"], configuration: "./javascript-language-configuration.json" }, { id: "jsx-tags", aliases: [], configuration: "./tags-language-configuration.json" }], grammars: [{ language: "javascriptreact", scopeName: "source.js.jsx", path: "./syntaxes/JavaScriptReact.tmLanguage.json", embeddedLanguages: { "meta.tag.js": "jsx-tags", "meta.tag.without-attributes.js": "jsx-tags", "meta.tag.attributes.js.jsx": "javascriptreact", "meta.embedded.expression.js": "javascriptreact" }, tokenTypes: { "punctuation.definition.template-expression": "other", "entity.name.type.instance.jsdoc": "other", "entity.name.function.tagged-template": "other", "meta.import string.quoted": "other", "variable.other.jsdoc": "other" } }, { language: "javascript", scopeName: "source.js", path: "./syntaxes/JavaScript.tmLanguage.json", embeddedLanguages: { "meta.tag.js": "jsx-tags", "meta.tag.without-attributes.js": "jsx-tags", "meta.tag.attributes.js": "javascript", "meta.embedded.expression.js": "javascript" }, tokenTypes: { "punctuation.definition.template-expression": "other", "entity.name.type.instance.jsdoc": "other", "entity.name.function.tagged-template": "other", "meta.import string.quoted": "other", "variable.other.jsdoc": "other" } }, { scopeName: "source.js.regexp", path: "./syntaxes/Regular Expressions (JavaScript).tmLanguage" }], semanticTokenScopes: [{ language: "javascript", scopes: { property: ["variable.other.property.js"], "property.readonly": ["variable.other.constant.property.js"], variable: ["variable.other.readwrite.js"], "variable.readonly": ["variable.other.constant.object.js"], "function": ["entity.name.function.js"], namespace: ["entity.name.type.module.js"], "variable.defaultLibrary": ["support.variable.js"], "function.defaultLibrary": ["support.function.js"] } }, { language: "javascriptreact", scopes: { property: ["variable.other.property.jsx"], "property.readonly": ["variable.other.constant.property.jsx"], variable: ["variable.other.readwrite.jsx"], "variable.readonly": ["variable.other.constant.object.jsx"], "function": ["entity.name.function.jsx"], namespace: ["entity.name.type.module.jsx"], "variable.defaultLibrary": ["support.variable.js"], "function.defaultLibrary": ["support.function.js"] } }], snippets: [{ language: "javascript", path: "./snippets/javascript.code-snippets" }, { language: "javascriptreact", path: "./snippets/javascript.code-snippets" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl3, whenReady: whenReady3 } = registerExtension(manifest3, void 0, { "system": true });
-  registerFileUrl3("javascript-language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/javascript-language-configuration.json").toString(), { "mimeType": "application/json", "size": 2650 });
-  registerFileUrl3("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 3057 });
-  registerFileUrl3("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 150 });
-  registerFileUrl3("snippets/javascript.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/javascript.code-snippets").toString(), { "size": 4119 });
-  registerFileUrl3("syntaxes/JavaScript.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/JavaScript.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 188346 });
-  registerFileUrl3("syntaxes/JavaScriptReact.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/JavaScriptReact.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 191354 });
-  registerFileUrl3("syntaxes/Regular Expressions (JavaScript).tmLanguage", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/Regular_Expressions_(JavaScript).tmLanguage").toString(), { "size": 5864 });
-  registerFileUrl3("tags-language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/tags-language-configuration.json").toString(), { "mimeType": "application/json", "size": 1330 });
+  registerFileUrl3("javascript-language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/javascript-language-configuration.json").toString(), { "mimeType": "application/json", "size": 2650 });
+  registerFileUrl3("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 3057 });
+  registerFileUrl3("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 150 });
+  registerFileUrl3("snippets/javascript.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/javascript.code-snippets").toString(), { "size": 4119 });
+  registerFileUrl3("syntaxes/JavaScript.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/JavaScript.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 188346 });
+  registerFileUrl3("syntaxes/JavaScriptReact.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/JavaScriptReact.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 191354 });
+  registerFileUrl3("syntaxes/Regular Expressions (JavaScript).tmLanguage", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/Regular_Expressions_(JavaScript).tmLanguage").toString(), { "size": 5864 });
+  registerFileUrl3("tags-language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-javascript-default-extension/resources/tags-language-configuration.json").toString(), { "mimeType": "application/json", "size": 1330 });
 
   // node_modules/@codingame/monaco-vscode-json-default-extension/index.js
   var manifest4 = { name: "json", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "0.10.x" }, scripts: { "update-grammar": "node ./build/update-grammars.js" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "json", aliases: ["JSON", "json"], extensions: [".json", ".bowerrc", ".jscsrc", ".webmanifest", ".js.map", ".css.map", ".ts.map", ".har", ".jslintrc", ".jsonld", ".geojson", ".ipynb", ".vuerc"], filenames: ["composer.lock", ".watchmanconfig"], mimetypes: ["application/json", "application/manifest+json"], configuration: "./language-configuration.json" }, { id: "jsonc", aliases: ["JSON with Comments"], extensions: [".jsonc", ".eslintrc", ".eslintrc.json", ".jsfmtrc", ".jshintrc", ".swcrc", ".hintrc", ".babelrc", ".toolset.jsonc"], filenames: ["babel.config.json", "bun.lock", ".babelrc.json", ".ember-cli", "typedoc.json"], filenamePatterns: ["**/.github/hooks/*.json"], configuration: "./language-configuration.json" }, { id: "jsonl", aliases: ["JSON Lines"], extensions: [".jsonl", ".ndjson"], filenames: [], configuration: "./language-configuration.json" }, { id: "snippets", aliases: ["Code Snippets"], extensions: [".code-snippets"], filenamePatterns: ["**/User/snippets/*.json", "**/User/profiles/*/snippets/*.json", "**/snippets*.json"], configuration: "./language-configuration.json" }], grammars: [{ language: "json", scopeName: "source.json", path: "./syntaxes/JSON.tmLanguage.json" }, { language: "jsonc", scopeName: "source.json.comments", path: "./syntaxes/JSONC.tmLanguage.json" }, { language: "jsonl", scopeName: "source.json.lines", path: "./syntaxes/JSONL.tmLanguage.json" }, { language: "snippets", scopeName: "source.json.comments.snippets", path: "./syntaxes/snippets.tmLanguage.json" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl4, whenReady: whenReady4 } = registerExtension(manifest4, void 0, { "system": true });
-  registerFileUrl4("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-json-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 738 });
-  registerFileUrl4("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-json-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1842 });
-  registerFileUrl4("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-json-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 117 });
-  registerFileUrl4("syntaxes/JSON.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-json-default-extension/resources/JSON.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 3924 });
-  registerFileUrl4("syntaxes/JSONC.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-json-default-extension/resources/JSONC.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 4190 });
-  registerFileUrl4("syntaxes/JSONL.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-json-default-extension/resources/JSONL.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 4092 });
-  registerFileUrl4("syntaxes/snippets.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-json-default-extension/resources/snippets.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 252441 });
+  registerFileUrl4("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-json-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 738 });
+  registerFileUrl4("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-json-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1842 });
+  registerFileUrl4("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-json-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 117 });
+  registerFileUrl4("syntaxes/JSON.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-json-default-extension/resources/JSON.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 3924 });
+  registerFileUrl4("syntaxes/JSONC.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-json-default-extension/resources/JSONC.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 4190 });
+  registerFileUrl4("syntaxes/JSONL.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-json-default-extension/resources/JSONL.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 4092 });
+  registerFileUrl4("syntaxes/snippets.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-json-default-extension/resources/snippets.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 252441 });
 
   // node_modules/@codingame/monaco-vscode-css-default-extension/index.js
   var manifest5 = { name: "css", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "0.10.x" }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin microsoft/vscode-css grammars/css.cson ./syntaxes/css.tmLanguage.json" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "css", aliases: ["CSS", "css"], extensions: [".css"], mimetypes: ["text/css"], configuration: "./language-configuration.json" }], grammars: [{ language: "css", scopeName: "source.css", path: "./syntaxes/css.tmLanguage.json", tokenTypes: { "meta.function.url string.quoted": "other" } }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl5, whenReady: whenReady5 } = registerExtension(manifest5, void 0, { "system": true });
-  registerFileUrl5("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-css-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 767 });
-  registerFileUrl5("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-css-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 740 });
-  registerFileUrl5("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-css-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 133 });
-  registerFileUrl5("syntaxes/css.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-css-default-extension/resources/css.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 56061 });
+  registerFileUrl5("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-css-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 767 });
+  registerFileUrl5("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-css-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 740 });
+  registerFileUrl5("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-css-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 133 });
+  registerFileUrl5("syntaxes/css.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-css-default-extension/resources/css.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 56061 });
 
   // node_modules/@codingame/monaco-vscode-html-default-extension/index.js
   var manifest6 = { name: "html", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "0.10.x" }, scripts: { "update-grammar": "node ./build/update-grammar.mjs" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "html", extensions: [".html", ".htm", ".shtml", ".xhtml", ".xht", ".mdoc", ".jsp", ".asp", ".aspx", ".jshtm", ".volt", ".ejs", ".rhtml"], aliases: ["HTML", "htm", "html", "xhtml"], mimetypes: ["text/html", "text/x-jshtm", "text/template", "text/ng-template", "application/xhtml+xml"], configuration: "./language-configuration.json" }], grammars: [{ scopeName: "text.html.basic", path: "./syntaxes/html.tmLanguage.json", embeddedLanguages: { "text.html": "html", "source.css": "css", "source.js": "javascript", "source.python": "python", "source.smarty": "smarty" }, tokenTypes: { "meta.tag string.quoted": "other" } }, { language: "html", scopeName: "text.html.derivative", path: "./syntaxes/html-derivative.tmLanguage.json", embeddedLanguages: { "text.html": "html", "source.css": "css", "source.js": "javascript", "source.python": "python", "source.smarty": "smarty" }, tokenTypes: { "meta.tag string.quoted": "other" } }], snippets: [{ language: "html", path: "./snippets/html.code-snippets" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl6, whenReady: whenReady6 } = registerExtension(manifest6, void 0, { "system": true });
-  registerFileUrl6("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-html-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1620 });
-  registerFileUrl6("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-html-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1320 });
-  registerFileUrl6("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-html-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 127 });
-  registerFileUrl6("snippets/html.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-html-default-extension/resources/html.code-snippets").toString(), { "size": 218 });
-  registerFileUrl6("syntaxes/html-derivative.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-html-default-extension/resources/html-derivative.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1190 });
-  registerFileUrl6("syntaxes/html.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-html-default-extension/resources/html.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 60401 });
+  registerFileUrl6("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-html-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1620 });
+  registerFileUrl6("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-html-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1320 });
+  registerFileUrl6("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-html-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 127 });
+  registerFileUrl6("snippets/html.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-html-default-extension/resources/html.code-snippets").toString(), { "size": 218 });
+  registerFileUrl6("syntaxes/html-derivative.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-html-default-extension/resources/html-derivative.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1190 });
+  registerFileUrl6("syntaxes/html.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-html-default-extension/resources/html.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 60401 });
 
   // node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/index.js
   var manifest7 = { name: "markdown", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "^1.20.0" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "markdown", aliases: ["Markdown", "markdown"], extensions: [".md", ".mkd", ".mkdn", ".mdwn", ".mdown", ".markdown", ".markdn", ".mdtxt", ".mdtext", ".litcoffee", ".ron", ".ronn", ".workbook"], filenamePatterns: ["**/.cursor/**/*.mdc"], configuration: "./language-configuration.json" }], grammars: [{ language: "markdown", scopeName: "text.html.markdown", path: "./syntaxes/markdown.tmLanguage.json", embeddedLanguages: { "meta.embedded.block.html": "html", "source.js": "javascript", "source.css": "css", "meta.embedded.block.frontmatter": "yaml", "meta.embedded.block.css": "css", "meta.embedded.block.ini": "ini", "meta.embedded.block.java": "java", "meta.embedded.block.lua": "lua", "meta.embedded.block.makefile": "makefile", "meta.embedded.block.perl": "perl", "meta.embedded.block.r": "r", "meta.embedded.block.ruby": "ruby", "meta.embedded.block.php": "php", "meta.embedded.block.sql": "sql", "meta.embedded.block.vs_net": "vs_net", "meta.embedded.block.xml": "xml", "meta.embedded.block.xsl": "xsl", "meta.embedded.block.yaml": "yaml", "meta.embedded.block.dosbatch": "dosbatch", "meta.embedded.block.clojure": "clojure", "meta.embedded.block.coffee": "coffee", "meta.embedded.block.c": "c", "meta.embedded.block.cpp": "cpp", "meta.embedded.block.diff": "diff", "meta.embedded.block.dockerfile": "dockerfile", "meta.embedded.block.go": "go", "meta.embedded.block.groovy": "groovy", "meta.embedded.block.pug": "jade", "meta.embedded.block.ignore": "ignore", "meta.embedded.block.javascript": "javascript", "meta.embedded.block.json": "json", "meta.embedded.block.jsonc": "jsonc", "meta.embedded.block.jsonl": "jsonl", "meta.embedded.block.latex": "latex", "meta.embedded.block.less": "less", "meta.embedded.block.objc": "objc", "meta.embedded.block.scss": "scss", "meta.embedded.block.perl6": "perl6", "meta.embedded.block.powershell": "powershell", "meta.embedded.block.python": "python", "meta.embedded.block.restructuredtext": "restructuredtext", "meta.embedded.block.rust": "rust", "meta.embedded.block.scala": "scala", "meta.embedded.block.shellscript": "shellscript", "meta.embedded.block.typescript": "typescript", "meta.embedded.block.typescriptreact": "typescriptreact", "meta.embedded.block.csharp": "csharp", "meta.embedded.block.fsharp": "fsharp" }, unbalancedBracketScopes: ["markup.underline.link.markdown", "punctuation.definition.list.begin.markdown"] }], snippets: [{ language: "markdown", path: "./snippets/markdown.code-snippets" }], configurationDefaults: { "[markdown]": { "editor.unicodeHighlight.ambiguousCharacters": false, "editor.unicodeHighlight.invisibleCharacters": false, "diffEditor.ignoreTrimWhitespace": false } } }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin microsoft/vscode-markdown-tm-grammar syntaxes/markdown.tmLanguage ./syntaxes/markdown.tmLanguage.json" }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl7, whenReady: whenReady7 } = registerExtension(manifest7, void 0, { "system": true });
-  registerFileUrl7("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 709 });
-  registerFileUrl7("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 3027 });
-  registerFileUrl7("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 114 });
-  registerFileUrl7("snippets/markdown.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/markdown.code-snippets").toString(), { "size": 2447 });
-  registerFileUrl7("syntaxes/markdown.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/markdown.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 60461 });
+  registerFileUrl7("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 709 });
+  registerFileUrl7("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 3027 });
+  registerFileUrl7("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 114 });
+  registerFileUrl7("snippets/markdown.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/markdown.code-snippets").toString(), { "size": 2447 });
+  registerFileUrl7("syntaxes/markdown.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-markdown-basics-default-extension/resources/markdown.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 60461 });
 
   // node_modules/@codingame/monaco-vscode-python-default-extension/index.js
   var manifest8 = { name: "python", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "python", extensions: [".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".pyi", ".ipy", ".pyt"], aliases: ["Python", "py"], filenames: ["SConstruct", "SConscript"], firstLine: "^#!\\s*/?.*\\bpython[0-9.-]*\\b", configuration: "./language-configuration.json" }], grammars: [{ language: "python", scopeName: "source.python", path: "./syntaxes/MagicPython.tmLanguage.json" }, { scopeName: "source.regexp.python", path: "./syntaxes/MagicRegExp.tmLanguage.json" }], configurationDefaults: { "[python]": { "diffEditor.ignoreTrimWhitespace": false, "editor.defaultColorDecorators": "never" } } }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json" }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl8, whenReady: whenReady8 } = registerExtension(manifest8, void 0, { "system": true });
-  registerFileUrl8("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-python-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1573 });
-  registerFileUrl8("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-python-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1116 });
-  registerFileUrl8("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-python-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 132 });
-  registerFileUrl8("syntaxes/MagicPython.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-python-default-extension/resources/MagicPython.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 78248 });
-  registerFileUrl8("syntaxes/MagicRegExp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-python-default-extension/resources/MagicRegExp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 8371 });
+  registerFileUrl8("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-python-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1573 });
+  registerFileUrl8("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-python-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1116 });
+  registerFileUrl8("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-python-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 132 });
+  registerFileUrl8("syntaxes/MagicPython.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-python-default-extension/resources/MagicPython.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 78248 });
+  registerFileUrl8("syntaxes/MagicRegExp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-python-default-extension/resources/MagicRegExp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 8371 });
 
   // node_modules/@codingame/monaco-vscode-yaml-default-extension/index.js
   var manifest9 = { name: "yaml", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ./build/update-grammar.js" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "dockercompose", aliases: ["Compose", "compose"], filenamePatterns: ["compose.yml", "compose.yaml", "compose.*.yml", "compose.*.yaml", "*docker*compose*.yml", "*docker*compose*.yaml"], configuration: "./language-configuration.json" }, { id: "yaml", aliases: ["YAML", "yaml"], extensions: [".yaml", ".yml", ".eyaml", ".eyml", ".cff", ".yaml-tmlanguage", ".yaml-tmpreferences", ".yaml-tmtheme", ".winget"], firstLine: "^#cloud-config", configuration: "./language-configuration.json" }], grammars: [{ language: "dockercompose", scopeName: "source.yaml", path: "./syntaxes/yaml.tmLanguage.json" }, { scopeName: "source.yaml.1.3", path: "./syntaxes/yaml-1.3.tmLanguage.json" }, { scopeName: "source.yaml.1.2", path: "./syntaxes/yaml-1.2.tmLanguage.json" }, { scopeName: "source.yaml.1.1", path: "./syntaxes/yaml-1.1.tmLanguage.json" }, { scopeName: "source.yaml.1.0", path: "./syntaxes/yaml-1.0.tmLanguage.json" }, { scopeName: "source.yaml.embedded", path: "./syntaxes/yaml-embedded.tmLanguage.json" }, { language: "yaml", scopeName: "source.yaml", path: "./syntaxes/yaml.tmLanguage.json", unbalancedBracketScopes: ["invalid.illegal", "meta.scalar.yaml", "storage.type.tag.shorthand.yaml", "keyword.control.flow"] }], configurationDefaults: { "[yaml]": { "editor.insertSpaces": true, "editor.tabSize": 2, "editor.autoIndent": "advanced", "diffEditor.ignoreTrimWhitespace": false, "editor.defaultColorDecorators": "never", "editor.quickSuggestions": { strings: "on" } }, "[dockercompose]": { "editor.insertSpaces": true, "editor.tabSize": 2, "editor.autoIndent": "advanced" } } }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl9, whenReady: whenReady9 } = registerExtension(manifest9, void 0, { "system": true });
-  registerFileUrl9("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 458 });
-  registerFileUrl9("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1881 });
-  registerFileUrl9("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 119 });
-  registerFileUrl9("syntaxes/yaml-1.0.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.0.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 21e3 });
-  registerFileUrl9("syntaxes/yaml-1.1.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.1.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 31622 });
-  registerFileUrl9("syntaxes/yaml-1.2.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.2.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 30020 });
-  registerFileUrl9("syntaxes/yaml-1.3.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.3.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1381 });
-  registerFileUrl9("syntaxes/yaml-embedded.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-embedded.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 9457 });
-  registerFileUrl9("syntaxes/yaml.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 2593 });
+  registerFileUrl9("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 458 });
+  registerFileUrl9("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1881 });
+  registerFileUrl9("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 119 });
+  registerFileUrl9("syntaxes/yaml-1.0.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.0.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 21e3 });
+  registerFileUrl9("syntaxes/yaml-1.1.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.1.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 31622 });
+  registerFileUrl9("syntaxes/yaml-1.2.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.2.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 30020 });
+  registerFileUrl9("syntaxes/yaml-1.3.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-1.3.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1381 });
+  registerFileUrl9("syntaxes/yaml-embedded.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml-embedded.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 9457 });
+  registerFileUrl9("syntaxes/yaml.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-yaml-default-extension/resources/yaml.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 2593 });
 
   // node_modules/@codingame/monaco-vscode-php-default-extension/index.js
   var manifest10 = { name: "php", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "0.10.x" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "php", extensions: [".php", ".php4", ".php5", ".phtml", ".ctp"], aliases: ["PHP", "php"], firstLine: "^#!\\s*/.*\\bphp\\b", mimetypes: ["application/x-php"], configuration: "./language-configuration.json" }], grammars: [{ language: "php", scopeName: "source.php", path: "./syntaxes/php.tmLanguage.json" }, { language: "php", scopeName: "text.html.php", path: "./syntaxes/html.tmLanguage.json", embeddedLanguages: { "text.html": "html", "source.php": "php", "source.sql": "sql", "text.xml": "xml", "source.js": "javascript", "source.json": "json", "source.css": "css" } }], snippets: [{ language: "php", path: "./snippets/php.code-snippets" }] }, scripts: { "update-grammar": "node ./build/update-grammar.mjs" }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl10, whenReady: whenReady10 } = registerExtension(manifest10, void 0, { "system": true });
-  registerFileUrl10("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-php-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1988 });
-  registerFileUrl10("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-php-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 991 });
-  registerFileUrl10("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-php-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 118 });
-  registerFileUrl10("snippets/php.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-php-default-extension/resources/php.code-snippets").toString(), { "size": 6697 });
-  registerFileUrl10("syntaxes/html.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-php-default-extension/resources/html.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1750 });
-  registerFileUrl10("syntaxes/php.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-php-default-extension/resources/php.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 115245 });
+  registerFileUrl10("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-php-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1988 });
+  registerFileUrl10("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-php-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 991 });
+  registerFileUrl10("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-php-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 118 });
+  registerFileUrl10("snippets/php.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-php-default-extension/resources/php.code-snippets").toString(), { "size": 6697 });
+  registerFileUrl10("syntaxes/html.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-php-default-extension/resources/html.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1750 });
+  registerFileUrl10("syntaxes/php.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-php-default-extension/resources/php.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 115245 });
 
   // node_modules/@codingame/monaco-vscode-rust-default-extension/index.js
   var manifest11 = { name: "rust", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ./build/update-grammar.mjs" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "rust", extensions: [".rs"], aliases: ["Rust", "rust"], configuration: "./language-configuration.json" }], grammars: [{ language: "rust", path: "./syntaxes/rust.tmLanguage.json", scopeName: "source.rust" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl11, whenReady: whenReady11 } = registerExtension(manifest11, void 0, { "system": true });
-  registerFileUrl11("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 628 });
-  registerFileUrl11("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 573 });
-  registerFileUrl11("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 119 });
-  registerFileUrl11("syntaxes/rust.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/rust.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 17688 });
+  registerFileUrl11("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 628 });
+  registerFileUrl11("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 573 });
+  registerFileUrl11("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 119 });
+  registerFileUrl11("syntaxes/rust.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-rust-default-extension/resources/rust.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 17688 });
 
   // node_modules/@codingame/monaco-vscode-go-default-extension/index.js
   var manifest12 = { name: "go", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin worlpaker/go-syntax syntaxes/go.tmLanguage.json ./syntaxes/go.tmLanguage.json" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "go", extensions: [".go"], aliases: ["Go"], configuration: "./language-configuration.json" }], grammars: [{ language: "go", scopeName: "source.go", path: "./syntaxes/go.tmLanguage.json" }], configurationDefaults: { "[go]": { "editor.insertSpaces": false } } }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl12, whenReady: whenReady12 } = registerExtension(manifest12, void 0, { "system": true });
-  registerFileUrl12("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-go-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 833 });
-  registerFileUrl12("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-go-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 711 });
-  registerFileUrl12("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-go-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 115 });
-  registerFileUrl12("syntaxes/go.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-go-default-extension/resources/go.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 51827 });
+  registerFileUrl12("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-go-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 833 });
+  registerFileUrl12("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-go-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 711 });
+  registerFileUrl12("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-go-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 115 });
+  registerFileUrl12("syntaxes/go.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-go-default-extension/resources/go.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 51827 });
 
   // node_modules/@codingame/monaco-vscode-java-default-extension/index.js
   var manifest13 = { name: "java", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin redhat-developer/vscode-java language-support/java/java.tmLanguage.json ./syntaxes/java.tmLanguage.json" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "java", extensions: [".java", ".jav"], aliases: ["Java", "java"], configuration: "./language-configuration.json" }], grammars: [{ language: "java", scopeName: "source.java", path: "./syntaxes/java.tmLanguage.json" }], snippets: [{ language: "java", path: "./snippets/java.code-snippets" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl13, whenReady: whenReady13 } = registerExtension(manifest13, void 0, { "system": true });
-  registerFileUrl13("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-java-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1460 });
-  registerFileUrl13("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-java-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 774 });
-  registerFileUrl13("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-java-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 138 });
-  registerFileUrl13("snippets/java.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-java-default-extension/resources/java.code-snippets").toString(), { "size": 191 });
-  registerFileUrl13("syntaxes/java.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-java-default-extension/resources/java.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 27444 });
+  registerFileUrl13("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-java-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1460 });
+  registerFileUrl13("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-java-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 774 });
+  registerFileUrl13("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-java-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 138 });
+  registerFileUrl13("snippets/java.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-java-default-extension/resources/java.code-snippets").toString(), { "size": 191 });
+  registerFileUrl13("syntaxes/java.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-java-default-extension/resources/java.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 27444 });
 
   // node_modules/@codingame/monaco-vscode-cpp-default-extension/index.js
   var manifest14 = { name: "cpp", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ./build/update-grammars.js" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "c", extensions: [".c", ".i"], aliases: ["C", "c"], configuration: "./language-configuration.json" }, { id: "cpp", extensions: [".cpp", ".cppm", ".cc", ".ccm", ".cxx", ".cxxm", ".c++", ".c++m", ".hpp", ".hh", ".hxx", ".h++", ".h", ".ii", ".ino", ".inl", ".ipp", ".ixx", ".tpp", ".txx", ".hpp.in", ".h.in"], aliases: ["C++", "Cpp", "cpp"], configuration: "./language-configuration.json" }, { id: "cuda-cpp", extensions: [".cu", ".cuh"], aliases: ["CUDA C++"], configuration: "./language-configuration.json" }], grammars: [{ language: "c", scopeName: "source.c", path: "./syntaxes/c.tmLanguage.json" }, { language: "cpp", scopeName: "source.cpp.embedded.macro", path: "./syntaxes/cpp.embedded.macro.tmLanguage.json" }, { language: "cpp", scopeName: "source.cpp", path: "./syntaxes/cpp.tmLanguage.json" }, { scopeName: "source.c.platform", path: "./syntaxes/platform.tmLanguage.json" }, { language: "cuda-cpp", scopeName: "source.cuda-cpp", path: "./syntaxes/cuda-cpp.tmLanguage.json" }], problemPatterns: [{ name: "nvcc-location", regexp: "^(.*)\\((\\d+)\\):\\s+(warning|error):\\s+(.*)", kind: "location", file: 1, location: 2, severity: 3, message: 4 }], problemMatchers: [{ name: "nvcc", owner: "cuda-cpp", fileLocation: ["relative", "${workspaceFolder}"], pattern: "$nvcc-location" }], snippets: [{ language: "c", path: "./snippets/c.code-snippets" }, { language: "cpp", path: "./snippets/cpp.code-snippets" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl14, whenReady: whenReady14 } = registerExtension(manifest14, void 0, { "system": true });
-  registerFileUrl14("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1153 });
-  registerFileUrl14("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1735 });
-  registerFileUrl14("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 140 });
-  registerFileUrl14("snippets/c.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/c.code-snippets").toString(), { "size": 204 });
-  registerFileUrl14("snippets/cpp.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/c.code-snippets").toString(), { "size": 204 });
-  registerFileUrl14("syntaxes/c.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/c.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 72137 });
-  registerFileUrl14("syntaxes/cpp.embedded.macro.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/cpp.embedded.macro.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 236004 });
-  registerFileUrl14("syntaxes/cpp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/cpp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 421486 });
-  registerFileUrl14("syntaxes/cuda-cpp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/cuda-cpp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 484206 });
-  registerFileUrl14("syntaxes/platform.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/platform.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 561565 });
+  registerFileUrl14("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 1153 });
+  registerFileUrl14("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1735 });
+  registerFileUrl14("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 140 });
+  registerFileUrl14("snippets/c.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/c.code-snippets").toString(), { "size": 204 });
+  registerFileUrl14("snippets/cpp.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/c.code-snippets").toString(), { "size": 204 });
+  registerFileUrl14("syntaxes/c.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/c.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 72137 });
+  registerFileUrl14("syntaxes/cpp.embedded.macro.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/cpp.embedded.macro.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 236004 });
+  registerFileUrl14("syntaxes/cpp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/cpp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 421486 });
+  registerFileUrl14("syntaxes/cuda-cpp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/cuda-cpp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 484206 });
+  registerFileUrl14("syntaxes/platform.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-cpp-default-extension/resources/platform.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 561565 });
 
   // node_modules/@codingame/monaco-vscode-csharp-default-extension/index.js
   var manifest15 = { name: "csharp", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "0.10.x" }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dotnet/csharp-tmLanguage grammars/csharp.tmLanguage ./syntaxes/csharp.tmLanguage.json" }, categories: ["Programming Languages"], contributes: { configurationDefaults: { "[csharp]": { "editor.maxTokenizationLineLength": 2500 } }, languages: [{ id: "csharp", extensions: [".cs", ".csx", ".cake"], aliases: ["C#", "csharp"], configuration: "./language-configuration.json" }], grammars: [{ language: "csharp", scopeName: "source.cs", path: "./syntaxes/csharp.tmLanguage.json", tokenTypes: { "meta.interpolation": "other" }, unbalancedBracketScopes: ["keyword.operator.relational.cs", "keyword.operator.arrow.cs", "punctuation.accessor.pointer.cs", "keyword.operator.bitwise.shift.cs", "keyword.operator.assignment.compound.bitwise.cs"] }], snippets: [{ language: "csharp", path: "./snippets/csharp.code-snippets" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl15, whenReady: whenReady15 } = registerExtension(manifest15, void 0, { "system": true });
-  registerFileUrl15("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 685 });
-  registerFileUrl15("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1109 });
-  registerFileUrl15("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 134 });
-  registerFileUrl15("snippets/csharp.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/csharp.code-snippets").toString(), { "size": 190 });
-  registerFileUrl15("syntaxes/csharp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/csharp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 100538 });
+  registerFileUrl15("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 685 });
+  registerFileUrl15("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1109 });
+  registerFileUrl15("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 134 });
+  registerFileUrl15("snippets/csharp.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/csharp.code-snippets").toString(), { "size": 190 });
+  registerFileUrl15("syntaxes/csharp.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-csharp-default-extension/resources/csharp.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 100538 });
 
   // node_modules/@codingame/monaco-vscode-ruby-default-extension/index.js
   var manifest16 = { name: "ruby", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin Shopify/ruby-lsp vscode/grammars/ruby.cson.json ./syntaxes/ruby.tmLanguage.json" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "ruby", extensions: [".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru", ".erb", ".podspec", ".rbi"], filenames: ["rakefile", "gemfile", "guardfile", "podfile", "capfile", "cheffile", "hobofile", "vagrantfile", "appraisals", "rantfile", "berksfile", "berksfile.lock", "thorfile", "puppetfile", "dangerfile", "brewfile", "fastfile", "appfile", "deliverfile", "matchfile", "scanfile", "snapfile", "gymfile"], aliases: ["Ruby", "rb"], firstLine: "^#!\\s*/.*\\bruby\\b", configuration: "./language-configuration.json" }], grammars: [{ language: "ruby", scopeName: "source.ruby", path: "./syntaxes/ruby.tmLanguage.json" }], configurationDefaults: { "[ruby]": { "editor.defaultColorDecorators": "never" } } }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl16, whenReady: whenReady16 } = registerExtension(manifest16, void 0, { "system": true });
-  registerFileUrl16("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 749 });
-  registerFileUrl16("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1126 });
-  registerFileUrl16("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 119 });
-  registerFileUrl16("syntaxes/ruby.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/ruby.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 50139 });
+  registerFileUrl16("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 749 });
+  registerFileUrl16("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1126 });
+  registerFileUrl16("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 119 });
+  registerFileUrl16("syntaxes/ruby.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-ruby-default-extension/resources/ruby.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 50139 });
 
   // node_modules/@codingame/monaco-vscode-xml-default-extension/index.js
   var manifest17 = { name: "xml", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "xml", extensions: [".xml", ".xsd", ".ascx", ".atom", ".axml", ".axaml", ".bpmn", ".cpt", ".csl", ".csproj", ".csproj.user", ".dita", ".ditamap", ".dtd", ".ent", ".mod", ".dtml", ".fsproj", ".fxml", ".iml", ".isml", ".jmx", ".launch", ".menu", ".mxml", ".nuspec", ".opml", ".owl", ".proj", ".props", ".pt", ".publishsettings", ".pubxml", ".pubxml.user", ".rbxlx", ".rbxmx", ".rdf", ".rng", ".rss", ".shproj", ".slnx", ".storyboard", ".svg", ".targets", ".tld", ".tmx", ".vbproj", ".vbproj.user", ".vcxproj", ".vcxproj.filters", ".wixproj", ".wsdl", ".wxi", ".wxl", ".wxs", ".xaml", ".xbl", ".xib", ".xlf", ".xliff", ".xpdl", ".xul", ".xoml"], firstLine: "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)", aliases: ["XML", "xml"], configuration: "./xml.language-configuration.json" }, { id: "xsl", extensions: [".xsl", ".xslt"], aliases: ["XSL", "xsl"], configuration: "./xsl.language-configuration.json" }], grammars: [{ language: "xml", scopeName: "text.xml", path: "./syntaxes/xml.tmLanguage.json" }, { language: "xsl", scopeName: "text.xml.xsl", path: "./syntaxes/xsl.tmLanguage.json" }] }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-xml grammars/xml.cson ./syntaxes/xml.tmLanguage.json grammars/xsl.cson ./syntaxes/xsl.tmLanguage.json" }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl17, whenReady: whenReady17 } = registerExtension(manifest17, void 0, { "system": true });
-  registerFileUrl17("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1518 });
-  registerFileUrl17("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 117 });
-  registerFileUrl17("syntaxes/xml.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xml.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 5618 });
-  registerFileUrl17("syntaxes/xsl.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xsl.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1616 });
-  registerFileUrl17("xml.language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xml.language-configuration.json").toString(), { "mimeType": "application/json", "size": 799 });
-  registerFileUrl17("xsl.language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xsl.language-configuration.json").toString(), { "mimeType": "application/json", "size": 278 });
+  registerFileUrl17("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1518 });
+  registerFileUrl17("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 117 });
+  registerFileUrl17("syntaxes/xml.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xml.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 5618 });
+  registerFileUrl17("syntaxes/xsl.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xsl.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 1616 });
+  registerFileUrl17("xml.language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xml.language-configuration.json").toString(), { "mimeType": "application/json", "size": 799 });
+  registerFileUrl17("xsl.language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-xml-default-extension/resources/xsl.language-configuration.json").toString(), { "mimeType": "application/json", "size": 278 });
 
   // node_modules/@codingame/monaco-vscode-sql-default-extension/index.js
   var manifest18 = { name: "sql", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ./build/update-grammar.mjs" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "sql", extensions: [".sql", ".dsql"], aliases: ["MS SQL", "T-SQL"], configuration: "./language-configuration.json" }], grammars: [{ language: "sql", scopeName: "source.sql", path: "./syntaxes/sql.tmLanguage.json" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl18, whenReady: whenReady18 } = registerExtension(manifest18, void 0, { "system": true });
-  registerFileUrl18("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 496 });
-  registerFileUrl18("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 580 });
-  registerFileUrl18("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 117 });
-  registerFileUrl18("syntaxes/sql.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/sql.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 24270 });
+  registerFileUrl18("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 496 });
+  registerFileUrl18("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 580 });
+  registerFileUrl18("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 117 });
+  registerFileUrl18("syntaxes/sql.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-sql-default-extension/resources/sql.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 24270 });
 
   // node_modules/@codingame/monaco-vscode-bat-default-extension/index.js
   var manifest19 = { name: "bat", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "^1.52.0" }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin mmims/language-batchfile grammars/batchfile.cson ./syntaxes/batchfile.tmLanguage.json" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "bat", extensions: [".bat", ".cmd"], aliases: ["Batch", "bat"], configuration: "./language-configuration.json" }], grammars: [{ language: "bat", scopeName: "source.batchfile", path: "./syntaxes/batchfile.tmLanguage.json" }], snippets: [{ language: "bat", path: "./snippets/batchfile.code-snippets" }] }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl19, whenReady: whenReady19 } = registerExtension(manifest19, void 0, { "system": true });
-  registerFileUrl19("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 365 });
-  registerFileUrl19("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 772 });
-  registerFileUrl19("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 154 });
-  registerFileUrl19("snippets/batchfile.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/batchfile.code-snippets").toString(), { "size": 191 });
-  registerFileUrl19("syntaxes/batchfile.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/batchfile.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 13080 });
+  registerFileUrl19("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 365 });
+  registerFileUrl19("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 772 });
+  registerFileUrl19("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 154 });
+  registerFileUrl19("snippets/batchfile.code-snippets", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/batchfile.code-snippets").toString(), { "size": 191 });
+  registerFileUrl19("syntaxes/batchfile.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-bat-default-extension/resources/batchfile.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 13080 });
 
   // node_modules/@codingame/monaco-vscode-powershell-default-extension/index.js
   var manifest20 = { name: "powershell", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "powershell", extensions: [".ps1", ".psm1", ".psd1", ".pssc", ".psrc"], aliases: ["PowerShell", "powershell", "ps", "ps1", "pwsh"], firstLine: "^#!\\s*/.*\\bpwsh\\b", configuration: "./language-configuration.json" }], grammars: [{ language: "powershell", scopeName: "source.powershell", path: "./syntaxes/powershell.tmLanguage.json" }] }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin PowerShell/EditorSyntax PowerShellSyntax.tmLanguage ./syntaxes/powershell.tmLanguage.json" }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl20, whenReady: whenReady20 } = registerExtension(manifest20, void 0, { "system": true });
-  registerFileUrl20("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 542 });
-  registerFileUrl20("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 807 });
-  registerFileUrl20("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 150 });
-  registerFileUrl20("syntaxes/powershell.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/powershell.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 22028 });
+  registerFileUrl20("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 542 });
+  registerFileUrl20("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 807 });
+  registerFileUrl20("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 150 });
+  registerFileUrl20("syntaxes/powershell.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-powershell-default-extension/resources/powershell.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 22028 });
 
   // node_modules/@codingame/monaco-vscode-shellscript-default-extension/index.js
   var manifest21 = { name: "shellscript", displayName: "%displayName%", description: "%description%", version: "10.0.0", publisher: "vscode", license: "MIT", engines: { vscode: "*" }, scripts: { "update-grammar": "node ../node_modules/vscode-grammar-updater/bin jeff-hykin/better-shell-syntax autogenerated/shell.tmLanguage.json ./syntaxes/shell-unix-bash.tmLanguage.json" }, categories: ["Programming Languages"], contributes: { languages: [{ id: "shellscript", aliases: ["Shell Script", "shellscript", "bash", "fish", "sh", "zsh", "ksh", "csh"], extensions: [".sh", ".bash", ".bashrc", ".bash_aliases", ".bash_profile", ".bash_login", ".ebuild", ".eclass", ".profile", ".bash_logout", ".xprofile", ".xsession", ".xsessionrc", ".Xsession", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv", ".zsh-theme", ".fish", ".ksh", ".csh", ".cshrc", ".tcshrc", ".yashrc", ".yash_profile"], filenames: ["APKBUILD", "PKGBUILD", ".envrc", ".hushlogin", "zshrc", "zshenv", "zlogin", "zprofile", "zlogout", "bashrc_Apple_Terminal", "zshrc_Apple_Terminal"], firstLine: "^#!.*\\b(bash|fish|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-", configuration: "./language-configuration.json", mimetypes: ["text/x-shellscript"] }], grammars: [{ language: "shellscript", scopeName: "source.shell", path: "./syntaxes/shell-unix-bash.tmLanguage.json", balancedBracketScopes: ["*"], unbalancedBracketScopes: ["meta.scope.case-pattern.shell"] }], configurationDefaults: { "[shellscript]": { "files.eol": "\n", "editor.defaultColorDecorators": "never" } } }, repository: { type: "git", url: "https://github.com/microsoft/vscode.git" }, main: void 0 };
   var { registerFileUrl: registerFileUrl21, whenReady: whenReady21 } = registerExtension(manifest21, void 0, { "system": true });
-  registerFileUrl21("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 436 });
-  registerFileUrl21("package.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1610 });
-  registerFileUrl21("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 135 });
-  registerFileUrl21("syntaxes/shell-unix-bash.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/shell-unix-bash.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 41431 });
+  registerFileUrl21("language-configuration.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/language-configuration.json").toString(), { "mimeType": "application/json", "size": 436 });
+  registerFileUrl21("package.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/package.json").toString(), { "mimeType": "application/json", "size": 1610 });
+  registerFileUrl21("package.nls.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/package.nls.json").toString(), { "mimeType": "application/json", "size": 135 });
+  registerFileUrl21("syntaxes/shell-unix-bash.tmLanguage.json", new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-shellscript-default-extension/resources/shell-unix-bash.tmLanguage.json").toString(), { "mimeType": "application/json", "size": 41431 });
 
   // electron/renderer/components/Editor/index.jsx
   var import_react12 = __toESM(require_react());
@@ -243506,7 +243556,7 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
     }
     toString() {
       return "[" + this._charCodes.map(
-        (s15, idx) => (s15 === CharCode.LineFeed ? "\\n" : String.fromCharCode(s15)) + `-(${this._lineNumbers[idx]},${this._columns[idx]})`
+        (s16, idx) => (s16 === CharCode.LineFeed ? "\\n" : String.fromCharCode(s16)) + `-(${this._lineNumbers[idx]},${this._columns[idx]})`
       ).join(", ") + "]";
     }
     _assertIndex(index2, arr) {
@@ -244137,50 +244187,50 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
       const lcsLengths = new Array2D(sequence1.length, sequence2.length);
       const directions = new Array2D(sequence1.length, sequence2.length);
       const lengths = new Array2D(sequence1.length, sequence2.length);
-      for (let s15 = 0; s15 < sequence1.length; s15++) {
+      for (let s16 = 0; s16 < sequence1.length; s16++) {
         for (let s23 = 0; s23 < sequence2.length; s23++) {
           if (!timeout2.isValid()) {
             return DiffAlgorithmResult.trivialTimedOut(sequence1, sequence2);
           }
-          const horizontalLen = s15 === 0 ? 0 : lcsLengths.get(s15 - 1, s23);
-          const verticalLen = s23 === 0 ? 0 : lcsLengths.get(s15, s23 - 1);
+          const horizontalLen = s16 === 0 ? 0 : lcsLengths.get(s16 - 1, s23);
+          const verticalLen = s23 === 0 ? 0 : lcsLengths.get(s16, s23 - 1);
           let extendedSeqScore;
-          if (sequence1.getElement(s15) === sequence2.getElement(s23)) {
-            if (s15 === 0 || s23 === 0) {
+          if (sequence1.getElement(s16) === sequence2.getElement(s23)) {
+            if (s16 === 0 || s23 === 0) {
               extendedSeqScore = 0;
             } else {
-              extendedSeqScore = lcsLengths.get(s15 - 1, s23 - 1);
+              extendedSeqScore = lcsLengths.get(s16 - 1, s23 - 1);
             }
-            if (s15 > 0 && s23 > 0 && directions.get(s15 - 1, s23 - 1) === 3) {
-              extendedSeqScore += lengths.get(s15 - 1, s23 - 1);
+            if (s16 > 0 && s23 > 0 && directions.get(s16 - 1, s23 - 1) === 3) {
+              extendedSeqScore += lengths.get(s16 - 1, s23 - 1);
             }
-            extendedSeqScore += equalityScore ? equalityScore(s15, s23) : 1;
+            extendedSeqScore += equalityScore ? equalityScore(s16, s23) : 1;
           } else {
             extendedSeqScore = -1;
           }
           const newValue = Math.max(horizontalLen, verticalLen, extendedSeqScore);
           if (newValue === extendedSeqScore) {
-            const prevLen = s15 > 0 && s23 > 0 ? lengths.get(s15 - 1, s23 - 1) : 0;
-            lengths.set(s15, s23, prevLen + 1);
-            directions.set(s15, s23, 3);
+            const prevLen = s16 > 0 && s23 > 0 ? lengths.get(s16 - 1, s23 - 1) : 0;
+            lengths.set(s16, s23, prevLen + 1);
+            directions.set(s16, s23, 3);
           } else if (newValue === horizontalLen) {
-            lengths.set(s15, s23, 0);
-            directions.set(s15, s23, 1);
+            lengths.set(s16, s23, 0);
+            directions.set(s16, s23, 1);
           } else if (newValue === verticalLen) {
-            lengths.set(s15, s23, 0);
-            directions.set(s15, s23, 2);
+            lengths.set(s16, s23, 0);
+            directions.set(s16, s23, 2);
           }
-          lcsLengths.set(s15, s23, newValue);
+          lcsLengths.set(s16, s23, newValue);
         }
       }
       const result = [];
       let lastAligningPosS1 = sequence1.length;
       let lastAligningPosS2 = sequence2.length;
-      function reportDecreasingAligningPositions(s15, s23) {
-        if (s15 + 1 !== lastAligningPosS1 || s23 + 1 !== lastAligningPosS2) {
-          result.push(new SequenceDiff(new OffsetRange(s15 + 1, lastAligningPosS1), new OffsetRange(s23 + 1, lastAligningPosS2)));
+      function reportDecreasingAligningPositions(s16, s23) {
+        if (s16 + 1 !== lastAligningPosS1 || s23 + 1 !== lastAligningPosS2) {
+          result.push(new SequenceDiff(new OffsetRange(s16 + 1, lastAligningPosS1), new OffsetRange(s23 + 1, lastAligningPosS2)));
         }
-        lastAligningPosS1 = s15;
+        lastAligningPosS1 = s16;
         lastAligningPosS2 = s23;
       }
       let s1 = sequence1.length - 1;
@@ -244648,12 +244698,12 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
       const modifiedSections = modifiedSet.subtractFrom(mapping.modifiedLineRange);
       const originalTranslatedSections = originalSet.subtractFrom(mapping.originalLineRange).getWithDelta(diffOrigToMod);
       const modifiedIntersectedSections = modifiedSections.getIntersection(originalTranslatedSections);
-      for (const s15 of modifiedIntersectedSections.ranges) {
-        if (s15.length < 3) {
+      for (const s16 of modifiedIntersectedSections.ranges) {
+        if (s16.length < 3) {
           continue;
         }
-        const modifiedLineRange = s15;
-        const originalLineRange = s15.delta(-diffOrigToMod);
+        const modifiedLineRange = s16;
+        const originalLineRange = s16.delta(-diffOrigToMod);
         moves.push(new LineRangeMapping(originalLineRange, modifiedLineRange));
         modifiedSet.addRange(modifiedLineRange);
         originalSet.addRange(originalLineRange);
@@ -244918,16 +244968,16 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
   }
   function removeShortMatches(sequence1, sequence2, sequenceDiffs) {
     const result = [];
-    for (const s15 of sequenceDiffs) {
+    for (const s16 of sequenceDiffs) {
       const last = result[result.length - 1];
       if (!last) {
-        result.push(s15);
+        result.push(s16);
         continue;
       }
-      if (s15.seq1Range.start - last.seq1Range.endExclusive <= 2 || s15.seq2Range.start - last.seq2Range.endExclusive <= 2) {
-        result[result.length - 1] = new SequenceDiff(last.seq1Range.join(s15.seq1Range), last.seq2Range.join(s15.seq2Range));
+      if (s16.seq1Range.start - last.seq1Range.endExclusive <= 2 || s16.seq2Range.start - last.seq2Range.endExclusive <= 2) {
+        result[result.length - 1] = new SequenceDiff(last.seq1Range.join(s16.seq1Range), last.seq2Range.join(s16.seq2Range));
       } else {
-        result.push(s15);
+        result.push(s16);
       }
     }
     return result;
@@ -255621,11 +255671,11 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
   var AutoClosingOvertypeWithInterceptorsOperation = class {
     static getEdits(config, model, selections, autoClosedCharacters, ch) {
       if (isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
-        const commands = selections.map((s15) => new ReplaceCommand(new Range2(
-          s15.positionLineNumber,
-          s15.positionColumn,
-          s15.positionLineNumber,
-          s15.positionColumn + 1
+        const commands = selections.map((s16) => new ReplaceCommand(new Range2(
+          s16.positionLineNumber,
+          s16.positionColumn,
+          s16.positionLineNumber,
+          s16.positionColumn + 1
         ), "", false));
         return new EditOperationResult(EditOperationType.TypingOther, commands, {
           shouldPushStackElementBefore: true,
@@ -255662,8 +255712,8 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
           return null;
         }
       }
-      const positions = selections.map((s15) => {
-        const position = s15.getPosition();
+      const positions = selections.map((s16) => {
+        const position = s16.getPosition();
         if (chIsAlreadyTyped) {
           return {
             lineNumber: position.lineNumber,
@@ -258457,7 +258507,7 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
         editor.pushUndoStop();
         editor.executeCommands(
           this.id,
-          EnterOperation.lineBreakInsert(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map((s15) => s15.modelState.selection))
+          EnterOperation.lineBreakInsert(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map((s16) => s16.modelState.selection))
         );
       }
     }());
@@ -258477,7 +258527,7 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
         editor.pushUndoStop();
         editor.executeCommands(
           this.id,
-          TypeOperations.outdent(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map((s15) => s15.modelState.selection))
+          TypeOperations.outdent(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map((s16) => s16.modelState.selection))
         );
         editor.pushUndoStop();
       }
@@ -258498,7 +258548,7 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
         editor.pushUndoStop();
         editor.executeCommands(
           this.id,
-          TypeOperations.tab(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map((s15) => s15.modelState.selection))
+          TypeOperations.tab(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map((s16) => s16.modelState.selection))
         );
         editor.pushUndoStop();
       }
@@ -258529,7 +258579,7 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
           viewModel.getPrevEditOperationType(),
           viewModel.cursorConfig,
           viewModel.model,
-          viewModel.getCursorStates().map((s15) => s15.modelState.selection),
+          viewModel.getCursorStates().map((s16) => s16.modelState.selection),
           viewModel.getCursorAutoClosedCharacters()
         );
         if (shouldPushStackElementBefore) {
@@ -258560,7 +258610,7 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
           viewModel.getPrevEditOperationType(),
           viewModel.cursorConfig,
           viewModel.model,
-          viewModel.getCursorStates().map((s15) => s15.modelState.selection)
+          viewModel.getCursorStates().map((s16) => s16.modelState.selection)
         );
         if (shouldPushStackElementBefore) {
           editor.pushUndoStop();
@@ -262464,7 +262514,7 @@ Its package.json#enabledApiProposals-property declares: ${extension.enabledApiPr
         this._cursorLineNumbers = cursorsLineNumbers;
         hasChanged = true;
       }
-      const selectionIsEmpty = this._selections.every((s15) => s15.isEmpty());
+      const selectionIsEmpty = this._selections.every((s16) => s16.isEmpty());
       if (this._selectionIsEmpty !== selectionIsEmpty) {
         this._selectionIsEmpty = selectionIsEmpty;
         hasChanged = true;
@@ -277163,7 +277213,7 @@ struct VSOutput {
           selection: cursors[i2].modelState.selection
         });
       }
-      sortedCursors.sort(compareBy((s15) => s15.selection, Range2.compareRangesUsingStarts));
+      sortedCursors.sort(compareBy((s16) => s16.selection, Range2.compareRangesUsingStarts));
       for (let sortedCursorIndex = 0; sortedCursorIndex < sortedCursors.length - 1; sortedCursorIndex++) {
         const current = sortedCursors[sortedCursorIndex];
         const next = sortedCursors[sortedCursorIndex + 1];
@@ -278015,7 +278065,7 @@ struct VSOutput {
       if (!oldState || oldState.cursorState.length !== newState.cursorState.length || newState.cursorState.some(
         (newCursorState, i2) => !newCursorState.modelState.equals(oldState.cursorState[i2].modelState)
       )) {
-        const oldSelections = oldState ? oldState.cursorState.map((s15) => s15.modelState.selection) : null;
+        const oldSelections = oldState ? oldState.cursorState.map((s16) => s16.modelState.selection) : null;
         const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
         eventsCollector.emitOutgoingEvent(new CursorStateChangedEvent(
           oldSelections,
@@ -283745,11 +283795,11 @@ struct VSOutput {
         contributionsState
       };
     }
-    restoreViewState(s15) {
+    restoreViewState(s16) {
       if (!this._modelData || !this._modelData.hasRealView) {
         return;
       }
-      const codeEditorState = s15;
+      const codeEditorState = s16;
       if (codeEditorState && codeEditorState.cursorState && codeEditorState.viewState) {
         const cursorState = codeEditorState.cursorState;
         if (Array.isArray(cursorState)) {
@@ -284792,7 +284842,7 @@ struct VSOutput {
         this._hasNonEmptySelection.reset();
       } else {
         this._hasMultipleSelections.set(selections.length > 1);
-        this._hasNonEmptySelection.set(selections.some((s15) => !s15.isEmpty()));
+        this._hasNonEmptySelection.set(selections.some((s16) => !s16.isEmpty()));
       }
     }
     _updateFromFocus() {
@@ -285703,7 +285753,7 @@ struct VSOutput {
       this.positions = derivedOpts({
         owner: this,
         equalsFn: equalsIfDefinedC(arrayEqualsC(Position.equals))
-      }, (reader) => this.selections.read(reader)?.map((s15) => s15.getStartPosition()) ?? null);
+      }, (reader) => this.selections.read(reader)?.map((s16) => s16.getStartPosition()) ?? null);
       this.isFocused = observableFromEventOpts({
         owner: this,
         getTransaction: () => this._currentTransaction
@@ -285964,9 +286014,9 @@ struct VSOutput {
         end.read(reader);
         const range2 = lineRange.read(reader);
         const lineCount = this.model.read(reader)?.getLineCount();
-        const s15 = (typeof lineCount !== "undefined" && range2.startLineNumber > lineCount ? this.editor.getBottomForLineNumber(lineCount) : this.editor.getTopForLineNumber(range2.startLineNumber)) - this.scrollTop.read(reader);
-        const e = range2.isEmpty ? s15 : this.editor.getBottomForLineNumber(range2.endLineNumberExclusive - 1) - this.scrollTop.read(reader);
-        return new OffsetRange(s15, e);
+        const s16 = (typeof lineCount !== "undefined" && range2.startLineNumber > lineCount ? this.editor.getBottomForLineNumber(lineCount) : this.editor.getTopForLineNumber(range2.startLineNumber)) - this.scrollTop.read(reader);
+        const e = range2.isEmpty ? s16 : this.editor.getBottomForLineNumber(range2.endLineNumberExclusive - 1) - this.scrollTop.read(reader);
+        return new OffsetRange(s16, e);
       });
     }
     getLeftOfPosition(position, reader) {
@@ -287771,7 +287821,7 @@ struct VSOutput {
       return this._visible.get();
     }
     showMessage(message, position) {
-      alert(isMarkdownString(message) ? message.value : message);
+      alert2(isMarkdownString(message) ? message.value : message);
       this._visible.set(true);
       this._messageWidget.clear();
       this._messageListeners.clear();
@@ -288189,7 +288239,7 @@ struct VSOutput {
         if (!references || cts.token.isCancellationRequested) {
           return;
         }
-        alert(references.ariaMessage);
+        alert2(references.ariaMessage);
         let altAction;
         if (references.referenceAt(model.uri, position)) {
           const altActionId = this._getAlternativeCommand(editor);
@@ -298436,7 +298486,7 @@ struct VSOutput {
     async updateMetadata(local, gallery) {
       await this.updateMetadataFromGallery(gallery);
       await this.updateLocal();
-      const updatedLocal = (await this.getInstalled()).find((s15) => s15.name === local.name);
+      const updatedLocal = (await this.getInstalled()).find((s16) => s16.name === local.name);
       if (!updatedLocal) {
         throw new Error(`Failed to find MCP server: ${local.name}`);
       }
@@ -299098,7 +299148,7 @@ struct VSOutput {
         };
         await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
         await this.updateLocal();
-        const local = (await this.getInstalled()).find((s15) => s15.name === server.name);
+        const local = (await this.getInstalled()).find((s16) => s16.name === server.name);
         if (!local) {
           throw new Error(`Failed to install MCP server: ${server.name}`);
         }
@@ -299524,8 +299574,8 @@ struct VSOutput {
       Kind2[Kind2["Running"] = 2] = "Running";
       Kind2[Kind2["Error"] = 3] = "Error";
     })(Kind = McpConnectionState2.Kind || (McpConnectionState2.Kind = {}));
-    McpConnectionState2.toString = (s15) => {
-      switch (s15.state) {
+    McpConnectionState2.toString = (s16) => {
+      switch (s16.state) {
         case Kind.Stopped:
           return localize(12186, "Stopped");
         case Kind.Starting:
@@ -299533,13 +299583,13 @@ struct VSOutput {
         case Kind.Running:
           return localize(12188, "Running");
         case Kind.Error:
-          return localize(12189, "Error {0}", s15.message);
+          return localize(12189, "Error {0}", s16.message);
         default:
           assertNever();
       }
     };
-    McpConnectionState2.toKindString = (s15) => {
-      switch (s15) {
+    McpConnectionState2.toKindString = (s16) => {
+      switch (s16) {
         case Kind.Stopped:
           return "stopped";
         case Kind.Starting:
@@ -299552,8 +299602,8 @@ struct VSOutput {
           assertNever();
       }
     };
-    McpConnectionState2.canBeStarted = (s15) => s15 === Kind.Error || s15 === Kind.Stopped;
-    McpConnectionState2.isRunning = (s15) => !McpConnectionState2.canBeStarted(s15.state);
+    McpConnectionState2.canBeStarted = (s16) => s16 === Kind.Error || s16 === Kind.Stopped;
+    McpConnectionState2.isRunning = (s16) => !McpConnectionState2.canBeStarted(s16.state);
   })(McpConnectionState || (McpConnectionState = {}));
   var UserInteractionRequiredError = class _UserInteractionRequiredError extends Error {
     static {
@@ -300679,7 +300729,7 @@ struct VSOutput {
       const defaultAccount = await this.defaultAccountService.getDefaultAccount();
       if (defaultAccount) {
         const sessions = await this.authenticationService.getSessions(defaultAccount.authenticationProvider.id);
-        const accountSessions = sessions.filter((s15) => s15.id === defaultAccount.sessionId);
+        const accountSessions = sessions.filter((s16) => s16.id === defaultAccount.sessionId);
         if (accountSessions.length) {
           return accountSessions;
         }
@@ -307221,7 +307271,7 @@ struct VSOutput {
       const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
       const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
       const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
-      const enabledSkills = skills.filter((s15) => !disabledSkills.has(s15.uri)).sort((a, b2) => this.getSkillPriority(a) - this.getSkillPriority(b2));
+      const enabledSkills = skills.filter((s16) => !disabledSkills.has(s16.uri)).sort((a, b2) => this.getSkillPriority(a) - this.getSkillPriority(b2));
       const slashCommandFiles = [...promptFiles, ...enabledSkills];
       const parseResults = await Promise.all(slashCommandFiles.map(async (promptPath) => {
         try {
@@ -307624,9 +307674,9 @@ struct VSOutput {
       try {
         const arr = JSON.parse(value);
         if (Array.isArray(arr)) {
-          for (const s15 of arr) {
+          for (const s16 of arr) {
             try {
-              result.add(URI.revive(s15));
+              result.add(URI.revive(s16));
             } catch {
             }
           }
@@ -319338,12 +319388,12 @@ struct VSOutput {
             collector.error(localize(18e3, "'configuration.colors' must be a array"));
             return;
           }
-          const parseColorValue = (s15, name) => {
-            if (s15.length > 0) {
-              if (s15[0] === "#") {
-                return Color.Format.CSS.parseHex(s15);
+          const parseColorValue = (s16, name) => {
+            if (s16.length > 0) {
+              if (s16[0] === "#") {
+                return Color.Format.CSS.parseHex(s16);
               } else {
-                return s15;
+                return s16;
               }
             }
             collector.error(localize(
@@ -319864,8 +319914,8 @@ struct VSOutput {
           "source" in signal ? signal.source : void 0
         );
       }
-      const signalArray = signals.map((s15) => "signal" in s15 ? s15.signal : s15);
-      const announcements = signalArray.filter((signal) => this.isAnnouncementEnabled(signal)).map((s15) => s15.announcementMessage);
+      const signalArray = signals.map((s16) => "signal" in s16 ? s16.signal : s16);
+      const announcements = signalArray.filter((signal) => this.isAnnouncementEnabled(signal)).map((s16) => s16.announcementMessage);
       if (announcements.length) {
         this.accessibilityService.status(announcements.join(", "));
       }
@@ -320647,14 +320697,14 @@ struct VSOutput {
         createChangeSummary: () => ({
           animate: false
         }),
-        handleChange: (ctx, s15) => {
+        handleChange: (ctx, s16) => {
           if (ctx.didChange(base)) {
-            s15.animate = s15.animate || ctx.change;
+            s16.animate = s16.animate || ctx.change;
           }
           return true;
         }
       }
-    }, (reader, s15) => {
+    }, (reader, s16) => {
       if (animationFrame !== void 0) {
         targetWindow.cancelAnimationFrame(animationFrame);
         animationFrame = void 0;
@@ -320664,7 +320714,7 @@ struct VSOutput {
       if (startVal === targetVal) {
         animationStartMs = Date.now() - durationMs;
       } else {
-        animationStartMs = Date.now() - (s15.animate ? 0 : durationMs);
+        animationStartMs = Date.now() - (s16.animate ? 0 : durationMs);
       }
       update();
     }));
@@ -321981,7 +322031,7 @@ struct VSOutput {
     async waitForDiff() {
       await waitForState(
         this.isDiffUpToDate,
-        (s15) => s15,
+        (s16) => s16,
         void 0,
         this._cancellationTokenSource.token
       ).catch(rejectIfNotCanceled);
@@ -324824,16 +324874,16 @@ struct VSOutput {
           return emptyArr2;
         }
         const selections = this._editors.modifiedSelections.read(reader);
-        if (selections.every((s15) => s15.isEmpty())) {
+        if (selections.every((s16) => s16.isEmpty())) {
           return emptyArr2;
         }
-        const selectedLineNumbers = new LineRangeSet(selections.map((s15) => LineRange.fromRangeInclusive(s15)));
+        const selectedLineNumbers = new LineRangeSet(selections.map((s16) => LineRange.fromRangeInclusive(s16)));
         const selectedMappings = diff.mappings.filter(
           (m) => m.lineRangeMapping.innerChanges && selectedLineNumbers.intersects(m.lineRangeMapping.modified)
         );
         const result = selectedMappings.map((mapping) => ({
           mapping,
-          rangeMappings: mapping.lineRangeMapping.innerChanges.filter((c) => selections.some((s15) => Range2.areIntersecting(c.modifiedRange, s15)))
+          rangeMappings: mapping.lineRangeMapping.innerChanges.filter((c) => selections.some((s16) => Range2.areIntersecting(c.modifiedRange, s16)))
         }));
         if (result.length === 0 || result.every((r2) => r2.rangeMappings.length === 0)) {
           return emptyArr2;
@@ -324873,7 +324923,7 @@ struct VSOutput {
         }
         const selection = this._selectedDiffs.read(reader);
         if (selection.length > 0) {
-          const m = DetailedLineRangeMapping.fromRangeMappings(selection.flatMap((s15) => s15.rangeMappings));
+          const m = DetailedLineRangeMapping.fromRangeMappings(selection.flatMap((s16) => s16.rangeMappings));
           return [new DiffGutterItem(
             m,
             true,
@@ -325065,9 +325115,9 @@ struct VSOutput {
         }
         const m = this._diffModel.get();
         transaction((tx) => {
-          for (const s15 of this._editors.original.getSelections() || []) {
-            m?.ensureOriginalLineIsVisible(s15.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
-            m?.ensureOriginalLineIsVisible(s15.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+          for (const s16 of this._editors.original.getSelections() || []) {
+            m?.ensureOriginalLineIsVisible(s16.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+            m?.ensureOriginalLineIsVisible(s16.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
           }
         });
       }));
@@ -325077,9 +325127,9 @@ struct VSOutput {
         }
         const m = this._diffModel.get();
         transaction((tx) => {
-          for (const s15 of this._editors.modified.getSelections() || []) {
-            m?.ensureModifiedLineIsVisible(s15.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
-            m?.ensureModifiedLineIsVisible(s15.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+          for (const s16 of this._editors.modified.getSelections() || []) {
+            m?.ensureModifiedLineIsVisible(s16.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+            m?.ensureModifiedLineIsVisible(s16.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
           }
         });
       }));
@@ -325505,16 +325555,16 @@ struct VSOutput {
           return emptyArr3;
         }
         const selections = this._editors.modifiedSelections.read(reader);
-        if (selections.every((s15) => s15.isEmpty())) {
+        if (selections.every((s16) => s16.isEmpty())) {
           return emptyArr3;
         }
-        const selectedLineNumbers = new LineRangeSet(selections.map((s15) => LineRange.fromRangeInclusive(s15)));
+        const selectedLineNumbers = new LineRangeSet(selections.map((s16) => LineRange.fromRangeInclusive(s16)));
         const selectedMappings = diff.mappings.filter(
           (m) => m.lineRangeMapping.innerChanges && selectedLineNumbers.intersects(m.lineRangeMapping.modified)
         );
         const result = selectedMappings.map((mapping) => ({
           mapping,
-          rangeMappings: mapping.lineRangeMapping.innerChanges.filter((c) => selections.some((s15) => Range2.areIntersecting(c.modifiedRange, s15)))
+          rangeMappings: mapping.lineRangeMapping.innerChanges.filter((c) => selections.some((s16) => Range2.areIntersecting(c.modifiedRange, s16)))
         }));
         if (result.length === 0 || result.every((r2) => r2.rangeMappings.length === 0)) {
           return emptyArr3;
@@ -326028,9 +326078,9 @@ struct VSOutput {
         modelState: this._diffModel.get()?.serializeState()
       };
     }
-    restoreViewState(s15) {
-      if (s15 && s15.original && s15.modified) {
-        const diffEditorState = s15;
+    restoreViewState(s16) {
+      if (s16 && s16.original && s16.modified) {
+        const diffEditorState = s16;
         this._editors.original.restoreViewState(diffEditorState.original);
         this._editors.modified.restoreViewState(diffEditorState.modified);
         if (diffEditorState.modelState) {
@@ -330560,15 +330610,15 @@ struct VSOutput {
       this._endLineNumberDelta = 0;
     }
     getEditOperations(model, builder) {
-      let s15 = this._selection;
+      let s16 = this._selection;
       this._startLineNumberDelta = 0;
       this._endLineNumberDelta = 0;
-      if (s15.startLineNumber < s15.endLineNumber && s15.endColumn === 1) {
+      if (s16.startLineNumber < s16.endLineNumber && s16.endColumn === 1) {
         this._endLineNumberDelta = 1;
-        s15 = s15.setEndPosition(s15.endLineNumber - 1, model.getLineMaxColumn(s15.endLineNumber - 1));
+        s16 = s16.setEndPosition(s16.endLineNumber - 1, model.getLineMaxColumn(s16.endLineNumber - 1));
       }
       const sourceLines = [];
-      for (let i2 = s15.startLineNumber; i2 <= s15.endLineNumber; i2++) {
+      for (let i2 = s16.startLineNumber; i2 <= s16.endLineNumber; i2++) {
         sourceLines.push(model.getLineContent(i2));
       }
       const sourceText = sourceLines.join("\n");
@@ -330580,24 +330630,24 @@ struct VSOutput {
       }
       if (this._noop) {
         builder.addEditOperation(new Range2(
-          s15.endLineNumber,
-          model.getLineMaxColumn(s15.endLineNumber),
-          s15.endLineNumber + 1,
+          s16.endLineNumber,
+          model.getLineMaxColumn(s16.endLineNumber),
+          s16.endLineNumber + 1,
           1
-        ), s15.endLineNumber === model.getLineCount() ? "" : "\n");
+        ), s16.endLineNumber === model.getLineCount() ? "" : "\n");
       } else {
         if (!this._isCopyingDown) {
           builder.addEditOperation(new Range2(
-            s15.endLineNumber,
-            model.getLineMaxColumn(s15.endLineNumber),
-            s15.endLineNumber,
-            model.getLineMaxColumn(s15.endLineNumber)
+            s16.endLineNumber,
+            model.getLineMaxColumn(s16.endLineNumber),
+            s16.endLineNumber,
+            model.getLineMaxColumn(s16.endLineNumber)
           ), "\n" + sourceText);
         } else {
-          builder.addEditOperation(new Range2(s15.startLineNumber, 1, s15.startLineNumber, 1), sourceText + "\n");
+          builder.addEditOperation(new Range2(s16.startLineNumber, 1, s16.startLineNumber, 1), sourceText + "\n");
         }
       }
-      this._selectionId = builder.trackSelection(s15);
+      this._selectionId = builder.trackSelection(s16);
       this._selectionDirection = this._selection.getDirection();
     }
     computeCursorState(model, helper) {
@@ -330692,10 +330742,10 @@ struct VSOutput {
         return;
       }
       this._moveEndPositionDown = false;
-      let s15 = this._selection;
-      if (s15.startLineNumber < s15.endLineNumber && s15.endColumn === 1) {
+      let s16 = this._selection;
+      if (s16.startLineNumber < s16.endLineNumber && s16.endColumn === 1) {
         this._moveEndPositionDown = true;
-        s15 = s15.setEndPosition(s15.endLineNumber - 1, model.getLineMaxColumn(s15.endLineNumber - 1));
+        s16 = s16.setEndPosition(s16.endLineNumber - 1, model.getLineMaxColumn(s16.endLineNumber - 1));
       }
       const {
         tabSize,
@@ -330703,8 +330753,8 @@ struct VSOutput {
         insertSpaces
       } = model.getOptions();
       const indentConverter = this.buildIndentConverter(tabSize, indentSize, insertSpaces);
-      if (s15.startLineNumber === s15.endLineNumber && model.getLineMaxColumn(s15.startLineNumber) === 1) {
-        const lineNumber = s15.startLineNumber;
+      if (s16.startLineNumber === s16.endLineNumber && model.getLineMaxColumn(s16.startLineNumber) === 1) {
+        const lineNumber = s16.startLineNumber;
         const otherLineNumber = this._isMovingDown ? lineNumber + 1 : lineNumber - 1;
         if (model.getLineMaxColumn(otherLineNumber) === 1) {
           builder.addEditOperation(new Range2(1, 1, 1, 1), null);
@@ -330717,12 +330767,12 @@ struct VSOutput {
             model.getLineMaxColumn(otherLineNumber)
           ), null);
         }
-        s15 = new Selection(otherLineNumber, 1, otherLineNumber, 1);
+        s16 = new Selection(otherLineNumber, 1, otherLineNumber, 1);
       } else {
         let movingLineNumber;
         let movingLineText;
         if (this._isMovingDown) {
-          movingLineNumber = s15.endLineNumber + 1;
+          movingLineNumber = s16.endLineNumber + 1;
           movingLineText = model.getLineContent(movingLineNumber);
           builder.addEditOperation(new Range2(
             movingLineNumber - 1,
@@ -330731,8 +330781,8 @@ struct VSOutput {
             model.getLineMaxColumn(movingLineNumber)
           ), null);
           let insertingText = movingLineText;
-          if (this.shouldAutoIndent(model, s15)) {
-            const movingLineMatchResult = this.matchEnterRule(model, indentConverter, tabSize, movingLineNumber, s15.startLineNumber - 1);
+          if (this.shouldAutoIndent(model, s16)) {
+            const movingLineMatchResult = this.matchEnterRule(model, indentConverter, tabSize, movingLineNumber, s16.startLineNumber - 1);
             if (movingLineMatchResult !== null) {
               const oldIndentation = getLeadingWhitespace(model.getLineContent(movingLineNumber));
               const newSpaceCnt = movingLineMatchResult + getSpaceCnt(oldIndentation, tabSize);
@@ -330741,13 +330791,13 @@ struct VSOutput {
             } else {
               const virtualModel = this.createVirtualModel(
                 model,
-                (lineNumber) => lineNumber === s15.startLineNumber ? movingLineNumber : lineNumber
+                (lineNumber) => lineNumber === s16.startLineNumber ? movingLineNumber : lineNumber
               );
               const indentOfMovingLine = getGoodIndentForLine(
                 this._autoIndent,
                 virtualModel,
                 model.getLanguageIdAtPosition(movingLineNumber, 1),
-                s15.startLineNumber,
+                s16.startLineNumber,
                 indentConverter,
                 this._languageConfigurationService
               );
@@ -330761,93 +330811,93 @@ struct VSOutput {
                 }
               }
             }
-            builder.addEditOperation(new Range2(s15.startLineNumber, 1, s15.startLineNumber, 1), insertingText + "\n");
+            builder.addEditOperation(new Range2(s16.startLineNumber, 1, s16.startLineNumber, 1), insertingText + "\n");
             const ret = this.matchEnterRuleMovingDown(
               model,
               indentConverter,
               tabSize,
-              s15.startLineNumber,
+              s16.startLineNumber,
               movingLineNumber,
               insertingText
             );
             if (ret !== null) {
               if (ret !== 0) {
-                this.getIndentEditsOfMovingBlock(model, builder, s15, tabSize, insertSpaces, ret);
+                this.getIndentEditsOfMovingBlock(model, builder, s16, tabSize, insertSpaces, ret);
               }
             } else {
               const virtualModel = this.createVirtualModel(model, (lineNumber) => {
-                if (lineNumber === s15.startLineNumber) {
+                if (lineNumber === s16.startLineNumber) {
                   return movingLineNumber;
-                } else if (lineNumber >= s15.startLineNumber + 1 && lineNumber <= s15.endLineNumber + 1) {
+                } else if (lineNumber >= s16.startLineNumber + 1 && lineNumber <= s16.endLineNumber + 1) {
                   return lineNumber - 1;
                 } else {
                   return lineNumber;
                 }
-              }, (lineNumber) => lineNumber === s15.startLineNumber ? insertingText : void 0);
+              }, (lineNumber) => lineNumber === s16.startLineNumber ? insertingText : void 0);
               const newIndentatOfMovingBlock = getGoodIndentForLine(
                 this._autoIndent,
                 virtualModel,
                 model.getLanguageIdAtPosition(movingLineNumber, 1),
-                s15.startLineNumber + 1,
+                s16.startLineNumber + 1,
                 indentConverter,
                 this._languageConfigurationService
               );
               if (newIndentatOfMovingBlock !== null) {
-                const oldIndentation = getLeadingWhitespace(model.getLineContent(s15.startLineNumber));
+                const oldIndentation = getLeadingWhitespace(model.getLineContent(s16.startLineNumber));
                 const newSpaceCnt = getSpaceCnt(newIndentatOfMovingBlock, tabSize);
                 const oldSpaceCnt = getSpaceCnt(oldIndentation, tabSize);
                 if (newSpaceCnt !== oldSpaceCnt) {
                   const spaceCntOffset = newSpaceCnt - oldSpaceCnt;
-                  this.getIndentEditsOfMovingBlock(model, builder, s15, tabSize, insertSpaces, spaceCntOffset);
+                  this.getIndentEditsOfMovingBlock(model, builder, s16, tabSize, insertSpaces, spaceCntOffset);
                 }
               }
             }
           } else {
-            builder.addEditOperation(new Range2(s15.startLineNumber, 1, s15.startLineNumber, 1), insertingText + "\n");
+            builder.addEditOperation(new Range2(s16.startLineNumber, 1, s16.startLineNumber, 1), insertingText + "\n");
           }
         } else {
-          movingLineNumber = s15.startLineNumber - 1;
+          movingLineNumber = s16.startLineNumber - 1;
           movingLineText = model.getLineContent(movingLineNumber);
           builder.addEditOperation(new Range2(movingLineNumber, 1, movingLineNumber + 1, 1), null);
           builder.addEditOperation(new Range2(
-            s15.endLineNumber,
-            model.getLineMaxColumn(s15.endLineNumber),
-            s15.endLineNumber,
-            model.getLineMaxColumn(s15.endLineNumber)
+            s16.endLineNumber,
+            model.getLineMaxColumn(s16.endLineNumber),
+            s16.endLineNumber,
+            model.getLineMaxColumn(s16.endLineNumber)
           ), "\n" + movingLineText);
-          if (this.shouldAutoIndent(model, s15)) {
+          if (this.shouldAutoIndent(model, s16)) {
             const virtualModel = this.createVirtualModel(
               model,
-              (lineNumber) => lineNumber === movingLineNumber ? s15.startLineNumber : lineNumber
+              (lineNumber) => lineNumber === movingLineNumber ? s16.startLineNumber : lineNumber
             );
-            const ret = this.matchEnterRule(model, indentConverter, tabSize, s15.startLineNumber, s15.startLineNumber - 2);
+            const ret = this.matchEnterRule(model, indentConverter, tabSize, s16.startLineNumber, s16.startLineNumber - 2);
             if (ret !== null) {
               if (ret !== 0) {
-                this.getIndentEditsOfMovingBlock(model, builder, s15, tabSize, insertSpaces, ret);
+                this.getIndentEditsOfMovingBlock(model, builder, s16, tabSize, insertSpaces, ret);
               }
             } else {
               const indentOfFirstLine = getGoodIndentForLine(
                 this._autoIndent,
                 virtualModel,
-                model.getLanguageIdAtPosition(s15.startLineNumber, 1),
+                model.getLanguageIdAtPosition(s16.startLineNumber, 1),
                 movingLineNumber,
                 indentConverter,
                 this._languageConfigurationService
               );
               if (indentOfFirstLine !== null) {
-                const oldIndent = getLeadingWhitespace(model.getLineContent(s15.startLineNumber));
+                const oldIndent = getLeadingWhitespace(model.getLineContent(s16.startLineNumber));
                 const newSpaceCnt = getSpaceCnt(indentOfFirstLine, tabSize);
                 const oldSpaceCnt = getSpaceCnt(oldIndent, tabSize);
                 if (newSpaceCnt !== oldSpaceCnt) {
                   const spaceCntOffset = newSpaceCnt - oldSpaceCnt;
-                  this.getIndentEditsOfMovingBlock(model, builder, s15, tabSize, insertSpaces, spaceCntOffset);
+                  this.getIndentEditsOfMovingBlock(model, builder, s16, tabSize, insertSpaces, spaceCntOffset);
                 }
               }
             }
           }
         }
       }
-      this._selectionId = builder.trackSelection(s15);
+      this._selectionId = builder.trackSelection(s16);
     }
     buildIndentConverter(tabSize, indentSize, insertSpaces) {
       return {
@@ -330951,8 +331001,8 @@ struct VSOutput {
       }
       return true;
     }
-    getIndentEditsOfMovingBlock(model, builder, s15, tabSize, insertSpaces, offset) {
-      for (let i2 = s15.startLineNumber; i2 <= s15.endLineNumber; i2++) {
+    getIndentEditsOfMovingBlock(model, builder, s16, tabSize, insertSpaces, offset) {
+      for (let i2 = s16.startLineNumber; i2 <= s16.endLineNumber; i2++) {
         const lineContent = model.getLineContent(i2);
         const originalIndent = getLeadingWhitespace(lineContent);
         const originalSpacesCnt = getSpaceCnt(originalIndent, tabSize);
@@ -330960,7 +331010,7 @@ struct VSOutput {
         const newIndent = generateIndent(newSpacesCnt, tabSize, insertSpaces);
         if (newIndent !== originalIndent) {
           builder.addEditOperation(new Range2(i2, 1, i2, originalIndent.length + 1), newIndent);
-          if (i2 === s15.endLineNumber && s15.endColumn <= originalIndent.length + 1 && newIndent === "") {
+          if (i2 === s16.endLineNumber && s16.endColumn <= originalIndent.length + 1 && newIndent === "") {
             this._moveEndLineSelectionShrink = true;
           }
         }
@@ -331439,7 +331489,7 @@ struct VSOutput {
     run(_accessor, editor, args) {
       let cursors = [];
       if (args.reason === "auto-save") {
-        cursors = (editor.getSelections() || []).map((s15) => new Position(s15.positionLineNumber, s15.positionColumn));
+        cursors = (editor.getSelections() || []).map((s16) => new Position(s16.positionLineNumber, s16.positionColumn));
       }
       const selection = editor.getSelection();
       if (selection === null) {
@@ -331511,16 +331561,16 @@ struct VSOutput {
       editor.pushUndoStop();
     }
     _getLinesToRemove(editor) {
-      const operations = editor.getSelections().map((s15) => {
-        let endLineNumber = s15.endLineNumber;
-        if (s15.startLineNumber < s15.endLineNumber && s15.endColumn === 1) {
+      const operations = editor.getSelections().map((s16) => {
+        let endLineNumber = s16.endLineNumber;
+        if (s16.startLineNumber < s16.endLineNumber && s16.endColumn === 1) {
           endLineNumber -= 1;
         }
         return {
-          startLineNumber: s15.startLineNumber,
-          selectionStartColumn: s15.selectionStartColumn,
+          startLineNumber: s16.startLineNumber,
+          selectionStartColumn: s16.selectionStartColumn,
           endLineNumber,
-          positionColumn: s15.positionColumn
+          positionColumn: s16.positionColumn
         };
       });
       operations.sort((a, b2) => {
@@ -334473,7 +334523,7 @@ struct VSOutput {
         return void 0;
       }
       if (this._spread) {
-        const lines = clipboardText.split(/\r\n|\n|\r/).filter((s15) => !isFalsyOrWhitespace(s15));
+        const lines = clipboardText.split(/\r\n|\n|\r/).filter((s16) => !isFalsyOrWhitespace(s16));
         if (lines.length === this._selectionCount) {
           return lines[this._selectionIdx];
         }
@@ -336685,7 +336735,7 @@ struct VSOutput {
     } = yieldsToGraph.removeCycles();
     if (foundCycles.length > 0) {
       onUnexpectedExternalError(new Error(
-        `Inline completions: cyclic yield-to dependency detected. Path: ${foundCycles.map((s15) => s15.toString ? s15.toString() : "" + s15).join(" -> ")}`
+        `Inline completions: cyclic yield-to dependency detected. Path: ${foundCycles.map((s16) => s16.toString ? s16.toString() : "" + s16).join(" -> ")}`
       ));
     }
     let runningCount = 0;
@@ -338923,7 +338973,7 @@ struct VSOutput {
         }).then((result) => {
           trace("edits applied");
           if (result.ariaSummary) {
-            alert(localize(
+            alert2(localize(
               1532,
               "Successfully renamed '{0}' to '{1}'. Summary: {2}",
               loc.text,
@@ -339856,9 +339906,9 @@ struct VSOutput {
               const ref = TextModelValueReference.snapshot(targetModel);
               const i2 = InlineSuggestionItem.create(item, ref);
               if (disposable) {
-                const s15 = runOnChange(i2.identity.onDispose, () => {
+                const s16 = runOnChange(i2.identity.onDispose, () => {
                   disposable?.dispose();
-                  s15.dispose();
+                  s16.dispose();
                 });
               }
               item.addPerformanceMarker("itemCreated");
@@ -339873,11 +339923,11 @@ struct VSOutput {
               break;
             }
           }
-          providerSuggestions.forEach((s15) => s15.addPerformanceMarker("providersResolved"));
-          const suggestions = await Promise.all(providerSuggestions.map(async (s15) => {
-            return this._renameProcessor.proposeRenameRefactoring(this._textModel, s15, context);
+          providerSuggestions.forEach((s16) => s16.addPerformanceMarker("providersResolved"));
+          const suggestions = await Promise.all(providerSuggestions.map(async (s16) => {
+            return this._renameProcessor.proposeRenameRefactoring(this._textModel, s16, context);
           }));
-          suggestions.forEach((s15) => s15.addPerformanceMarker("renameProcessed"));
+          suggestions.forEach((s16) => s16.addPerformanceMarker("renameProcessed"));
           providerResult.cancelAndDispose({
             kind: "lostRace"
           });
@@ -339943,7 +339993,7 @@ struct VSOutput {
           if (producedSuggestion) {
             requestResponseInfo.setHasProducedSuggestion();
             if (suggestions.length > 0 && source.token.isCancellationRequested) {
-              suggestions.forEach((s15) => s15.setNotShownReasonIfNotSet("canceled:whileAwaitingOtherProviders"));
+              suggestions.forEach((s16) => s16.setNotShownReasonIfNotSet("canceled:whileAwaitingOtherProviders"));
             }
           } else {
             if (source.token.isCancellationRequested) {
@@ -339957,10 +340007,10 @@ struct VSOutput {
           if (remainingTimeToWait > 0) {
             await wait(remainingTimeToWait, source.token);
           }
-          suggestions.forEach((s15) => s15.addPerformanceMarker("minShowDelayPassed"));
+          suggestions.forEach((s16) => s16.addPerformanceMarker("minShowDelayPassed"));
           if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request2.versionId || userJumpedToActiveCompletion.get()) {
             const notShownReason = source.token.isCancellationRequested ? "canceled:afterMinShowDelay" : this._store.isDisposed ? "canceled:disposed" : this._textModel.getVersionId() !== request2.versionId ? "canceled:documentChanged" : userJumpedToActiveCompletion.get() ? "canceled:userJumped" : "unknown";
-            suggestions.forEach((s15) => s15.setNotShownReasonIfNotSet(notShownReason));
+            suggestions.forEach((s16) => s16.setNotShownReasonIfNotSet(notShownReason));
             return false;
           }
           const endTime = /* @__PURE__ */ new Date();
@@ -340028,25 +340078,25 @@ struct VSOutput {
       transaction((tx) => {
         if (!inlineCompletions || (suggestWidgetInlineCompletions.request?.versionId ?? -1) > (inlineCompletions.request?.versionId ?? -1)) {
           inlineCompletions?.dispose();
-          const s15 = this._state.get();
+          const s16 = this._state.get();
           this._state.set({
             inlineCompletions: suggestWidgetInlineCompletions.clone(),
             suggestWidgetInlineCompletions: InlineCompletionsState.createEmpty()
           }, tx);
-          s15.inlineCompletions.dispose();
-          s15.suggestWidgetInlineCompletions.dispose();
+          s16.inlineCompletions.dispose();
+          s16.suggestWidgetInlineCompletions.dispose();
         }
         this.clearSuggestWidgetInlineCompletions(tx);
       });
     }
     seedWithCompletion(item, tx) {
-      const s15 = this._state.get();
+      const s16 = this._state.get();
       this._state.set({
         inlineCompletions: new InlineCompletionsState([item], void 0),
         suggestWidgetInlineCompletions: InlineCompletionsState.createEmpty()
       }, tx);
-      s15.inlineCompletions.dispose();
-      s15.suggestWidgetInlineCompletions.dispose();
+      s16.inlineCompletions.dispose();
+      s16.suggestWidgetInlineCompletions.dispose();
     }
     _sendInlineCompletionsRequestTelemetry(requestResponseInfo) {
       if (!this._sendRequestData.get() && !this._contextKeyService.getContextKeyValue("isRunningUnificationExperiment")) {
@@ -340821,35 +340871,35 @@ struct VSOutput {
         if (this._source.loading.read(reader)) {
           return "loading";
         }
-        const s15 = this.state.read(reader);
-        if (s15?.kind === "ghostText") {
+        const s16 = this.state.read(reader);
+        if (s16?.kind === "ghostText") {
           return "ghostText";
         }
-        if (s15?.kind === "inlineEdit") {
+        if (s16?.kind === "inlineEdit") {
           return "inlineEdit";
         }
         return "noSuggestion";
       });
       this.inlineCompletionState = derived(this, (reader) => {
-        const s15 = this.state.read(reader);
-        if (!s15 || s15.kind !== "ghostText") {
+        const s16 = this.state.read(reader);
+        if (!s16 || s16.kind !== "ghostText") {
           return void 0;
         }
         if (this._editorObs.inComposition.read(reader)) {
           return void 0;
         }
-        return s15;
+        return s16;
       });
       this.inlineEditState = derived(this, (reader) => {
-        const s15 = this.state.read(reader);
-        if (!s15 || s15.kind !== "inlineEdit") {
+        const s16 = this.state.read(reader);
+        if (!s16 || s16.kind !== "inlineEdit") {
           return void 0;
         }
-        return s15;
+        return s16;
       });
       this.inlineEditAvailable = derived(this, (reader) => {
-        const s15 = this.inlineEditState.read(reader);
-        return !!s15;
+        const s16 = this.inlineEditState.read(reader);
+        return !!s16;
       });
       this.warning = derived(this, (reader) => {
         return this.inlineCompletionState.read(reader)?.inlineSuggestion?.warning;
@@ -340899,11 +340949,11 @@ struct VSOutput {
           return new Range2(lineNumber, columnStart, lineNumber, columnEnd);
         }
         const selections = this._editorObs.selections.read(reader);
-        return selections?.some((s15) => {
-          if (s15.isEmpty()) {
-            return this.textModel.getLineLength(s15.startLineNumber) === 0;
+        return selections?.some((s16) => {
+          if (s16.isEmpty()) {
+            return this.textModel.getLineLength(s16.startLineNumber) === 0;
           } else {
-            return isMultiLine(s15) || s15.containsRange(getNonIndentationRange(this.textModel, s15.startLineNumber));
+            return isMultiLine(s16) || s16.containsRange(getNonIndentationRange(this.textModel, s16.startLineNumber));
           }
         });
       });
@@ -340911,11 +340961,11 @@ struct VSOutput {
         if (this._tabShouldIndent.read(reader)) {
           return false;
         }
-        const s15 = this.inlineEditState.read(reader);
-        if (!s15) {
+        const s16 = this.inlineEditState.read(reader);
+        if (!s16) {
           return false;
         }
-        if (s15.inlineSuggestion.action?.kind === "jumpTo") {
+        if (s16.inlineSuggestion.action?.kind === "jumpTo") {
           return true;
         }
         if (this.showCollapsed.read(reader)) {
@@ -340924,14 +340974,14 @@ struct VSOutput {
         if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
           return false;
         }
-        return !s15.cursorAtInlineEdit.read(reader);
+        return !s16.cursorAtInlineEdit.read(reader);
       });
       this.tabShouldAcceptInlineEdit = derived(this, (reader) => {
-        const s15 = this.inlineEditState.read(reader);
-        if (!s15) {
+        const s16 = this.inlineEditState.read(reader);
+        if (!s16) {
           return false;
         }
-        if (s15.inlineSuggestion.action?.kind === "jumpTo") {
+        if (s16.inlineSuggestion.action?.kind === "jumpTo") {
           return false;
         }
         if (this.showCollapsed.read(reader)) {
@@ -340943,13 +340993,13 @@ struct VSOutput {
         if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
           return true;
         }
-        if (s15.inlineSuggestion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
+        if (s16.inlineSuggestion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
           return true;
         }
-        if (this._jumpedToId.read(reader) === s15.inlineSuggestion.semanticId) {
+        if (this._jumpedToId.read(reader) === s16.inlineSuggestion.semanticId) {
           return true;
         }
-        return s15.cursorAtInlineEdit.read(reader);
+        return s16.cursorAtInlineEdit.read(reader);
       });
       this._jumpedToId = observableValue(this, void 0);
       this._inAcceptFlow = observableValue(this, false);
@@ -340970,11 +341020,11 @@ struct VSOutput {
       this._inlineSuggestMode = inlineSuggest.map((v3) => v3.mode);
       this._suppressedInlineCompletionGroupIds = inlineSuggest.map((v3) => new Set(v3.experimental.suppressInlineSuggestions.split(",")));
       this._inlineEditsEnabled = inlineSuggest.map((v3) => !!v3.edits.enabled);
-      this._inlineEditsShowCollapsedEnabled = inlineSuggest.map((s15) => s15.edits.showCollapsed);
-      this._triggerCommandOnProviderChange = inlineSuggest.map((s15) => s15.triggerCommandOnProviderChange);
-      this._minShowDelay = inlineSuggest.map((s15) => s15.minShowDelay);
-      this._showOnSuggestConflict = inlineSuggest.map((s15) => s15.experimental.showOnSuggestConflict);
-      this._suppressInSnippetMode = inlineSuggest.map((s15) => s15.suppressInSnippetMode);
+      this._inlineEditsShowCollapsedEnabled = inlineSuggest.map((s16) => s16.edits.showCollapsed);
+      this._triggerCommandOnProviderChange = inlineSuggest.map((s16) => s16.triggerCommandOnProviderChange);
+      this._minShowDelay = inlineSuggest.map((s16) => s16.minShowDelay);
+      this._showOnSuggestConflict = inlineSuggest.map((s16) => s16.experimental.showOnSuggestConflict);
+      this._suppressInSnippetMode = inlineSuggest.map((s16) => s16.suppressInSnippetMode);
       const snippetController = SnippetController2.get(this._editor);
       this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
       defaultAccountService.getDefaultAccount().then(
@@ -340997,9 +341047,9 @@ struct VSOutput {
         this.isInDiffEditor = !!diffEditor;
         this.editorType = isNotebook ? InlineCompletionEditorType.Notebook : this.isInDiffEditor ? InlineCompletionEditorType.DiffEditor : InlineCompletionEditorType.TextEditor;
       }
-      this._register(recomputeInitiallyAndOnChange(this.state, (s15) => {
-        if (s15 && s15.inlineSuggestion) {
-          this._inlineCompletionsService.reportNewCompletion(s15.inlineSuggestion.requestUuid);
+      this._register(recomputeInitiallyAndOnChange(this.state, (s16) => {
+        if (s16 && s16.inlineSuggestion) {
+          this._inlineCompletionsService.reportNewCompletion(s16.inlineSuggestion.requestUuid);
         }
       }));
       this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletionsPromise));
@@ -341009,19 +341059,19 @@ struct VSOutput {
       }));
       this._register(autorun((reader) => {
         const jumpToReset = this.state.map(
-          (s15, reader2) => !s15 || s15.kind === "inlineEdit" && !s15.cursorAtInlineEdit.read(reader2)
+          (s16, reader2) => !s16 || s16.kind === "inlineEdit" && !s16.cursorAtInlineEdit.read(reader2)
         ).read(reader);
         if (jumpToReset) {
           this._jumpedToId.set(void 0, void 0);
         }
       }));
       this._register(autorun((reader) => {
-        const inlineSuggestion = this.state.map((s15) => s15?.inlineSuggestion).read(reader);
+        const inlineSuggestion = this.state.map((s16) => s16?.inlineSuggestion).read(reader);
         if (inlineSuggestion) {
           inlineSuggestion.addPerformanceMarker("activeSuggestion");
         }
       }));
-      const inlineEditSemanticId = this.inlineEditState.map((s15) => s15?.inlineSuggestion.semanticId);
+      const inlineEditSemanticId = this.inlineEditState.map((s16) => s16?.inlineSuggestion.semanticId);
       this._register(autorun((reader) => {
         const id2 = inlineEditSemanticId.read(reader);
         if (id2) {
@@ -341441,11 +341491,11 @@ struct VSOutput {
       };
     }
     jump() {
-      const s15 = this.inlineEditState.get();
-      if (!s15) {
+      const s16 = this.inlineEditState.get();
+      if (!s16) {
         return;
       }
-      const suggestion = s15.inlineSuggestion;
+      const suggestion = s16.inlineSuggestion;
       if (!suggestion.originalTextRef.targets(this.textModel)) {
         this.accept(this._editor);
         return;
@@ -341460,19 +341510,19 @@ struct VSOutput {
               alternativeAction: false
             });
           }
-          this._jumpedToId.set(s15.inlineSuggestion.semanticId, tx);
+          this._jumpedToId.set(s16.inlineSuggestion.semanticId, tx);
           this.dontRefetchSignal.trigger(tx);
-          const targetRange = s15.inlineSuggestion.targetRange;
+          const targetRange = s16.inlineSuggestion.targetRange;
           const targetPosition = targetRange.getStartPosition();
           this._editor.setPosition(targetPosition, "inlineCompletions.jump");
-          const isSingleLineChange = targetRange.isSingleLine() && (s15.inlineSuggestion.hint || s15.inlineSuggestion.action?.kind === "edit" && !s15.inlineSuggestion.action.textReplacement.text.includes("\n"));
-          if (isSingleLineChange || s15.inlineSuggestion.action?.kind === "jumpTo") {
+          const isSingleLineChange = targetRange.isSingleLine() && (s16.inlineSuggestion.hint || s16.inlineSuggestion.action?.kind === "edit" && !s16.inlineSuggestion.action.textReplacement.text.includes("\n"));
+          if (isSingleLineChange || s16.inlineSuggestion.action?.kind === "jumpTo") {
             this._editor.revealPosition(targetPosition, ScrollType.Smooth);
           } else {
             const revealRange = new Range2(targetRange.startLineNumber - 1, 1, targetRange.endLineNumber + 1, 1);
             this._editor.revealRange(revealRange, ScrollType.Smooth);
           }
-          s15.inlineSuggestion.identity.setJumpTo(tx);
+          s16.inlineSuggestion.identity.setJumpTo(tx);
           this._editor.focus();
         });
       } finally {
@@ -345149,7 +345199,7 @@ struct VSOutput {
       this._telemetryService = _telemetryService;
       this._lineSuffix = new MutableDisposable();
       this._toDispose = new DisposableStore();
-      this._selectors = new PriorityRegistry((s15) => s15.priority);
+      this._selectors = new PriorityRegistry((s16) => s16.priority);
       this._onWillInsertSuggestItem = new Emitter();
       this._wantsForceRenderingAbove = false;
       this.editor = editor;
@@ -345513,7 +345563,7 @@ struct VSOutput {
           item.textLabel,
           item.completion.additionalTextEdits.length
         );
-        alert(msg);
+        alert2(msg);
       }
     }
     triggerSuggest(onlyFrom, auto, noFilter) {
@@ -346106,7 +346156,7 @@ struct VSOutput {
                 suggestItem
               };
             }).filter((item) => item && item.valid && item.prefixLength > 0);
-            const result = findFirstMax(candidates, compareBy((s15) => s15.prefixLength, numberComparator));
+            const result = findFirstMax(candidates, compareBy((s16) => s16.prefixLength, numberComparator));
             return result ? result.index : -1;
           }
         }));
@@ -349564,7 +349614,7 @@ struct VSOutput {
     }
     getSelectedLines(editor) {
       const selections = editor.getSelections();
-      return selections ? selections.map((s15) => s15.startLineNumber) : [];
+      return selections ? selections.map((s16) => s16.startLineNumber) : [];
     }
     getLineNumbers(args, editor) {
       if (args && args.selectionLines) {
@@ -349583,8 +349633,8 @@ struct VSOutput {
     }
     return {
       startsInside(startLine, endLine) {
-        for (const s15 of selections) {
-          const line = s15.startLineNumber;
+        for (const s16 of selections) {
+          const line = s16.startLineNumber;
           if (line >= startLine && line <= endLine) {
             return true;
           }
@@ -351724,7 +351774,7 @@ struct VSOutput {
       this._contextKeyService = _contextKeyService;
       this._keybindingService = _keybindingService;
       this._commandService = _commandService;
-      this._inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map((s15) => s15.edits.showCollapsed);
+      this._inlineEditsShowCollapsed = this._editorObs.getOption(EditorOption.inlineSuggest).map((s16) => s16.edits.showCollapsed);
     }
     toDisposableLiveElement() {
       return this._createHoverContent().toDisposableLiveElement();
@@ -352127,12 +352177,12 @@ struct VSOutput {
         };
       });
       this._layout = derived(this, (reader) => {
-        const s15 = this._state.read(reader);
-        if (!s15) {
+        const s16 = this._state.read(reader);
+        if (!s16) {
           return void 0;
         }
         const layout2 = this._editorObs.layoutInfo.read(reader);
-        const lineHeight = this._editorObs.observeLineHeightForLine(s15.range.map((r2) => r2.startLineNumber)).read(reader);
+        const lineHeight = this._editorObs.observeLineHeightForLine(s16.range.map((r2) => r2.startLineNumber)).read(reader);
         const gutterViewPortPaddingLeft = 1;
         const gutterViewPortPaddingTop = 2;
         const gutterWidthWithoutPadding = layout2.decorationsLeft + layout2.decorationsWidth - layout2.glyphMarginLeft - 2 * gutterViewPortPaddingLeft;
@@ -352147,7 +352197,7 @@ struct VSOutput {
         const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(
           gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPaddingTop
         );
-        const verticalEditRange = s15.lineOffsetRange.read(reader);
+        const verticalEditRange = s16.lineOffsetRange.read(reader);
         const gutterEditArea = Rect2.fromRanges(OffsetRange.fromTo(
           gutterViewPortWithoutStickyScroll.left,
           gutterViewPortWithoutStickyScroll.right
@@ -352168,7 +352218,7 @@ struct VSOutput {
             return Codicon.keyboardTab;
           }
           const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader2) ?? 0;
-          const editStartLineNumber = s15.range.read(reader2).startLineNumber;
+          const editStartLineNumber = s16.range.read(reader2).startLineNumber;
           return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
         });
         const idealIconAreaWidth = 22;
@@ -352797,13 +352847,13 @@ struct VSOutput {
         };
       });
       const state = displayLocation.map((dl2) => dl2 ? this.getState(dl2) : void 0);
-      const view = state.map((s15) => s15 ? this.getRendering(s15, styles) : void 0);
+      const view = state.map((s16) => s16 ? this.getRendering(s16, styles) : void 0);
       this.minEditorScrollHeight = derived(this, (reader) => {
-        const s15 = state.read(reader);
-        if (!s15) {
+        const s16 = state.read(reader);
+        if (!s16) {
           return 0;
         }
-        return s15.rect.read(reader).bottom + this._editor.getScrollTop();
+        return s16.rect.read(reader).bottom + this._editor.getScrollTop();
       });
       const overlay = n.div({
         class: "inline-edits-custom-view",
@@ -352820,11 +352870,11 @@ struct VSOutput {
         position: constObservable(null),
         allowEditorOverflow: false,
         minContentWidthInPx: derivedObservableWithCache(this, (reader, prev) => {
-          const s15 = state.read(reader);
-          if (!s15) {
+          const s16 = state.read(reader);
+          if (!s16) {
             return prev ?? 0;
           }
-          const current = s15.rect.map((rect) => rect.right).read(reader) + this._editorObs.layoutInfoVerticalScrollbarWidth.read(reader) + PADDING_HORIZONTALLY - this._editorObs.layoutInfoContentLeft.read(reader);
+          const current = s16.rect.map((rect) => rect.right).read(reader) + this._editorObs.layoutInfoVerticalScrollbarWidth.read(reader) + PADDING_HORIZONTALLY - this._editorObs.layoutInfoContentLeft.read(reader);
           return Math.max(prev ?? 0, current);
         }).recomputeInitiallyAndOnChange(this._store)
       }));
@@ -352954,9 +353004,9 @@ struct VSOutput {
           overflow: "hidden",
           boxSizing: "border-box",
           cursor: "pointer",
-          border: styles.map((s15) => `1px solid ${s15.border}`),
+          border: styles.map((s16) => `1px solid ${s16.border}`),
           borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
-          backgroundColor: styles.map((s15) => s15.background),
+          backgroundColor: styles.map((s16) => s16.background),
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -353057,10 +353107,10 @@ struct VSOutput {
           return rect.intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER));
         });
         const separatorWidth = this._uiState.map(
-          (s15) => s15?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH
+          (s16) => s16?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH
         ).read(reader);
         const separatorRect = overlayRect.map((rect) => rect.withMargin(separatorWidth, separatorWidth));
-        const editorBackground2 = getEditorBackgroundColor(this._uiState.map((s15) => s15?.editorType ?? InlineCompletionEditorType.TextEditor).read(reader));
+        const editorBackground2 = getEditorBackgroundColor(this._uiState.map((s16) => s16?.editorType ?? InlineCompletionEditorType.TextEditor).read(reader));
         return [n.div({
           class: "originalSeparatorDeletion",
           style: {
@@ -353106,7 +353156,7 @@ struct VSOutput {
         const inlineEdit = this._edit.read(reader);
         return inlineEdit ? new Position(inlineEdit.originalLineRange.endLineNumberExclusive, 1) : null;
       });
-      this._originalDisplayRange = this._uiState.map((s15) => s15?.originalRange);
+      this._originalDisplayRange = this._uiState.map((s16) => s16?.originalRange);
       this._originalVerticalStartPosition = this._editorObs.observePosition(originalStartPosition, this._store).map((p) => p?.y);
       this._originalVerticalEndPosition = this._editorObs.observePosition(originalEndPosition, this._store).map((p) => p?.y);
       this._register(this._editorObs.createOverlayWidget({
@@ -353251,9 +353301,9 @@ struct VSOutput {
         return Math.max(...lineWidths);
       });
       this.startLineOffset = this._trimVertically.map((v3) => v3.topOffset);
-      this.originalLines = this._state.map((s15) => s15 ? new LineRange(
-        s15.lineNumber,
-        Math.min(s15.lineNumber + 2, this._editor.getModel().getLineCount() + 1)
+      this.originalLines = this._state.map((s16) => s16 ? new LineRange(
+        s16.lineNumber,
+        Math.min(s16.lineNumber + 2, this._editor.getModel().getLineCount() + 1)
       ) : void 0);
       this._overlayLayout = derived(this, (reader) => {
         this._ghostText.read(reader);
@@ -353867,13 +353917,13 @@ struct VSOutput {
             gap: "4px",
             padding: "0 4px",
             height: "100%",
-            backgroundColor: this._styles.map((s15) => s15.background),
-            ["--vscodeIconForeground"]: this._styles.map((s15) => s15.foreground),
-            border: this._styles.map((s15) => `1px solid ${s15.border}`),
+            backgroundColor: this._styles.map((s16) => s16.background),
+            ["--vscodeIconForeground"]: this._styles.map((s16) => s16.foreground),
+            border: this._styles.map((s16) => `1px solid ${s16.border}`),
             borderRadius: "3px",
             boxSizing: "border-box",
             fontSize: "11px",
-            color: this._styles.map((s15) => s15.foreground)
+            color: this._styles.map((s16) => s16.foreground)
           }
         }, [this._style === "cursor" ? n.elem("div", {
           style: {
@@ -354304,13 +354354,13 @@ struct VSOutput {
   var WidgetPlacementContext = class {
     constructor(_lineRangeInfo, editorTrueContentWidth, endOfLinePadding) {
       this._lineRangeInfo = _lineRangeInfo;
-      this.availableSpaceSizes = _lineRangeInfo.sizes.map((s15, idx) => {
+      this.availableSpaceSizes = _lineRangeInfo.sizes.map((s16, idx) => {
         const lineNumber = _lineRangeInfo.lineRange.startLineNumber + idx;
         const linePaddingLeft = endOfLinePadding(lineNumber);
-        return new Size2D(Math.max(0, editorTrueContentWidth - s15.width - linePaddingLeft), s15.height);
+        return new Size2D(Math.max(0, editorTrueContentWidth - s16.width - linePaddingLeft), s16.height);
       });
-      this.availableSpaceHeightPrefixSums = getSums(this.availableSpaceSizes, (s15) => s15.height);
-      this.availableSpaceSizesTransposed = this.availableSpaceSizes.map((s15) => s15.transpose());
+      this.availableSpaceHeightPrefixSums = getSums(this.availableSpaceSizes, (s16) => s16.height);
+      this.availableSpaceSizesTransposed = this.availableSpaceSizes.map((s16) => s16.transpose());
     }
     getWidgetVerticalOutline(lineNumber, previewEditorHeight, layoutConstants) {
       const sizeIdx = lineNumber - this._lineRangeInfo.lineRange.startLineNumber;
@@ -354636,7 +354686,7 @@ struct VSOutput {
           style: {
             overflow: "hidden",
             padding: this._previewEditorLayoutInfo.map((i2) => i2?.previewEditorMargin),
-            background: this._styles.map((s15) => s15.background),
+            background: this._styles.map((s16) => s16.background),
             pointerEvents: "none"
           }
         }, [
@@ -354778,7 +354828,7 @@ struct VSOutput {
         }
         return {
           border: borderColor.toString(),
-          background: getEditorBackgroundColor(this._viewState.map((s15) => s15?.editorType ?? InlineCompletionEditorType.TextEditor).read(reader))
+          background: getEditorBackgroundColor(this._viewState.map((s16) => s16?.editorType ?? InlineCompletionEditorType.TextEditor).read(reader))
         };
       });
       this._editorObs = observableCodeEditor(this._editor);
@@ -354903,7 +354953,7 @@ struct VSOutput {
       this._display = derived(this, (reader) => !!this._uiState.read(reader) ? "block" : "none");
       this.previewRef = n.ref();
       const separatorWidthObs = this._uiState.map(
-        (s15) => s15?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH3 : WIDGET_SEPARATOR_WIDTH3
+        (s16) => s16?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH3 : WIDGET_SEPARATOR_WIDTH3
       );
       this._editorContainer = n.div({
         class: ["editorContainer"],
@@ -355153,8 +355203,8 @@ struct VSOutput {
       this._originalBackgroundColor = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => {
         return this._themeService.getColorTheme().getColor(originalBackgroundColor) ?? Color.transparent;
       });
-      this._editorBackgroundColor = this._uiState.map((s15) => {
-        return getEditorBackgroundColor(s15?.editorType ?? InlineCompletionEditorType.TextEditor);
+      this._editorBackgroundColor = this._uiState.map((s16) => {
+        return getEditorBackgroundColor(s16?.editorType ?? InlineCompletionEditorType.TextEditor);
       });
       this._backgroundSvg = n.svg({
         transform: "translate(-0.5 -0.5)",
@@ -355606,11 +355656,11 @@ ${keybindingTooltip}` : void 0,
               (reader2) => layout2.read(reader2).codeLine.withMargin(BORDER_WIDTH4, 2 * BORDER_WIDTH4)
             ).width,
             borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
-            border: primaryActionStyles.map((s15) => `${BORDER_WIDTH4}px solid ${s15.borderColor}`),
+            border: primaryActionStyles.map((s16) => `${BORDER_WIDTH4}px solid ${s16.borderColor}`),
             boxSizing: "border-box",
             padding: `${BORDER_WIDTH4}px`,
-            opacity: primaryActionStyles.map((s15) => s15.opacity),
-            background: primaryActionStyles.map((s15) => s15.backgroundColor),
+            opacity: primaryActionStyles.map((s16) => s16.opacity),
+            background: primaryActionStyles.map((s16) => s16.backgroundColor),
             display: "flex",
             justifyContent: "left",
             alignItems: "center",
@@ -355640,15 +355690,15 @@ ${keybindingTooltip}` : void 0,
               borderRight: `${BORDER_WIDTH4}px solid`,
               borderBottom: `${BORDER_WIDTH4}px solid`,
               borderLeft: `${BORDER_WIDTH4}px solid`,
-              borderColor: secondaryActionStyles.map((s15) => s15.borderColor),
-              opacity: secondaryActionStyles.map((s15) => s15.opacity),
-              color: secondaryActionStyles.map((s15) => s15.color),
+              borderColor: secondaryActionStyles.map((s16) => s16.borderColor),
+              opacity: secondaryActionStyles.map((s16) => s16.opacity),
+              color: secondaryActionStyles.map((s16) => s16.color),
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
               padding: "0 4px 0 1px",
               marginLeft: "4px",
-              background: secondaryActionStyles.map((s15) => s15.backgroundColor),
+              background: secondaryActionStyles.map((s16) => s16.backgroundColor),
               cursor: "pointer",
               textWrap: "nowrap"
             },
@@ -355924,7 +355974,7 @@ ${keybindingTooltip}` : void 0,
         };
       });
       this._register(observableCodeEditor(this._originalEditor).setDecorations(this._decorations.map((d) => d?.originalDecorations ?? [])));
-      const modifiedCodeEditor = this._state.map((s15) => s15?.modifiedCodeEditor);
+      const modifiedCodeEditor = this._state.map((s16) => s16?.modifiedCodeEditor);
       this._register(autorunWithStore((reader, store) => {
         const e = modifiedCodeEditor.read(reader);
         if (e) {
@@ -356090,25 +356140,25 @@ ${keybindingTooltip}` : void 0,
         }, null)
       );
       this._sideBySide = this._register(
-        this._instantiationService.createInstance(InlineEditsSideBySideView, this._editor, this._model.map((m) => m?.inlineEdit), this._previewTextModel, this._uiState.map((s15) => s15 && s15.state?.kind === InlineCompletionViewKind.SideBySide ? {
-          newTextLineCount: s15.newTextLineCount,
-          editorType: s15.editorType
+        this._instantiationService.createInstance(InlineEditsSideBySideView, this._editor, this._model.map((m) => m?.inlineEdit), this._previewTextModel, this._uiState.map((s16) => s16 && s16.state?.kind === InlineCompletionViewKind.SideBySide ? {
+          newTextLineCount: s16.newTextLineCount,
+          editorType: s16.editorType
         } : void 0), this._tabAction)
       );
       this._deletion = this._register(
-        this._instantiationService.createInstance(InlineEditsDeletionView, this._editor, this._model.map((m) => m?.inlineEdit), this._uiState.map((s15) => s15 && s15.state?.kind === InlineCompletionViewKind.Deletion ? {
-          originalRange: s15.state.originalRange,
-          deletions: s15.state.deletions,
-          editorType: s15.editorType
+        this._instantiationService.createInstance(InlineEditsDeletionView, this._editor, this._model.map((m) => m?.inlineEdit), this._uiState.map((s16) => s16 && s16.state?.kind === InlineCompletionViewKind.Deletion ? {
+          originalRange: s16.state.originalRange,
+          deletions: s16.state.deletions,
+          editorType: s16.editorType
         } : void 0), this._tabAction)
       );
       this._insertion = this._register(
         this._instantiationService.createInstance(InlineEditsInsertionView, this._editor, this._uiState.map(
-          (s15) => s15 && s15.state?.kind === InlineCompletionViewKind.InsertionMultiLine ? {
-            lineNumber: s15.state.lineNumber,
-            startColumn: s15.state.column,
-            text: s15.state.text,
-            editorType: s15.editorType
+          (s16) => s16 && s16.state?.kind === InlineCompletionViewKind.InsertionMultiLine ? {
+            lineNumber: s16.state.lineNumber,
+            startColumn: s16.state.column,
+            text: s16.state.text,
+            editorType: s16.editorType
           } : void 0
         ), this._tabAction)
       );
@@ -356120,24 +356170,24 @@ ${keybindingTooltip}` : void 0,
       this._customView = this._register(
         this._instantiationService.createInstance(InlineEditsCustomView, this._editor, this._model.map(
           (m, reader) => this._uiState.read(reader)?.state?.kind === InlineCompletionViewKind.Custom ? m?.displayLocation : void 0
-        ), this._tabAction, this._uiState.map((s15) => s15?.editorType ?? InlineCompletionEditorType.TextEditor))
+        ), this._tabAction, this._uiState.map((s16) => s16?.editorType ?? InlineCompletionEditorType.TextEditor))
       );
-      this._showLongDistanceHint = this._editorObs.getOption(EditorOption.inlineSuggest).map(this, (s15) => s15.edits.showLongDistanceHint);
+      this._showLongDistanceHint = this._editorObs.getOption(EditorOption.inlineSuggest).map(this, (s16) => s16.edits.showLongDistanceHint);
       this._longDistanceHint = derived(this, (reader) => {
         if (!this._showLongDistanceHint.read(reader)) {
           return void 0;
         }
         return reader.store.add(
-          this._instantiationService.createInstance(InlineEditsLongDistanceHint, this._editor, this._uiState.map((s15, reader2) => s15?.longDistanceHint ? {
-            hint: s15.longDistanceHint,
-            newTextLineCount: s15.newTextLineCount,
-            edit: s15.edit,
-            diff: s15.diff,
-            editorType: s15.editorType,
+          this._instantiationService.createInstance(InlineEditsLongDistanceHint, this._editor, this._uiState.map((s16, reader2) => s16?.longDistanceHint ? {
+            hint: s16.longDistanceHint,
+            newTextLineCount: s16.newTextLineCount,
+            edit: s16.edit,
+            diff: s16.diff,
+            editorType: s16.editorType,
             model: this._simpleModel.read(reader2),
             inlineSuggestInfo: this._inlineSuggestInfo.read(reader2),
-            nextCursorPosition: s15.nextCursorPosition,
-            target: s15.target
+            nextCursorPosition: s16.nextCursorPosition,
+            target: s16.target
           } : void 0), this._previewTextModel, this._tabAction)
         );
       }).recomputeInitiallyAndOnChange(this._store);
@@ -356161,10 +356211,10 @@ ${keybindingTooltip}` : void 0,
       this._jumpToView = this._register(this._instantiationService.createInstance(JumpToView, this._editorObs, {
         style: "label"
       }, derived((reader) => {
-        const s15 = this._uiState.read(reader);
-        if (s15?.state?.kind === InlineCompletionViewKind.JumpTo) {
+        const s16 = this._uiState.read(reader);
+        if (s16?.state?.kind === InlineCompletionViewKind.JumpTo) {
           return {
-            jumpToPosition: s15.state.position
+            jumpToPosition: s16.state.position
           };
         }
         return void 0;
@@ -356172,8 +356222,8 @@ ${keybindingTooltip}` : void 0,
       const wordReplacements = derivedOpts({
         equalsFn: equals4.arrayC(equals4.thisC())
       }, (reader) => {
-        const s15 = this._uiState.read(reader);
-        return s15?.state?.kind === InlineCompletionViewKind.WordReplacements ? s15.state.replacements.map((replacement) => new WordReplacementsViewData(replacement, s15.editorType, s15.state?.alternativeAction)) : [];
+        const s16 = this._uiState.read(reader);
+        return s16?.state?.kind === InlineCompletionViewKind.WordReplacements ? s16.state.replacements.map((replacement) => new WordReplacementsViewData(replacement, s16.editorType, s16.state?.alternativeAction)) : [];
       });
       this._wordReplacementViews = mapObservableArrayCached(this, wordReplacements, (viewData, store) => {
         return store.add(
@@ -356181,15 +356231,15 @@ ${keybindingTooltip}` : void 0,
         );
       });
       this._lineReplacementView = this._register(
-        this._instantiationService.createInstance(InlineEditsLineReplacementView, this._editorObs, this._uiState.map((s15) => s15?.state?.kind === InlineCompletionViewKind.LineReplacement ? {
-          originalRange: s15.state.originalRange,
-          modifiedRange: s15.state.modifiedRange,
-          modifiedLines: s15.state.modifiedLines,
-          replacements: s15.state.replacements
-        } : void 0), this._uiState.map((s15) => s15?.editorType ?? InlineCompletionEditorType.TextEditor), this._tabAction)
+        this._instantiationService.createInstance(InlineEditsLineReplacementView, this._editorObs, this._uiState.map((s16) => s16?.state?.kind === InlineCompletionViewKind.LineReplacement ? {
+          originalRange: s16.state.originalRange,
+          modifiedRange: s16.state.modifiedRange,
+          modifiedLines: s16.state.modifiedLines,
+          replacements: s16.state.replacements
+        } : void 0), this._uiState.map((s16) => s16?.editorType ?? InlineCompletionEditorType.TextEditor), this._tabAction)
       );
-      this._useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map((s15) => s15.edits.allowCodeShifting);
-      this._renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map((s15) => s15.edits.renderSideBySide);
+      this._useCodeShifting = this._editorObs.getOption(EditorOption.inlineSuggest).map((s16) => s16.edits.allowCodeShifting);
+      this._renderSideBySide = this._editorObs.getOption(EditorOption.inlineSuggest).map((s16) => s16.edits.renderSideBySide);
       this._register(autorun((reader) => {
         const model = this._model.read(reader);
         if (!model) {
@@ -356698,8 +356748,8 @@ ${keybindingTooltip}` : void 0,
       );
       this._indicatorIsHoverVisible = observableValue(this, void 0);
       this._showInlineEditCollapsed = derived(this, (reader) => {
-        const s15 = this._model.read(reader)?.showCollapsed.read(reader) ?? false;
-        return s15 && !this._indicatorIsHoverVisible.read(reader)?.read(reader);
+        const s16 = this._model.read(reader)?.showCollapsed.read(reader) ?? false;
+        return s16 && !this._indicatorIsHoverVisible.read(reader)?.read(reader);
       });
       this._inlineEditWidget = derivedDisposable((reader) => {
         if (!this._everHadInlineEdit.read(reader)) {
@@ -356780,17 +356830,17 @@ ${keybindingTooltip}` : void 0,
       this._register(new InlineCompletionsHintsWidget(this._editor, this._model, this._instantiationService));
       this._indicator = this._register(
         this._instantiationService.createInstance(InlineEditsGutterIndicator, this._editorObs, derived((reader) => {
-          const s15 = this._gutterIndicatorState.read(reader);
-          if (!s15) {
+          const s16 = this._gutterIndicatorState.read(reader);
+          if (!s16) {
             return void 0;
           }
           return new InlineEditsGutterIndicatorData(
-            InlineSuggestionGutterMenuData.fromInlineSuggestion(s15.inlineSuggestion),
-            s15.displayRange,
-            SimpleInlineSuggestModel.fromInlineCompletionModel(s15.model),
-            s15.inlineSuggestion.action?.kind === "edit" ? s15.inlineSuggestion.action.alternativeAction : void 0
+            InlineSuggestionGutterMenuData.fromInlineSuggestion(s16.inlineSuggestion),
+            s16.displayRange,
+            SimpleInlineSuggestModel.fromInlineCompletionModel(s16.model),
+            s16.inlineSuggestion.action?.kind === "edit" ? s16.inlineSuggestion.action.alternativeAction : void 0
           );
-        }), this._gutterIndicatorState.map((s15, reader) => s15?.tabAction?.read(reader) ?? InlineEditTabAction.Inactive), this._gutterIndicatorState.map((s15, reader) => s15?.gutterIndicatorOffset?.read(reader) ?? 0), this._inlineEditWidget.map((w2, reader) => w2?.view.inlineEditsIsHovered.read(reader) ?? false), this._focusIsInMenu)
+        }), this._gutterIndicatorState.map((s16, reader) => s16?.tabAction?.read(reader) ?? InlineEditTabAction.Inactive), this._gutterIndicatorState.map((s16, reader) => s16?.gutterIndicatorOffset?.read(reader) ?? 0), this._inlineEditWidget.map((w2, reader) => w2?.view.inlineEditsIsHovered.read(reader) ?? false), this._focusIsInMenu)
       );
       this._indicatorIsHoverVisible.set(this._indicator.isHoverVisible, void 0);
       derived((reader) => {
@@ -356950,7 +357000,7 @@ ${keybindingTooltip}` : void 0,
       this._editorObs = observableCodeEditor(this.editor);
       this._positions = derived(
         this,
-        (reader) => this._editorObs.selections.read(reader)?.map((s15) => s15.getEndPosition()) ?? [new Position(1, 1)]
+        (reader) => this._editorObs.selections.read(reader)?.map((s16) => s16.getEndPosition()) ?? [new Position(1, 1)]
       );
       this._suggestWidgetAdapter = this._register(new ObservableSuggestWidgetAdapter(
         this._editorObs,
@@ -357268,7 +357318,7 @@ ${keybindingTooltip}` : void 0,
           accessibleViewKeybinding.getAriaLabel()
         );
       }
-      alert(hint ? content + ", " + hint : content);
+      alert2(hint ? content + ", " + hint : content);
     }
     shouldShowHoverAt(range2) {
       const ghostText = this.model.get()?.primaryGhostText.get();
@@ -359089,7 +359139,7 @@ ${keybindingTooltip}` : void 0,
       if (this.defaultScopes) {
         scopes = this.defaultScopes;
       } else if (typeof snippet.scope === "string") {
-        scopes = snippet.scope.split(",").map((s15) => s15.trim()).filter(Boolean);
+        scopes = snippet.scope.split(",").map((s16) => s16.trim()).filter(Boolean);
       } else {
         scopes = [];
       }
@@ -365303,7 +365353,7 @@ ${keybindingTooltip}` : void 0,
         label = NLS_NO_RESULTS;
       }
       this._matchesCount.appendChild(createTextNode(label));
-      alert(
+      alert2(
         this._getAriaLabel(label, this._state.currentMatch, this._state.searchString)
       );
       MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
@@ -367176,11 +367226,11 @@ ${keybindingTooltip}` : void 0,
       }, true);
     }
     onDidChangePosition(left, top) {
-      const s15 = Math.max(0, Math.min(1, left / this.width));
+      const s16 = Math.max(0, Math.min(1, left / this.width));
       const v3 = Math.max(0, Math.min(1, 1 - top / this.height));
-      this.paintSelection(s15, v3);
+      this.paintSelection(s16, v3);
       this._onDidChange.fire({
-        s: s15,
+        s: s16,
         v: v3
       });
     }
@@ -367212,8 +367262,8 @@ ${keybindingTooltip}` : void 0,
       ctx.fillStyle = blackGradient;
       ctx.fill();
     }
-    paintSelection(s15, v3) {
-      this.selection.style.left = `${s15 * this.width}px`;
+    paintSelection(s16, v3) {
+      this.selection.style.left = `${s16 * this.width}px`;
       this.selection.style.top = `${this.height - v3 * this.height}px`;
     }
     onDidChangeColor(color2) {
@@ -367515,11 +367565,11 @@ ${keybindingTooltip}` : void 0,
       this.model.flushColor();
     }
     onDidSaturationValueChange({
-      s: s15,
+      s: s16,
       v: v3
     }) {
       const hsva = this.model.color.hsva;
-      this.model.color = new Color(new HSVA(hsva.h, s15, v3, hsva.a));
+      this.model.color = new Color(new HSVA(hsva.h, s16, v3, hsva.a));
     }
     onDidOpacityChange(a) {
       const hsva = this.model.color.hsva;
@@ -369625,9 +369675,9 @@ ${keybindingTooltip}` : void 0,
       const newValue = !oldValue;
       TabFocus.setTabFocusMode(newValue);
       if (newValue) {
-        alert(localize(1677, "Pressing Tab will now move focus to the next focusable element"));
+        alert2(localize(1677, "Pressing Tab will now move focus to the next focusable element"));
       } else {
-        alert(localize(1678, "Pressing Tab will now insert the tab character"));
+        alert2(localize(1678, "Pressing Tab will now insert the tab character"));
       }
     }
   };
@@ -370891,7 +370941,7 @@ ${keybindingTooltip}` : void 0,
       if (editor) {
         prevSelection = editor.getSelections();
         if (isAutoSaved) {
-          cursors = prevSelection.map((s15) => s15.getPosition());
+          cursors = prevSelection.map((s16) => s16.getPosition());
           const snippetsRange = SnippetController2.get(editor)?.getSessionEnclosingRange();
           if (snippetsRange) {
             for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
@@ -372025,8 +372075,8 @@ ${keybindingTooltip}` : void 0,
         }
       }
     }
-    static _maybeQuotes(s15) {
-      return s15.match(/\s/) ? `'${s15}'` : s15;
+    static _maybeQuotes(s16) {
+      return s16.match(/\s/) ? `'${s16}'` : s16;
     }
     async _analyzeFormatter(kind, formatter, document2) {
       const defaultFormatterId = this._configService.getValue(DefaultFormatter_1.configName, {
@@ -373016,9 +373066,9 @@ ${keybindingTooltip}` : void 0,
         if (isUnsafeMarketplaceKey(entry.name)) {
           continue;
         }
-        const s15 = entry.source;
-        const base = s15.source === "github" ? s15.repo : s15.url;
-        obj[entry.name] = s15.ref ? `${base}#${s15.ref}` : base;
+        const s16 = entry.source;
+        const base = s16.source === "github" ? s16.repo : s16.url;
+        obj[entry.name] = s16.ref ? `${base}#${s16.ref}` : base;
       }
     }
     return obj;
@@ -375758,7 +375808,7 @@ ${json}
           });
         });
         this.selectionAnchorSetContextKey.set(!!this.decorationId);
-        alert(localize(948, "Anchor set at {0}:{1}", position.lineNumber, position.column));
+        alert2(localize(948, "Anchor set at {0}:{1}", position.lineNumber, position.column));
       }
     }
     goToSelectionAnchor() {
@@ -378530,15 +378580,15 @@ ${json}
         languageId
       );
     }
-    _executeLineComments(model, builder, data, s15) {
+    _executeLineComments(model, builder, data, s16) {
       let ops;
       if (data.shouldRemoveComments) {
-        ops = _LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s15.startLineNumber);
+        ops = _LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s16.startLineNumber);
       } else {
-        _LineCommentCommand._normalizeInsertionPoint(model, data.lines, s15.startLineNumber, this._indentSize);
-        ops = this._createAddLineCommentsOperations(data.lines, s15.startLineNumber);
+        _LineCommentCommand._normalizeInsertionPoint(model, data.lines, s16.startLineNumber, this._indentSize);
+        ops = this._createAddLineCommentsOperations(data.lines, s16.startLineNumber);
       }
-      const cursorPosition = new Position(s15.positionLineNumber, s15.positionColumn);
+      const cursorPosition = new Position(s16.positionLineNumber, s16.positionColumn);
       for (let i2 = 0, len = ops.length; i2 < len; i2++) {
         builder.addEditOperation(ops[i2].range, ops[i2].text);
         if (Range2.isEmpty(ops[i2].range) && Range2.getStartPosition(ops[i2].range).equals(cursorPosition)) {
@@ -378548,14 +378598,14 @@ ${json}
           }
         }
       }
-      this._selectionId = builder.trackSelection(s15);
+      this._selectionId = builder.trackSelection(s16);
     }
-    _attemptRemoveBlockComment(model, s15, startToken, endToken) {
-      let startLineNumber = s15.startLineNumber;
-      let endLineNumber = s15.endLineNumber;
-      const startTokenAllowedBeforeColumn = endToken.length + Math.max(model.getLineFirstNonWhitespaceColumn(s15.startLineNumber), s15.startColumn);
+    _attemptRemoveBlockComment(model, s16, startToken, endToken) {
+      let startLineNumber = s16.startLineNumber;
+      let endLineNumber = s16.endLineNumber;
+      const startTokenAllowedBeforeColumn = endToken.length + Math.max(model.getLineFirstNonWhitespaceColumn(s16.startLineNumber), s16.startColumn);
       let startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
-      let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s15.endColumn - 1 - startToken.length);
+      let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s16.endColumn - 1 - startToken.length);
       if (startTokenIndex !== -1 && endTokenIndex === -1) {
         endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
         endLineNumber = startLineNumber;
@@ -378564,7 +378614,7 @@ ${json}
         startTokenIndex = model.getLineContent(endLineNumber).lastIndexOf(startToken, endTokenIndex);
         startLineNumber = endLineNumber;
       }
-      if (s15.isEmpty() && (startTokenIndex === -1 || endTokenIndex === -1)) {
+      if (s16.isEmpty() && (startTokenIndex === -1 || endTokenIndex === -1)) {
         startTokenIndex = model.getLineContent(startLineNumber).indexOf(startToken);
         if (startTokenIndex !== -1) {
           endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
@@ -378587,77 +378637,77 @@ ${json}
       }
       return null;
     }
-    _executeBlockComment(model, builder, s15) {
-      model.tokenization.tokenizeIfCheap(s15.startLineNumber);
-      const languageId = model.getLanguageIdAtPosition(s15.startLineNumber, 1);
+    _executeBlockComment(model, builder, s16) {
+      model.tokenization.tokenizeIfCheap(s16.startLineNumber);
+      const languageId = model.getLanguageIdAtPosition(s16.startLineNumber, 1);
       const config = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
       if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
         return;
       }
       const startToken = config.blockCommentStartToken;
       const endToken = config.blockCommentEndToken;
-      let ops = this._attemptRemoveBlockComment(model, s15, startToken, endToken);
+      let ops = this._attemptRemoveBlockComment(model, s16, startToken, endToken);
       if (!ops) {
-        if (s15.isEmpty()) {
-          const lineContent = model.getLineContent(s15.startLineNumber);
+        if (s16.isEmpty()) {
+          const lineContent = model.getLineContent(s16.startLineNumber);
           let firstNonWhitespaceIndex$1 = firstNonWhitespaceIndex(lineContent);
           if (firstNonWhitespaceIndex$1 === -1) {
             firstNonWhitespaceIndex$1 = lineContent.length;
           }
           ops = BlockCommentCommand._createAddBlockCommentOperations(new Range2(
-            s15.startLineNumber,
+            s16.startLineNumber,
             firstNonWhitespaceIndex$1 + 1,
-            s15.startLineNumber,
+            s16.startLineNumber,
             lineContent.length + 1
           ), startToken, endToken, this._insertSpace);
         } else {
           ops = BlockCommentCommand._createAddBlockCommentOperations(new Range2(
-            s15.startLineNumber,
-            model.getLineFirstNonWhitespaceColumn(s15.startLineNumber),
-            s15.endLineNumber,
-            model.getLineMaxColumn(s15.endLineNumber)
+            s16.startLineNumber,
+            model.getLineFirstNonWhitespaceColumn(s16.startLineNumber),
+            s16.endLineNumber,
+            model.getLineMaxColumn(s16.endLineNumber)
           ), startToken, endToken, this._insertSpace);
         }
         if (ops.length === 1) {
           this._deltaColumn = startToken.length + 1;
         }
       }
-      this._selectionId = builder.trackSelection(s15);
+      this._selectionId = builder.trackSelection(s16);
       for (const op of ops) {
         builder.addEditOperation(op.range, op.text);
       }
     }
     getEditOperations(model, builder) {
-      let s15 = this._selection;
+      let s16 = this._selection;
       this._moveEndPositionDown = false;
-      if (s15.startLineNumber === s15.endLineNumber && this._ignoreFirstLine) {
+      if (s16.startLineNumber === s16.endLineNumber && this._ignoreFirstLine) {
         builder.addEditOperation(new Range2(
-          s15.startLineNumber,
-          model.getLineMaxColumn(s15.startLineNumber),
-          s15.startLineNumber + 1,
+          s16.startLineNumber,
+          model.getLineMaxColumn(s16.startLineNumber),
+          s16.startLineNumber + 1,
           1
-        ), s15.startLineNumber === model.getLineCount() ? "" : "\n");
-        this._selectionId = builder.trackSelection(s15);
+        ), s16.startLineNumber === model.getLineCount() ? "" : "\n");
+        this._selectionId = builder.trackSelection(s16);
         return;
       }
-      if (s15.startLineNumber < s15.endLineNumber && s15.endColumn === 1) {
+      if (s16.startLineNumber < s16.endLineNumber && s16.endColumn === 1) {
         this._moveEndPositionDown = true;
-        s15 = s15.setEndPosition(s15.endLineNumber - 1, model.getLineMaxColumn(s15.endLineNumber - 1));
+        s16 = s16.setEndPosition(s16.endLineNumber - 1, model.getLineMaxColumn(s16.endLineNumber - 1));
       }
       const data = _LineCommentCommand._gatherPreflightData(
         this._type,
         this._insertSpace,
         model,
-        s15.startLineNumber,
-        s15.endLineNumber,
+        s16.startLineNumber,
+        s16.endLineNumber,
         this._ignoreEmptyLines,
         this._ignoreFirstLine,
         this.languageConfigurationService
       );
       if (data.supported) {
-        return this._executeLineComments(model, builder, data, s15);
+        return this._executeLineComments(model, builder, data, s16);
       }
-      return this._executeBlockComment(model, builder, s15);
+      return this._executeBlockComment(model, builder, s16);
     }
     computeCursorState(model, helper) {
       let result = helper.getTrackedSelection(this._selectionId);
@@ -380531,7 +380581,7 @@ ${json}
       if (!runMatch()) {
         const state = controller.getState();
         if (wasFindWidgetVisible && state.matchesCount === 0 && state.searchString) {
-          alert(localize(1089, "{0} found for '{1}'", NLS_NO_RESULTS, state.searchString));
+          alert2(localize(1089, "{0} found for '{1}'", NLS_NO_RESULTS, state.searchString));
         }
       }
     }
@@ -384648,18 +384698,18 @@ ${json}
         wholeWord = findState.wholeWord;
         matchCase = findState.matchCase;
       }
-      const s15 = editor.getSelection();
+      const s16 = editor.getSelection();
       let searchText;
       let currentMatch = null;
-      if (s15.isEmpty()) {
-        const word = editor.getConfiguredWordAtPosition(s15.getStartPosition());
+      if (s16.isEmpty()) {
+        const word = editor.getConfiguredWordAtPosition(s16.getStartPosition());
         if (!word) {
           return null;
         }
         searchText = word.word;
-        currentMatch = new Selection(s15.startLineNumber, word.startColumn, s15.startLineNumber, word.endColumn);
+        currentMatch = new Selection(s16.startLineNumber, word.startColumn, s16.startLineNumber, word.endColumn);
       } else {
-        searchText = editor.getModel().getValueInRange(s15).replace(/\r\n/g, "\n");
+        searchText = editor.getModel().getValueInRange(s16).replace(/\r\n/g, "\n");
       }
       return new _MultiCursorSession(
         editor,
@@ -385253,8 +385303,8 @@ ${json}
         return null;
       }
       if (!isEnabledMultiline) {
-        const s15 = editor.getSelection();
-        if (s15.startLineNumber !== s15.endLineNumber) {
+        const s16 = editor.getSelection();
+        if (s16.startLineNumber !== s16.endLineNumber) {
           return null;
         }
       }
@@ -385975,7 +386025,7 @@ ${json}
           labelToAnnounce += typeof signature.documentation === "string" ? `, ${signature.documentation}` : `, ${signature.documentation.value}`;
         }
         if (this.announcedLabel !== labelToAnnounce) {
-          alert(localize(1462, "{0}, hint", labelToAnnounce));
+          alert2(localize(1462, "{0}, hint", labelToAnnounce));
           this.announcedLabel = labelToAnnounce;
         }
       }
@@ -387324,7 +387374,7 @@ ${json}
         await provideSelectionRanges(
           this._languageFeaturesService.selectionRangeProvider,
           model,
-          selections.map((s15) => s15.getPosition()),
+          selections.map((s16) => s16.getPosition()),
           this._editor.getOption(EditorOption.smartSelect),
           CancellationToken.None
         ).then((ranges) => {
@@ -389111,7 +389161,7 @@ ${json}
         const word = this._getWord();
         if (word) {
           const lineContent = this.editor.getModel().getLineContent(dest.startLineNumber);
-          alert(
+          alert2(
             `${lineContent}, ${newIndex + 1} of ${highlights.length} for '${word.word}'`
           );
         }
@@ -389131,7 +389181,7 @@ ${json}
         const word = this._getWord();
         if (word) {
           const lineContent = this.editor.getModel().getLineContent(dest.startLineNumber);
-          alert(
+          alert2(
             `${lineContent}, ${newIndex + 1} of ${highlights.length} for '${word.word}'`
           );
         }
@@ -390293,15 +390343,15 @@ ${json}
         return [];
       }
       const symbols = m.asListOfDocumentSymbols().filter(
-        (s15) => startRange.contains(s15.range.startLineNumber) && !startRange.contains(s15.range.endLineNumber)
+        (s16) => startRange.contains(s16.range.startLineNumber) && !startRange.contains(s16.range.endLineNumber)
       );
       symbols.sort(reverseOrder(
-        compareBy((s15) => s15.range.endLineNumber - s15.range.startLineNumber, numberComparator)
+        compareBy((s16) => s16.range.endLineNumber - s16.range.startLineNumber, numberComparator)
       ));
-      return symbols.map((s15) => ({
-        name: s15.name,
-        kind: s15.kind,
-        startLineNumber: s15.range.startLineNumber
+      return symbols.map((s16) => ({
+        name: s16.name,
+        kind: s16.kind,
+        startLineNumber: s16.range.startLineNumber
       }));
     }
     getAt(lineNumber, reader) {
@@ -390309,17 +390359,17 @@ ${json}
       if (!m) {
         return [];
       }
-      const symbols = m.asListOfDocumentSymbols().filter((s15) => new LineRange(s15.range.startLineNumber, s15.range.endLineNumber).contains(lineNumber));
+      const symbols = m.asListOfDocumentSymbols().filter((s16) => new LineRange(s16.range.startLineNumber, s16.range.endLineNumber).contains(lineNumber));
       if (symbols.length === 0) {
         return [];
       }
       symbols.sort(reverseOrder(
-        compareBy((s15) => s15.range.endLineNumber - s15.range.startLineNumber, numberComparator)
+        compareBy((s16) => s16.range.endLineNumber - s16.range.startLineNumber, numberComparator)
       ));
-      return symbols.map((s15) => ({
-        name: s15.name,
-        kind: s15.kind,
-        startLineNumber: s15.range.startLineNumber
+      return symbols.map((s16) => ({
+        name: s16.name,
+        kind: s16.kind,
+        startLineNumber: s16.range.startLineNumber
       }));
     }
   };
@@ -394985,7 +395035,7 @@ ${json}
           });
         });
       });
-      this.debugService.getModel().getSessions(true).filter((s15) => s15.hasSeparateRepl()).forEach((session, _3) => {
+      this.debugService.getModel().getSessions(true).filter((s16) => s16.hasSeparateRepl()).forEach((session, _3) => {
         const label = session.name;
         viewEntries.push({
           label,
@@ -401127,7 +401177,7 @@ Down: ${MeasureExtHostLatencyAction._printSpeed(m.down)}
         segments,
         (segment) => isSearchPath(segment) ? "searchPaths" : "exprSegments"
       );
-      const expandedExprSegments = (groups.exprSegments || []).map((s15) => rtrim(s15, "/")).map((s15) => rtrim(s15, "\\")).map((p) => {
+      const expandedExprSegments = (groups.exprSegments || []).map((s16) => rtrim(s16, "/")).map((s16) => rtrim(s16, "\\")).map((p) => {
         if (p[0] === ".") {
           p = "*" + p;
         }
@@ -401347,7 +401397,7 @@ Down: ${MeasureExtHostLatencyAction._printSpeed(m.down)}
     }, /* @__PURE__ */ Object.create(null)) : void 0;
   }
   function splitGlobPattern(pattern) {
-    return splitGlobAware(pattern, ",").map((s15) => s15.trim()).filter((s15) => !!s15.length);
+    return splitGlobAware(pattern, ",").map((s16) => s16.trim()).filter((s16) => !!s16.length);
   }
   function expandGlobalGlob(pattern) {
     const patterns = [`**/${pattern}/**`, `**/${pattern}`];
@@ -406230,7 +406280,7 @@ DELTA: ${[...diff].join("\n")}`
       }
       const relativeExtensionHostIframeSrc = this._webWorkerService.getWorkerUrl(new WebWorkerDescriptor({
         esmModuleLocation: FileAccess.asBrowserUri(iframeModulePath),
-        esmModuleLocationBundler: new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-extensions-service-override/vscode/src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html"),
+        esmModuleLocationBundler: new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-extensions-service-override/vscode/src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html"),
         label: "webWorkerExtensionHostIframe"
       }));
       return `${relativeExtensionHostIframeSrc}${suffix}`;
@@ -406322,19 +406372,18 @@ DELTA: ${[...diff].join("\n")}`
           return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
         }
         resolveBarrier(data);
-        const messagePorts = this._environmentService.options?.messagePorts ?? /* @__PURE__ */ new Map();
-        event.source.postMessage({
-          type: "vscode.init",
-          data: Object.fromEntries(messagePorts)
-        }, "*");
       }));
       this._layoutService.mainContainer.appendChild(iframe);
       this._register(toDisposable(() => iframe.remove()));
       await barrier.wait();
-      console.log("PP-DBG barrier resolved, err:", barrierHasError);
       if (barrierHasError) {
         throw barrierError;
       }
+      const messagePorts = this._environmentService.options?.messagePorts ?? /* @__PURE__ */ new Map();
+      iframe.contentWindow.postMessage({
+        type: "vscode.init",
+        data: messagePorts
+      }, "*", [...messagePorts.values()]);
       port.onmessage = (event) => {
         const {
           data
@@ -406344,7 +406393,6 @@ DELTA: ${[...diff].join("\n")}`
           this._onDidExit.fire([77, "UNKNOWN data received"]);
           return;
         }
-        console.log("PP-DBG port msg ArrayBuffer", data.byteLength);
         emitter.fire(VSBuffer.wrap(new mainWindow.Uint8Array(data, 0, data.byteLength)));
       };
       const protocol = {
@@ -406360,19 +406408,16 @@ DELTA: ${[...diff].join("\n")}`
       await Event.toPromise(
         Event.filter(protocol.onMessage, (msg) => isMessageOfType(msg, MessageType4.Ready))
       );
-      console.log("PP-DBG Ready received");
       if (this._isTerminating) {
         throw canceled();
       }
       protocol.send(VSBuffer.fromString(JSON.stringify(await this._createExtHostInitData())));
-      console.log("PP-DBG initData sent");
       if (this._isTerminating) {
         throw canceled();
       }
       await Event.toPromise(
         Event.filter(protocol.onMessage, (msg) => isMessageOfType(msg, MessageType4.Initialized))
       );
-      console.log("PP-DBG Initialized received");
       if (this._isTerminating) {
         throw canceled();
       }
@@ -408641,7 +408686,7 @@ DELTA: ${[...diff].join("\n")}`
     function fromJSONObject(obj) {
       if (obj) {
         const boolOrUndef = (b2) => typeof b2 === "boolean" ? b2 : void 0;
-        const colorOrUndef = (s15) => typeof s15 === "string" ? Color.fromHex(s15) : void 0;
+        const colorOrUndef = (s16) => typeof s16 === "string" ? Color.fromHex(s16) : void 0;
         return new TokenStyle2(
           colorOrUndef(obj._foreground),
           boolOrUndef(obj._bold),
@@ -408660,8 +408705,8 @@ DELTA: ${[...diff].join("\n")}`
       return s1 !== void 0 && s22 !== void 0 && (s1.foreground instanceof Color ? s1.foreground.equals(s22.foreground) : s22.foreground === void 0) && s1.bold === s22.bold && s1.underline === s22.underline && s1.strikethrough === s22.strikethrough && s1.italic === s22.italic;
     }
     TokenStyle2.equals = equals5;
-    function is2(s15) {
-      return s15 instanceof TokenStyle2;
+    function is2(s16) {
+      return s16 instanceof TokenStyle2;
     }
     TokenStyle2.is = is2;
     function fromData(data) {
@@ -408989,14 +409034,14 @@ DELTA: ${[...diff].join("\n")}`
   };
   var CHAR_LANGUAGE = TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR.charCodeAt(0);
   var CHAR_MODIFIER = CLASSIFIER_MODIFIER_SEPARATOR.charCodeAt(0);
-  function parseClassifierString(s15, defaultLanguage) {
-    let k2 = s15.length;
+  function parseClassifierString(s16, defaultLanguage) {
+    let k2 = s16.length;
     let language2 = defaultLanguage;
     const modifiers = [];
     for (let i2 = k2 - 1; i2 >= 0; i2--) {
-      const ch = s15.charCodeAt(i2);
+      const ch = s16.charCodeAt(i2);
       if (ch === CHAR_LANGUAGE || ch === CHAR_MODIFIER) {
-        const segment = s15.substring(i2 + 1, k2);
+        const segment = s16.substring(i2 + 1, k2);
         k2 = i2;
         if (ch === CHAR_LANGUAGE) {
           language2 = segment;
@@ -409005,7 +409050,7 @@ DELTA: ${[...diff].join("\n")}`
         }
       }
     }
-    const type = s15.substring(0, k2);
+    const type = s16.substring(0, k2);
     return {
       type,
       modifiers,
@@ -409302,7 +409347,7 @@ DELTA: ${[...diff].join("\n")}`
               try {
                 const selector = tokenClassificationRegistry2.parseTokenSelector(selectorString, contribution.language);
                 tokenClassificationRegistry2.registerTokenStyleDefault(selector, {
-                  scopesToProbe: tmScopes.map((s15) => s15.split(" "))
+                  scopesToProbe: tmScopes.map((s16) => s16.split(" "))
                 });
               } catch (e) {
                 collector.error(localize(
@@ -409322,7 +409367,7 @@ DELTA: ${[...diff].join("\n")}`
               try {
                 const selector = tokenClassificationRegistry2.parseTokenSelector(selectorString, contribution.language);
                 tokenClassificationRegistry2.registerTokenStyleDefault(selector, {
-                  scopesToProbe: tmScopes.map((s15) => s15.split(" "))
+                  scopesToProbe: tmScopes.map((s16) => s16.split(" "))
                 });
               } catch (e) {
               }
@@ -411155,7 +411200,7 @@ DELTA: ${[...diff].join("\n")}`
       return this;
     }
     appendChoice(values, number = this._tabstop++) {
-      const value = values.map((s15) => s15.replaceAll(/[|\\,]/g, "\\$&")).join(",");
+      const value = values.map((s16) => s16.replaceAll(/[|\\,]/g, "\\$&")).join(",");
       this.value += "${";
       this.value += number;
       this.value += "|";
@@ -411349,9 +411394,9 @@ DELTA: ${[...diff].join("\n")}`
     };
   }
   function generate(notebook, handle) {
-    const s15 = handle.toString(_radix);
-    const p = s15.length < _lengths.length ? _lengths[s15.length - 1] : "z";
-    const fragment = `${p}${s15}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
+    const s16 = handle.toString(_radix);
+    const p = s16.length < _lengths.length ? _lengths[s16.length - 1] : "z";
+    const fragment = `${p}${s16}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
     return notebook.with({
       scheme: Schemas.vscodeNotebookCell,
       fragment
@@ -412303,8 +412348,8 @@ DELTA: ${[...diff].join("\n")}`
     DecorationRangeBehavior3[DecorationRangeBehavior3["ClosedOpen"] = 3] = "ClosedOpen";
   })(DecorationRangeBehavior || (DecorationRangeBehavior = {}));
   (function(TextEditorSelectionChangeKind2) {
-    function fromValue(s15) {
-      switch (s15) {
+    function fromValue(s16) {
+      switch (s16) {
         case "keyboard":
           return TextEditorSelectionChangeKind2.Keyboard;
         case "mouse":
@@ -417510,13 +417555,13 @@ ${patterns}`
       contrib[ChatDynamicVariableModel_1.ID] = this.variables;
     }
     setInputState(contrib) {
-      let s15 = contrib[ChatDynamicVariableModel_1.ID];
-      if (!Array.isArray(s15)) {
-        s15 = [];
+      let s16 = contrib[ChatDynamicVariableModel_1.ID];
+      if (!Array.isArray(s16)) {
+        s16 = [];
       }
       this.disposeVariables();
       this._variables = [];
-      for (const variable of s15) {
+      for (const variable of s16) {
         if (!isDynamicVariable(variable)) {
           continue;
         }
@@ -421228,8 +421273,8 @@ ${useId}`);
     return session.parentSession ? getExtensionHostDebugSession(session.parentSession) : void 0;
   }
   var _schemePattern2 = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
-  function isUriString(s15) {
-    return !!(s15 && s15.match(_schemePattern2));
+  function isUriString(s16) {
+    return !!(s16 && s16.match(_schemePattern2));
   }
   function stringToUri(source) {
     if (typeof source.path === "string") {
@@ -426788,7 +426833,7 @@ ${stack}`));
         if (e.range.endLineNumberExclusive <= modelLineCount) {
           return {
             range: new Range2(e.range.startLineNumber, 1, e.range.endLineNumberExclusive, 1),
-            text: e.newLines.map((s15) => s15 + "\n").join("")
+            text: e.newLines.map((s16) => s16 + "\n").join("")
           };
         }
         if (e.range.startLineNumber === 1) {
@@ -426804,7 +426849,7 @@ ${stack}`));
             modelLineCount,
             Number.MAX_SAFE_INTEGER
           ),
-          text: e.newLines.map((s15) => "\n" + s15).join("")
+          text: e.newLines.map((s16) => "\n" + s16).join("")
         };
       });
     }
@@ -427830,7 +427875,7 @@ ${stack}`));
         );
       });
       this.modifiedBaseRangeResultStates = derived(this, (reader) => {
-        const map = new Map(this.modifiedBaseRanges.read(reader).map((s15) => [s15, new ModifiedBaseRangeData(s15)]));
+        const map = new Map(this.modifiedBaseRanges.read(reader).map((s16) => [s16, new ModifiedBaseRangeData(s16)]));
         return map;
       });
       this.resultSnapshot = this.resultTextModel.createSnapshot();
@@ -427866,21 +427911,21 @@ ${stack}`));
           this.input1TextModelDiffs,
           this.input2TextModelDiffs,
           this.resultTextModelDiffs
-        ].map((s15) => s15.state.read(reader));
-        if (states.some((s15) => s15 === TextModelDiffState.initializing)) {
+        ].map((s16) => s16.state.read(reader));
+        if (states.some((s16) => s16 === TextModelDiffState.initializing)) {
           return MergeEditorModelState.initializing;
         }
-        if (states.some((s15) => s15 === TextModelDiffState.updating)) {
+        if (states.some((s16) => s16 === TextModelDiffState.updating)) {
           return MergeEditorModelState.updating;
         }
         return MergeEditorModelState.upToDate;
       });
       this.inputDiffComputingState = derived(this, (reader) => {
-        const states = [this.input1TextModelDiffs, this.input2TextModelDiffs].map((s15) => s15.state.read(reader));
-        if (states.some((s15) => s15 === TextModelDiffState.initializing)) {
+        const states = [this.input1TextModelDiffs, this.input2TextModelDiffs].map((s16) => s16.state.read(reader));
+        if (states.some((s16) => s16 === TextModelDiffState.initializing)) {
           return MergeEditorModelState.initializing;
         }
-        if (states.some((s15) => s15 === TextModelDiffState.updating)) {
+        if (states.some((s16) => s16 === TextModelDiffState.updating)) {
           return MergeEditorModelState.updating;
         }
         return MergeEditorModelState.upToDate;
@@ -428094,15 +428139,15 @@ ${stack}`));
         ModifiedBaseRangeState.base.withInputValue(1, true).withInputValue(2, true, false),
         ModifiedBaseRangeState.base.withInputValue(2, true).withInputValue(1, true, false)
       ];
-      for (const s15 of states) {
+      for (const s16 of states) {
         const {
           edit: edit2
-        } = baseRange.getEditForBase(s15);
+        } = baseRange.getEditForBase(s16);
         if (edit2) {
           const resultRange = this.resultTextModelDiffs.getResultLineRange(baseRange.baseRange);
           const existingLines = resultRange.getLines(this.resultTextModel);
           if (equals(edit2.newLines, existingLines, (a, b2) => a === b2)) {
-            return s15;
+            return s16;
           }
         }
       }
@@ -428288,79 +428333,79 @@ ${stack}`));
     get conflictsResolvedWithBase() {
       return arrayCount(
         this.modifiedBaseRangeResultStates.get().entries(),
-        ([r2, s15]) => r2.isConflicting && s15.accepted.get().kind === ModifiedBaseRangeStateKind.base
+        ([r2, s16]) => r2.isConflicting && s16.accepted.get().kind === ModifiedBaseRangeStateKind.base
       );
     }
     get conflictsResolvedWithInput1() {
       return arrayCount(
         this.modifiedBaseRangeResultStates.get().entries(),
-        ([r2, s15]) => r2.isConflicting && s15.accepted.get().kind === ModifiedBaseRangeStateKind.input1
+        ([r2, s16]) => r2.isConflicting && s16.accepted.get().kind === ModifiedBaseRangeStateKind.input1
       );
     }
     get conflictsResolvedWithInput2() {
       return arrayCount(
         this.modifiedBaseRangeResultStates.get().entries(),
-        ([r2, s15]) => r2.isConflicting && s15.accepted.get().kind === ModifiedBaseRangeStateKind.input2
+        ([r2, s16]) => r2.isConflicting && s16.accepted.get().kind === ModifiedBaseRangeStateKind.input2
       );
     }
     get conflictsResolvedWithSmartCombination() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
         return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.both && state.smartCombination;
       });
     }
     get manuallySolvedConflictCountThatEqualNone() {
       return arrayCount(
         this.modifiedBaseRangeResultStates.get().entries(),
-        ([r2, s15]) => r2.isConflicting && s15.accepted.get().kind === ModifiedBaseRangeStateKind.unrecognized
+        ([r2, s16]) => r2.isConflicting && s16.accepted.get().kind === ModifiedBaseRangeStateKind.unrecognized
       );
     }
     get manuallySolvedConflictCountThatEqualSmartCombine() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && s15.computedFromDiffing && state.kind === ModifiedBaseRangeStateKind.both && state.smartCombination;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && s16.computedFromDiffing && state.kind === ModifiedBaseRangeStateKind.both && state.smartCombination;
       });
     }
     get manuallySolvedConflictCountThatEqualInput1() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && s15.computedFromDiffing && state.kind === ModifiedBaseRangeStateKind.input1;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && s16.computedFromDiffing && state.kind === ModifiedBaseRangeStateKind.input1;
       });
     }
     get manuallySolvedConflictCountThatEqualInput2() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && s15.computedFromDiffing && state.kind === ModifiedBaseRangeStateKind.input2;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && s16.computedFromDiffing && state.kind === ModifiedBaseRangeStateKind.input2;
       });
     }
     get manuallySolvedConflictCountThatEqualNoneAndStartedWithBase() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s15.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.base;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s16.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.base;
       });
     }
     get manuallySolvedConflictCountThatEqualNoneAndStartedWithInput1() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s15.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.input1;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s16.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.input1;
       });
     }
     get manuallySolvedConflictCountThatEqualNoneAndStartedWithInput2() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s15.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.input2;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s16.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.input2;
       });
     }
     get manuallySolvedConflictCountThatEqualNoneAndStartedWithBothNonSmart() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s15.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.both && !s15.previousNonDiffingState?.smartCombination;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s16.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.both && !s16.previousNonDiffingState?.smartCombination;
       });
     }
     get manuallySolvedConflictCountThatEqualNoneAndStartedWithBothSmart() {
-      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s15]) => {
-        const state = s15.accepted.get();
-        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s15.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.both && s15.previousNonDiffingState?.smartCombination;
+      return arrayCount(this.modifiedBaseRangeResultStates.get().entries(), ([r2, s16]) => {
+        const state = s16.accepted.get();
+        return r2.isConflicting && state.kind === ModifiedBaseRangeStateKind.unrecognized && s16.previousNonDiffingState?.kind === ModifiedBaseRangeStateKind.both && s16.previousNonDiffingState?.smartCombination;
       });
     }
   };
@@ -429063,13 +429108,13 @@ ${stack}`));
   function alertFocusedEditor(editor) {
     switch (editor) {
       case "input1":
-        alert(localize(12238, "Incoming, Left Input"));
+        alert2(localize(12238, "Incoming, Left Input"));
         break;
       case "input2":
-        alert(localize(12239, "Current, Right Input"));
+        alert2(localize(12239, "Current, Right Input"));
         break;
       case "result":
-        alert(localize(12240, "Merge Result"));
+        alert2(localize(12240, "Merge Result"));
         break;
     }
   }
@@ -434154,7 +434199,7 @@ ${stack}`));
         continue;
       }
       const currentValue = currentConfig[key] ?? propSchema.default;
-      const label = (typeof propSchema.title === "string" ? propSchema.title : void 0) ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (s15) => s15.toUpperCase());
+      const label = (typeof propSchema.title === "string" ? propSchema.title : void 0) ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (s16) => s16.toUpperCase());
       const defaultValue = propSchema.default;
       const enumItemLabels = propSchema.enumItemLabels;
       const enumDescriptions = propSchema.enumDescriptions;
@@ -435910,7 +435955,7 @@ ${properties.join(",\n")}
       actual: message.actual,
       contextValue: message.contextValue,
       location: message.location && IRichLocation.deserialize(uriIdentity, message.location),
-      stackTrace: message.stackTrace && message.stackTrace.map((s15) => ITestMessageStackFrame.deserialize(uriIdentity, s15))
+      stackTrace: message.stackTrace && message.stackTrace.map((s16) => ITestMessageStackFrame.deserialize(uriIdentity, s16))
     });
   })(ITestErrorMessage || (ITestErrorMessage = {}));
   var getMarkId = (marker, start) => `${start ? "s" : "e"}${marker}`;
@@ -438074,10 +438119,10 @@ ${properties.join(",\n")}
           range: Range6.from(message.location.range),
           uri: message.location.uri
         },
-        stackTrace: message.stackTrace?.map((s15) => ({
-          label: s15.label,
-          position: s15.position && Position6.from(s15.position),
-          uri: s15.uri && URI.revive(s15.uri).toJSON()
+        stackTrace: message.stackTrace?.map((s16) => ({
+          label: s16.label,
+          position: s16.position && Position6.from(s16.position),
+          uri: s16.uri && URI.revive(s16.uri).toJSON()
         }))
       };
     }
@@ -465329,7 +465374,7 @@ ${thread.comment.body}`,
       }
     }
   };
-  var statesInOrder = Object.keys(statePriority).map((s15) => Number(s15)).sort(cmpPriority);
+  var statesInOrder = Object.keys(statePriority).map((s16) => Number(s16)).sort(cmpPriority);
   var terminalStatePriorities = {
     [TestResultState2.Passed]: 0,
     [TestResultState2.Skipped]: 1,
@@ -465583,7 +465628,7 @@ ${thread.comment.body}`,
       this.computedStateAccessor = {
         getOwnState: (i2) => i2.ownComputedState,
         getCurrentComputedState: (i2) => i2.computedState,
-        setComputedState: (i2, s15) => i2.computedState = s15,
+        setComputedState: (i2, s16) => i2.computedState = s16,
         getChildren: (i2) => i2.children,
         getParents: (i2) => {
           const {
@@ -466762,16 +466807,16 @@ ${thread.comment.body}`,
       const store = new DisposableStore();
       store.add(result);
       store.add(result.onDidChangeServers((servers) => {
-        this._proxy.$onDidChangeGatewayServers(gatewayId, servers.map((s15) => ({
-          label: s15.label,
-          address: s15.address
+        this._proxy.$onDidChangeGatewayServers(gatewayId, servers.map((s16) => ({
+          label: s16.label,
+          address: s16.address
         })));
       }));
       this._gateways.set(gatewayId, store);
       return {
-        servers: result.servers.map((s15) => ({
-          label: s15.label,
-          address: s15.address
+        servers: result.servers.map((s16) => ({
+          label: s16.label,
+          address: s16.address
         })),
         gatewayId
       };
@@ -466880,7 +466925,7 @@ ${thread.comment.body}`,
     }
     track(providerId, serverId, scopes) {
       const servers = this._tracking.get(providerId) || [];
-      const filtered = servers.filter((s15) => s15.serverId !== serverId);
+      const filtered = servers.filter((s16) => s16.serverId !== serverId);
       filtered.push({
         serverId,
         scopes
@@ -466889,7 +466934,7 @@ ${thread.comment.body}`,
     }
     untrack(serverId) {
       for (const [providerId, servers] of this._tracking.entries()) {
-        const filtered = servers.filter((s15) => s15.serverId !== serverId);
+        const filtered = servers.filter((s16) => s16.serverId !== serverId);
         if (filtered.length === 0) {
           this._tracking.delete(providerId);
         } else {
@@ -467135,9 +467180,9 @@ ${thread.comment.body}`,
             ...base,
             kind: "userMessage",
             message: event.message,
-            sections: event.sections.map((s15) => ({
-              name: s15.name,
-              content: s15.content
+            sections: event.sections.map((s16) => ({
+              name: s16.name,
+              content: s16.content
             }))
           };
         case "agentResponse":
@@ -467145,9 +467190,9 @@ ${thread.comment.body}`,
             ...base,
             kind: "agentResponse",
             message: event.message,
-            sections: event.sections.map((s15) => ({
-              name: s15.name,
-              content: s15.content
+            sections: event.sections.map((s16) => ({
+              name: s16.name,
+              content: s16.content
             }))
           };
       }
@@ -472948,7 +472993,7 @@ ${thread.comment.body}`,
   ], CustomBuiltinExtensionsScannerService);
   var iframeAlternateDomain;
   registerAssets({
-    "vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html": () => changeUrlDomain(new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-extensions-service-override/vscode/src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html").href, iframeAlternateDomain)
+    "vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html": () => changeUrlDomain(new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-extensions-service-override/vscode/src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html").href, iframeAlternateDomain)
   });
   function getServiceOverride3({ enableWorkerExtensionHost, iframeAlternateDomain: _iframeAlternateDomain } = {}) {
     if (_iframeAlternateDomain != null) {
@@ -474410,7 +474455,7 @@ ${thread.comment.body}`,
       const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
       layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
       const alertMessage = isCurrentlyVisible ? localize(3268, "Secondary Side Bar hidden") : localize(3269, "Secondary Side Bar shown");
-      alert(alertMessage);
+      alert2(alertMessage);
     }
   };
   registerAction2(ToggleAuxiliaryBarAction);
@@ -475242,7 +475287,7 @@ ${thread.comment.body}`,
       const isCurrentlyVisible = layoutService.isVisible(Parts.SIDEBAR_PART);
       layoutService.setPartHidden(isCurrentlyVisible, Parts.SIDEBAR_PART);
       const alertMessage = isCurrentlyVisible ? localize(3066, "Primary Side Bar hidden") : localize(3067, "Primary Side Bar shown");
-      alert(alertMessage);
+      alert2(alertMessage);
     }
   };
   registerAction2(ToggleSidebarVisibilityAction);
@@ -476513,10 +476558,10 @@ ${thread.comment.body}`,
     }
     return editOperations;
   }
-  function repeat2(s15, count) {
+  function repeat2(s16, count) {
     let result = "";
     for (let i2 = 0; i2 < count; i2++) {
-      result += s15;
+      result += s16;
     }
     return result;
   }
@@ -480717,7 +480762,7 @@ ${thread.comment.body}`,
       }
       const sessionFromEmbedder = await this.sessionFromEmbedder.value;
       let canSignOut = true;
-      if (sessionFromEmbedder && !sessionFromEmbedder.canSignOut && (await this.authenticationService.getSessions(providerId)).some((s15) => s15.id === sessionFromEmbedder.id && s15.account.id === account.id)) {
+      if (sessionFromEmbedder && !sessionFromEmbedder.canSignOut && (await this.authenticationService.getSessions(providerId)).some((s16) => s16.id === sessionFromEmbedder.id && s16.account.id === account.id)) {
         canSignOut = false;
       }
       const existingAccount = accounts.find((a) => a.label === account.label);
@@ -485572,7 +485617,7 @@ ${message}`);
         console.log("received background tokenization result", {
           fileName: this._model.uri.fsPath.split("\\").pop(),
           updatedTokenLines: tokens.map((t) => t.getLineRange()).join(" & "),
-          updatedStateLines: stateDeltas.map((s15) => new LineRange(s15.startLineNumber, s15.startLineNumber + s15.stateDeltas.length).toString()).join(" & ")
+          updatedStateLines: stateDeltas.map((s16) => new LineRange(s16.startLineNumber, s16.startLineNumber + s16.stateDeltas.length).toString()).join(" & ")
         });
       }
       if (this._shouldLog) {
@@ -485768,7 +485813,7 @@ ${message}`);
     async _createWorkerProxy() {
       const createData = {
         grammarDefinitions: this._grammarDefinitions,
-        onigurumaWASMUri: new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-textmate-service-override/external/vscode-oniguruma/release/onig.wasm").href
+        onigurumaWASMUri: new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-textmate-service-override/external/vscode-oniguruma/release/onig.wasm").href
       };
       const worker = this._worker = this._webWorkerService.createWorkerClient(new WebWorkerDescriptor({
         esmModuleLocation: FileAccess.asBrowserUri(
@@ -486368,7 +486413,7 @@ ${message}`);
     }
     async _loadVSCodeOnigurumaWASM() {
       if (isWeb) {
-        const response = await fetch(new URL("file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/node_modules/@codingame/monaco-vscode-textmate-service-override/external/vscode-oniguruma/release/onig.wasm").href);
+        const response = await fetch(new URL("file:///C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/@codingame/monaco-vscode-textmate-service-override/external/vscode-oniguruma/release/onig.wasm").href);
         return await response.arrayBuffer();
       } else {
         const response = await fetch(FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true));
@@ -491309,12 +491354,12 @@ ${message}`);
           }
           const sanitizedSrc = [];
           if (Array.isArray(font.src)) {
-            for (const s15 of font.src) {
-              if (isString(s15.path) && isString(s15.format) && s15.format.match(fontFormatRegex)) {
-                const iconFontLocation = joinPath(iconThemeDocumentLocationDirname, s15.path);
+            for (const s16 of font.src) {
+              if (isString(s16.path) && isString(s16.format) && s16.format.match(fontFormatRegex)) {
+                const iconFontLocation = joinPath(iconThemeDocumentLocationDirname, s16.path);
                 sanitizedSrc.push({
                   location: iconFontLocation,
-                  format: s15.format
+                  format: s16.format
                 });
               } else {
                 warnings.push(localize(17983, "Invalid font source in font '{0}'. Ignoring source.", font.id));
@@ -492561,7 +492606,7 @@ ${message}`);
     openQuickPick(value, currentTheme, selectTheme) {
       let result = void 0;
       const disposables = new DisposableStore();
-      return new Promise((s15, _3) => {
+      return new Promise((s16, _3) => {
         const quickpick = disposables.add(this.quickInputService.createQuickPick());
         quickpick.items = [];
         quickpick.sortByLabel = false;
@@ -492604,7 +492649,7 @@ ${message}`);
             selectTheme(currentTheme, true);
             result = "cancelled";
           }
-          s15(result);
+          s16(result);
         }));
         disposables.add(quickpick.onDidTriggerButton((e) => {
           if (e === this.quickInputService.backButton) {
@@ -492727,7 +492772,7 @@ ${message}`);
       };
       const pickInstalledThemes = (activeItemId) => {
         const disposables = new DisposableStore();
-        return new Promise((s15, _3) => {
+        return new Promise((s16, _3) => {
           let isCompleted = false;
           const autoFocusIndex = picks.findIndex((p) => isItem(p) && p.id === activeItemId);
           const quickpick = disposables.add(this.quickInputService.createQuickPick({
@@ -492762,7 +492807,7 @@ ${message}`);
               selectTheme(theme.theme, true);
             }
             quickpick.hide();
-            s15();
+            s16();
           }));
           disposables.add(
             quickpick.onDidChangeActive((themes) => selectTheme(themes[0]?.theme, false))
@@ -492770,7 +492815,7 @@ ${message}`);
           disposables.add(quickpick.onDidHide(() => {
             if (!isCompleted) {
               selectTheme(currentTheme, true);
-              s15();
+              s16();
             }
             quickpick.dispose();
           }));
@@ -493339,12 +493384,16 @@ ${message}`);
   window.MonacoEnvironment = {
     getWorker: (_moduleId, label) => {
       if (label === "TextMateWorker") return new Worker("./textmate.worker.js");
+      if (label === "typescript" || label === "javascript") return new Worker("./ts.worker.js");
+      if (label === "json") return new Worker("./json.worker.js");
+      if (label === "html" || label === "handlebars" || label === "razor") return new Worker("./html.worker.js");
+      if (label === "css" || label === "scss" || label === "less") return new Worker("./css.worker.js");
       return new Worker("./editor.worker.js");
     },
     getWorkerUrl: (_moduleId, label) => {
       if (label === "webWorkerExtensionHostIframe") return "./worker/webWorkerExtensionHostIframe.html";
       if (label === "extensionHostWorkerMain") {
-        return "ppoo-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensionHost.worker.js";
+        return "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensionHost.worker.js";
       }
       return void 0;
     },
@@ -493357,9 +493406,9 @@ ${message}`);
     {
       name: "demo-extension",
       displayName: "Demo Extension",
-      description: "Test extension proving the ppoo extension host works",
+      description: "Test extension proving the extension host works",
       version: "1.0.0",
-      publisher: "ppoo",
+      publisher: "idiot-box",
       license: "MIT",
       engines: { vscode: "*" },
       categories: ["Other"],
@@ -493373,9 +493422,9 @@ ${message}`);
     },
     ExtensionHostKind.LocalWebWorker
   );
-  var ppooExtRoot = "ppoo-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension";
-  demoExtension.registerFileUrl("/package.json", ppooExtRoot + "/package.json");
-  demoExtension.registerFileUrl("/extension.js", ppooExtRoot + "/extension.js");
+  var ibxExtRoot = "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension";
+  demoExtension.registerFileUrl("/package.json", ibxExtRoot + "/package.json");
+  demoExtension.registerFileUrl("/extension.js", ibxExtRoot + "/extension.js");
   var initPromise2;
   var ensureEditorReady = () => {
     if (!initPromise2) {
@@ -493395,13 +493444,16 @@ ${message}`);
             try {
               themeService.setTheme("Dark+");
               const applied = themeService.getTheme();
-              if (applied && /dark/i.test(applied.id || "")) return;
+              if (applied && /dark/i.test(applied.id || "")) break;
             } catch {
             }
-            await new Promise((resolve3) => setTimeout(resolve3, 250));
+            await new Promise((resolve3) => setTimeout(resolve3, 100));
           }
         } catch {
         }
+      }).catch((err) => {
+        initPromise2 = null;
+        throw err;
       });
     }
     return initPromise2;
@@ -493431,8 +493483,8 @@ ${message}`);
     window.__ppooExtCheck = async () => {
       const body = async () => {
         let info = {};
-        const mark2 = (s15) => {
-          info.step = s15;
+        const mark2 = (s16) => {
+          info.step = s16;
           window.__ppooDbg = { ...info };
         };
         mark2("proto");
@@ -493524,8 +493576,8 @@ ${message}`);
               }
               try {
                 const d = f.contentDocument;
-                const s15 = d.querySelector("script").textContent;
-                const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s15));
+                const s16 = d.querySelector("script").textContent;
+                const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s16));
                 const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
                 const meta = d.querySelector('meta[http-equiv="Content-Security-Policy"]').content;
                 info.iframeInfo.scriptHash = "sha256-" + b64;
@@ -493712,8 +493764,8 @@ ${message}`);
   var getEditorSettings = async () => {
     if (!_cachedEditorSettings) {
       try {
-        const s15 = await window.electronAPI.readSettings();
-        _cachedEditorSettings = s15 ?? {};
+        const s16 = await window.electronAPI.readSettings();
+        _cachedEditorSettings = s16 ?? {};
       } catch {
         _cachedEditorSettings = {};
       }
@@ -493769,9 +493821,9 @@ ${message}`);
       }, 3e3);
     };
     (0, import_react12.useEffect)(() => {
-      getEditorSettings().then((s15) => {
-        setMinimap(s15.minimap !== false);
-        setWordWrap(s15.wordWrap !== false ? "on" : "off");
+      getEditorSettings().then((s16) => {
+        setMinimap(s16.minimap !== false);
+        setWordWrap(s16.wordWrap !== false ? "on" : "off");
       });
       const handler = (patch) => {
         if ("minimap" in patch) setMinimap(patch.minimap !== false);
@@ -493817,8 +493869,14 @@ ${message}`);
       (async () => {
         const text2 = await window.electronAPI.readTextFile(filePath);
         if (cancelled || disposed || !hostRef.current) return;
-        if (text2 === null) {
-          flashStatus(`Failed to read file: ${fileName2(filePath)}`);
+        const isBinaryExt = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".wasm"].some((ext3) => filePath.toLowerCase().endsWith(ext3));
+        if (text2 === null || isBinaryExt) {
+          loadedRef.current = false;
+          flashStatus(`Binary or unreadable file: ${fileName2(filePath)}`);
+          const host2 = hostRef.current;
+          if (host2) {
+            host2.innerHTML = `<div style="padding:24px; color:#888; text-align:center; font-family:sans-serif; font-size:13px;">Binary or unsupported file type (${fileName2(filePath)}).<br/>Editing is disabled to prevent corruption.</div>`;
+          }
           return;
         }
         loadedRef.current = true;
@@ -494250,50 +494308,50 @@ ${result.error}`);
   // node_modules/@xterm/xterm/lib/xterm.mjs
   var zs = Object.defineProperty;
   var Rl = Object.getOwnPropertyDescriptor;
-  var Ll = (s15, t) => {
-    for (var e in t) zs(s15, e, { get: t[e], enumerable: true });
+  var Ll = (s16, t) => {
+    for (var e in t) zs(s16, e, { get: t[e], enumerable: true });
   };
-  var M = (s15, t, e, i2) => {
-    for (var r2 = i2 > 1 ? void 0 : i2 ? Rl(t, e) : t, n2 = s15.length - 1, o2; n2 >= 0; n2--) (o2 = s15[n2]) && (r2 = (i2 ? o2(t, e, r2) : o2(r2)) || r2);
+  var M = (s16, t, e, i2) => {
+    for (var r2 = i2 > 1 ? void 0 : i2 ? Rl(t, e) : t, n2 = s16.length - 1, o2; n2 >= 0; n2--) (o2 = s16[n2]) && (r2 = (i2 ? o2(t, e, r2) : o2(r2)) || r2);
     return i2 && r2 && zs(t, e, r2), r2;
   };
-  var S = (s15, t) => (e, i2) => t(e, i2, s15);
+  var S = (s16, t) => (e, i2) => t(e, i2, s16);
   var Gs = "Terminal input";
-  var mi = { get: () => Gs, set: (s15) => Gs = s15 };
+  var mi = { get: () => Gs, set: (s16) => Gs = s16 };
   var $s = "Too much output to announce, navigate to rows manually to read";
-  var _i = { get: () => $s, set: (s15) => $s = s15 };
-  function Al(s15) {
-    return s15.replace(/\r?\n/g, "\r");
+  var _i = { get: () => $s, set: (s16) => $s = s16 };
+  function Al(s16) {
+    return s16.replace(/\r?\n/g, "\r");
   }
-  function kl(s15, t) {
-    return t ? "\x1B[200~" + s15 + "\x1B[201~" : s15;
+  function kl(s16, t) {
+    return t ? "\x1B[200~" + s16 + "\x1B[201~" : s16;
   }
-  function Vs(s15, t) {
-    s15.clipboardData && s15.clipboardData.setData("text/plain", t.selectionText), s15.preventDefault();
+  function Vs(s16, t) {
+    s16.clipboardData && s16.clipboardData.setData("text/plain", t.selectionText), s16.preventDefault();
   }
-  function qs(s15, t, e, i2) {
-    if (s15.stopPropagation(), s15.clipboardData) {
-      let r2 = s15.clipboardData.getData("text/plain");
+  function qs(s16, t, e, i2) {
+    if (s16.stopPropagation(), s16.clipboardData) {
+      let r2 = s16.clipboardData.getData("text/plain");
       Cn(r2, t, e, i2);
     }
   }
-  function Cn(s15, t, e, i2) {
-    s15 = Al(s15), s15 = kl(s15, e.decPrivateModes.bracketedPasteMode && i2.rawOptions.ignoreBracketedPasteMode !== true), e.triggerDataEvent(s15, true), t.value = "";
+  function Cn(s16, t, e, i2) {
+    s16 = Al(s16), s16 = kl(s16, e.decPrivateModes.bracketedPasteMode && i2.rawOptions.ignoreBracketedPasteMode !== true), e.triggerDataEvent(s16, true), t.value = "";
   }
-  function Mn(s15, t, e) {
-    let i2 = e.getBoundingClientRect(), r2 = s15.clientX - i2.left - 10, n2 = s15.clientY - i2.top - 10;
+  function Mn(s16, t, e) {
+    let i2 = e.getBoundingClientRect(), r2 = s16.clientX - i2.left - 10, n2 = s16.clientY - i2.top - 10;
     t.style.width = "20px", t.style.height = "20px", t.style.left = `${r2}px`, t.style.top = `${n2}px`, t.style.zIndex = "1000", t.focus();
   }
-  function Pn(s15, t, e, i2, r2) {
-    Mn(s15, t, e), r2 && i2.rightClickSelect(s15), t.value = i2.selectionText, t.select();
+  function Pn(s16, t, e, i2, r2) {
+    Mn(s16, t, e), r2 && i2.rightClickSelect(s16), t.value = i2.selectionText, t.select();
   }
-  function Ce(s15) {
-    return s15 > 65535 ? (s15 -= 65536, String.fromCharCode((s15 >> 10) + 55296) + String.fromCharCode(s15 % 1024 + 56320)) : String.fromCharCode(s15);
+  function Ce(s16) {
+    return s16 > 65535 ? (s16 -= 65536, String.fromCharCode((s16 >> 10) + 55296) + String.fromCharCode(s16 % 1024 + 56320)) : String.fromCharCode(s16);
   }
-  function It(s15, t = 0, e = s15.length) {
+  function It(s16, t = 0, e = s16.length) {
     let i2 = "";
     for (let r2 = t; r2 < e; ++r2) {
-      let n2 = s15[r2];
+      let n2 = s16[r2];
       n2 > 65535 ? (n2 -= 65536, i2 += String.fromCharCode((n2 >> 10) + 55296) + String.fromCharCode(n2 % 1024 + 56320)) : i2 += String.fromCharCode(n2);
     }
     return i2;
@@ -494626,19 +494684,19 @@ ${result.error}`);
   var js = "di$target";
   var Hn = "di$dependencies";
   var Fn = /* @__PURE__ */ new Map();
-  function Xs(s15) {
-    return s15[Hn] || [];
+  function Xs(s16) {
+    return s16[Hn] || [];
   }
-  function ie(s15) {
-    if (Fn.has(s15)) return Fn.get(s15);
+  function ie(s16) {
+    if (Fn.has(s16)) return Fn.get(s16);
     let t = function(e, i2, r2) {
       if (arguments.length !== 3) throw new Error("@IServiceName-decorator can only be used to decorate a parameter");
       Pl(t, e, r2);
     };
-    return t._id = s15, Fn.set(s15, t), t;
+    return t._id = s16, Fn.set(s16, t), t;
   }
-  function Pl(s15, t, e) {
-    t[js] === t ? t[Hn].push({ id: s15, index: e }) : (t[Hn] = [{ id: s15, index: e }], t[js] = t);
+  function Pl(s16, t, e) {
+    t[js] === t ? t[Hn].push({ id: s16, index: e }) : (t[Hn] = [{ id: s16, index: e }], t[js] = t);
   }
   var F = ie("BufferService");
   var rr = ie("CoreMouseService");
@@ -494688,7 +494746,7 @@ ${result.error}`);
     }
   };
   wt = M([S(0, F), S(1, H), S(2, sr)], wt);
-  function Ol(s15, t) {
+  function Ol(s16, t) {
     if (confirm(`Do you want to navigate to ${t}?
 
 WARNING: This link could potentially be dangerous`)) {
@@ -494749,20 +494807,20 @@ WARNING: This link could potentially be dangerous`)) {
     }
   };
   var Bl = new Wn();
-  function Lt(s15) {
-    Nl(s15) || Bl.onUnexpectedError(s15);
+  function Lt(s16) {
+    Nl(s16) || Bl.onUnexpectedError(s16);
   }
   var Un = "Canceled";
-  function Nl(s15) {
-    return s15 instanceof bi ? true : s15 instanceof Error && s15.name === Un && s15.message === Un;
+  function Nl(s16) {
+    return s16 instanceof bi ? true : s16 instanceof Error && s16.name === Un && s16.message === Un;
   }
   var bi = class extends Error {
     constructor() {
       super(Un), this.name = this.message;
     }
   };
-  function eo(s15) {
-    return s15 ? new Error(`Illegal argument: ${s15}`) : new Error("Illegal argument");
+  function eo(s16) {
+    return s16 ? new Error(`Illegal argument: ${s16}`) : new Error("Illegal argument");
   }
   var ar = class s4 extends Error {
     constructor(t) {
@@ -494782,11 +494840,11 @@ WARNING: This link could potentially be dangerous`)) {
       super(t || "An unexpected bug occurred."), Object.setPrototypeOf(this, s5.prototype);
     }
   };
-  function Fl(s15, t, e = 0, i2 = s15.length) {
+  function Fl(s16, t, e = 0, i2 = s16.length) {
     let r2 = e, n2 = i2;
     for (; r2 < n2; ) {
       let o2 = Math.floor((r2 + n2) / 2);
-      t(s15[o2]) ? r2 = o2 + 1 : n2 = o2;
+      t(s16[o2]) ? r2 = o2 + 1 : n2 = o2;
     }
     return r2 - 1;
   }
@@ -494807,15 +494865,15 @@ WARNING: This link could potentially be dangerous`)) {
     }
   };
   cr.assertInvariants = false;
-  function Se(s15, t = 0) {
-    return s15[s15.length - (1 + t)];
+  function Se(s16, t = 0) {
+    return s16[s16.length - (1 + t)];
   }
   var ro;
   ((l2) => {
-    function s15(a) {
+    function s16(a) {
       return a < 0;
     }
-    l2.isLessThan = s15;
+    l2.isLessThan = s16;
     function t(a) {
       return a <= 0;
     }
@@ -494829,10 +494887,10 @@ WARNING: This link could potentially be dangerous`)) {
     }
     l2.isNeitherLessOrGreaterThan = i2, l2.greaterThan = 1, l2.lessThan = -1, l2.neitherLessOrGreaterThan = 0;
   })(ro ||= {});
-  function no(s15, t) {
-    return (e, i2) => t(s15(e), s15(i2));
+  function no(s16, t) {
+    return (e, i2) => t(s16(e), s16(i2));
   }
-  var so = (s15, t) => s15 - t;
+  var so = (s16, t) => s16 - t;
   var At = class At2 {
     constructor(t) {
       this.iterate = t;
@@ -494869,9 +494927,9 @@ WARNING: This link could potentially be dangerous`)) {
   };
   At.empty = new At((t) => {
   });
-  function co(s15, t) {
+  function co(s16, t) {
     let e = /* @__PURE__ */ Object.create(null);
-    for (let i2 of s15) {
+    for (let i2 of s16) {
       let r2 = t(i2), n2 = e[r2];
       n2 || (n2 = e[r2] = []), n2.push(i2);
     }
@@ -494939,25 +494997,25 @@ WARNING: This link could potentially be dangerous`)) {
       return e || /* @__PURE__ */ new Set();
     }
   };
-  function Kn(s15, t) {
+  function Kn(s16, t) {
     let e = this, i2 = false, r2;
     return function() {
       if (i2) return r2;
       if (i2 = true, t) try {
-        r2 = s15.apply(e, arguments);
+        r2 = s16.apply(e, arguments);
       } finally {
         t();
       }
-      else r2 = s15.apply(e, arguments);
+      else r2 = s16.apply(e, arguments);
       return r2;
     };
   }
   var zn;
   ((O) => {
-    function s15(I) {
+    function s16(I) {
       return I && typeof I == "object" && typeof I[Symbol.iterator] == "function";
     }
-    O.is = s15;
+    O.is = s16;
     let t = Object.freeze([]);
     function e() {
       return t;
@@ -494968,7 +495026,7 @@ WARNING: This link could potentially be dangerous`)) {
     }
     O.single = i2;
     function r2(I) {
-      return s15(I) ? I : i2(I);
+      return s16(I) ? I : i2(I);
     }
     O.wrap = r2;
     function n2(I) {
@@ -495138,27 +495196,27 @@ ${h3.join(`
     }
   };
   hr2.idx = 0;
-  function Ul(s15) {
-    dt = s15;
+  function Ul(s16) {
+    dt = s16;
   }
   if (Wl) {
-    let s15 = "__is_disposable_tracked__";
+    let s16 = "__is_disposable_tracked__";
     Ul(new class {
       trackDisposable(t) {
         let e = new Error("Potentially leaked disposable").stack;
         setTimeout(() => {
-          t[s15] || console.log(e);
+          t[s16] || console.log(e);
         }, 3e3);
       }
       setParent(t, e) {
         if (t && t !== D.None) try {
-          t[s15] = true;
+          t[s16] = true;
         } catch {
         }
       }
       markAsDisposed(t) {
         if (t && t !== D.None) try {
-          t[s15] = true;
+          t[s16] = true;
         } catch {
         }
       }
@@ -495166,41 +495224,41 @@ ${h3.join(`
       }
     }());
   }
-  function fr(s15) {
-    return dt?.trackDisposable(s15), s15;
+  function fr(s16) {
+    return dt?.trackDisposable(s16), s16;
   }
-  function pr(s15) {
-    dt?.markAsDisposed(s15);
+  function pr(s16) {
+    dt?.markAsDisposed(s16);
   }
-  function vi(s15, t) {
-    dt?.setParent(s15, t);
+  function vi(s16, t) {
+    dt?.setParent(s16, t);
   }
-  function Kl(s15, t) {
-    if (dt) for (let e of s15) dt.setParent(e, t);
+  function Kl(s16, t) {
+    if (dt) for (let e of s16) dt.setParent(e, t);
   }
-  function Gn(s15) {
-    return dt?.markAsSingleton(s15), s15;
+  function Gn(s16) {
+    return dt?.markAsSingleton(s16), s16;
   }
-  function Ne(s15) {
-    if (zn.is(s15)) {
+  function Ne(s16) {
+    if (zn.is(s16)) {
       let t = [];
-      for (let e of s15) if (e) try {
+      for (let e of s16) if (e) try {
         e.dispose();
       } catch (i2) {
         t.push(i2);
       }
       if (t.length === 1) throw t[0];
       if (t.length > 1) throw new AggregateError(t, "Encountered errors while disposing of store");
-      return Array.isArray(s15) ? [] : s15;
-    } else if (s15) return s15.dispose(), s15;
+      return Array.isArray(s16) ? [] : s16;
+    } else if (s16) return s16.dispose(), s16;
   }
-  function ho(...s15) {
-    let t = C(() => Ne(s15));
-    return Kl(s15, t), t;
+  function ho(...s16) {
+    let t = C(() => Ne(s16));
+    return Kl(s16, t), t;
   }
-  function C(s15) {
+  function C(s16) {
     let t = fr({ dispose: Kn(() => {
-      pr(t), s15();
+      pr(t), s16();
     }) });
     return t;
   }
@@ -495700,21 +495758,21 @@ ${h3.join(`
     }
   };
   var ql = 2;
-  var Yl = (s15, t) => {
-    if (s15 instanceof Pt) t(s15);
-    else for (let e = 0; e < s15.length; e++) {
-      let i2 = s15[e];
+  var Yl = (s16, t) => {
+    if (s16 instanceof Pt) t(s16);
+    else for (let e = 0; e < s16.length; e++) {
+      let i2 = s16[e];
       i2 && t(i2);
     }
   };
   var _r;
   if (Gl) {
-    let s15 = [];
+    let s16 = [];
     setInterval(() => {
-      s15.length !== 0 && (console.warn("[LEAKING LISTENERS] GC'ed these listeners that were NOT yet disposed:"), console.warn(s15.join(`
-`)), s15.length = 0);
+      s16.length !== 0 && (console.warn("[LEAKING LISTENERS] GC'ed these listeners that were NOT yet disposed:"), console.warn(s16.join(`
+`)), s16.length = 0);
     }, 3e3), _r = new FinalizationRegistry((t) => {
-      typeof t == "string" && s15.push(t);
+      typeof t == "string" && s16.push(t);
     });
   }
   var v = class {
@@ -495856,12 +495914,12 @@ ${h3.join(`
   };
   gr.INSTANCE = new gr();
   var Si = gr;
-  function Xl(s15, t, e) {
-    typeof t == "string" && (t = s15.matchMedia(t)), t.addEventListener("change", e);
+  function Xl(s16, t, e) {
+    typeof t == "string" && (t = s16.matchMedia(t)), t.addEventListener("change", e);
   }
   var Eu = Si.INSTANCE.onDidChangeZoomLevel;
-  function mo(s15) {
-    return Si.INSTANCE.getZoomFactor(s15);
+  function mo(s16) {
+    return Si.INSTANCE.getZoomFactor(s16);
   }
   var Tu = Si.INSTANCE.onDidChangeFullscreen;
   var Ot = typeof navigator == "object" ? navigator.userAgent : "";
@@ -495873,8 +495931,8 @@ ${h3.join(`
   var yu = Ot.indexOf("Android") >= 0;
   var vr = false;
   if (typeof fe.matchMedia == "function") {
-    let s15 = fe.matchMedia("(display-mode: standalone) or (display-mode: window-controls-overlay)"), t = fe.matchMedia("(display-mode: fullscreen)");
-    vr = s15.matches, Xl(fe, s15, ({ matches: e }) => {
+    let s16 = fe.matchMedia("(display-mode: standalone) or (display-mode: window-controls-overlay)"), t = fe.matchMedia("(display-mode: fullscreen)");
+    vr = s16.matches, Xl(fe, s16, ({ matches: e }) => {
       vr && t.matches || (vr = e);
     });
   }
@@ -495904,9 +495962,9 @@ ${h3.join(`
   var ra = So && xe?.type === "renderer";
   if (typeof xe == "object") {
     yr = xe.platform === "win32", xr = xe.platform === "darwin", Ii = xe.platform === "linux", Zl = Ii && !!xe.env.SNAP && !!xe.env.SNAP_REVISION, Jl = So, ea = !!xe.env.CI || !!xe.env.BUILD_ARTIFACTSTAGINGDIRECTORY, Tr = Nt, Ir = Nt;
-    let s15 = xe.env.VSCODE_NLS_CONFIG;
-    if (s15) try {
-      let t = JSON.parse(s15);
+    let s16 = xe.env.VSCODE_NLS_CONFIG;
+    if (s16) try {
+      let t = JSON.parse(s16);
       Tr = t.userLocale, bo = t.osLocale, Ir = t.resolvedLanguage || Nt, ia = t.languagePack?.translationsConfigFile;
     } catch {
     }
@@ -495924,10 +495982,10 @@ ${h3.join(`
   var st = Ir;
   var sa;
   ((i2) => {
-    function s15() {
+    function s16() {
       return st;
     }
-    i2.value = s15;
+    i2.value = s16;
     function t() {
       return st.length === 2 ? st === "en" : st.length >= 3 ? st[0] === "e" && st[1] === "n" && st[2] === "-" : false;
     }
@@ -495940,12 +495998,12 @@ ${h3.join(`
   var oa = typeof Ve.postMessage == "function" && !Ve.importScripts;
   var Eo = (() => {
     if (oa) {
-      let s15 = [];
+      let s16 = [];
       Ve.addEventListener("message", (e) => {
-        if (e.data && e.data.vscodeScheduleAsyncWork) for (let i2 = 0, r2 = s15.length; i2 < r2; i2++) {
-          let n2 = s15[i2];
+        if (e.data && e.data.vscodeScheduleAsyncWork) for (let i2 = 0, r2 = s16.length; i2 < r2; i2++) {
+          let n2 = s16[i2];
           if (n2.id === e.data.vscodeScheduleAsyncWork) {
-            s15.splice(i2, 1), n2.callback();
+            s16.splice(i2, 1), n2.callback();
             return;
           }
         }
@@ -495953,10 +496011,10 @@ ${h3.join(`
       let t = 0;
       return (e) => {
         let i2 = ++t;
-        s15.push({ id: i2, callback: e }), Ve.postMessage({ vscodeScheduleAsyncWork: i2 }, "*");
+        s16.push({ id: i2, callback: e }), Ve.postMessage({ vscodeScheduleAsyncWork: i2 }, "*");
       };
     }
-    return (s15) => setTimeout(s15);
+    return (s16) => setTimeout(s16);
   })();
   var la = !!(Fe && Fe.indexOf("Chrome") >= 0);
   var wu = !!(Fe && Fe.indexOf("Firefox") >= 0);
@@ -495985,10 +496043,10 @@ ${h3.join(`
   var yo = new Array(230);
   var Qn;
   ((o2) => {
-    function s15(l2) {
+    function s16(l2) {
       return Jn.keyCodeToStr(l2);
     }
-    o2.toString = s15;
+    o2.toString = s16;
     function t(l2) {
       return Jn.strToKeyCode(l2);
     }
@@ -496062,12 +496120,12 @@ ${h3.join(`
       return true;
     }
   };
-  function ca(s15) {
-    if (s15.charCode) {
-      let e = String.fromCharCode(s15.charCode).toUpperCase();
+  function ca(s16) {
+    if (s16.charCode) {
+      let e = String.fromCharCode(s16.charCode).toUpperCase();
       return Qn.fromString(e);
     }
-    let t = s15.keyCode;
+    let t = s16.keyCode;
     if (t === 3) return 7;
     if (Ei) switch (t) {
       case 59:
@@ -496127,15 +496185,15 @@ ${h3.join(`
     }
   };
   var wo = /* @__PURE__ */ new WeakMap();
-  function pa(s15) {
-    if (!s15.parent || s15.parent === s15) return null;
+  function pa(s16) {
+    if (!s16.parent || s16.parent === s16) return null;
     try {
-      let t = s15.location, e = s15.parent.location;
+      let t = s16.location, e = s16.parent.location;
       if (t.origin !== "null" && e.origin !== "null" && t.origin !== e.origin) return null;
     } catch {
       return null;
     }
-    return s15.parent;
+    return s16.parent;
   }
   var Lr = class {
     static getSameOriginWindowChain(t) {
@@ -496206,18 +496264,18 @@ ${h3.join(`
       this.browserEvent?.stopPropagation();
     }
   };
-  var Do = Object.freeze(function(s15, t) {
-    let e = setTimeout(s15.bind(t), 0);
+  var Do = Object.freeze(function(s16, t) {
+    let e = setTimeout(s16.bind(t), 0);
     return { dispose() {
       clearTimeout(e);
     } };
   });
   var ma;
   ((i2) => {
-    function s15(r2) {
+    function s16(r2) {
       return r2 === i2.None || r2 === i2.Cancelled || r2 instanceof ts ? true : !r2 || typeof r2 != "object" ? false : typeof r2.isCancellationRequested == "boolean" && typeof r2.onCancellationRequested == "function";
     }
-    i2.isCancellationToken = s15, i2.None = Object.freeze({ isCancellationRequested: false, onCancellationRequested: $25.None }), i2.Cancelled = Object.freeze({ isCancellationRequested: true, onCancellationRequested: Do });
+    i2.isCancellationToken = s16, i2.None = Object.freeze({ isCancellationRequested: false, onCancellationRequested: $25.None }), i2.Cancelled = Object.freeze({ isCancellationRequested: true, onCancellationRequested: Do });
   })(ma ||= {});
   var ts = class {
     constructor() {
@@ -496287,7 +496345,7 @@ ${h3.join(`
   var ba;
   var Ar;
   (function() {
-    typeof globalThis.requestIdleCallback != "function" || typeof globalThis.cancelIdleCallback != "function" ? Ar = (s15, t) => {
+    typeof globalThis.requestIdleCallback != "function" || typeof globalThis.cancelIdleCallback != "function" ? Ar = (s16, t) => {
       Eo(() => {
         if (e) return;
         let i2 = Date.now() + 15;
@@ -496299,23 +496357,23 @@ ${h3.join(`
       return { dispose() {
         e || (e = true);
       } };
-    } : Ar = (s15, t, e) => {
-      let i2 = s15.requestIdleCallback(t, typeof e == "number" ? { timeout: e } : void 0), r2 = false;
+    } : Ar = (s16, t, e) => {
+      let i2 = s16.requestIdleCallback(t, typeof e == "number" ? { timeout: e } : void 0), r2 = false;
       return { dispose() {
-        r2 || (r2 = true, s15.cancelIdleCallback(i2));
+        r2 || (r2 = true, s16.cancelIdleCallback(i2));
       } };
-    }, ba = (s15) => Ar(globalThis, s15);
+    }, ba = (s16) => Ar(globalThis, s16);
   })();
   var va;
   ((e) => {
-    async function s15(i2) {
+    async function s16(i2) {
       let r2, n2 = await Promise.all(i2.map((o2) => o2.then((l2) => l2, (l2) => {
         r2 || (r2 = l2);
       })));
       if (typeof r2 < "u") throw r2;
       return n2;
     }
-    e.settled = s15;
+    e.settled = s16;
     function t(i2) {
       return new Promise(async (r2, n2) => {
         try {
@@ -496417,64 +496475,64 @@ ${h3.join(`
     }
   };
   _e.EMPTY = _e.fromArray([]);
-  function Lo(s15) {
-    return 55296 <= s15 && s15 <= 56319;
+  function Lo(s16) {
+    return 55296 <= s16 && s16 <= 56319;
   }
-  function is(s15) {
-    return 56320 <= s15 && s15 <= 57343;
+  function is(s16) {
+    return 56320 <= s16 && s16 <= 57343;
   }
-  function Ao(s15, t) {
-    return (s15 - 55296 << 10) + (t - 56320) + 65536;
+  function Ao(s16, t) {
+    return (s16 - 55296 << 10) + (t - 56320) + 65536;
   }
-  function Mo(s15) {
-    return ns(s15, 0);
+  function Mo(s16) {
+    return ns(s16, 0);
   }
-  function ns(s15, t) {
-    switch (typeof s15) {
+  function ns(s16, t) {
+    switch (typeof s16) {
       case "object":
-        return s15 === null ? je(349, t) : Array.isArray(s15) ? Ea(s15, t) : Ta(s15, t);
+        return s16 === null ? je(349, t) : Array.isArray(s16) ? Ea(s16, t) : Ta(s16, t);
       case "string":
-        return Po(s15, t);
+        return Po(s16, t);
       case "boolean":
-        return Sa(s15, t);
+        return Sa(s16, t);
       case "number":
-        return je(s15, t);
+        return je(s16, t);
       case "undefined":
         return je(937, t);
       default:
         return je(617, t);
     }
   }
-  function je(s15, t) {
-    return (t << 5) - t + s15 | 0;
+  function je(s16, t) {
+    return (t << 5) - t + s16 | 0;
   }
-  function Sa(s15, t) {
-    return je(s15 ? 433 : 863, t);
+  function Sa(s16, t) {
+    return je(s16 ? 433 : 863, t);
   }
-  function Po(s15, t) {
+  function Po(s16, t) {
     t = je(149417, t);
-    for (let e = 0, i2 = s15.length; e < i2; e++) t = je(s15.charCodeAt(e), t);
+    for (let e = 0, i2 = s16.length; e < i2; e++) t = je(s16.charCodeAt(e), t);
     return t;
   }
-  function Ea(s15, t) {
-    return t = je(104579, t), s15.reduce((e, i2) => ns(i2, e), t);
+  function Ea(s16, t) {
+    return t = je(104579, t), s16.reduce((e, i2) => ns(i2, e), t);
   }
-  function Ta(s15, t) {
-    return t = je(181387, t), Object.keys(s15).sort().reduce((e, i2) => (e = Po(i2, e), ns(s15[i2], e)), t);
+  function Ta(s16, t) {
+    return t = je(181387, t), Object.keys(s16).sort().reduce((e, i2) => (e = Po(i2, e), ns(s16[i2], e)), t);
   }
-  function rs(s15, t, e = 32) {
+  function rs(s16, t, e = 32) {
     let i2 = e - t, r2 = ~((1 << i2) - 1);
-    return (s15 << t | (r2 & s15) >>> i2) >>> 0;
+    return (s16 << t | (r2 & s16) >>> i2) >>> 0;
   }
-  function ko(s15, t = 0, e = s15.byteLength, i2 = 0) {
-    for (let r2 = 0; r2 < e; r2++) s15[t + r2] = i2;
+  function ko(s16, t = 0, e = s16.byteLength, i2 = 0) {
+    for (let r2 = 0; r2 < e; r2++) s16[t + r2] = i2;
   }
-  function Ia(s15, t, e = "0") {
-    for (; s15.length < t; ) s15 = e + s15;
-    return s15;
+  function Ia(s16, t, e = "0") {
+    for (; s16.length < t; ) s16 = e + s16;
+    return s16;
   }
-  function wi(s15, t = 32) {
-    return s15 instanceof ArrayBuffer ? Array.from(new Uint8Array(s15)).map((e) => e.toString(16).padStart(2, "0")).join("") : Ia((s15 >>> 0).toString(16), t / 4);
+  function wi(s16, t = 32) {
+    return s16 instanceof ArrayBuffer ? Array.from(new Uint8Array(s16)).map((e) => e.toString(16).padStart(2, "0")).join("") : Ia((s16 >>> 0).toString(16), t / 4);
   }
   var Cr = class Cr2 {
     constructor() {
@@ -496526,30 +496584,30 @@ ${h3.join(`
   };
   Cr._bigBlock32 = new DataView(new ArrayBuffer(320));
   var { registerWindow: Bh, getWindow: be, getDocument: Nh, getWindows: Fh, getWindowsCount: Hh, getWindowId: Oo, getWindowById: Wh, hasWindow: Uh, onDidRegisterWindow: No, onWillUnregisterWindow: Kh, onDidUnregisterWindow: zh } = (function() {
-    let s15 = /* @__PURE__ */ new Map();
+    let s16 = /* @__PURE__ */ new Map();
     fe;
     let t = { window: fe, disposables: new Ee() };
-    s15.set(fe.vscodeWindowId, t);
+    s16.set(fe.vscodeWindowId, t);
     let e = new v(), i2 = new v(), r2 = new v();
     function n2(o2, l2) {
-      return (typeof o2 == "number" ? s15.get(o2) : void 0) ?? (l2 ? t : void 0);
+      return (typeof o2 == "number" ? s16.get(o2) : void 0) ?? (l2 ? t : void 0);
     }
     return { onDidRegisterWindow: e.event, onWillUnregisterWindow: r2.event, onDidUnregisterWindow: i2.event, registerWindow(o2) {
-      if (s15.has(o2.vscodeWindowId)) return D.None;
+      if (s16.has(o2.vscodeWindowId)) return D.None;
       let l2 = new Ee(), a = { window: o2, disposables: l2.add(new Ee()) };
-      return s15.set(o2.vscodeWindowId, a), l2.add(C(() => {
-        s15.delete(o2.vscodeWindowId), i2.fire(o2);
+      return s16.set(o2.vscodeWindowId, a), l2.add(C(() => {
+        s16.delete(o2.vscodeWindowId), i2.fire(o2);
       })), l2.add(L(o2, Y.BEFORE_UNLOAD, () => {
         r2.fire(o2);
       })), e.fire(a), l2;
     }, getWindows() {
-      return s15.values();
+      return s16.values();
     }, getWindowsCount() {
-      return s15.size;
+      return s16.size;
     }, getWindowId(o2) {
       return o2.vscodeWindowId;
     }, hasWindow(o2) {
-      return s15.has(o2);
+      return s16.has(o2);
     }, getWindowById: n2, getWindow(o2) {
       let l2 = o2;
       if (l2?.ownerDocument?.defaultView) return l2.ownerDocument.defaultView.window;
@@ -496567,17 +496625,17 @@ ${h3.join(`
       this._handler && (this._node.removeEventListener(this._type, this._handler, this._options), this._node = null, this._handler = null);
     }
   };
-  function L(s15, t, e, i2) {
-    return new ss(s15, t, e, i2);
+  function L(s16, t, e, i2) {
+    return new ss(s16, t, e, i2);
   }
-  function ya(s15, t) {
+  function ya(s16, t) {
     return function(e) {
-      return t(new qe(s15, e));
+      return t(new qe(s16, e));
     };
   }
-  function xa(s15) {
+  function xa(s16) {
     return function(t) {
-      return s15(new ft(t));
+      return s16(new ft(t));
     };
   }
   var os = function(t, e, i2, r2) {
@@ -496613,15 +496671,15 @@ ${h3.join(`
     }
   };
   (function() {
-    let s15 = /* @__PURE__ */ new Map(), t = /* @__PURE__ */ new Map(), e = /* @__PURE__ */ new Map(), i2 = /* @__PURE__ */ new Map(), r2 = (n2) => {
+    let s16 = /* @__PURE__ */ new Map(), t = /* @__PURE__ */ new Map(), e = /* @__PURE__ */ new Map(), i2 = /* @__PURE__ */ new Map(), r2 = (n2) => {
       e.set(n2, false);
-      let o2 = s15.get(n2) ?? [];
-      for (t.set(n2, o2), s15.set(n2, []), i2.set(n2, true); o2.length > 0; ) o2.sort(Di.sort), o2.shift().execute();
+      let o2 = s16.get(n2) ?? [];
+      for (t.set(n2, o2), s16.set(n2, []), i2.set(n2, true); o2.length > 0; ) o2.sort(Di.sort), o2.shift().execute();
       i2.set(n2, false);
     };
     mt = (n2, o2, l2 = 0) => {
-      let a = Oo(n2), u = new Di(o2, l2), h3 = s15.get(a);
-      return h3 || (h3 = [], s15.set(a, h3)), h3.push(u), e.get(a) || (e.set(a, true), n2.requestAnimationFrame(() => r2(a))), u;
+      let a = Oo(n2), u = new Di(o2, l2), h3 = s16.get(a);
+      return h3 || (h3 = [], s16.set(a, h3)), h3.push(u), e.get(a) || (e.set(a, true), n2.requestAnimationFrame(() => r2(a))), u;
     }, wa = (n2, o2, l2) => {
       let a = Oo(n2);
       if (i2.get(a)) {
@@ -496649,25 +496707,25 @@ ${h3.join(`
     }
   };
   pt.None = new pt(0, 0);
-  function Fo(s15) {
-    let t = s15.getBoundingClientRect(), e = be(s15);
+  function Fo(s16) {
+    let t = s16.getBoundingClientRect(), e = be(s16);
     return { left: t.left + e.scrollX, top: t.top + e.scrollY, width: t.width, height: t.height };
   }
   var Gh = new class {
     constructor() {
       this.mutationObservers = /* @__PURE__ */ new Map();
     }
-    observe(s15, t, e) {
-      let i2 = this.mutationObservers.get(s15);
-      i2 || (i2 = /* @__PURE__ */ new Map(), this.mutationObservers.set(s15, i2));
+    observe(s16, t, e) {
+      let i2 = this.mutationObservers.get(s16);
+      i2 || (i2 = /* @__PURE__ */ new Map(), this.mutationObservers.set(s16, i2));
       let r2 = Mo(e), n2 = i2.get(r2);
       if (n2) n2.users += 1;
       else {
         let o2 = new v(), l2 = new MutationObserver((u) => o2.fire(u));
-        l2.observe(s15, e);
+        l2.observe(s16, e);
         let a = n2 = { users: 1, observer: l2, onDidMutate: o2.event };
         t.add(C(() => {
-          a.users -= 1, a.users === 0 && (o2.dispose(), l2.disconnect(), i2?.delete(r2), i2?.size === 0 && this.mutationObservers.delete(s15));
+          a.users -= 1, a.users === 0 && (o2.dispose(), l2.disconnect(), i2?.delete(r2), i2?.size === 0 && this.mutationObservers.delete(s16));
         })), i2.set(r2, n2);
       }
       return n2.onDidMutate;
@@ -496675,19 +496733,19 @@ ${h3.join(`
   }();
   var Y = { CLICK: "click", AUXCLICK: "auxclick", DBLCLICK: "dblclick", MOUSE_UP: "mouseup", MOUSE_DOWN: "mousedown", MOUSE_OVER: "mouseover", MOUSE_MOVE: "mousemove", MOUSE_OUT: "mouseout", MOUSE_ENTER: "mouseenter", MOUSE_LEAVE: "mouseleave", MOUSE_WHEEL: "wheel", POINTER_UP: "pointerup", POINTER_DOWN: "pointerdown", POINTER_MOVE: "pointermove", POINTER_LEAVE: "pointerleave", CONTEXT_MENU: "contextmenu", WHEEL: "wheel", KEY_DOWN: "keydown", KEY_PRESS: "keypress", KEY_UP: "keyup", LOAD: "load", BEFORE_UNLOAD: "beforeunload", UNLOAD: "unload", PAGE_SHOW: "pageshow", PAGE_HIDE: "pagehide", PASTE: "paste", ABORT: "abort", ERROR: "error", RESIZE: "resize", SCROLL: "scroll", FULLSCREEN_CHANGE: "fullscreenchange", WK_FULLSCREEN_CHANGE: "webkitfullscreenchange", SELECT: "select", CHANGE: "change", SUBMIT: "submit", RESET: "reset", FOCUS: "focus", FOCUS_IN: "focusin", FOCUS_OUT: "focusout", BLUR: "blur", INPUT: "input", STORAGE: "storage", DRAG_START: "dragstart", DRAG: "drag", DRAG_ENTER: "dragenter", DRAG_LEAVE: "dragleave", DRAG_OVER: "dragover", DROP: "drop", DRAG_END: "dragend", ANIMATION_START: Bt ? "webkitAnimationStart" : "animationstart", ANIMATION_END: Bt ? "webkitAnimationEnd" : "animationend", ANIMATION_ITERATION: Bt ? "webkitAnimationIteration" : "animationiteration" };
   var Da = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
-  function Ho(s15, t, e, ...i2) {
+  function Ho(s16, t, e, ...i2) {
     let r2 = Da.exec(t);
     if (!r2) throw new Error("Bad use of emmet");
     let n2 = r2[1] || "div", o2;
-    return s15 !== "http://www.w3.org/1999/xhtml" ? o2 = document.createElementNS(s15, n2) : o2 = document.createElement(n2), r2[3] && (o2.id = r2[3]), r2[4] && (o2.className = r2[4].replace(/\./g, " ").trim()), e && Object.entries(e).forEach(([l2, a]) => {
+    return s16 !== "http://www.w3.org/1999/xhtml" ? o2 = document.createElementNS(s16, n2) : o2 = document.createElement(n2), r2[3] && (o2.id = r2[3]), r2[4] && (o2.className = r2[4].replace(/\./g, " ").trim()), e && Object.entries(e).forEach(([l2, a]) => {
       typeof a > "u" || (/^on\w+$/.test(l2) ? o2[l2] = a : l2 === "selected" ? a && o2.setAttribute(l2, "true") : o2.setAttribute(l2, a));
     }), o2.append(...i2), o2;
   }
-  function Ra(s15, t, ...e) {
-    return Ho("http://www.w3.org/1999/xhtml", s15, t, ...e);
+  function Ra(s16, t, ...e) {
+    return Ho("http://www.w3.org/1999/xhtml", s16, t, ...e);
   }
-  Ra.SVG = function(s15, t, ...e) {
-    return Ho("http://www.w3.org/2000/svg", s15, t, ...e);
+  Ra.SVG = function(s16, t, ...e) {
+    return Ho("http://www.w3.org/2000/svg", s16, t, ...e);
   };
   var ls = class {
     constructor(t) {
@@ -496839,11 +496897,11 @@ ${h3.join(`
       this.domNode.removeChild(t.domNode);
     }
   };
-  function Ie(s15) {
-    return typeof s15 == "number" ? `${s15}px` : s15;
+  function Ie(s16) {
+    return typeof s16 == "number" ? `${s16}px` : s16;
   }
-  function _t(s15) {
-    return new ls(s15);
+  function _t(s16) {
+    return new ls(s16);
   }
   var Wt = class {
     constructor() {
@@ -496885,7 +496943,7 @@ ${h3.join(`
       })), this._hooks.add(L(o2, Y.POINTER_UP, (l2) => this.stopMonitoring(true)));
     }
   };
-  function Wo(s15, t, e) {
+  function Wo(s16, t, e) {
     let i2 = null, r2 = null;
     if (typeof e.value == "function" ? (i2 = "value", r2 = e.value, r2.length !== 0 && console.warn("Memoize should only be used in functions with zero parameters")) : typeof e.get == "function" && (i2 = "get", r2 = e.get), !r2) throw new Error("not supported");
     let n2 = `$memoize$${t}`;
@@ -497149,15 +497207,15 @@ ${h3.join(`
       this.scrollLeft = t, this.scrollTop = e, this.isDone = i2;
     }
   };
-  function as(s15, t) {
-    let e = t - s15;
+  function as(s16, t) {
+    let e = t - s16;
     return function(i2) {
-      return s15 + e * ka(i2);
+      return s16 + e * ka(i2);
     };
   }
-  function La(s15, t, e) {
+  function La(s16, t, e) {
     return function(i2) {
-      return i2 < e ? s15(i2 / e) : t((i2 - e) / (1 - e));
+      return i2 < e ? s16(i2 / e) : t((i2 - e) / (1 - e));
     };
   }
   var Nr = class s10 {
@@ -497200,11 +497258,11 @@ ${h3.join(`
       return new s10(t, e, r2, i2);
     }
   };
-  function Aa(s15) {
-    return Math.pow(s15, 3);
+  function Aa(s16) {
+    return Math.pow(s16, 3);
   }
-  function ka(s15) {
-    return 1 - Aa(1 - s15);
+  function ka(s16) {
+    return 1 - Aa(1 - s16);
   }
   var Fr = class extends D {
     constructor(t, e, i2) {
@@ -497633,9 +497691,9 @@ ${h3.join(`
       return this._scrollable.getCurrentScrollPosition();
     }
   };
-  function Pa(s15) {
-    let t = { lazyRender: typeof s15.lazyRender < "u" ? s15.lazyRender : false, className: typeof s15.className < "u" ? s15.className : "", useShadows: typeof s15.useShadows < "u" ? s15.useShadows : true, handleMouseWheel: typeof s15.handleMouseWheel < "u" ? s15.handleMouseWheel : true, flipAxes: typeof s15.flipAxes < "u" ? s15.flipAxes : false, consumeMouseWheelIfScrollbarIsNeeded: typeof s15.consumeMouseWheelIfScrollbarIsNeeded < "u" ? s15.consumeMouseWheelIfScrollbarIsNeeded : false, alwaysConsumeMouseWheel: typeof s15.alwaysConsumeMouseWheel < "u" ? s15.alwaysConsumeMouseWheel : false, scrollYToX: typeof s15.scrollYToX < "u" ? s15.scrollYToX : false, mouseWheelScrollSensitivity: typeof s15.mouseWheelScrollSensitivity < "u" ? s15.mouseWheelScrollSensitivity : 1, fastScrollSensitivity: typeof s15.fastScrollSensitivity < "u" ? s15.fastScrollSensitivity : 5, scrollPredominantAxis: typeof s15.scrollPredominantAxis < "u" ? s15.scrollPredominantAxis : true, mouseWheelSmoothScroll: typeof s15.mouseWheelSmoothScroll < "u" ? s15.mouseWheelSmoothScroll : true, arrowSize: typeof s15.arrowSize < "u" ? s15.arrowSize : 11, listenOnDomNode: typeof s15.listenOnDomNode < "u" ? s15.listenOnDomNode : null, horizontal: typeof s15.horizontal < "u" ? s15.horizontal : 1, horizontalScrollbarSize: typeof s15.horizontalScrollbarSize < "u" ? s15.horizontalScrollbarSize : 10, horizontalSliderSize: typeof s15.horizontalSliderSize < "u" ? s15.horizontalSliderSize : 0, horizontalHasArrows: typeof s15.horizontalHasArrows < "u" ? s15.horizontalHasArrows : false, vertical: typeof s15.vertical < "u" ? s15.vertical : 1, verticalScrollbarSize: typeof s15.verticalScrollbarSize < "u" ? s15.verticalScrollbarSize : 10, verticalHasArrows: typeof s15.verticalHasArrows < "u" ? s15.verticalHasArrows : false, verticalSliderSize: typeof s15.verticalSliderSize < "u" ? s15.verticalSliderSize : 0, scrollByPage: typeof s15.scrollByPage < "u" ? s15.scrollByPage : false };
-    return t.horizontalSliderSize = typeof s15.horizontalSliderSize < "u" ? s15.horizontalSliderSize : t.horizontalScrollbarSize, t.verticalSliderSize = typeof s15.verticalSliderSize < "u" ? s15.verticalSliderSize : t.verticalScrollbarSize, Te && (t.className += " mac"), t;
+  function Pa(s16) {
+    let t = { lazyRender: typeof s16.lazyRender < "u" ? s16.lazyRender : false, className: typeof s16.className < "u" ? s16.className : "", useShadows: typeof s16.useShadows < "u" ? s16.useShadows : true, handleMouseWheel: typeof s16.handleMouseWheel < "u" ? s16.handleMouseWheel : true, flipAxes: typeof s16.flipAxes < "u" ? s16.flipAxes : false, consumeMouseWheelIfScrollbarIsNeeded: typeof s16.consumeMouseWheelIfScrollbarIsNeeded < "u" ? s16.consumeMouseWheelIfScrollbarIsNeeded : false, alwaysConsumeMouseWheel: typeof s16.alwaysConsumeMouseWheel < "u" ? s16.alwaysConsumeMouseWheel : false, scrollYToX: typeof s16.scrollYToX < "u" ? s16.scrollYToX : false, mouseWheelScrollSensitivity: typeof s16.mouseWheelScrollSensitivity < "u" ? s16.mouseWheelScrollSensitivity : 1, fastScrollSensitivity: typeof s16.fastScrollSensitivity < "u" ? s16.fastScrollSensitivity : 5, scrollPredominantAxis: typeof s16.scrollPredominantAxis < "u" ? s16.scrollPredominantAxis : true, mouseWheelSmoothScroll: typeof s16.mouseWheelSmoothScroll < "u" ? s16.mouseWheelSmoothScroll : true, arrowSize: typeof s16.arrowSize < "u" ? s16.arrowSize : 11, listenOnDomNode: typeof s16.listenOnDomNode < "u" ? s16.listenOnDomNode : null, horizontal: typeof s16.horizontal < "u" ? s16.horizontal : 1, horizontalScrollbarSize: typeof s16.horizontalScrollbarSize < "u" ? s16.horizontalScrollbarSize : 10, horizontalSliderSize: typeof s16.horizontalSliderSize < "u" ? s16.horizontalSliderSize : 0, horizontalHasArrows: typeof s16.horizontalHasArrows < "u" ? s16.horizontalHasArrows : false, vertical: typeof s16.vertical < "u" ? s16.vertical : 1, verticalScrollbarSize: typeof s16.verticalScrollbarSize < "u" ? s16.verticalScrollbarSize : 10, verticalHasArrows: typeof s16.verticalHasArrows < "u" ? s16.verticalHasArrows : false, verticalSliderSize: typeof s16.verticalSliderSize < "u" ? s16.verticalSliderSize : 0, scrollByPage: typeof s16.scrollByPage < "u" ? s16.scrollByPage : false };
+    return t.horizontalSliderSize = typeof s16.horizontalSliderSize < "u" ? s16.horizontalSliderSize : t.horizontalScrollbarSize, t.verticalSliderSize = typeof s16.verticalSliderSize < "u" ? s16.verticalSliderSize : t.verticalScrollbarSize, Te && (t.className += " mac"), t;
   }
   var zt = class extends D {
     constructor(e, i2, r2, n2, o2, l2, a, u) {
@@ -497940,10 +497998,10 @@ ${h3.join(`
   var ps = { css: "#00000000", rgba: 0 };
   var j;
   ((i2) => {
-    function s15(r2, n2, o2, l2) {
+    function s16(r2, n2, o2, l2) {
       return l2 !== void 0 ? `#${vt(r2)}${vt(n2)}${vt(o2)}${vt(l2)}` : `#${vt(r2)}${vt(n2)}${vt(o2)}`;
     }
-    i2.toCss = s15;
+    i2.toCss = s16;
     function t(r2, n2, o2, l2 = 255) {
       return (r2 << 24 | n2 << 16 | o2 << 8 | l2) >>> 0;
     }
@@ -497955,14 +498013,14 @@ ${h3.join(`
   })(j ||= {});
   var U;
   ((l2) => {
-    function s15(a, u) {
+    function s16(a, u) {
       if (J = (u.rgba & 255) / 255, J === 1) return { css: u.css, rgba: u.rgba };
       let h3 = u.rgba >> 24 & 255, c = u.rgba >> 16 & 255, d = u.rgba >> 8 & 255, _3 = a.rgba >> 24 & 255, p = a.rgba >> 16 & 255, m = a.rgba >> 8 & 255;
       ue = _3 + Math.round((h3 - _3) * J), he = p + Math.round((c - p) * J), de = m + Math.round((d - m) * J);
       let f = j.toCss(ue, he, de), A = j.toRgba(ue, he, de);
       return { css: f, rgba: A };
     }
-    l2.blend = s15;
+    l2.blend = s16;
     function t(a) {
       return (a.rgba & 255) === 255;
     }
@@ -497992,12 +498050,12 @@ ${h3.join(`
   })(U ||= {});
   var z;
   ((i2) => {
-    let s15, t;
+    let s16, t;
     try {
       let r2 = document.createElement("canvas");
       r2.width = 1, r2.height = 1;
       let n2 = r2.getContext("2d", { willReadFrequently: true });
-      n2 && (s15 = n2, s15.globalCompositeOperation = "copy", t = s15.createLinearGradient(0, 0, 1, 1));
+      n2 && (s16 = n2, s16.globalCompositeOperation = "copy", t = s16.createLinearGradient(0, 0, 1, 1));
     } catch {
     }
     function e(r2) {
@@ -498013,19 +498071,19 @@ ${h3.join(`
       }
       let n2 = r2.match(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(,\s*(0|1|\d?\.(\d+))\s*)?\)/);
       if (n2) return ue = parseInt(n2[1]), he = parseInt(n2[2]), de = parseInt(n2[3]), J = Math.round((n2[5] === void 0 ? 1 : parseFloat(n2[5])) * 255), j.toColor(ue, he, de, J);
-      if (!s15 || !t) throw new Error("css.toColor: Unsupported css format");
-      if (s15.fillStyle = t, s15.fillStyle = r2, typeof s15.fillStyle != "string") throw new Error("css.toColor: Unsupported css format");
-      if (s15.fillRect(0, 0, 1, 1), [ue, he, de, J] = s15.getImageData(0, 0, 1, 1).data, J !== 255) throw new Error("css.toColor: Unsupported css format");
+      if (!s16 || !t) throw new Error("css.toColor: Unsupported css format");
+      if (s16.fillStyle = t, s16.fillStyle = r2, typeof s16.fillStyle != "string") throw new Error("css.toColor: Unsupported css format");
+      if (s16.fillRect(0, 0, 1, 1), [ue, he, de, J] = s16.getImageData(0, 0, 1, 1).data, J !== 255) throw new Error("css.toColor: Unsupported css format");
       return { rgba: j.toRgba(ue, he, de, J), css: r2 };
     }
     i2.toColor = e;
   })(z ||= {});
   var ve;
   ((e) => {
-    function s15(i2) {
+    function s16(i2) {
       return t(i2 >> 16 & 255, i2 >> 8 & 255, i2 & 255);
     }
-    e.relativeLuminance = s15;
+    e.relativeLuminance = s16;
     function t(i2, r2, n2) {
       let o2 = i2 / 255, l2 = r2 / 255, a = n2 / 255, u = o2 <= 0.03928 ? o2 / 12.92 : Math.pow((o2 + 0.055) / 1.055, 2.4), h3 = l2 <= 0.03928 ? l2 / 12.92 : Math.pow((l2 + 0.055) / 1.055, 2.4), c = a <= 0.03928 ? a / 12.92 : Math.pow((a + 0.055) / 1.055, 2.4);
       return u * 0.2126 + h3 * 0.7152 + c * 0.0722;
@@ -498034,12 +498092,12 @@ ${h3.join(`
   })(ve ||= {});
   var $r;
   ((n2) => {
-    function s15(o2, l2) {
+    function s16(o2, l2) {
       if (J = (l2 & 255) / 255, J === 1) return l2;
       let a = l2 >> 24 & 255, u = l2 >> 16 & 255, h3 = l2 >> 8 & 255, c = o2 >> 24 & 255, d = o2 >> 16 & 255, _3 = o2 >> 8 & 255;
       return ue = c + Math.round((a - c) * J), he = d + Math.round((u - d) * J), de = _3 + Math.round((h3 - _3) * J), j.toRgba(ue, he, de);
     }
-    n2.blend = s15;
+    n2.blend = s16;
     function t(o2, l2, a) {
       let u = ve.relativeLuminance(o2 >> 8), h3 = ve.relativeLuminance(l2 >> 8);
       if (Xe(u, h3) < a) {
@@ -498077,12 +498135,12 @@ ${h3.join(`
     }
     n2.toChannels = r2;
   })($r ||= {});
-  function vt(s15) {
-    let t = s15.toString(16);
+  function vt(s16) {
+    let t = s16.toString(16);
     return t.length < 2 ? "0" + t : t;
   }
-  function Xe(s15, t) {
-    return s15 < t ? (t + 0.05) / (s15 + 0.05) : (s15 + 0.05) / (t + 0.05);
+  function Xe(s16, t) {
+    return s16 < t ? (t + 0.05) / (s16 + 0.05) : (s16 + 0.05) / (t + 0.05);
   }
   var Vr = class extends De {
     constructor(e, i2, r2) {
@@ -498196,14 +498254,14 @@ ${h3.join(`
     }
   };
   ct = M([S(0, F)], ct);
-  function Oa(s15) {
-    return 57508 <= s15 && s15 <= 57558;
+  function Oa(s16) {
+    return 57508 <= s16 && s16 <= 57558;
   }
-  function Ba(s15) {
-    return 9472 <= s15 && s15 <= 9631;
+  function Ba(s16) {
+    return 9472 <= s16 && s16 <= 9631;
   }
-  function $o(s15) {
-    return Oa(s15) || Ba(s15);
+  function $o(s16) {
+    return Oa(s16) || Ba(s16);
   }
   function Vo() {
     return { css: { canvas: qr(), cell: qr() }, device: { canvas: qr(), cell: qr(), char: { width: 0, height: 0, left: 0, top: 0 } } };
@@ -498338,9 +498396,9 @@ ${h3.join(`
     }
   };
   Vt = M([S(1, or2), S(2, H), S(3, ae), S(4, ge), S(5, Be), S(6, Re)], Vt);
-  function qo(s15, t, e) {
-    for (; s15.length < e; ) s15 = t + s15;
-    return s15;
+  function qo(s16, t, e) {
+    for (; s16.length < e; ) s16 = t + s16;
+    return s16;
   }
   var Yr = class {
     constructor(t, e) {
@@ -498674,13 +498732,13 @@ ${h3.join(`
       } };
     }
   };
-  function Ci(s15, t, e) {
-    let i2 = e.getBoundingClientRect(), r2 = s15.getComputedStyle(e), n2 = parseInt(r2.getPropertyValue("padding-left")), o2 = parseInt(r2.getPropertyValue("padding-top"));
+  function Ci(s16, t, e) {
+    let i2 = e.getBoundingClientRect(), r2 = s16.getComputedStyle(e), n2 = parseInt(r2.getPropertyValue("padding-left")), o2 = parseInt(r2.getPropertyValue("padding-top"));
     return [t.clientX - i2.left - n2, t.clientY - i2.top - o2];
   }
-  function Xo(s15, t, e, i2, r2, n2, o2, l2, a) {
+  function Xo(s16, t, e, i2, r2, n2, o2, l2, a) {
     if (!n2) return;
-    let u = Ci(s15, t, e);
+    let u = Ci(s16, t, e);
     if (u) return u[0] = Math.ceil((u[0] + (a ? o2 / 2 : 0)) / o2), u[1] = Math.ceil(u[1] / l2), u[0] = Math.min(Math.max(u[0], 1), i2 + (a ? 1 : 0)), u[1] = Math.min(Math.max(u[1], 1), r2), u;
   }
   var Xt = class {
@@ -498735,8 +498793,8 @@ ${h3.join(`
   var Zo = /^((?!chrome|android).)*safari/i.test(Pi);
   function Ha() {
     if (!Zo) return 0;
-    let s15 = Pi.match(/Version\/(\d+)/);
-    return s15 === null || s15.length < 2 ? 0 : parseInt(s15[1]);
+    let s16 = Pi.match(/Version\/(\d+)/);
+    return s16 === null || s16.length < 2 ? 0 : parseInt(s16[1]);
   }
   var Zt = ["Macintosh", "MacIntel", "MacPPC", "Mac68K"].includes(Oi);
   var Wa = Oi === "iPad";
@@ -498943,67 +499001,67 @@ ${h3.join(`
       this._timeout !== void 0 && (this._coreBrowserService.window.clearTimeout(this._timeout), this._timeout = void 0);
     }
   };
-  function Jo(s15, t, e, i2) {
+  function Jo(s16, t, e, i2) {
     let r2 = e.buffer.x, n2 = e.buffer.y;
-    if (!e.buffer.hasScrollback) return Ga(r2, n2, s15, t, e, i2) + sn(n2, t, e, i2) + $a(r2, n2, s15, t, e, i2);
+    if (!e.buffer.hasScrollback) return Ga(r2, n2, s16, t, e, i2) + sn(n2, t, e, i2) + $a(r2, n2, s16, t, e, i2);
     let o2;
-    if (n2 === t) return o2 = r2 > s15 ? "D" : "C", Fi(Math.abs(r2 - s15), Ni(o2, i2));
+    if (n2 === t) return o2 = r2 > s16 ? "D" : "C", Fi(Math.abs(r2 - s16), Ni(o2, i2));
     o2 = n2 > t ? "D" : "C";
-    let l2 = Math.abs(n2 - t), a = za(n2 > t ? s15 : r2, e) + (l2 - 1) * e.cols + 1 + Ka(n2 > t ? r2 : s15, e);
+    let l2 = Math.abs(n2 - t), a = za(n2 > t ? s16 : r2, e) + (l2 - 1) * e.cols + 1 + Ka(n2 > t ? r2 : s16, e);
     return Fi(a, Ni(o2, i2));
   }
-  function Ka(s15, t) {
-    return s15 - 1;
+  function Ka(s16, t) {
+    return s16 - 1;
   }
-  function za(s15, t) {
-    return t.cols - s15;
+  function za(s16, t) {
+    return t.cols - s16;
   }
-  function Ga(s15, t, e, i2, r2, n2) {
-    return sn(t, i2, r2, n2).length === 0 ? "" : Fi(el(s15, t, s15, t - gt(t, r2), false, r2).length, Ni("D", n2));
+  function Ga(s16, t, e, i2, r2, n2) {
+    return sn(t, i2, r2, n2).length === 0 ? "" : Fi(el(s16, t, s16, t - gt(t, r2), false, r2).length, Ni("D", n2));
   }
-  function sn(s15, t, e, i2) {
-    let r2 = s15 - gt(s15, e), n2 = t - gt(t, e), o2 = Math.abs(r2 - n2) - Va(s15, t, e);
-    return Fi(o2, Ni(Qo(s15, t), i2));
+  function sn(s16, t, e, i2) {
+    let r2 = s16 - gt(s16, e), n2 = t - gt(t, e), o2 = Math.abs(r2 - n2) - Va(s16, t, e);
+    return Fi(o2, Ni(Qo(s16, t), i2));
   }
-  function $a(s15, t, e, i2, r2, n2) {
+  function $a(s16, t, e, i2, r2, n2) {
     let o2;
     sn(t, i2, r2, n2).length > 0 ? o2 = i2 - gt(i2, r2) : o2 = t;
-    let l2 = i2, a = qa(s15, t, e, i2, r2, n2);
-    return Fi(el(s15, o2, e, l2, a === "C", r2).length, Ni(a, n2));
+    let l2 = i2, a = qa(s16, t, e, i2, r2, n2);
+    return Fi(el(s16, o2, e, l2, a === "C", r2).length, Ni(a, n2));
   }
-  function Va(s15, t, e) {
-    let i2 = 0, r2 = s15 - gt(s15, e), n2 = t - gt(t, e);
+  function Va(s16, t, e) {
+    let i2 = 0, r2 = s16 - gt(s16, e), n2 = t - gt(t, e);
     for (let o2 = 0; o2 < Math.abs(r2 - n2); o2++) {
-      let l2 = Qo(s15, t) === "A" ? -1 : 1;
+      let l2 = Qo(s16, t) === "A" ? -1 : 1;
       e.buffer.lines.get(r2 + l2 * o2)?.isWrapped && i2++;
     }
     return i2;
   }
-  function gt(s15, t) {
-    let e = 0, i2 = t.buffer.lines.get(s15), r2 = i2?.isWrapped;
-    for (; r2 && s15 >= 0 && s15 < t.rows; ) e++, i2 = t.buffer.lines.get(--s15), r2 = i2?.isWrapped;
+  function gt(s16, t) {
+    let e = 0, i2 = t.buffer.lines.get(s16), r2 = i2?.isWrapped;
+    for (; r2 && s16 >= 0 && s16 < t.rows; ) e++, i2 = t.buffer.lines.get(--s16), r2 = i2?.isWrapped;
     return e;
   }
-  function qa(s15, t, e, i2, r2, n2) {
+  function qa(s16, t, e, i2, r2, n2) {
     let o2;
-    return sn(e, i2, r2, n2).length > 0 ? o2 = i2 - gt(i2, r2) : o2 = t, s15 < e && o2 <= i2 || s15 >= e && o2 < i2 ? "C" : "D";
+    return sn(e, i2, r2, n2).length > 0 ? o2 = i2 - gt(i2, r2) : o2 = t, s16 < e && o2 <= i2 || s16 >= e && o2 < i2 ? "C" : "D";
   }
-  function Qo(s15, t) {
-    return s15 > t ? "A" : "B";
+  function Qo(s16, t) {
+    return s16 > t ? "A" : "B";
   }
-  function el(s15, t, e, i2, r2, n2) {
-    let o2 = s15, l2 = t, a = "";
-    for (; (o2 !== e || l2 !== i2) && l2 >= 0 && l2 < n2.buffer.lines.length; ) o2 += r2 ? 1 : -1, r2 && o2 > n2.cols - 1 ? (a += n2.buffer.translateBufferLineToString(l2, false, s15, o2), o2 = 0, s15 = 0, l2++) : !r2 && o2 < 0 && (a += n2.buffer.translateBufferLineToString(l2, false, 0, s15 + 1), o2 = n2.cols - 1, s15 = o2, l2--);
-    return a + n2.buffer.translateBufferLineToString(l2, false, s15, o2);
+  function el(s16, t, e, i2, r2, n2) {
+    let o2 = s16, l2 = t, a = "";
+    for (; (o2 !== e || l2 !== i2) && l2 >= 0 && l2 < n2.buffer.lines.length; ) o2 += r2 ? 1 : -1, r2 && o2 > n2.cols - 1 ? (a += n2.buffer.translateBufferLineToString(l2, false, s16, o2), o2 = 0, s16 = 0, l2++) : !r2 && o2 < 0 && (a += n2.buffer.translateBufferLineToString(l2, false, 0, s16 + 1), o2 = n2.cols - 1, s16 = o2, l2--);
+    return a + n2.buffer.translateBufferLineToString(l2, false, s16, o2);
   }
-  function Ni(s15, t) {
+  function Ni(s16, t) {
     let e = t ? "O" : "[";
-    return b.ESC + e + s15;
+    return b.ESC + e + s16;
   }
-  function Fi(s15, t) {
-    s15 = Math.floor(s15);
+  function Fi(s16, t) {
+    s16 = Math.floor(s16);
     let e = "";
-    for (let i2 = 0; i2 < s15; i2++) e += t;
+    for (let i2 = 0; i2 < s16; i2++) e += t;
     return e;
   }
   var on = class {
@@ -499040,9 +499098,9 @@ ${h3.join(`
       return this.selectionStart && (this.selectionStart[1] -= t), this.selectionEnd && (this.selectionEnd[1] -= t), this.selectionEnd && this.selectionEnd[1] < 0 ? (this.clearSelection(), true) : (this.selectionStart && this.selectionStart[1] < 0 && (this.selectionStart[1] = 0), false);
     }
   };
-  function ws(s15, t) {
-    if (s15.start.y > s15.end.y) throw new Error(`Buffer range end (${s15.end.x}, ${s15.end.y}) cannot be before start (${s15.start.x}, ${s15.start.y})`);
-    return t * (s15.end.y - s15.start.y) + (s15.end.x - s15.start.x + 1);
+  function ws(s16, t) {
+    if (s16.start.y > s16.end.y) throw new Error(`Buffer range end (${s16.end.x}, ${s16.end.y}) cannot be before start (${s16.start.x}, ${s16.start.y})`);
+    return t * (s16.end.y - s16.start.y) + (s16.end.x - s16.start.x + 1);
   }
   var Ds = 50;
   var Ya = 15;
@@ -499380,16 +499438,16 @@ ${h3.join(`
     }
   };
   var re = Object.freeze((() => {
-    let s15 = [z.toColor("#2e3436"), z.toColor("#cc0000"), z.toColor("#4e9a06"), z.toColor("#c4a000"), z.toColor("#3465a4"), z.toColor("#75507b"), z.toColor("#06989a"), z.toColor("#d3d7cf"), z.toColor("#555753"), z.toColor("#ef2929"), z.toColor("#8ae234"), z.toColor("#fce94f"), z.toColor("#729fcf"), z.toColor("#ad7fa8"), z.toColor("#34e2e2"), z.toColor("#eeeeec")], t = [0, 95, 135, 175, 215, 255];
+    let s16 = [z.toColor("#2e3436"), z.toColor("#cc0000"), z.toColor("#4e9a06"), z.toColor("#c4a000"), z.toColor("#3465a4"), z.toColor("#75507b"), z.toColor("#06989a"), z.toColor("#d3d7cf"), z.toColor("#555753"), z.toColor("#ef2929"), z.toColor("#8ae234"), z.toColor("#fce94f"), z.toColor("#729fcf"), z.toColor("#ad7fa8"), z.toColor("#34e2e2"), z.toColor("#eeeeec")], t = [0, 95, 135, 175, 215, 255];
     for (let e = 0; e < 216; e++) {
       let i2 = t[e / 36 % 6 | 0], r2 = t[e / 6 % 6 | 0], n2 = t[e % 6];
-      s15.push({ css: j.toCss(i2, r2, n2), rgba: j.toRgba(i2, r2, n2) });
+      s16.push({ css: j.toCss(i2, r2, n2), rgba: j.toRgba(i2, r2, n2) });
     }
     for (let e = 0; e < 24; e++) {
       let i2 = 8 + e * 10;
-      s15.push({ css: j.toCss(i2, i2, i2), rgba: j.toRgba(i2, i2, i2) });
+      s16.push({ css: j.toCss(i2, i2, i2), rgba: j.toRgba(i2, i2, i2) });
     }
-    return s15;
+    return s16;
   })());
   var St = z.toColor("#ffffff");
   var Ki = z.toColor("#000000");
@@ -499448,9 +499506,9 @@ ${h3.join(`
     }
   };
   ti = M([S(0, H)], ti);
-  function K(s15, t) {
-    if (s15 !== void 0) try {
-      return z.toColor(s15);
+  function K(s16, t) {
+    if (s16 !== void 0) try {
+      return z.toColor(s16);
     } catch {
     }
     return t;
@@ -499788,13 +499846,13 @@ ${h3.join(`
       return r2 && r2.push(e), n2;
     }
   };
-  function sl(s15, t, e, i2, r2, n2) {
+  function sl(s16, t, e, i2, r2, n2) {
     let o2 = [];
-    for (let l2 = 0; l2 < s15.length - 1; l2++) {
-      let a = l2, u = s15.get(++a);
+    for (let l2 = 0; l2 < s16.length - 1; l2++) {
+      let a = l2, u = s16.get(++a);
       if (!u.isWrapped) continue;
-      let h3 = [s15.get(l2)];
-      for (; a < s15.length && u.isWrapped; ) h3.push(u), u = s15.get(++a);
+      let h3 = [s16.get(l2)];
+      for (; a < s16.length && u.isWrapped; ) h3.push(u), u = s16.get(++a);
       if (!n2 && i2 >= l2 && i2 < a) {
         l2 += h3.length - 1;
         continue;
@@ -499811,40 +499869,40 @@ ${h3.join(`
     }
     return o2;
   }
-  function ol(s15, t) {
+  function ol(s16, t) {
     let e = [], i2 = 0, r2 = t[i2], n2 = 0;
-    for (let o2 = 0; o2 < s15.length; o2++) if (r2 === o2) {
+    for (let o2 = 0; o2 < s16.length; o2++) if (r2 === o2) {
       let l2 = t[++i2];
-      s15.onDeleteEmitter.fire({ index: o2 - n2, amount: l2 }), o2 += l2 - 1, n2 += l2, r2 = t[++i2];
+      s16.onDeleteEmitter.fire({ index: o2 - n2, amount: l2 }), o2 += l2 - 1, n2 += l2, r2 = t[++i2];
     } else e.push(o2);
     return { layout: e, countRemoved: n2 };
   }
-  function ll(s15, t) {
+  function ll(s16, t) {
     let e = [];
-    for (let i2 = 0; i2 < t.length; i2++) e.push(s15.get(t[i2]));
-    for (let i2 = 0; i2 < e.length; i2++) s15.set(i2, e[i2]);
-    s15.length = t.length;
+    for (let i2 = 0; i2 < t.length; i2++) e.push(s16.get(t[i2]));
+    for (let i2 = 0; i2 < e.length; i2++) s16.set(i2, e[i2]);
+    s16.length = t.length;
   }
-  function al(s15, t, e) {
-    let i2 = [], r2 = s15.map((a, u) => ri(s15, u, t)).reduce((a, u) => a + u), n2 = 0, o2 = 0, l2 = 0;
+  function al(s16, t, e) {
+    let i2 = [], r2 = s16.map((a, u) => ri(s16, u, t)).reduce((a, u) => a + u), n2 = 0, o2 = 0, l2 = 0;
     for (; l2 < r2; ) {
       if (r2 - l2 < e) {
         i2.push(r2 - l2);
         break;
       }
       n2 += e;
-      let a = ri(s15, o2, t);
+      let a = ri(s16, o2, t);
       n2 > a && (n2 -= a, o2++);
-      let u = s15[o2].getWidth(n2 - 1) === 2;
+      let u = s16[o2].getWidth(n2 - 1) === 2;
       u && n2--;
       let h3 = u ? e - 1 : e;
       i2.push(h3), l2 += h3;
     }
     return i2;
   }
-  function ri(s15, t, e) {
-    if (t === s15.length - 1) return s15[t].getTrimmedLength();
-    let i2 = !s15[t].hasContent(e - 1) && s15[t].getWidth(e - 1) === 1, r2 = s15[t + 1].getWidth(0) === 2;
+  function ri(s16, t, e) {
+    if (t === s16.length - 1) return s16[t].getTrimmedLength();
+    let i2 = !s16[t].hasContent(e - 1) && s16[t].getWidth(e - 1) === 1, r2 = s16[t + 1].getWidth(0) === 2;
     return i2 && r2 ? e - 1 : e;
   }
   var un = class un2 {
@@ -500239,13 +500297,13 @@ ${h3.join(`
       return i2;
     }
   };
-  function sc(s15) {
-    return s15 === "block" || s15 === "underline" || s15 === "bar";
+  function sc(s16) {
+    return s16 === "block" || s16 === "underline" || s16 === "bar";
   }
-  function oi(s15, t = 5) {
-    if (typeof s15 != "object") return s15;
-    let e = Array.isArray(s15) ? [] : {};
-    for (let i2 in s15) e[i2] = t <= 1 ? s15[i2] : s15[i2] && oi(s15[i2], t - 1);
+  function oi(s16, t = 5) {
+    if (typeof s16 != "object") return s16;
+    let e = Array.isArray(s16) ? [] : {};
+    for (let i2 in s16) e[i2] = t <= 1 ? s16[i2] : s16[i2] && oi(s16[i2], t - 1);
     return e;
   }
   var ul = Object.freeze({ insertMode: false });
@@ -500281,21 +500339,21 @@ ${h3.join(`
     }
   };
   li = M([S(0, F), S(1, nr), S(2, H)], li);
-  var dl = { NONE: { events: 0, restrict: () => false }, X10: { events: 1, restrict: (s15) => s15.button === 4 || s15.action !== 1 ? false : (s15.ctrl = false, s15.alt = false, s15.shift = false, true) }, VT200: { events: 19, restrict: (s15) => s15.action !== 32 }, DRAG: { events: 23, restrict: (s15) => !(s15.action === 32 && s15.button === 3) }, ANY: { events: 31, restrict: (s15) => true } };
-  function Ms(s15, t) {
-    let e = (s15.ctrl ? 16 : 0) | (s15.shift ? 4 : 0) | (s15.alt ? 8 : 0);
-    return s15.button === 4 ? (e |= 64, e |= s15.action) : (e |= s15.button & 3, s15.button & 4 && (e |= 64), s15.button & 8 && (e |= 128), s15.action === 32 ? e |= 32 : s15.action === 0 && !t && (e |= 3)), e;
+  var dl = { NONE: { events: 0, restrict: () => false }, X10: { events: 1, restrict: (s16) => s16.button === 4 || s16.action !== 1 ? false : (s16.ctrl = false, s16.alt = false, s16.shift = false, true) }, VT200: { events: 19, restrict: (s16) => s16.action !== 32 }, DRAG: { events: 23, restrict: (s16) => !(s16.action === 32 && s16.button === 3) }, ANY: { events: 31, restrict: (s16) => true } };
+  function Ms(s16, t) {
+    let e = (s16.ctrl ? 16 : 0) | (s16.shift ? 4 : 0) | (s16.alt ? 8 : 0);
+    return s16.button === 4 ? (e |= 64, e |= s16.action) : (e |= s16.button & 3, s16.button & 4 && (e |= 64), s16.button & 8 && (e |= 128), s16.action === 32 ? e |= 32 : s16.action === 0 && !t && (e |= 3)), e;
   }
   var Ps = String.fromCharCode;
-  var fl = { DEFAULT: (s15) => {
-    let t = [Ms(s15, false) + 32, s15.col + 32, s15.row + 32];
+  var fl = { DEFAULT: (s16) => {
+    let t = [Ms(s16, false) + 32, s16.col + 32, s16.row + 32];
     return t[0] > 255 || t[1] > 255 || t[2] > 255 ? "" : `\x1B[M${Ps(t[0])}${Ps(t[1])}${Ps(t[2])}`;
-  }, SGR: (s15) => {
-    let t = s15.action === 0 && s15.button !== 4 ? "m" : "M";
-    return `\x1B[<${Ms(s15, true)};${s15.col};${s15.row}${t}`;
-  }, SGR_PIXELS: (s15) => {
-    let t = s15.action === 0 && s15.button !== 4 ? "m" : "M";
-    return `\x1B[<${Ms(s15, true)};${s15.x};${s15.y}${t}`;
+  }, SGR: (s16) => {
+    let t = s16.action === 0 && s16.button !== 4 ? "m" : "M";
+    return `\x1B[<${Ms(s16, true)};${s16.col};${s16.row}${t}`;
+  }, SGR_PIXELS: (s16) => {
+    let t = s16.action === 0 && s16.button !== 4 ? "m" : "M";
+    return `\x1B[<${Ms(s16, true)};${s16.x};${s16.y}${t}`;
   } };
   var ai = class extends D {
     constructor(e, i2, r2) {
@@ -500368,11 +500426,11 @@ ${h3.join(`
   var Os = [[768, 879], [1155, 1158], [1160, 1161], [1425, 1469], [1471, 1471], [1473, 1474], [1476, 1477], [1479, 1479], [1536, 1539], [1552, 1557], [1611, 1630], [1648, 1648], [1750, 1764], [1767, 1768], [1770, 1773], [1807, 1807], [1809, 1809], [1840, 1866], [1958, 1968], [2027, 2035], [2305, 2306], [2364, 2364], [2369, 2376], [2381, 2381], [2385, 2388], [2402, 2403], [2433, 2433], [2492, 2492], [2497, 2500], [2509, 2509], [2530, 2531], [2561, 2562], [2620, 2620], [2625, 2626], [2631, 2632], [2635, 2637], [2672, 2673], [2689, 2690], [2748, 2748], [2753, 2757], [2759, 2760], [2765, 2765], [2786, 2787], [2817, 2817], [2876, 2876], [2879, 2879], [2881, 2883], [2893, 2893], [2902, 2902], [2946, 2946], [3008, 3008], [3021, 3021], [3134, 3136], [3142, 3144], [3146, 3149], [3157, 3158], [3260, 3260], [3263, 3263], [3270, 3270], [3276, 3277], [3298, 3299], [3393, 3395], [3405, 3405], [3530, 3530], [3538, 3540], [3542, 3542], [3633, 3633], [3636, 3642], [3655, 3662], [3761, 3761], [3764, 3769], [3771, 3772], [3784, 3789], [3864, 3865], [3893, 3893], [3895, 3895], [3897, 3897], [3953, 3966], [3968, 3972], [3974, 3975], [3984, 3991], [3993, 4028], [4038, 4038], [4141, 4144], [4146, 4146], [4150, 4151], [4153, 4153], [4184, 4185], [4448, 4607], [4959, 4959], [5906, 5908], [5938, 5940], [5970, 5971], [6002, 6003], [6068, 6069], [6071, 6077], [6086, 6086], [6089, 6099], [6109, 6109], [6155, 6157], [6313, 6313], [6432, 6434], [6439, 6440], [6450, 6450], [6457, 6459], [6679, 6680], [6912, 6915], [6964, 6964], [6966, 6970], [6972, 6972], [6978, 6978], [7019, 7027], [7616, 7626], [7678, 7679], [8203, 8207], [8234, 8238], [8288, 8291], [8298, 8303], [8400, 8431], [12330, 12335], [12441, 12442], [43014, 43014], [43019, 43019], [43045, 43046], [64286, 64286], [65024, 65039], [65056, 65059], [65279, 65279], [65529, 65531]];
   var ac = [[68097, 68099], [68101, 68102], [68108, 68111], [68152, 68154], [68159, 68159], [119143, 119145], [119155, 119170], [119173, 119179], [119210, 119213], [119362, 119364], [917505, 917505], [917536, 917631], [917760, 917999]];
   var se;
-  function cc(s15, t) {
+  function cc(s16, t) {
     let e = 0, i2 = t.length - 1, r2;
-    if (s15 < t[0][0] || s15 > t[i2][1]) return false;
-    for (; i2 >= e; ) if (r2 = e + i2 >> 1, s15 > t[r2][1]) e = r2 + 1;
-    else if (s15 < t[r2][0]) i2 = r2 - 1;
+    if (s16 < t[0][0] || s16 > t[i2][1]) return false;
+    for (; i2 >= e; ) if (r2 = e + i2 >> 1, s16 > t[r2][1]) e = r2 + 1;
+    else if (s16 < t[r2][0]) i2 = r2 - 1;
     else return true;
     return false;
   }
@@ -500469,8 +500527,8 @@ ${h3.join(`
       this._charsets[t] = e, this.glevel === t && (this.charset = e);
     }
   };
-  function Bs(s15) {
-    let e = s15.buffer.lines.get(s15.buffer.ybase + s15.buffer.y - 1)?.get(s15.cols - 1), i2 = s15.buffer.lines.get(s15.buffer.ybase + s15.buffer.y);
+  function Bs(s16) {
+    let e = s16.buffer.lines.get(s16.buffer.ybase + s16.buffer.y - 1)?.get(s16.cols - 1), i2 = s16.buffer.lines.get(s16.buffer.ybase + s16.buffer.y);
     i2 && e && (i2.isWrapped = e[3] !== 0 && e[3] !== 32);
   }
   var Vi = 2147483647;
@@ -500734,12 +500792,12 @@ ${h3.join(`
   };
   var ke = 160;
   var hc = (function() {
-    let s15 = new Fs(4095), e = Array.apply(null, Array(256)).map((a, u) => u), i2 = (a, u) => e.slice(a, u), r2 = i2(32, 127), n2 = i2(0, 24);
+    let s16 = new Fs(4095), e = Array.apply(null, Array(256)).map((a, u) => u), i2 = (a, u) => e.slice(a, u), r2 = i2(32, 127), n2 = i2(0, 24);
     n2.push(25), n2.push.apply(n2, i2(28, 32));
     let o2 = i2(0, 14), l2;
-    s15.setDefault(1, 0), s15.addMany(r2, 0, 2, 0);
-    for (l2 in o2) s15.addMany([24, 26, 153, 154], l2, 3, 0), s15.addMany(i2(128, 144), l2, 3, 0), s15.addMany(i2(144, 152), l2, 3, 0), s15.add(156, l2, 0, 0), s15.add(27, l2, 11, 1), s15.add(157, l2, 4, 8), s15.addMany([152, 158, 159], l2, 0, 7), s15.add(155, l2, 11, 3), s15.add(144, l2, 11, 9);
-    return s15.addMany(n2, 0, 3, 0), s15.addMany(n2, 1, 3, 1), s15.add(127, 1, 0, 1), s15.addMany(n2, 8, 0, 8), s15.addMany(n2, 3, 3, 3), s15.add(127, 3, 0, 3), s15.addMany(n2, 4, 3, 4), s15.add(127, 4, 0, 4), s15.addMany(n2, 6, 3, 6), s15.addMany(n2, 5, 3, 5), s15.add(127, 5, 0, 5), s15.addMany(n2, 2, 3, 2), s15.add(127, 2, 0, 2), s15.add(93, 1, 4, 8), s15.addMany(r2, 8, 5, 8), s15.add(127, 8, 5, 8), s15.addMany([156, 27, 24, 26, 7], 8, 6, 0), s15.addMany(i2(28, 32), 8, 0, 8), s15.addMany([88, 94, 95], 1, 0, 7), s15.addMany(r2, 7, 0, 7), s15.addMany(n2, 7, 0, 7), s15.add(156, 7, 0, 0), s15.add(127, 7, 0, 7), s15.add(91, 1, 11, 3), s15.addMany(i2(64, 127), 3, 7, 0), s15.addMany(i2(48, 60), 3, 8, 4), s15.addMany([60, 61, 62, 63], 3, 9, 4), s15.addMany(i2(48, 60), 4, 8, 4), s15.addMany(i2(64, 127), 4, 7, 0), s15.addMany([60, 61, 62, 63], 4, 0, 6), s15.addMany(i2(32, 64), 6, 0, 6), s15.add(127, 6, 0, 6), s15.addMany(i2(64, 127), 6, 0, 0), s15.addMany(i2(32, 48), 3, 9, 5), s15.addMany(i2(32, 48), 5, 9, 5), s15.addMany(i2(48, 64), 5, 0, 6), s15.addMany(i2(64, 127), 5, 7, 0), s15.addMany(i2(32, 48), 4, 9, 5), s15.addMany(i2(32, 48), 1, 9, 2), s15.addMany(i2(32, 48), 2, 9, 2), s15.addMany(i2(48, 127), 2, 10, 0), s15.addMany(i2(48, 80), 1, 10, 0), s15.addMany(i2(81, 88), 1, 10, 0), s15.addMany([89, 90, 92], 1, 10, 0), s15.addMany(i2(96, 127), 1, 10, 0), s15.add(80, 1, 11, 9), s15.addMany(n2, 9, 0, 9), s15.add(127, 9, 0, 9), s15.addMany(i2(28, 32), 9, 0, 9), s15.addMany(i2(32, 48), 9, 9, 12), s15.addMany(i2(48, 60), 9, 8, 10), s15.addMany([60, 61, 62, 63], 9, 9, 10), s15.addMany(n2, 11, 0, 11), s15.addMany(i2(32, 128), 11, 0, 11), s15.addMany(i2(28, 32), 11, 0, 11), s15.addMany(n2, 10, 0, 10), s15.add(127, 10, 0, 10), s15.addMany(i2(28, 32), 10, 0, 10), s15.addMany(i2(48, 60), 10, 8, 10), s15.addMany([60, 61, 62, 63], 10, 0, 11), s15.addMany(i2(32, 48), 10, 9, 12), s15.addMany(n2, 12, 0, 12), s15.add(127, 12, 0, 12), s15.addMany(i2(28, 32), 12, 0, 12), s15.addMany(i2(32, 48), 12, 9, 12), s15.addMany(i2(48, 64), 12, 0, 11), s15.addMany(i2(64, 127), 12, 12, 13), s15.addMany(i2(64, 127), 10, 12, 13), s15.addMany(i2(64, 127), 9, 12, 13), s15.addMany(n2, 13, 13, 13), s15.addMany(r2, 13, 13, 13), s15.add(127, 13, 0, 13), s15.addMany([27, 156, 24, 26], 13, 14, 0), s15.add(ke, 0, 2, 0), s15.add(ke, 8, 5, 8), s15.add(ke, 6, 0, 6), s15.add(ke, 11, 0, 11), s15.add(ke, 13, 13, 13), s15;
+    s16.setDefault(1, 0), s16.addMany(r2, 0, 2, 0);
+    for (l2 in o2) s16.addMany([24, 26, 153, 154], l2, 3, 0), s16.addMany(i2(128, 144), l2, 3, 0), s16.addMany(i2(144, 152), l2, 3, 0), s16.add(156, l2, 0, 0), s16.add(27, l2, 11, 1), s16.add(157, l2, 4, 8), s16.addMany([152, 158, 159], l2, 0, 7), s16.add(155, l2, 11, 3), s16.add(144, l2, 11, 9);
+    return s16.addMany(n2, 0, 3, 0), s16.addMany(n2, 1, 3, 1), s16.add(127, 1, 0, 1), s16.addMany(n2, 8, 0, 8), s16.addMany(n2, 3, 3, 3), s16.add(127, 3, 0, 3), s16.addMany(n2, 4, 3, 4), s16.add(127, 4, 0, 4), s16.addMany(n2, 6, 3, 6), s16.addMany(n2, 5, 3, 5), s16.add(127, 5, 0, 5), s16.addMany(n2, 2, 3, 2), s16.add(127, 2, 0, 2), s16.add(93, 1, 4, 8), s16.addMany(r2, 8, 5, 8), s16.add(127, 8, 5, 8), s16.addMany([156, 27, 24, 26, 7], 8, 6, 0), s16.addMany(i2(28, 32), 8, 0, 8), s16.addMany([88, 94, 95], 1, 0, 7), s16.addMany(r2, 7, 0, 7), s16.addMany(n2, 7, 0, 7), s16.add(156, 7, 0, 0), s16.add(127, 7, 0, 7), s16.add(91, 1, 11, 3), s16.addMany(i2(64, 127), 3, 7, 0), s16.addMany(i2(48, 60), 3, 8, 4), s16.addMany([60, 61, 62, 63], 3, 9, 4), s16.addMany(i2(48, 60), 4, 8, 4), s16.addMany(i2(64, 127), 4, 7, 0), s16.addMany([60, 61, 62, 63], 4, 0, 6), s16.addMany(i2(32, 64), 6, 0, 6), s16.add(127, 6, 0, 6), s16.addMany(i2(64, 127), 6, 0, 0), s16.addMany(i2(32, 48), 3, 9, 5), s16.addMany(i2(32, 48), 5, 9, 5), s16.addMany(i2(48, 64), 5, 0, 6), s16.addMany(i2(64, 127), 5, 7, 0), s16.addMany(i2(32, 48), 4, 9, 5), s16.addMany(i2(32, 48), 1, 9, 2), s16.addMany(i2(32, 48), 2, 9, 2), s16.addMany(i2(48, 127), 2, 10, 0), s16.addMany(i2(48, 80), 1, 10, 0), s16.addMany(i2(81, 88), 1, 10, 0), s16.addMany([89, 90, 92], 1, 10, 0), s16.addMany(i2(96, 127), 1, 10, 0), s16.add(80, 1, 11, 9), s16.addMany(n2, 9, 0, 9), s16.add(127, 9, 0, 9), s16.addMany(i2(28, 32), 9, 0, 9), s16.addMany(i2(32, 48), 9, 9, 12), s16.addMany(i2(48, 60), 9, 8, 10), s16.addMany([60, 61, 62, 63], 9, 9, 10), s16.addMany(n2, 11, 0, 11), s16.addMany(i2(32, 128), 11, 0, 11), s16.addMany(i2(28, 32), 11, 0, 11), s16.addMany(n2, 10, 0, 10), s16.add(127, 10, 0, 10), s16.addMany(i2(28, 32), 10, 0, 10), s16.addMany(i2(48, 60), 10, 8, 10), s16.addMany([60, 61, 62, 63], 10, 0, 11), s16.addMany(i2(32, 48), 10, 9, 12), s16.addMany(n2, 12, 0, 12), s16.add(127, 12, 0, 12), s16.addMany(i2(28, 32), 12, 0, 12), s16.addMany(i2(32, 48), 12, 9, 12), s16.addMany(i2(48, 64), 12, 0, 11), s16.addMany(i2(64, 127), 12, 12, 13), s16.addMany(i2(64, 127), 10, 12, 13), s16.addMany(i2(64, 127), 9, 12, 13), s16.addMany(n2, 13, 13, 13), s16.addMany(r2, 13, 13, 13), s16.add(127, 13, 0, 13), s16.addMany([27, 156, 24, 26], 13, 14, 0), s16.add(ke, 0, 2, 0), s16.add(ke, 8, 5, 8), s16.add(ke, 6, 0, 6), s16.add(ke, 11, 0, 11), s16.add(ke, 13, 13, 13), s16;
   })();
   var bn = class extends D {
     constructor(e = hc) {
@@ -500977,9 +501035,9 @@ ${h3.join(`
   };
   var dc = /^([\da-f])\/([\da-f])\/([\da-f])$|^([\da-f]{2})\/([\da-f]{2})\/([\da-f]{2})$|^([\da-f]{3})\/([\da-f]{3})\/([\da-f]{3})$|^([\da-f]{4})\/([\da-f]{4})\/([\da-f]{4})$/;
   var fc = /^[\da-f]+$/;
-  function Ws(s15) {
-    if (!s15) return;
-    let t = s15.toLowerCase();
+  function Ws(s16) {
+    if (!s16) return;
+    let t = s16.toLowerCase();
     if (t.indexOf("rgb:") === 0) {
       t = t.slice(4);
       let e = dc.exec(t);
@@ -500996,8 +501054,8 @@ ${h3.join(`
       return i2;
     }
   }
-  function Hs(s15, t) {
-    let e = s15.toString(16), i2 = e.length < 2 ? "0" + e : e;
+  function Hs(s16, t) {
+    let e = s16.toString(16), i2 = e.length < 2 ? "0" + e : e;
     switch (t) {
       case 4:
         return e[0];
@@ -501009,16 +501067,16 @@ ${h3.join(`
         return i2 + i2;
     }
   }
-  function ml(s15, t = 16) {
-    let [e, i2, r2] = s15;
+  function ml(s16, t = 16) {
+    let [e, i2, r2] = s16;
     return `rgb:${Hs(e, t)}/${Hs(i2, t)}/${Hs(r2, t)}`;
   }
   var mc = { "(": 0, ")": 1, "*": 2, "+": 3, "-": 1, ".": 2 };
   var ut = 131072;
   var _l = 10;
-  function bl(s15, t) {
-    if (s15 > 24) return t.setWinLines || false;
-    switch (s15) {
+  function bl(s16, t) {
+    if (s16 > 24) return t.setWinLines || false;
+    switch (s16) {
       case 1:
         return !!t.restoreWin;
       case 2:
@@ -501893,8 +501951,8 @@ ${h3.join(`
     }
   };
   Zi = M([S(0, F)], Zi);
-  function Sl(s15) {
-    return 0 <= s15 && s15 < 256;
+  function Sl(s16) {
+    return 0 <= s16 && s16 < 256;
   }
   var _c2 = 5e7;
   var El = 12;
@@ -502099,46 +502157,46 @@ ${h3.join(`
     }
   };
   var gc = { 48: ["0", ")"], 49: ["1", "!"], 50: ["2", "@"], 51: ["3", "#"], 52: ["4", "$"], 53: ["5", "%"], 54: ["6", "^"], 55: ["7", "&"], 56: ["8", "*"], 57: ["9", "("], 186: [";", ":"], 187: ["=", "+"], 188: [",", "<"], 189: ["-", "_"], 190: [".", ">"], 191: ["/", "?"], 192: ["`", "~"], 219: ["[", "{"], 220: ["\\", "|"], 221: ["]", "}"], 222: ["'", '"'] };
-  function Il(s15, t, e, i2) {
-    let r2 = { type: 0, cancel: false, key: void 0 }, n2 = (s15.shiftKey ? 1 : 0) | (s15.altKey ? 2 : 0) | (s15.ctrlKey ? 4 : 0) | (s15.metaKey ? 8 : 0);
-    switch (s15.keyCode) {
+  function Il(s16, t, e, i2) {
+    let r2 = { type: 0, cancel: false, key: void 0 }, n2 = (s16.shiftKey ? 1 : 0) | (s16.altKey ? 2 : 0) | (s16.ctrlKey ? 4 : 0) | (s16.metaKey ? 8 : 0);
+    switch (s16.keyCode) {
       case 0:
-        s15.key === "UIKeyInputUpArrow" ? t ? r2.key = b.ESC + "OA" : r2.key = b.ESC + "[A" : s15.key === "UIKeyInputLeftArrow" ? t ? r2.key = b.ESC + "OD" : r2.key = b.ESC + "[D" : s15.key === "UIKeyInputRightArrow" ? t ? r2.key = b.ESC + "OC" : r2.key = b.ESC + "[C" : s15.key === "UIKeyInputDownArrow" && (t ? r2.key = b.ESC + "OB" : r2.key = b.ESC + "[B");
+        s16.key === "UIKeyInputUpArrow" ? t ? r2.key = b.ESC + "OA" : r2.key = b.ESC + "[A" : s16.key === "UIKeyInputLeftArrow" ? t ? r2.key = b.ESC + "OD" : r2.key = b.ESC + "[D" : s16.key === "UIKeyInputRightArrow" ? t ? r2.key = b.ESC + "OC" : r2.key = b.ESC + "[C" : s16.key === "UIKeyInputDownArrow" && (t ? r2.key = b.ESC + "OB" : r2.key = b.ESC + "[B");
         break;
       case 8:
-        r2.key = s15.ctrlKey ? "\b" : b.DEL, s15.altKey && (r2.key = b.ESC + r2.key);
+        r2.key = s16.ctrlKey ? "\b" : b.DEL, s16.altKey && (r2.key = b.ESC + r2.key);
         break;
       case 9:
-        if (s15.shiftKey) {
+        if (s16.shiftKey) {
           r2.key = b.ESC + "[Z";
           break;
         }
         r2.key = b.HT, r2.cancel = true;
         break;
       case 13:
-        r2.key = s15.altKey ? b.ESC + b.CR : b.CR, r2.cancel = true;
+        r2.key = s16.altKey ? b.ESC + b.CR : b.CR, r2.cancel = true;
         break;
       case 27:
-        r2.key = b.ESC, s15.altKey && (r2.key = b.ESC + b.ESC), r2.cancel = true;
+        r2.key = b.ESC, s16.altKey && (r2.key = b.ESC + b.ESC), r2.cancel = true;
         break;
       case 37:
-        if (s15.metaKey) break;
+        if (s16.metaKey) break;
         n2 ? r2.key = b.ESC + "[1;" + (n2 + 1) + "D" : t ? r2.key = b.ESC + "OD" : r2.key = b.ESC + "[D";
         break;
       case 39:
-        if (s15.metaKey) break;
+        if (s16.metaKey) break;
         n2 ? r2.key = b.ESC + "[1;" + (n2 + 1) + "C" : t ? r2.key = b.ESC + "OC" : r2.key = b.ESC + "[C";
         break;
       case 38:
-        if (s15.metaKey) break;
+        if (s16.metaKey) break;
         n2 ? r2.key = b.ESC + "[1;" + (n2 + 1) + "A" : t ? r2.key = b.ESC + "OA" : r2.key = b.ESC + "[A";
         break;
       case 40:
-        if (s15.metaKey) break;
+        if (s16.metaKey) break;
         n2 ? r2.key = b.ESC + "[1;" + (n2 + 1) + "B" : t ? r2.key = b.ESC + "OB" : r2.key = b.ESC + "[B";
         break;
       case 45:
-        !s15.shiftKey && !s15.ctrlKey && (r2.key = b.ESC + "[2~");
+        !s16.shiftKey && !s16.ctrlKey && (r2.key = b.ESC + "[2~");
         break;
       case 46:
         n2 ? r2.key = b.ESC + "[3;" + (n2 + 1) + "~" : r2.key = b.ESC + "[3~";
@@ -502150,10 +502208,10 @@ ${h3.join(`
         n2 ? r2.key = b.ESC + "[1;" + (n2 + 1) + "F" : t ? r2.key = b.ESC + "OF" : r2.key = b.ESC + "[F";
         break;
       case 33:
-        s15.shiftKey ? r2.type = 2 : s15.ctrlKey ? r2.key = b.ESC + "[5;" + (n2 + 1) + "~" : r2.key = b.ESC + "[5~";
+        s16.shiftKey ? r2.type = 2 : s16.ctrlKey ? r2.key = b.ESC + "[5;" + (n2 + 1) + "~" : r2.key = b.ESC + "[5~";
         break;
       case 34:
-        s15.shiftKey ? r2.type = 3 : s15.ctrlKey ? r2.key = b.ESC + "[6;" + (n2 + 1) + "~" : r2.key = b.ESC + "[6~";
+        s16.shiftKey ? r2.type = 3 : s16.ctrlKey ? r2.key = b.ESC + "[6;" + (n2 + 1) + "~" : r2.key = b.ESC + "[6~";
         break;
       case 112:
         n2 ? r2.key = b.ESC + "[1;" + (n2 + 1) + "P" : r2.key = b.ESC + "OP";
@@ -502192,19 +502250,19 @@ ${h3.join(`
         n2 ? r2.key = b.ESC + "[24;" + (n2 + 1) + "~" : r2.key = b.ESC + "[24~";
         break;
       default:
-        if (s15.ctrlKey && !s15.shiftKey && !s15.altKey && !s15.metaKey) s15.keyCode >= 65 && s15.keyCode <= 90 ? r2.key = String.fromCharCode(s15.keyCode - 64) : s15.keyCode === 32 ? r2.key = b.NUL : s15.keyCode >= 51 && s15.keyCode <= 55 ? r2.key = String.fromCharCode(s15.keyCode - 51 + 27) : s15.keyCode === 56 ? r2.key = b.DEL : s15.keyCode === 219 ? r2.key = b.ESC : s15.keyCode === 220 ? r2.key = b.FS : s15.keyCode === 221 && (r2.key = b.GS);
-        else if ((!e || i2) && s15.altKey && !s15.metaKey) {
-          let l2 = gc[s15.keyCode]?.[s15.shiftKey ? 1 : 0];
+        if (s16.ctrlKey && !s16.shiftKey && !s16.altKey && !s16.metaKey) s16.keyCode >= 65 && s16.keyCode <= 90 ? r2.key = String.fromCharCode(s16.keyCode - 64) : s16.keyCode === 32 ? r2.key = b.NUL : s16.keyCode >= 51 && s16.keyCode <= 55 ? r2.key = String.fromCharCode(s16.keyCode - 51 + 27) : s16.keyCode === 56 ? r2.key = b.DEL : s16.keyCode === 219 ? r2.key = b.ESC : s16.keyCode === 220 ? r2.key = b.FS : s16.keyCode === 221 && (r2.key = b.GS);
+        else if ((!e || i2) && s16.altKey && !s16.metaKey) {
+          let l2 = gc[s16.keyCode]?.[s16.shiftKey ? 1 : 0];
           if (l2) r2.key = b.ESC + l2;
-          else if (s15.keyCode >= 65 && s15.keyCode <= 90) {
-            let a = s15.ctrlKey ? s15.keyCode - 64 : s15.keyCode + 32, u = String.fromCharCode(a);
-            s15.shiftKey && (u = u.toUpperCase()), r2.key = b.ESC + u;
-          } else if (s15.keyCode === 32) r2.key = b.ESC + (s15.ctrlKey ? b.NUL : " ");
-          else if (s15.key === "Dead" && s15.code.startsWith("Key")) {
-            let a = s15.code.slice(3, 4);
-            s15.shiftKey || (a = a.toLowerCase()), r2.key = b.ESC + a, r2.cancel = true;
+          else if (s16.keyCode >= 65 && s16.keyCode <= 90) {
+            let a = s16.ctrlKey ? s16.keyCode - 64 : s16.keyCode + 32, u = String.fromCharCode(a);
+            s16.shiftKey && (u = u.toUpperCase()), r2.key = b.ESC + u;
+          } else if (s16.keyCode === 32) r2.key = b.ESC + (s16.ctrlKey ? b.NUL : " ");
+          else if (s16.key === "Dead" && s16.code.startsWith("Key")) {
+            let a = s16.code.slice(3, 4);
+            s16.shiftKey || (a = a.toLowerCase()), r2.key = b.ESC + a, r2.cancel = true;
           }
-        } else e && !s15.altKey && !s15.ctrlKey && !s15.shiftKey && s15.metaKey ? s15.keyCode === 65 && (r2.type = 1) : s15.key && !s15.ctrlKey && !s15.altKey && !s15.metaKey && s15.keyCode >= 48 && s15.key.length === 1 ? r2.key = s15.key : s15.key && s15.ctrlKey && (s15.key === "_" && (r2.key = b.US), s15.key === "@" && (r2.key = b.NUL));
+        } else e && !s16.altKey && !s16.ctrlKey && !s16.shiftKey && s16.metaKey ? s16.keyCode === 65 && (r2.type = 1) : s16.key && !s16.ctrlKey && !s16.altKey && !s16.metaKey && s16.keyCode >= 48 && s16.key.length === 1 ? r2.key = s16.key : s16.key && s16.ctrlKey && (s16.key === "_" && (r2.key = b.US), s16.key === "@" && (r2.key = b.NUL));
         break;
     }
     return r2;
@@ -502631,8 +502689,8 @@ ${h3.join(`
     }
   };
   hi = M([S(1, Dt), S(2, ce), S(3, F), S(4, lr)], hi);
-  function Ec(s15, t) {
-    return s15.text === t.text && s15.range.start.x === t.range.start.x && s15.range.start.y === t.range.start.y && s15.range.end.x === t.range.end.x && s15.range.end.y === t.range.end.y;
+  function Ec(s16, t) {
+    return s16.text === t.text && s16.range.start.x === t.range.start.x && s16.range.start.y === t.range.start.y && s16.range.end.x === t.range.end.x && s16.range.end.y === t.range.end.y;
   }
   var yn = class extends Sn {
     constructor(e = {}) {
@@ -503001,8 +503059,8 @@ ${h3.join(`
       if (!(!this.options.cancelEvents && !i2)) return e.preventDefault(), e.stopPropagation(), false;
     }
   };
-  function Tc(s15) {
-    return s15.keyCode === 16 || s15.keyCode === 17 || s15.keyCode === 18;
+  function Tc(s16) {
+    return s16.keyCode === 16 || s16.keyCode === 17 || s16.keyCode === 18;
   }
   var xn = class {
     constructor() {
@@ -503381,7 +503439,7 @@ ${h3.join(`
       if (!this._terminal || !this._terminal.element || !this._terminal.element.parentElement) return;
       let t = this._terminal._core._renderService.dimensions;
       if (t.css.cell.width === 0 || t.css.cell.height === 0) return;
-      let s15 = this._terminal.options.scrollback === 0 ? 0 : this._terminal.options.overviewRuler?.width || 14, r2 = window.getComputedStyle(this._terminal.element.parentElement), l2 = parseInt(r2.getPropertyValue("height")), a = Math.max(0, parseInt(r2.getPropertyValue("width"))), i2 = window.getComputedStyle(this._terminal.element), n2 = { top: parseInt(i2.getPropertyValue("padding-top")), bottom: parseInt(i2.getPropertyValue("padding-bottom")), right: parseInt(i2.getPropertyValue("padding-right")), left: parseInt(i2.getPropertyValue("padding-left")) }, m = n2.top + n2.bottom, d = n2.right + n2.left, c = l2 - m, p = a - d - s15;
+      let s16 = this._terminal.options.scrollback === 0 ? 0 : this._terminal.options.overviewRuler?.width || 14, r2 = window.getComputedStyle(this._terminal.element.parentElement), l2 = parseInt(r2.getPropertyValue("height")), a = Math.max(0, parseInt(r2.getPropertyValue("width"))), i2 = window.getComputedStyle(this._terminal.element), n2 = { top: parseInt(i2.getPropertyValue("padding-top")), bottom: parseInt(i2.getPropertyValue("padding-bottom")), right: parseInt(i2.getPropertyValue("padding-right")), left: parseInt(i2.getPropertyValue("padding-left")) }, m = n2.top + n2.bottom, d = n2.right + n2.left, c = l2 - m, p = a - d - s16;
       return { cols: Math.max(h2, Math.floor(p / t.css.cell.width)), rows: Math.max(_, Math.floor(c / t.css.cell.height)) };
     }
   };
@@ -503417,8 +503475,8 @@ ${h3.join(`
   }
   var g = class l {
     static computeLink(e, t, n2, o2) {
-      let p = new RegExp(t.source, (t.flags || "") + "g"), [i2, r2] = l._getWindowedLineStrings(e - 1, n2), s15 = i2.join(""), a, d = [];
-      for (; a = p.exec(s15); ) {
+      let p = new RegExp(t.source, (t.flags || "") + "g"), [i2, r2] = l._getWindowedLineStrings(e - 1, n2), s16 = i2.join(""), a, d = [];
+      for (; a = p.exec(s16); ) {
         let u = a[0];
         if (!k(u)) continue;
         let [c, h3] = l._mapStrIdx(n2, r2, 0, a.index), [m, f] = l._mapStrIdx(n2, c, h3, u.length);
@@ -503429,26 +503487,26 @@ ${h3.join(`
       return d;
     }
     static _getWindowedLineStrings(e, t) {
-      let n2, o2 = e, p = e, i2 = 0, r2 = "", s15 = [];
+      let n2, o2 = e, p = e, i2 = 0, r2 = "", s16 = [];
       if (n2 = t.buffer.active.getLine(e)) {
         let a = n2.translateToString(true);
         if (n2.isWrapped && a[0] !== " ") {
-          for (i2 = 0; (n2 = t.buffer.active.getLine(--o2)) && i2 < 2048 && (r2 = n2.translateToString(true), i2 += r2.length, s15.push(r2), !(!n2.isWrapped || r2.indexOf(" ") !== -1)); ) ;
-          s15.reverse();
+          for (i2 = 0; (n2 = t.buffer.active.getLine(--o2)) && i2 < 2048 && (r2 = n2.translateToString(true), i2 += r2.length, s16.push(r2), !(!n2.isWrapped || r2.indexOf(" ") !== -1)); ) ;
+          s16.reverse();
         }
-        for (s15.push(a), i2 = 0; (n2 = t.buffer.active.getLine(++p)) && n2.isWrapped && i2 < 2048 && (r2 = n2.translateToString(true), i2 += r2.length, s15.push(r2), r2.indexOf(" ") === -1); ) ;
+        for (s16.push(a), i2 = 0; (n2 = t.buffer.active.getLine(++p)) && n2.isWrapped && i2 < 2048 && (r2 = n2.translateToString(true), i2 += r2.length, s16.push(r2), r2.indexOf(" ") === -1); ) ;
       }
-      return [s15, o2];
+      return [s16, o2];
     }
     static _mapStrIdx(e, t, n2, o2) {
       let p = e.buffer.active, i2 = p.getNullCell(), r2 = n2;
       for (; o2; ) {
-        let s15 = p.getLine(t);
-        if (!s15) return [-1, -1];
-        for (let a = r2; a < s15.length; ++a) {
-          s15.getCell(a, i2);
+        let s16 = p.getLine(t);
+        if (!s16) return [-1, -1];
+        for (let a = r2; a < s16.length; ++a) {
+          s16.getCell(a, i2);
           let d = i2.getChars();
-          if (i2.getWidth() && (o2 -= d.length || 1, a === s15.length - 1 && d === "")) {
+          if (i2.getWidth() && (o2 -= d.length || 1, a === s16.length - 1 && d === "")) {
             let c = p.getLine(t + 1);
             c && c.isWrapped && (c.getCell(0, i2), i2.getWidth() === 2 && (o2 += 1));
           }
@@ -504088,17 +504146,7 @@ ${h3.join(`
       return this.props.children;
     }
   };
-  var ComponentPreview = ({ nodeId, config }) => {
-    const [filePath, setFilePath] = (0, import_react15.useState)(config?.filePath || null);
-    const [projectFiles, setProjectFiles] = (0, import_react15.useState)([]);
-    const [bgMode, setBgMode] = (0, import_react15.useState)("dark");
-    const [zoom, setZoom] = (0, import_react15.useState)(1);
-    const [transpileError, setTranspileError] = (0, import_react15.useState)(null);
-    const [previewCode, setPreviewCode] = (0, import_react15.useState)(null);
-    const [ComponentToRender, setComponentToRender] = (0, import_react15.useState)(null);
-    const [lastUpdateKey, setLastUpdateKey] = (0, import_react15.useState)(0);
-    const [sampleMode, setSampleMode] = (0, import_react15.useState)(false);
-    const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:#2a1717;border:1px solid #732222;border-radius:6px;color:#f44747;font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
+  var IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:#2a1717;border:1px solid #732222;border-radius:6px;color:#f44747;font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
 <script>
 (function(){
   const forwardNav = (url, target) => {
@@ -504313,6 +504361,16 @@ ${h3.join(`
 })();
 <\/script>
 </body></html>`;
+  var ComponentPreview = ({ nodeId, config }) => {
+    const [filePath, setFilePath] = (0, import_react15.useState)(config?.filePath || null);
+    const [projectFiles, setProjectFiles] = (0, import_react15.useState)([]);
+    const [bgMode, setBgMode] = (0, import_react15.useState)("dark");
+    const [zoom, setZoom] = (0, import_react15.useState)(1);
+    const [transpileError, setTranspileError] = (0, import_react15.useState)(null);
+    const [previewCode, setPreviewCode] = (0, import_react15.useState)(null);
+    const [ComponentToRender, setComponentToRender] = (0, import_react15.useState)(null);
+    const [lastUpdateKey, setLastUpdateKey] = (0, import_react15.useState)(0);
+    const [sampleMode, setSampleMode] = (0, import_react15.useState)(false);
     const iframeRef = (0, import_react15.useRef)(null);
     const reactRootRef = (0, import_react15.useRef)(null);
     const iframeReadyRef = (0, import_react15.useRef)(false);
@@ -504406,15 +504464,25 @@ ${h3.join(`
         const entries2 = await window.electronAPI.readDirAll(dir);
         let results = [];
         for (const entry of entries2) {
-          if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist" || entry.name === "build") continue;
+          if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist" || entry.name === "build" || entry.name === ".git" || entry.name === "out" || entry.name === ".next") continue;
           if (entry.isDir) {
             const sub = await scanProjectFiles(entry.path);
             results = results.concat(sub);
-          } else if (/\.(jsx|tsx)$/i.test(entry.name)) {
-            results.push(entry.path);
+            if (results.length > 400) break;
+          } else if (/\.(jsx|tsx|js|ts)$/i.test(entry.name)) {
+            if (/\.(jsx|tsx)$/i.test(entry.name)) {
+              results.push(entry.path);
+            } else {
+              try {
+                const head = await window.electronAPI.readTextFile(entry.path).then((t) => (t || "").slice(0, 4e3));
+                if (/<[A-Za-z]/.test(head) || /React|export\s+default|function\s+[A-Z]/.test(head)) results.push(entry.path);
+              } catch {
+                results.push(entry.path);
+              }
+            }
           }
         }
-        return results;
+        return results.slice(0, 400);
       } catch {
         return [];
       }
@@ -504423,9 +504491,14 @@ ${h3.join(`
       const root = window.__currentProjectPath;
       if (root) {
         const files = await scanProjectFiles(root);
+        if (filePath && !files.includes(filePath) && /\.(jsx|tsx|js|ts)$/i.test(filePath)) {
+          files.unshift(filePath);
+        }
         setProjectFiles(files);
         if (!filePath && files.length > 0) {
           setFilePath(files[0]);
+        }
+        if (files.length === 0 && filePath) {
         }
       } else {
         setProjectFiles([]);
@@ -504542,7 +504615,21 @@ ${h3.join(`
 ${source}
 ); }`;
       }
-      const res = await window.electronAPI.bundleComponent(codeToTranspile, path, window.__currentProjectPath);
+      if (!window.electronAPI?.bundleComponent) {
+        setTranspileError("Preview bundler not available \u2014 restart the app after `npm install`");
+        setPreviewCode(null);
+        setComponentToRender(null);
+        return;
+      }
+      let res;
+      try {
+        res = await window.electronAPI.bundleComponent(codeToTranspile, path, window.__currentProjectPath);
+      } catch (e) {
+        setTranspileError(e?.message || String(e) || "Bundling failed");
+        setPreviewCode(null);
+        setComponentToRender(null);
+        return;
+      }
       if (!res?.ok) {
         setTranspileError(res?.error || "Bundling failed");
         setPreviewCode(null);
@@ -504715,7 +504802,7 @@ ${source}
           textOverflow: "ellipsis"
         }
       },
-      projectFiles.length === 0 ? /* @__PURE__ */ import_react15.default.createElement("option", { value: "" }, filePath ? fileName3 : "No JSX files found") : projectFiles.map((p) => /* @__PURE__ */ import_react15.default.createElement("option", { key: p, value: p }, p.split(/[\\/]/).pop(), " (", p.replace(/.*[\\/]([^\\/]+[\\/][^\\/]+)$/, "$1"), ")"))
+      projectFiles.length === 0 ? /* @__PURE__ */ import_react15.default.createElement("option", { value: "" }, filePath ? fileName3 : "No JSX files found") : /* @__PURE__ */ import_react15.default.createElement(import_react15.default.Fragment, null, filePath && !projectFiles.includes(filePath) && /* @__PURE__ */ import_react15.default.createElement("option", { value: filePath }, fileName3, " (current)"), projectFiles.map((p) => /* @__PURE__ */ import_react15.default.createElement("option", { key: p, value: p }, p.split(/[\\/]/).pop(), " (", p.replace(/.*[\\/]([^\\/]+[\\/][^\\/]+)$/, "$1"), ")")))
     )), /* @__PURE__ */ import_react15.default.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 } }, /* @__PURE__ */ import_react15.default.createElement(
       "button",
       {
@@ -504882,13 +504969,13 @@ ${source}
         rowY += rowH + CARD_GAP;
         rowH = 0;
       }
-      const s15 = cardSize(c);
-      rowH = Math.max(rowH, s15.h);
+      const s16 = cardSize(c);
+      rowH = Math.max(rowH, s16.h);
       out.cards.set(c.relPath, {
         x: originX + GROUP_PAD + i2 % cols * (CARD_W + CARD_GAP),
         y: rowY,
-        w: s15.w,
-        h: s15.h,
+        w: s16.w,
+        h: s16.h,
         file: c,
         owner: node.relPath
       });
@@ -505042,7 +505129,7 @@ ${source}
         return /* @__PURE__ */ import_react16.default.createElement("div", { style: { height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, background: "#181818", color: "#f48771", fontSize: 12, padding: 20 } }, /* @__PURE__ */ import_react16.default.createElement("div", { style: { fontWeight: 600 } }, "Canvas error"), /* @__PURE__ */ import_react16.default.createElement("div", { style: { color: "#e8a8a0", fontFamily: "Consolas, monospace", whiteSpace: "pre-wrap", wordBreak: "break-all", maxWidth: 700, maxHeight: 200, overflow: "auto" } }, this.state.error?.message || String(this.state.error)), /* @__PURE__ */ import_react16.default.createElement(
           "button",
           {
-            onClick: () => this.setState((s15) => ({ error: null, attempt: s15.attempt + 1 })),
+            onClick: () => this.setState((s16) => ({ error: null, attempt: s16.attempt + 1 })),
             style: { background: "#007acc", border: "none", color: "#fff", borderRadius: 2, padding: "5px 14px", fontSize: 12, cursor: "pointer" }
           },
           "Retry"
@@ -505206,9 +505293,21 @@ ${source}
 ${source}
 ); }`;
       }
-      const res = await transpilePooled(
-        () => window.electronAPI.bundleComponent(codeToTranspile, file.absPath, window.__currentProjectPath)
-      );
+      if (!window.electronAPI?.bundleComponent) {
+        setStatus("error");
+        setError("Preview bundler not available \u2014 restart the app after `npm install`");
+        return;
+      }
+      let res;
+      try {
+        res = await transpilePooled(
+          () => window.electronAPI.bundleComponent(codeToTranspile, file.absPath, window.__currentProjectPath)
+        );
+      } catch (e) {
+        setStatus("error");
+        setError(e?.message || String(e) || "Bundling failed");
+        return;
+      }
       if (!res?.ok) {
         setStatus("error");
         setError(res?.error || "Bundling failed");
@@ -505526,7 +505625,14 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       (scan?.roots || []).forEach(walk2);
       return m;
     }, [scan]);
-    const layout2 = (0, import_react16.useMemo)(() => computeLayout(flatGroups, manual, naturalSizes), [flatGroups, manual, naturalSizes]);
+    const layout2 = (0, import_react16.useMemo)(() => {
+      try {
+        return computeLayout(flatGroups, manual, naturalSizes);
+      } catch (e) {
+        console.error("[Canvas] layout error:", e);
+        return { cards: /* @__PURE__ */ new Map(), groups: /* @__PURE__ */ new Map(), parent: /* @__PURE__ */ new Map(), total: { w: 800, h: 600 } };
+      }
+    }, [flatGroups, manual, naturalSizes]);
     const commitManual = (0, import_react16.useCallback)((updater) => {
       const next = updater(manualRef.current);
       manualRef.current = next;
@@ -505590,8 +505696,8 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       }
       if (d.type === "groupMove") {
         const m = new Map(layout2.cards);
-        for (const [crel, s15] of d.subCards) {
-          m.set(crel, { ...s15, x: s15.x + d.dx, y: s15.y + d.dy });
+        for (const [crel, s16] of d.subCards) {
+          m.set(crel, { ...s16, x: s16.x + d.dx, y: s16.y + d.dy });
         }
         return m;
       }
@@ -505605,8 +505711,8 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         m.set(d.owner, expandForChild(d.group, d.x, d.y, d.w, d.h, GROUP_PAD));
       } else if (d.type === "groupMove") {
         m.set(d.rel, { ...d.group, x: d.group.x + d.dx, y: d.group.y + d.dy });
-        for (const [grel, s15] of d.subGroups) {
-          m.set(grel, { ...s15, x: s15.x + d.dx, y: s15.y + d.dy });
+        for (const [grel, s16] of d.subGroups) {
+          m.set(grel, { ...s16, x: s16.x + d.dx, y: s16.y + d.dy });
         }
       } else if (d.type === "groupResize") {
         m.set(d.rel, d.rect);
@@ -505769,11 +505875,11 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
             h: groupSnap.h,
             ...prevG?.dx != null && prevG?.dy != null ? { dx: prevG.dx + last.dx, dy: prevG.dy + last.dy } : { dx: last.dx, dy: last.dy }
           };
-          for (const [c, s15] of subCards) {
-            if (m.cards[c]) cards[c] = { ...m.cards[c] || {}, x: s15.x + last.dx, y: s15.y + last.dy };
+          for (const [c, s16] of subCards) {
+            if (m.cards[c]) cards[c] = { ...m.cards[c] || {}, x: s16.x + last.dx, y: s16.y + last.dy };
           }
-          for (const [gc2, s15] of subGroups) {
-            if (m.groups[gc2]) groups[gc2] = { ...m.groups[gc2] || {}, x: s15.x + last.dx, y: s15.y + last.dy };
+          for (const [gc2, s16] of subGroups) {
+            if (m.groups[gc2]) groups[gc2] = { ...m.groups[gc2] || {}, x: s16.x + last.dx, y: s16.y + last.dy };
           }
           return { ...m, cards, groups };
         });
@@ -506157,7 +506263,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
     };
     if (!open) return null;
     const q2 = query.trim().toLowerCase();
-    const filtered = q2 ? COMMANDS.filter((i2) => i2.title.toLowerCase().includes(q2)) : COMMANDS;
+    const filtered = q2 ? COMMANDS.filter((i2) => i2 && i2.title && i2.title.toLowerCase().includes(q2)) : COMMANDS;
     return /* @__PURE__ */ import_react17.default.createElement(import_react17.default.Fragment, null, /* @__PURE__ */ import_react17.default.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 900 }, onClick: () => setOpen(false) }), /* @__PURE__ */ import_react17.default.createElement(
       "div",
       {
@@ -506528,7 +506634,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
           if (!monaco || !monaco.editor) return;
           const all = monaco.editor.getModelMarkers({});
           const sorted = [...all].sort((a, b2) => {
-            if (a.severity !== b2.severity) return a.severity - b2.severity;
+            if (a.severity !== b2.severity) return b2.severity - a.severity;
             return (a.resource?.path || "").localeCompare(b2.resource?.path || "");
           });
           setMarkers(sorted);
@@ -506554,7 +506660,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
     }, []);
     const filtered = markers.filter((m) => {
       if (filter === "error") return m.severity === 8;
-      if (filter === "warning") return m.severity === 4;
+      if (filter === "warning") return m.severity === 4 || m.severity === 2 || m.severity === 1;
       return true;
     });
     const openMarker = (m) => {
@@ -506627,10 +506733,51 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
 
   // electron/renderer/components/GitPanel/index.jsx
   var import_react21 = __toESM(require_react());
+  var s15 = {
+    wrap: { display: "flex", flexDirection: "column", height: "100%", background: "#1e1e1e", color: "#cccccc", overflow: "hidden", fontFamily: "'Segoe UI',system-ui,sans-serif" },
+    header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#252526", borderBottom: "1px solid #2d2d2d", flexShrink: 0, gap: 8 },
+    headerLeft: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 },
+    branchBadge: { display: "flex", alignItems: "center", gap: 6, background: "#094771", color: "#fff", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600 },
+    countPill: (active) => ({ fontSize: 10, background: active ? "#0e639c" : "#2d2d2d", color: active ? "#fff" : "#888", padding: "2px 6px", borderRadius: 10, fontWeight: 600 }),
+    btn: { background: "#0e639c", color: "#fff", border: "none", borderRadius: 3, padding: "5px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 },
+    btnGhost: { background: "transparent", border: "1px solid #3a3a3a", color: "#cccccc", borderRadius: 3, padding: "4px 8px", fontSize: 11, cursor: "pointer" },
+    iconBtn: { background: "transparent", border: "none", color: "#888", cursor: "pointer", padding: "3px 5px", borderRadius: 3, fontSize: 13, lineHeight: 1 },
+    input: { width: "100%", background: "#3c3c3c", border: "1px solid #3c3c3c", color: "#cccccc", borderRadius: 3, padding: "6px 8px", fontSize: 12, outline: "none", resize: "none", fontFamily: "inherit" },
+    sectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: "#252526", borderTop: "1px solid #2d2d2d", borderBottom: "1px solid #2d2d2d", fontSize: 11, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", color: "#bbbbbb", cursor: "pointer", userSelect: "none" },
+    row: { display: "flex", alignItems: "center", gap: 7, padding: "5px 8px", cursor: "pointer", fontSize: 12, borderBottom: "1px solid #232323" },
+    statusBox: (c) => ({ width: 20, textAlign: "center", fontSize: 10, fontWeight: 800, color: c, background: "#2d2d2d", padding: "2px 3px", borderRadius: 2, flexShrink: 0, letterSpacing: 0.3 })
+  };
+  function StatusColor(st2) {
+    if (st2 === "??") return "#73c991";
+    if (st2.includes("A")) return "#73c991";
+    if (st2.includes("D")) return "#f44747";
+    if (st2.includes("M")) return "#cca700";
+    if (st2.includes("R")) return "#569cd6";
+    if (st2.trim() === "U") return "#f15050";
+    return "#888";
+  }
+  function StatusLabel(st2, x, y) {
+    if (st2 === "??") return "Untracked";
+    if (x === "A" || y === "A") return "Added";
+    if (x === "D" || y === "D") return "Deleted";
+    if (x === "R" || y === "R") return "Renamed";
+    if (st2.trim() === "M" || st2 === "MM") return "Modified";
+    if (x !== " " && x !== "?" && x !== "!") return "Staged";
+    return st2.trim() || "Changed";
+  }
   var GitPanel = () => {
-    const [status2, setStatus] = (0, import_react21.useState)([]);
-    const [loading, setLoading] = (0, import_react21.useState)(false);
     const [projectPath, setProjectPath] = (0, import_react21.useState)(window.__currentProjectPath || null);
+    const [status2, setStatus] = (0, import_react21.useState)([]);
+    const [branchInfo, setBranchInfo] = (0, import_react21.useState)({ branch: "", isRepo: true, ahead: 0, behind: 0 });
+    const [log3, setLog] = (0, import_react21.useState)([]);
+    const [loading, setLoading] = (0, import_react21.useState)(false);
+    const [msg, setMsg] = (0, import_react21.useState)("");
+    const [filter, setFilter] = (0, import_react21.useState)("");
+    const [diffMap, setDiffMap] = (0, import_react21.useState)({});
+    const [openDiff, setOpenDiff] = (0, import_react21.useState)(null);
+    const [busy, setBusy] = (0, import_react21.useState)("");
+    const [showLog, setShowLog] = (0, import_react21.useState)(false);
+    const [collapsed2, setCollapsed] = (0, import_react21.useState)({ staged: false, changes: false, untracked: false });
     (0, import_react21.useEffect)(() => {
       const onOpen = (e) => setProjectPath(e.detail?.path || window.__currentProjectPath || null);
       const onClose = () => setProjectPath(null);
@@ -506640,21 +506787,32 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         const cur = window.__currentProjectPath || null;
         setProjectPath((prev) => prev !== cur ? cur : prev);
       }, 1e3);
+      const onRefresh = () => refresh();
+      window.addEventListener("git:refresh", onRefresh);
       return () => {
         window.removeEventListener("project:opened", onOpen);
         window.removeEventListener("project:closed", onClose);
+        window.removeEventListener("git:refresh", onRefresh);
         clearInterval(iv);
       };
     }, []);
     const refresh = (0, import_react21.useCallback)(async () => {
       if (!projectPath) {
         setStatus([]);
+        setBranchInfo({ branch: "", isRepo: true });
+        setLog([]);
         return;
       }
       setLoading(true);
       try {
-        const res = await window.electronAPI.gitStatus(projectPath);
-        setStatus(Array.isArray(res) ? res : []);
+        const [st2, br4, lg] = await Promise.all([
+          window.electronAPI.gitStatus(projectPath).catch(() => []),
+          window.electronAPI.gitBranch(projectPath).catch(() => ({ branch: "", isRepo: false })),
+          window.electronAPI.gitLog(projectPath, 7).catch(() => [])
+        ]);
+        setStatus(Array.isArray(st2) ? st2 : []);
+        setBranchInfo(br4 || { branch: "", isRepo: true });
+        setLog(Array.isArray(lg) ? lg : []);
       } catch {
         setStatus([]);
       } finally {
@@ -506663,74 +506821,172 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
     }, [projectPath]);
     (0, import_react21.useEffect)(() => {
       refresh();
-      const iv = setInterval(refresh, 5e3);
+      const iv = setInterval(refresh, 7e3);
       return () => clearInterval(iv);
     }, [refresh]);
+    const filtered = (0, import_react21.useMemo)(() => {
+      const q2 = filter.trim().toLowerCase();
+      if (!q2) return status2;
+      return status2.filter((it) => it.rel.toLowerCase().includes(q2));
+    }, [status2, filter]);
+    const groups = (0, import_react21.useMemo)(() => {
+      const staged = [], changes = [], untracked = [];
+      for (const it of filtered) {
+        const st2 = it.status;
+        const x = it.x ?? st2[0], y = it.y ?? st2[1];
+        if (st2 === "??") untracked.push(it);
+        else if (x && x !== " " && x !== "?" && x !== "!") staged.push(it);
+        else if (y && y !== " ") changes.push(it);
+        else if (st2.trim() === "") changes.push(it);
+        else changes.push(it);
+      }
+      const extraChanges = [];
+      for (const it of filtered) {
+        if (it.status === "MM" && !changes.includes(it) && !untracked.includes(it)) {
+        }
+      }
+      return { staged, changes, untracked };
+    }, [filtered]);
     const openFile = (rel) => {
       const full = projectPath ? `${projectPath}/${rel}`.replace(/\\/g, "/").replace(/\/\//g, "/") : rel;
       const normalized = full.replace(/\//g, "\\");
       window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: normalized } }));
     };
-    const getStatusColor = (s15) => {
-      if (s15.includes("M")) return "#cca700";
-      if (s15.includes("A")) return "#73c991";
-      if (s15.includes("D")) return "#f44747";
-      if (s15.includes("?")) return "#73c991";
-      if (s15.includes("R")) return "#569cd6";
-      return "#888";
+    const toggleDiff = async (rel) => {
+      if (openDiff === rel) {
+        setOpenDiff(null);
+        return;
+      }
+      setOpenDiff(rel);
+      if (diffMap[rel] !== void 0) return;
+      try {
+        const fullPath = projectPath ? `${projectPath}/${rel}`.replace(/\\/g, "/") : rel;
+        const txt = await window.electronAPI.gitDiff(projectPath, fullPath);
+        setDiffMap((m) => ({ ...m, [rel]: txt || "(no diff)" }));
+      } catch {
+        setDiffMap((m) => ({ ...m, [rel]: "(error)" }));
+      }
     };
-    const getStatusLabel = (s15) => {
-      if (s15 === "M" || s15 === " M") return "Modified";
-      if (s15 === "A" || s15 === " A") return "Added";
-      if (s15 === "D") return "Deleted";
-      if (s15 === "??") return "Untracked";
-      if (s15 === "R") return "Renamed";
-      if (s15 === "MM") return "Modified";
-      return s15.trim() || "Changed";
+    const doStage = async (rel) => {
+      setBusy(rel + ":stage");
+      await window.electronAPI.gitStage(projectPath, rel);
+      await refresh();
+      setBusy("");
+    };
+    const doUnstage = async (rel) => {
+      setBusy(rel + ":unstage");
+      await window.electronAPI.gitUnstage(projectPath, rel);
+      await refresh();
+      setBusy("");
+    };
+    const doDiscard = async (rel) => {
+      if (!confirm(`Discard changes in "${rel}"?`)) return;
+      setBusy(rel + ":discard");
+      await window.electronAPI.gitDiscard(projectPath, rel);
+      await refresh();
+      setBusy("");
+    };
+    const doStageAll = async () => {
+      setBusy("stageAll");
+      await window.electronAPI.gitStageAll(projectPath);
+      await refresh();
+      setBusy("");
+    };
+    const doUnstageAll = async () => {
+      setBusy("unstageAll");
+      await window.electronAPI.gitUnstageAll(projectPath);
+      await refresh();
+      setBusy("");
+    };
+    const doCommit = async () => {
+      if (!msg.trim()) return;
+      setBusy("commit");
+      const r2 = await window.electronAPI.gitCommit(projectPath, msg.trim());
+      if (r2?.ok) {
+        setMsg("");
+        await refresh();
+      } else {
+        alert(r2?.error || "Commit failed");
+      }
+      setBusy("");
+    };
+    const doPush = async () => {
+      setBusy("push");
+      await window.electronAPI.gitPush(projectPath);
+      setBusy("");
+      refresh();
+    };
+    const doPull = async () => {
+      setBusy("pull");
+      await window.electronAPI.gitPull(projectPath);
+      setBusy("");
+      refresh();
+    };
+    const doFetch = async () => {
+      setBusy("fetch");
+      await window.electronAPI.gitFetch(projectPath);
+      setBusy("");
+      refresh();
     };
     if (!projectPath) {
-      return /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#666", fontSize: 12, flexDirection: "column", gap: 8 } }, /* @__PURE__ */ import_react21.default.createElement("span", null, "No project open"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 11, color: "#555" } }, "Open a git repo to see status"));
+      return /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#666", fontSize: 12, flexDirection: "column", gap: 8, background: "#1e1e1e" } }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 22 } }, "\u2387"), /* @__PURE__ */ import_react21.default.createElement("span", null, "No project open"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 11, color: "#555" } }, "Open a folder to see Git status"));
     }
-    return /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100%", background: "#1e1e1e", color: "#cccccc", overflow: "hidden" } }, /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#252526", borderBottom: "1px solid #2d2d2d", flexShrink: 0 } }, /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ import_react21.default.createElement("svg", { width: "14", height: "14", viewBox: "0 0 16 16", fill: "none" }, /* @__PURE__ */ import_react21.default.createElement("path", { d: "M2 3.5A1.5 1.5 0 0 1 3.5 2H5L7 4.5H13.5A1.5 1.5 0 0 1 15 6V12.5A1.5 1.5 0 0 1 13.5 14H3.5A1.5 1.5 0 0 1 2 12.5V3.5Z", fill: "#f14e32" })), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 12, fontWeight: 600 } }, "Git"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 10, background: status2.length ? "#0e639c" : "#2d2d2d", color: status2.length ? "#fff" : "#888", padding: "1px 6px", borderRadius: 3 } }, status2.length, " changes")), /* @__PURE__ */ import_react21.default.createElement(
-      "button",
+    if (branchInfo && branchInfo.isRepo === false) {
+      return /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", flexDirection: "column", height: "100%", background: "#1e1e1e", color: "#cccccc" } }, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.header }, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.headerLeft }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 12, fontWeight: 700 } }, "Source Control"))), /* @__PURE__ */ import_react21.default.createElement("div", { style: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, padding: 20, textAlign: "center" } }, /* @__PURE__ */ import_react21.default.createElement("div", { style: { fontSize: 13, color: "#999" } }, "Not a git repository"), /* @__PURE__ */ import_react21.default.createElement("div", { style: { fontSize: 11, color: "#666" } }, projectPath), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: refresh, style: s15.btnGhost }, "Refresh")));
+    }
+    const total = status2.length;
+    return /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.wrap }, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.header }, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.headerLeft }, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.branchBadge, title: branchInfo.branch || "branch" }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 12 } }, "\u2387"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, branchInfo.branch || "HEAD"), branchInfo.ahead || branchInfo.behind ? /* @__PURE__ */ import_react21.default.createElement("span", { style: { background: "rgba(255,255,255,0.18)", padding: "0 5px", borderRadius: 8, fontSize: 10 } }, branchInfo.ahead ? `\u2191${branchInfo.ahead}` : "", " ", branchInfo.behind ? `\u2193${branchInfo.behind}` : "") : null), /* @__PURE__ */ import_react21.default.createElement("span", { style: s15.countPill(total > 0) }, total, " changes")), /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", gap: 4, alignItems: "center" } }, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: doFetch, disabled: !!busy, title: "Fetch", style: s15.iconBtn }, "\u27F3"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: doPull, disabled: !!busy, title: "Pull", style: s15.iconBtn }, "\u2193"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: doPush, disabled: !!busy, title: "Push", style: s15.iconBtn }, "\u2191"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: refresh, disabled: loading, title: "Refresh", style: { ...s15.iconBtn, opacity: loading ? 0.5 : 1 } }, loading ? "\u2026" : "\u21BB"))), /* @__PURE__ */ import_react21.default.createElement("div", { style: { padding: 10, borderBottom: "1px solid #2d2d2d", background: "#252526", flexShrink: 0 } }, /* @__PURE__ */ import_react21.default.createElement(
+      "textarea",
       {
-        onClick: refresh,
-        disabled: loading,
-        style: { background: "none", border: "1px solid #3a3a3a", color: "#888", padding: "3px 8px", borderRadius: 3, cursor: loading ? "default" : "pointer", fontSize: 11 }
-      },
-      loading ? "\u2026" : "Refresh"
-    )), /* @__PURE__ */ import_react21.default.createElement("div", { style: { flex: 1, overflowY: "auto", padding: 4 } }, status2.length === 0 && !loading && /* @__PURE__ */ import_react21.default.createElement("div", { style: { textAlign: "center", padding: 24, color: "#666", fontSize: 12 } }, /* @__PURE__ */ import_react21.default.createElement("div", { style: { fontSize: 20, marginBottom: 8 } }, "\u2713"), "No changes", /* @__PURE__ */ import_react21.default.createElement("br", null), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 11, color: "#555" } }, "Working tree clean")), status2.map((item, i2) => /* @__PURE__ */ import_react21.default.createElement(
-      "div",
-      {
-        key: `${item.rel}:${i2}`,
-        onClick: () => openFile(item.rel),
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "6px 8px",
-          cursor: "pointer",
-          borderBottom: "1px solid #2d2d2d",
-          fontSize: 12
+        value: msg,
+        onChange: (e) => setMsg(e.target.value),
+        placeholder: "Message (Ctrl+Enter to commit)",
+        rows: 2,
+        onKeyDown: (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+            e.preventDefault();
+            doCommit();
+          }
         },
-        onMouseEnter: (e) => e.currentTarget.style.background = "#2a2d2e",
-        onMouseLeave: (e) => e.currentTarget.style.background = "transparent",
-        title: item.rel
-      },
-      /* @__PURE__ */ import_react21.default.createElement("span", { style: {
-        width: 22,
-        textAlign: "center",
-        fontSize: 11,
-        fontWeight: 700,
-        color: getStatusColor(item.status),
-        background: "#2d2d2d",
-        padding: "1px 4px",
-        borderRadius: 2,
-        flexShrink: 0
-      } }, item.status.trim() || "?"),
-      /* @__PURE__ */ import_react21.default.createElement("span", { style: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#cccccc" } }, item.rel),
-      /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 11, color: getStatusColor(item.status), flexShrink: 0 } }, getStatusLabel(item.status))
-    ))), /* @__PURE__ */ import_react21.default.createElement("div", { style: { padding: "6px 12px", fontSize: 10, color: "#666", borderTop: "1px solid #2d2d2d", display: "flex", justifyContent: "space-between" } }, /* @__PURE__ */ import_react21.default.createElement("span", null, projectPath.split(/[\\/]/).pop()), /* @__PURE__ */ import_react21.default.createElement("span", null, status2.length, " changes")));
+        style: s15.input
+      }
+    ), /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8, alignItems: "center" } }, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: doCommit, disabled: !msg.trim() || !!busy, style: { ...s15.btn, opacity: !msg.trim() ? 0.5 : 1, flex: 1 } }, busy === "commit" ? "Committing\u2026" : `Commit${groups.staged.length ? ` (${groups.staged.length})` : ""}`), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: doStageAll, disabled: !groups.changes.length && !groups.untracked.length, style: s15.btnGhost, title: "Stage all changes" }, "+ All")), groups.staged.length > 0 && /* @__PURE__ */ import_react21.default.createElement("div", { style: { fontSize: 10, color: "#888", marginTop: 6 } }, groups.staged.length, " staged \u2014 will be included in commit")), /* @__PURE__ */ import_react21.default.createElement("div", { style: { padding: "6px 8px", borderBottom: "1px solid #232323", display: "flex", gap: 6, flexShrink: 0 } }, /* @__PURE__ */ import_react21.default.createElement("input", { value: filter, onChange: (e) => setFilter(e.target.value), placeholder: "Filter changes\u2026", style: { ...s15.input, padding: "4px 7px", fontSize: 11 } }), filter && /* @__PURE__ */ import_react21.default.createElement("button", { onClick: () => setFilter(""), style: s15.btnGhost }, "\u2715")), /* @__PURE__ */ import_react21.default.createElement("div", { style: { flex: 1, overflowY: "auto", overflowX: "hidden" } }, total === 0 && !loading && /* @__PURE__ */ import_react21.default.createElement("div", { style: { textAlign: "center", padding: 28, color: "#666", fontSize: 12 } }, /* @__PURE__ */ import_react21.default.createElement("div", { style: { fontSize: 22, marginBottom: 8, color: "#4caf50" } }, "\u2713"), "No changes", /* @__PURE__ */ import_react21.default.createElement("br", null), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 11, color: "#555" } }, "Working tree clean"), log3.length > 0 && /* @__PURE__ */ import_react21.default.createElement("div", { style: { marginTop: 14, fontSize: 11, color: "#777" } }, "Last commit: ", log3[0]?.msg?.slice(0, 60))), groups.staged.length > 0 && /* @__PURE__ */ import_react21.default.createElement("div", null, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.sectionHead, onClick: () => setCollapsed((c) => ({ ...c, staged: !c.staged })) }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { transform: collapsed2.staged ? "rotate(-90deg)" : "rotate(0deg)", display: "inline-block", transition: "transform 0.15s" } }, "\u25BC"), " Staged Changes ", /* @__PURE__ */ import_react21.default.createElement("span", { style: { background: "#0e639c", color: "#fff", padding: "1px 5px", borderRadius: 10, fontSize: 10 } }, groups.staged.length)), /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 4 } }, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doUnstageAll();
+    }, title: "Unstage all", style: s15.iconBtn }, "\u2014"))), !collapsed2.staged && groups.staged.map((it) => /* @__PURE__ */ import_react21.default.createElement("div", { key: "staged:" + it.rel }, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.row, onClick: () => openFile(it.rel), title: it.rel, onMouseEnter: (e) => e.currentTarget.style.background = "#2a2d2e", onMouseLeave: (e) => e.currentTarget.style.background = "transparent" }, /* @__PURE__ */ import_react21.default.createElement("span", { style: s15.statusBox(StatusColor(it.status)) }, it.status.trim() || "S"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, it.rel), /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 2 } }, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      toggleDiff(it.rel);
+    }, title: "Diff", style: s15.iconBtn }, "\u25C8"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doUnstage(it.rel);
+    }, disabled: busy.includes(it.rel), title: "Unstage", style: s15.iconBtn }, "\u2212"))), openDiff === it.rel && /* @__PURE__ */ import_react21.default.createElement("pre", { style: { margin: 0, padding: "6px 8px", background: "#111", color: "#ccc", fontSize: 10, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 160, overflow: "auto", borderBottom: "1px solid #232323" } }, diffMap[it.rel] || "Loading\u2026")))), (groups.changes.length > 0 || total > 0 && groups.staged.length === 0) && /* @__PURE__ */ import_react21.default.createElement("div", null, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.sectionHead, onClick: () => setCollapsed((c) => ({ ...c, changes: !c.changes })) }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { transform: collapsed2.changes ? "rotate(-90deg)" : "rotate(0deg)", display: "inline-block", transition: "transform 0.15s" } }, "\u25BC"), " Changes ", /* @__PURE__ */ import_react21.default.createElement("span", { style: { background: "#333", color: "#ccc", padding: "1px 5px", borderRadius: 10, fontSize: 10 } }, groups.changes.length)), /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 4 } }, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doStageAll();
+    }, title: "Stage all", style: s15.iconBtn }, "+"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      if (confirm("Discard all changes?")) {
+        groups.changes.forEach((f) => window.electronAPI.gitDiscard(projectPath, f.rel));
+        setTimeout(refresh, 400);
+      }
+    }, title: "Discard all", style: s15.iconBtn }, "\u21BA"))), !collapsed2.changes && groups.changes.map((it) => /* @__PURE__ */ import_react21.default.createElement("div", { key: "chg:" + it.rel }, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.row, onClick: () => openFile(it.rel), title: it.rel, onMouseEnter: (e) => e.currentTarget.style.background = "#2a2d2e", onMouseLeave: (e) => e.currentTarget.style.background = "transparent" }, /* @__PURE__ */ import_react21.default.createElement("span", { style: s15.statusBox(StatusColor(it.status)) }, it.status.trim() || "M"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, it.rel), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 10, color: StatusColor(it.status), flexShrink: 0 } }, StatusLabel(it.status, it.x, it.y)), /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 2, flexShrink: 0 } }, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      toggleDiff(it.rel);
+    }, title: "Diff", style: s15.iconBtn }, "\u25C8"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doStage(it.rel);
+    }, title: "Stage", style: s15.iconBtn }, "+"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doDiscard(it.rel);
+    }, title: "Discard", style: s15.iconBtn }, "\u21BA"))), openDiff === it.rel && /* @__PURE__ */ import_react21.default.createElement("pre", { style: { margin: 0, padding: "6px 8px", background: "#111", color: "#ccc", fontSize: 10, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 160, overflow: "auto", borderBottom: "1px solid #232323" } }, diffMap[it.rel] || "Loading\u2026"))), !collapsed2.changes && groups.changes.length === 0 && total > 0 && /* @__PURE__ */ import_react21.default.createElement("div", { style: { padding: "8px 12px", fontSize: 11, color: "#666" } }, "No unstaged changes")), groups.untracked.length > 0 && /* @__PURE__ */ import_react21.default.createElement("div", null, /* @__PURE__ */ import_react21.default.createElement("div", { style: s15.sectionHead, onClick: () => setCollapsed((c) => ({ ...c, untracked: !c.untracked })) }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { transform: collapsed2.untracked ? "rotate(-90deg)" : "rotate(0deg)", display: "inline-block", transition: "transform 0.15s" } }, "\u25BC"), " Untracked ", /* @__PURE__ */ import_react21.default.createElement("span", { style: { background: "#333", color: "#ccc", padding: "1px 5px", borderRadius: 10, fontSize: 10 } }, groups.untracked.length)), /* @__PURE__ */ import_react21.default.createElement("span", null, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doStageAll();
+    }, title: "Stage all untracked", style: s15.iconBtn }, "+"))), !collapsed2.untracked && groups.untracked.map((it) => /* @__PURE__ */ import_react21.default.createElement("div", { key: "unt:" + it.rel, style: s15.row, onClick: () => openFile(it.rel), title: it.rel, onMouseEnter: (e) => e.currentTarget.style.background = "#2a2d2e", onMouseLeave: (e) => e.currentTarget.style.background = "transparent" }, /* @__PURE__ */ import_react21.default.createElement("span", { style: s15.statusBox("#73c991") }, "?"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, it.rel), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 10, color: "#73c991" } }, "Untracked"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 2 } }, /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doStage(it.rel);
+    }, title: "Stage", style: s15.iconBtn }, "+"), /* @__PURE__ */ import_react21.default.createElement("button", { onClick: (e) => {
+      e.stopPropagation();
+      doDiscard(it.rel);
+    }, title: "Delete / discard", style: s15.iconBtn }, "\u2715"))))), /* @__PURE__ */ import_react21.default.createElement("div", { style: { borderTop: "1px solid #2d2d2d", marginTop: 4 } }, /* @__PURE__ */ import_react21.default.createElement("div", { style: { ...s15.sectionHead, background: "#1e1e1e" }, onClick: () => setShowLog((v3) => !v3) }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { transform: showLog ? "rotate(0deg)" : "rotate(-90deg)", display: "inline-block", transition: "transform 0.15s" } }, "\u25BC"), " Recent Commits"), /* @__PURE__ */ import_react21.default.createElement("span", { style: { fontSize: 10, color: "#666" } }, log3.length ? `${log3.length}` : "")), showLog && /* @__PURE__ */ import_react21.default.createElement("div", null, log3.length === 0 && /* @__PURE__ */ import_react21.default.createElement("div", { style: { padding: 12, fontSize: 11, color: "#666" } }, "No commits yet"), log3.map((c) => /* @__PURE__ */ import_react21.default.createElement("div", { key: c.fullHash, style: { padding: "6px 8px", borderBottom: "1px solid #232323", fontSize: 11 }, title: c.fullHash }, /* @__PURE__ */ import_react21.default.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { color: "#569cd6", fontFamily: "monospace", fontSize: 10 } }, c.hash), /* @__PURE__ */ import_react21.default.createElement("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#cccccc" } }, c.msg)), /* @__PURE__ */ import_react21.default.createElement("div", { style: { fontSize: 10, color: "#777", marginTop: 2 } }, c.author, " \u2022 ", c.relTime)))))), /* @__PURE__ */ import_react21.default.createElement("div", { style: { padding: "5px 10px", fontSize: 10, color: "#666", borderTop: "1px solid #2d2d2d", display: "flex", justifyContent: "space-between", flexShrink: 0, background: "#252526" } }, /* @__PURE__ */ import_react21.default.createElement("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, projectPath.split(/[\\/]/).pop()), /* @__PURE__ */ import_react21.default.createElement("span", null, branchInfo.branch ? `\u2387 ${branchInfo.branch}` : "", " \u2022 ", total, " changes")));
   };
   var GitPanel_default = GitPanel;
 
@@ -507199,10 +507455,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       if (!tabs.length) return;
       const m = modelRef.current;
       if (!m) return;
-      const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm"];
       for (const filePath of tabs) {
-        const ext3 = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
-        if (IMAGE_VIDEO_EXTS.includes(ext3)) continue;
         if (findTabByFilePath(m.getRoot(), filePath)) continue;
         const name = filePath.replace(/.*[\\/]/, "") || filePath;
         const empty = findEmptyEditorTab(m.getRoot());
@@ -507489,6 +507742,33 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
       return () => window.removeEventListener("browser:openSettings", handler);
     }, []);
     (0, import_react23.useEffect)(() => {
+      const doRedraw = () => {
+        const m = modelRef.current;
+        if (!m) return;
+        try {
+          forceLayoutRedraw(m);
+        } catch {
+        }
+        setTimeout(() => {
+          try {
+            forceLayoutRedraw(m);
+          } catch {
+          }
+        }, 80);
+      };
+      const onWinState = window.electronAPI?.onWindowStateChanged ? window.electronAPI.onWindowStateChanged(() => setTimeout(doRedraw, 40)) : () => {
+      };
+      const onResize = () => doRedraw();
+      window.addEventListener("resize", onResize);
+      return () => {
+        window.removeEventListener("resize", onResize);
+        try {
+          onWinState();
+        } catch {
+        }
+      };
+    }, []);
+    (0, import_react23.useEffect)(() => {
       const clickHandler = (e) => {
         const a = e.target.closest?.("a[href]");
         if (!a) return;
@@ -507728,9 +508008,9 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
         model: modelRef.current,
         factory,
         onDrop: (node, e) => {
-          const paths = window.__ppooDragPaths;
+          const paths = window.__ibxDragPaths;
           if (!paths?.length) return;
-          window.__ppooDragPaths = null;
+          window.__ibxDragPaths = null;
           const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm"];
           const m = modelRef.current;
           if (!m) return;
@@ -507794,7 +508074,7 @@ return (typeof App !== 'undefined' ? App : null) || (typeof Component !== 'undef
                   }
                 }
               ) : /* @__PURE__ */ import_react23.default.createElement("svg", { width: 14, height: 14, viewBox: "0 0 16 16", fill: "#888", style: { flexShrink: 0 } }, /* @__PURE__ */ import_react23.default.createElement("circle", { cx: "8", cy: "8", r: "7" })),
-              /* @__PURE__ */ import_react23.default.createElement("span", { title, style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 } }, title.slice(0, 10))
+              /* @__PURE__ */ import_react23.default.createElement("span", { title, style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 } }, title.length > 14 ? title.slice(0, 12) + "\u2026" : title)
             );
           }
         },

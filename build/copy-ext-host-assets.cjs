@@ -74,28 +74,18 @@ s = s.replace(
 		setTimeout(() => probePost({ step: "alive-check", workerRef: !!globalThis.__ppooWorkerRef, href: location.href.slice(0, 80) }), 8000);
 		(async () => {
 			const wb = location.pathname.slice(0, location.pathname.lastIndexOf("/"));
-			const urls = { ppooC: "ppoo-file:///C:/Users/Jignesh/Downloads/New%20folder%20(8)/electron/renderer/extensionHost.worker.js", ppooc: "ppoo-file://" + wb + "/extensionHost.worker.js" };
+			const urls = { ibxc: "ibx-file://" + wb + "/extensionHost.worker.js" };
 			for (const [tag, u] of Object.entries(urls)) {
 				try {
 					const r = await fetch(u);
 					probePost({ step: "if-fetch", tag, status: r.status });
 				} catch (e) { probePost({ step: "if-fetch-err", tag, err: String(e) }); }
-				try {
-					const tBlob = new Blob([\`import(\${JSON.stringify(u)}).then(() => self.postMessage("import-ok")).catch(e => self.postMessage("import-err:" + e.message));\`], { type: "application/javascript" });
-					const tw = new Worker(URL.createObjectURL(tBlob), { type: "module" });
-					const r = await new Promise((res) => {
-						const to = setTimeout(() => { res("timeout"); try { tw.terminate(); } catch {} }, 6000);
-						tw.onmessage = (e) => { clearTimeout(to); res(String(e.data)); };
-						tw.onerror = (e) => { clearTimeout(to); res("worker-err:" + e.message); };
-					});
-					probePost({ step: "if-blob-import", tag, result: r });
-				} catch (e) { probePost({ step: "if-blob-import-err", tag, err: String(e) }); }
 			}
 		})();
 		self.onmessage = (event) => {
 			if (event.data && event.data.type) probePost({ step: "got-msg", type: event.data.type });
 			if (!event.data || event.data.type !== bootstrapNlsType) {
-				if (globalThis.__ppooWorkerRef) globalThis.__ppooWorkerRef.postMessage(event.data, event.ports);
+				if (globalThis.__ibxWorkerRef) globalThis.__ibxWorkerRef.postMessage(event.data, event.ports);
 				return;
 			}
 			const { data } = event.data;
@@ -113,12 +103,12 @@ s = s.replace(
 );
 s = s.replace(
   "const worker = new Worker(URL.createObjectURL(blob), { name, ...workerOptions });",
-  "const worker = new Worker(URL.createObjectURL(blob), { name, ...workerOptions }); globalThis.__ppooWorkerRef = worker; probePost({ step: \"worker-created\", url: String(workerUrl).slice(0, 200) });"
+  "const worker = new Worker(URL.createObjectURL(blob), { name, ...workerOptions }); globalThis.__ibxWorkerRef = worker; probePost({ step: \"worker-created\", url: String(workerUrl).slice(0, 200) });"
 );
 s = s.replace(
   "} else {\n\t\t\t\t\tworker.onerror = console.error.bind(console);",
   `} else {
-					probePost({ step: "worker-msg", what: data && data.__ppooProbe ? "probe" : data instanceof MessagePort ? "port" : "bin" });
+					probePost({ step: "worker-msg", what: data && data.__ibxProbe ? "probe" : data instanceof MessagePort ? "port" : "bin" });
 					worker.onerror = console.error.bind(console);`
 );
 s = s.replace(
@@ -127,15 +117,15 @@ s = s.replace(
 );
 s = s.replace(
   "connect-src 'self' data: extension-file: https: wss:",
-  "connect-src 'self' data: extension-file: ppoo-file: file: https: wss:"
+  "connect-src 'self' data: extension-file: ibx-file: file: https: wss:"
 );
 s = s.replace(
   "child-src 'self' data: blob:;",
-  "child-src 'self' data: blob: ppoo-file: file:;"
+  "object-src 'none'; child-src 'self' data: blob: ibx-file: file:;"
 );
 s = s.replace(
   "script-src 'self' 'unsafe-eval' 'sha256-",
-  "script-src 'self' 'unsafe-eval' ppoo-file: file: 'sha256-"
+  "script-src 'self' 'unsafe-eval' ibx-file: file: 'sha256-"
 );
 
 const script = s.match(/<script>([\s\S]*?)<\/script>/);

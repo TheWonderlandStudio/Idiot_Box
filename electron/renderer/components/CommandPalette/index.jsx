@@ -78,7 +78,7 @@ const CommandPalette = () => {
 
   const q = query.trim().toLowerCase();
   const filtered = q
-    ? COMMANDS.filter((i) => i.title.toLowerCase().includes(q))
+    ? COMMANDS.filter((i) => i && i.title && i.title.toLowerCase().includes(q))
     : COMMANDS;
 
   return (

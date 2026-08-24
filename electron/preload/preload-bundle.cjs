@@ -118,7 +118,7 @@ var require_index = __commonJS({
       setChromeExtensionEnabled: (id, enabled) => ipcRenderer.invoke("chrome:setExtensionEnabled", id, enabled),
       removeChromeExtension: (id) => ipcRenderer.invoke("chrome:removeExtension", id),
       // Absolute path of the chrome.* API preload to attach to <webview> tags
-      getWebviewPreload: () => true ? "C:/Users/Jignesh/Downloads/New folder (8)/node_modules/electron-chrome-extensions/dist/chrome-extension-api.preload.js" : void 0,
+      getWebviewPreload: () => true ? "C:/Users/Jignesh/Downloads/Idiot_Box/node_modules/electron-chrome-extensions/dist/chrome-extension-api.preload.js" : void 0,
       onChromeCreateTab: (callback) => {
         const handler = (_e, url) => callback(url);
         ipcRenderer.on("chrome:createTab", handler);
@@ -170,10 +170,27 @@ var require_index = __commonJS({
       gitStatus: (rootPath) => ipcRenderer.invoke("git:status", rootPath),
       gitDiff: (rootPath, filePath) => ipcRenderer.invoke("git:diff", rootPath, filePath),
       gitDiffAll: (rootPath) => ipcRenderer.invoke("git:diffAll", rootPath),
+      gitBranch: (rootPath) => ipcRenderer.invoke("git:branch", rootPath),
+      gitLog: (rootPath, n) => ipcRenderer.invoke("git:log", rootPath, n),
+      gitStage: (rootPath, rel) => ipcRenderer.invoke("git:stage", rootPath, rel),
+      gitUnstage: (rootPath, rel) => ipcRenderer.invoke("git:unstage", rootPath, rel),
+      gitStageAll: (rootPath) => ipcRenderer.invoke("git:stageAll", rootPath),
+      gitUnstageAll: (rootPath) => ipcRenderer.invoke("git:unstageAll", rootPath),
+      gitDiscard: (rootPath, rel) => ipcRenderer.invoke("git:discard", rootPath, rel),
+      gitCommit: (rootPath, msg) => ipcRenderer.invoke("git:commit", rootPath, msg),
+      gitPush: (rootPath) => ipcRenderer.invoke("git:push", rootPath),
+      gitPull: (rootPath) => ipcRenderer.invoke("git:pull", rootPath),
+      gitFetch: (rootPath) => ipcRenderer.invoke("git:fetch", rootPath),
       // ── Canvas (Visual Project Map) ────────────────────────────────────────────
       scanCanvas: (rootPath) => ipcRenderer.invoke("canvas:scan", rootPath),
       saveCanvasLayout: (rootPath, data) => ipcRenderer.invoke("canvas:saveLayout", rootPath, data),
       loadCanvasLayout: (rootPath) => ipcRenderer.invoke("canvas:loadLayout", rootPath),
+      // ── Window state ────────────────────────────────────────────────────────────
+      onWindowStateChanged: (callback) => {
+        const handler = (_e, payload) => callback(payload);
+        ipcRenderer.on("window:stateChanged", handler);
+        return () => ipcRenderer.removeListener("window:stateChanged", handler);
+      },
       // ── Session ─────────────────────────────────────────────────────────────────
       saveSession: (data) => ipcRenderer.invoke("session:save", data),
       loadSession: () => ipcRenderer.invoke("session:load")

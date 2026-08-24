@@ -295,7 +295,7 @@ const SidebarTree = ({
 
   const handleExternalDrop = useCallback(async (e, targetDir) => {
     // Internal native drag (from our app) should use move, not copy
-    if (window.__ppooDragPaths?.length) return false;
+    if (window.__ibxDragPaths?.length) return false;
     const dt = e.dataTransfer;
     if (!dt) return false;
     const hasFiles = dt.types?.includes("Files");
@@ -349,14 +349,14 @@ const SidebarTree = ({
   const handleRootDrop      = async (e) => {
     e.preventDefault(); e.stopPropagation(); setDropTarget(null);
     // Internal native drag (from startDrag) fallback
-    if (window.__ppooDragPaths?.length) {
-      const paths = window.__ppooDragPaths; window.__ppooDragPaths = null;
+    if (window.__ibxDragPaths?.length) {
+      const paths = window.__ibxDragPaths; window.__ibxDragPaths = null;
       onDrop(rootPath, paths); return;
     }
     // External files
     if (await handleExternalDrop(e, rootPath)) return;
     // Internal drag
-    try { const paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths")); if (paths?.length) onDrop(rootPath, paths); } catch {}
+    try { const paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); if (paths?.length) onDrop(rootPath, paths); } catch {}
   };
 
   // ── Blank-area (sidebar empty space) drop handlers ────────────────────────
@@ -374,11 +374,11 @@ const SidebarTree = ({
     // External file drop onto blank sidebar area
     if (await handleExternalDrop(e, rootPath)) return;
     // Internal drag onto blank area → move to root
-    if (window.__ppooDragPaths?.length) {
-      const paths = window.__ppooDragPaths; window.__ppooDragPaths = null;
+    if (window.__ibxDragPaths?.length) {
+      const paths = window.__ibxDragPaths; window.__ibxDragPaths = null;
       onDrop(rootPath, paths); return;
     }
-    try { const paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths")); if (paths?.length) onDrop(rootPath, paths); } catch {}
+    try { const paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); if (paths?.length) onDrop(rootPath, paths); } catch {}
   }, [rootPath, handleExternalDrop, onDrop]);
 
   // ── Pin config ───────────────────────────────────────────────────────────

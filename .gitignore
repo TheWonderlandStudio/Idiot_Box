@@ -2,9 +2,9 @@ node_modules
 out/
 dist/
 .canvas/
+electron/renderer/extensionHost.worker.js
 electron/renderer/worker/extensionHost.worker.js
 # electron-builder cache & artifacts
-dist
 *.exe
 *.msi
 *.dmg

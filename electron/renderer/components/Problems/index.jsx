@@ -17,18 +17,16 @@ const ProblemsPanel = () => {
         const all = monaco.editor.getModelMarkers({});
         // Deduplicate and sort by severity then file
         const sorted = [...all].sort((a, b) => {
-          if (a.severity !== b.severity) return a.severity - b.severity;
+          if (a.severity !== b.severity) return b.severity - a.severity;
           return (a.resource?.path || "").localeCompare(b.resource?.path || "");
         });
         setMarkers(sorted);
       } catch {}
     };
 
-    // Poll every 1s for markers (monaco doesn't have a global onDidChangeMarkers without model)
     interval = setInterval(pollMarkers, 1000);
     pollMarkers();
 
-    // Also listen for model changes
     try {
       const monaco = window.monaco;
       if (monaco && monaco.editor && monaco.editor.onDidChangeMarkers) {
@@ -43,8 +41,8 @@ const ProblemsPanel = () => {
   }, []);
 
   const filtered = markers.filter((m) => {
-    if (filter === "error") return m.severity === 8; // Error = 8
-    if (filter === "warning") return m.severity === 4; // Warning = 4
+    if (filter === "error") return m.severity === 8;
+    if (filter === "warning") return m.severity === 4 || m.severity === 2 || m.severity === 1;
     return true;
   });
 

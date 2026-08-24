@@ -5,7 +5,14 @@ const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".
 const VIDEO_EXTS_SUPPORTED   = [".mp4", ".webm"];
 const VIDEO_EXTS_UNSUPPORTED = [".avi", ".mov", ".mkv", ".wmv", ".flv"];
 
-const ext      = (p) => { try { return p.slice(p.lastIndexOf(".")).toLowerCase(); } catch { return ""; } };
+const ext = (p) => {
+  try {
+    if (!p) return "";
+    const base = p.split(/[\\/]/).pop() || "";
+    const idx = base.lastIndexOf(".");
+    return idx > 0 ? base.slice(idx).toLowerCase() : "";
+  } catch { return ""; }
+};
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
 
 const formatFileSize = (bytes) => {
@@ -18,7 +25,8 @@ const formatFileSize = (bytes) => {
 const toFileUrl = (p) => {
   if (!p) return null;
   const normalized = p.replace(/\\/g, "/");
-  return "file:///" + (normalized.startsWith("/") ? normalized.slice(1) : normalized);
+  const encoded = encodeURI(normalized).replace(/#/g, "%23");
+  return "file:///" + (encoded.startsWith("/") ? encoded.slice(1) : encoded);
 };
 
 const MediaViewer = () => {

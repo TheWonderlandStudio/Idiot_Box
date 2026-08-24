@@ -30,7 +30,7 @@ process.on("unhandledRejection", (reason) => {
 // so workers can fetch() them like regular http resources.
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: "ppoo-file",
+    scheme: "ibx-file",
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
   },
 ]);
@@ -44,12 +44,17 @@ protocol.registerSchemesAsPrivileged([
 const BUNDLE_CONCURRENCY = 4;
 let bundleActive = 0;
 const bundleQueue = [];
-const nextBundle = async () => {
+const nextBundle = () => {
   while (bundleQueue.length && bundleActive < BUNDLE_CONCURRENCY) {
     const task = bundleQueue.shift();
     bundleActive++;
-    try { task.resolve(await task.fn()); } catch (err) { task.reject(err); }
-    bundleActive--;
+    (async () => {
+      try { task.resolve(await task.fn()); } catch (err) { task.reject(err); }
+      finally {
+        bundleActive--;
+        nextBundle();
+      }
+    })();
   }
 };
 const queuedBundle = (fn) => new Promise((resolve, reject) => {
@@ -275,10 +280,10 @@ ipcMain.handle("fs:readDirAll", async (_e, dirPath) => {
 });
 
 // ─── File finder (Ctrl+P) and text search (Ctrl+Shift+F) ───────────────────────
-const FIND_IGNORE_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "out", "coverage", ".cache", ".parcel-cache", ".turbo", ".vscode", ".idea"]);
-const FIND_IGNORE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm", ".avi", ".mov", ".mkv", ".woff", ".woff2", ".ttf", ".eot", ".zip", ".tar", ".gz", ".pdf", ".exe", ".dll"]);
+const FIND_IGNORE_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "out", "coverage", ".cache", ".parcel-cache", ".turbo", ".vscode", ".idea", ".output", ".trash"]);
+const FIND_IGNORE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm", ".avi", ".mov", ".mkv", ".woff", ".woff2", ".ttf", ".eot", ".zip", ".tar", ".gz", ".pdf", ".exe", ".dll", ".lock", ".map", ".wasm"]);
 function shouldIgnoreFile(name, isDir) {
-  if (name.startsWith(".")) return name !== ".env" && name !== ".env.example";
+  if (name.startsWith(".")) return name !== ".env" && name !== ".env.example" && name !== ".project_config" && name !== ".canvas";
   if (isDir) return FIND_IGNORE_DIRS.has(name);
   const ext = path.extname(name).toLowerCase();
   return FIND_IGNORE_EXTS.has(ext);
@@ -288,6 +293,7 @@ ipcMain.handle("fs:findFiles", async (_e, rootPath, query = "", limit = 100) => 
   const q = String(query || "").toLowerCase().trim();
   const results = [];
   const stack = [rootPath];
+  const visitedDirs = new Set();
   const gitignore = (() => {
     try {
       const gi = fs.readFileSync(path.join(rootPath, ".gitignore"), "utf8");
@@ -303,6 +309,11 @@ ipcMain.handle("fs:findFiles", async (_e, rootPath, query = "", limit = 100) => 
   });
   while (stack.length && results.length < limit * 3) {
     const dir = stack.pop();
+    try {
+      const real = fs.realpathSync(dir);
+      if (visitedDirs.has(real)) continue;
+      visitedDirs.add(real);
+    } catch {}
     let entries = [];
     try { entries = fs.readdirSync(toLongPath(dir), { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {
@@ -326,7 +337,6 @@ ipcMain.handle("fs:findFiles", async (_e, rootPath, query = "", limit = 100) => 
       }
     }
   }
-  // Sort by relevance: exact name match first, then rel, then alphabetical
   results.sort((a, b) => {
     const aName = a.name.toLowerCase(), bName = b.name.toLowerCase();
     const aExact = aName === q, bExact = bName === q;
@@ -342,7 +352,6 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
   if (!rootPath || !query || !query.trim()) return [];
   const q = String(query).trim();
   if (q.length < 2) return [];
-  // Try ripgrep first
   const tryRg = () => new Promise((resolve) => {
     const { spawn } = require("child_process");
     const rg = spawn("rg", ["--no-heading", "--line-number", "--color", "never", "--max-count", String(limit), "--glob", "!.git/*", "--glob", "!node_modules/*", "-i", q, rootPath], { timeout: 8000, windowsHide: true });
@@ -371,12 +380,17 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
   });
   const rgRes = await tryRg();
   if (rgRes && rgRes.length) return rgRes;
-  // Fallback: Node fs walk + grep
   const results = [];
   const stack = [rootPath];
+  const visitedDirs = new Set();
   const qLower = q.toLowerCase();
   while (stack.length && results.length < limit) {
     const dir = stack.pop();
+    try {
+      const real = fs.realpathSync(dir);
+      if (visitedDirs.has(real)) continue;
+      visitedDirs.add(real);
+    } catch {}
     let entries = [];
     try { entries = fs.readdirSync(toLongPath(dir), { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {
@@ -390,6 +404,8 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
         const ext = path.extname(e.name).toLowerCase();
         if ([".json", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".scss", ".py", ".md", ".txt", ".yaml", ".yml", ".xml", ".php", ".rs", ".go", ".java", ".c", ".cpp", ".h"].includes(ext) || !ext) {
           try {
+            const st = fs.statSync(toLongPath(full));
+            if (st.size > 5 * 1024 * 1024) continue;
             const content = fs.readFileSync(toLongPath(full), "utf8");
             const lines = content.split("\n");
             for (let i = 0; i < lines.length; i++) {
@@ -408,110 +424,131 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
 });
 
 // ─── Git helpers ───────────────────────────────────────────────────────────────
+const { execFileSync } = require("child_process");
+
 ipcMain.handle("git:status", async (_e, rootPath) => {
   if (!rootPath) return [];
-  const { exec } = require("child_process");
-  return new Promise((resolve) => {
-    exec('git status --porcelain -uall', { cwd: rootPath, timeout: 4000, windowsHide: true }, (err, stdout) => {
-      if (err || !stdout) return resolve([]);
-      const out = [];
-      for (const line of stdout.split("\n")) {
-        if (!line.trim()) continue;
-        const x = line.slice(0, 1), y = line.slice(1, 2);
-        const file = line.slice(3).trim().replace(/^"(.*)"$/, "$1");
-        const status = (x + y).trim() || "??";
-        out.push({ status, x, y, path: path.join(rootPath, file), rel: file });
+  try {
+    const raw = execFileSync("git", ["status", "--porcelain", "-z", "-uall"], { cwd: rootPath, timeout: 4000, encoding: "utf8", windowsHide: true });
+    if (!raw) return [];
+    const out = [];
+    const parts = raw.split("\0");
+    for (let i = 0; i < parts.length; i++) {
+      const entry = parts[i];
+      if (!entry) continue;
+      const x = entry.slice(0, 1), y = entry.slice(1, 2);
+      const status = (x + y).trim() || "??";
+      let rel = entry.slice(3).trim();
+      // Renames or copies in porcelain -z output store the old path in the next null-separated part
+      if (x === "R" || x === "C" || y === "R" || y === "C") {
+        i++; // skip original path item
       }
-      resolve(out);
-    });
-  });
+      if (rel) {
+        out.push({ status, x, y, path: path.join(rootPath, rel), rel });
+      }
+    }
+    return out;
+  } catch { return []; }
 });
+
 ipcMain.handle("git:diff", async (_e, rootPath, filePath) => {
   if (!rootPath || !filePath) return "";
   try {
     const rel = path.relative(rootPath, filePath).replace(/\\/g, "/");
-    const { execSync } = require("child_process");
-    const out = execSync(`git diff --unified=0 -- "${rel.replace(/"/g, '\\"')}"`, { cwd: rootPath, timeout: 3000, encoding: "utf8", windowsHide: true });
+    const out = execFileSync("git", ["diff", "--unified=0", "--", rel], { cwd: rootPath, timeout: 4000, encoding: "utf8", windowsHide: true });
     return String(out || "");
   } catch { return ""; }
 });
+
 ipcMain.handle("git:diffAll", async (_e, rootPath) => {
   if (!rootPath) return "";
   try {
-    const { execSync } = require("child_process");
-    const out = execSync(`git diff --unified=0`, { cwd: rootPath, timeout: 4000, encoding: "utf8", windowsHide: true });
+    const out = execFileSync("git", ["diff", "--unified=0"], { cwd: rootPath, timeout: 4000, encoding: "utf8", windowsHide: true });
     return String(out || "");
   } catch { return ""; }
 });
+
 ipcMain.handle("git:branch", async (_e, rootPath) => {
   if (!rootPath) return { branch: "", isRepo: false };
-  const { execSync } = require("child_process");
   try {
-    execSync("git rev-parse --is-inside-work-tree", { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true });
+    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true });
   } catch { return { branch: "", isRepo: false }; }
   try {
-    const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true }).trim();
+    const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true }).trim();
     let ahead = 0, behind = 0;
     try {
-      const ab = execSync("git rev-list --left-right --count HEAD...@{upstream} 2>nul || git rev-list --left-right --count HEAD...origin/HEAD 2>nul || echo '0 0'", { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true, shell: true }).trim();
-      const parts = ab.split(/\s+/); ahead = parseInt(parts[0]||"0",10)||0; behind = parseInt(parts[1]||"0",10)||0;
+      const ab = execFileSync("git", ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true }).trim();
+      const parts = ab.split(/\s+/); ahead = parseInt(parts[0] || "0", 10) || 0; behind = parseInt(parts[1] || "0", 10) || 0;
     } catch {}
     return { branch, isRepo: true, ahead, behind };
   } catch { return { branch: "HEAD", isRepo: true, ahead: 0, behind: 0 }; }
 });
+
 ipcMain.handle("git:log", async (_e, rootPath, limit = 20) => {
   if (!rootPath) return [];
   try {
-    const { execSync } = require("child_process");
-    const n = Math.min(Math.max(parseInt(limit,10)||20, 1), 100);
+    const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
     const fmt = "%H%x1f%an%x1f%ae%x1f%ar%x1f%s%x1f%D";
-    const out = execSync(`git log --oneline -n ${n} --pretty=format:"${fmt}"`, { cwd: rootPath, timeout: 3000, encoding: "utf8", windowsHide: true });
+    const out = execFileSync("git", ["log", "--oneline", "-n", String(n), `--pretty=format:${fmt}`], { cwd: rootPath, timeout: 3000, encoding: "utf8", windowsHide: true });
     return out.split("\n").filter(Boolean).map((l) => {
       const [hash, author, email, relTime, msg, refs] = l.split("\x1f");
-      return { hash: hash?.slice(0,7), fullHash: hash, author, email, relTime, msg, refs: refs||"" };
+      return { hash: hash?.slice(0, 7), fullHash: hash, author, email, relTime, msg, refs: refs || "" };
     });
   } catch { return []; }
 });
+
 ipcMain.handle("git:stage", async (_e, rootPath, relPath) => {
-  if (!rootPath || !relPath) return { ok:false, error:"missing path" };
-  try { const { execSync } = require("child_process"); execSync(`git add -- "${relPath.replace(/"/g,'\\"')}"`, { cwd: rootPath, timeout: 4000, windowsHide: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
+  if (!rootPath || !relPath) return { ok: false, error: "missing path" };
+  try { execFileSync("git", ["add", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
 });
+
 ipcMain.handle("git:unstage", async (_e, rootPath, relPath) => {
-  if (!rootPath || !relPath) return { ok:false, error:"missing path" };
-  try { const { execSync } = require("child_process"); execSync(`git restore --staged -- "${relPath.replace(/"/g,'\\"')}" 2>nul || git reset HEAD -- "${relPath.replace(/"/g,'\\"')}"`, { cwd: rootPath, timeout: 4000, windowsHide: true, shell: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
-});
-ipcMain.handle("git:stageAll", async (_e, rootPath) => {
-  if (!rootPath) return { ok:false };
-  try { const { execSync } = require("child_process"); execSync(`git add -A`, { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
-});
-ipcMain.handle("git:unstageAll", async (_e, rootPath) => {
-  if (!rootPath) return { ok:false };
-  try { const { execSync } = require("child_process"); execSync(`git reset HEAD`, { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
-});
-ipcMain.handle("git:discard", async (_e, rootPath, relPath) => {
-  if (!rootPath || !relPath) return { ok:false };
-  try { const { execSync } = require("child_process"); execSync(`git checkout -- "${relPath.replace(/"/g,'\\"')}" 2>nul; git clean -f -- "${relPath.replace(/"/g,'\\"')}" 2>nul; git restore -- "${relPath.replace(/"/g,'\\"')}" 2>nul`, { cwd: rootPath, timeout: 4000, windowsHide: true, shell: true }); return { ok:true }; } catch(e){ return { ok:false, error: e.message }; }
-});
-ipcMain.handle("git:commit", async (_e, rootPath, message) => {
-  if (!rootPath || !message?.trim()) return { ok:false, error: "Empty message" };
+  if (!rootPath || !relPath) return { ok: false, error: "missing path" };
   try {
-    const { execSync } = require("child_process");
-    const safe = message.replace(/"/g,'\\"').replace(/\n/g,' ');
-    execSync(`git commit -m "${safe}"`, { cwd: rootPath, timeout: 6000, encoding: "utf8", windowsHide: true });
-    return { ok:true };
-  } catch(e){ return { ok:false, error: e.stderr?.toString() || e.message || String(e) }; }
+    try { execFileSync("git", ["restore", "--staged", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); }
+    catch { execFileSync("git", ["reset", "HEAD", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("git:stageAll", async (_e, rootPath) => {
+  if (!rootPath) return { ok: false };
+  try { execFileSync("git", ["add", "-A"], { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("git:unstageAll", async (_e, rootPath) => {
+  if (!rootPath) return { ok: false };
+  try { execFileSync("git", ["reset", "HEAD"], { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("git:discard", async (_e, rootPath, relPath) => {
+  if (!rootPath || !relPath) return { ok: false };
+  try {
+    try { execFileSync("git", ["checkout", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); } catch {}
+    try { execFileSync("git", ["clean", "-f", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); } catch {}
+    try { execFileSync("git", ["restore", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); } catch {}
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("git:commit", async (_e, rootPath, message) => {
+  if (!rootPath || !message?.trim()) return { ok: false, error: "Empty message" };
+  try {
+    execFileSync("git", ["commit", "-m", message.trim()], { cwd: rootPath, timeout: 6000, encoding: "utf8", windowsHide: true });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.stderr?.toString() || e.message || String(e) }; }
 });
 ipcMain.handle("git:push", async (_e, rootPath) => {
-  if (!rootPath) return { ok:false };
-  try { const { execSync } = require("child_process"); const out = execSync(`git push`, { cwd: rootPath, timeout: 15000, encoding:"utf8", windowsHide:true }); return { ok:true, out }; } catch(e){ return { ok:false, error: e.message }; }
+  if (!rootPath) return { ok: false };
+  try { const out = execFileSync("git", ["push"], { cwd: rootPath, timeout: 15000, encoding: "utf8", windowsHide: true }); return { ok: true, out }; } catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle("git:pull", async (_e, rootPath) => {
-  if (!rootPath) return { ok:false };
-  try { const { execSync } = require("child_process"); const out = execSync(`git pull`, { cwd: rootPath, timeout: 15000, encoding:"utf8", windowsHide:true }); return { ok:true, out }; } catch(e){ return { ok:false, error: e.message }; }
+  if (!rootPath) return { ok: false };
+  try { const out = execFileSync("git", ["pull"], { cwd: rootPath, timeout: 15000, encoding: "utf8", windowsHide: true }); return { ok: true, out }; } catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle("git:fetch", async (_e, rootPath) => {
-  if (!rootPath) return { ok:false };
-  try { const { execSync } = require("child_process"); const out = execSync(`git fetch`, { cwd: rootPath, timeout: 15000, encoding:"utf8", windowsHide:true }); return { ok:true, out }; } catch(e){ return { ok:false, error: e.message }; }
+  if (!rootPath) return { ok: false };
+  try { const out = execFileSync("git", ["fetch"], { cwd: rootPath, timeout: 15000, encoding: "utf8", windowsHide: true }); return { ok: true, out }; } catch (e) { return { ok: false, error: e.message }; }
 });
 
 // ─── Project config (tabs state + pin config) ──────────────────────────────────
@@ -655,7 +692,7 @@ ipcMain.handle("fs:newFile", async (_e, { parentPath, name }) => {
 ipcMain.handle("fs:rename", async (_e, { oldPath, newName }) => {
   const po = toLongPath(oldPath);
   const np = path.join(path.dirname(po), newName);
-  try { fs.renameSync(po, np); return path.join(path.dirname(oldPath), newName); }
+  try { safeRename(po, np); return path.join(path.dirname(oldPath), newName); }
   catch (err) { throw new Error(`Cannot rename "${path.basename(oldPath)}": ${err.code === "EBUSY" ? "file is in use by another process" : err.message}`); }
 });
 
@@ -698,6 +735,7 @@ ipcMain.handle("fs:trashItem", async (_e, { itemPath, rootPath }) => {
   const lpItem = toLongPath(itemPath);
   const lpRoot = toLongPath(rootPath);
   try {
+    if (!fs.existsSync(lpItem)) throw new Error(`File does not exist: ${itemPath}`);
     const name = path.basename(lpItem);
     const td   = trashDir(lpRoot);
     if (!fs.existsSync(td)) fs.mkdirSync(td, { recursive: true });
@@ -714,7 +752,7 @@ ipcMain.handle("fs:trashItem", async (_e, { itemPath, rootPath }) => {
       throw new Error("Cannot trash item inside .trash folder");
     }
 
-    fs.renameSync(lpItem, dest);
+    safeRename(lpItem, dest);
 
     const manifest = readManifest(lpRoot);
     manifest[trashId] = { originalPath: itemPath, timestamp: Date.now(), isDir: fs.statSync(dest).isDirectory() };
@@ -744,7 +782,7 @@ ipcMain.handle("fs:restoreTrashItem", async (_e, { trashId, rootPath }) => {
   const parentDir = path.dirname(finalDst);
   if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
 
-  fs.renameSync(src, finalDst);
+  safeRename(src, finalDst);
 
   delete manifest[trashId];
   writeManifest(lpRoot, manifest);
@@ -786,7 +824,7 @@ ipcMain.handle("fs:moveItem", async (_e, { srcPath, destDir }) => {
   const lpDst = toLongPath(destDir);
   try {
     const dest = path.join(lpDst, path.basename(lpSrc));
-    fs.renameSync(lpSrc, dest);
+    safeRename(lpSrc, dest);
     return path.join(destDir, path.basename(srcPath));
   } catch (err) {
     throw new Error(`Cannot move "${path.basename(srcPath)}": ${err.code === "EBUSY" ? "item is in use by another process" : err.message}`);
@@ -885,9 +923,8 @@ ipcMain.handle("fs:watch", (event, rootPath) => {
   const debounce = makeDebouncer(200);
 
   const watcher = chokidar.watch(rootPath, {
-    depth:             3,
     ignoreInitial:     true,
-    ignored:           /(^|[/\\])\..|(node_modules)/,
+    ignored:           /(^|[/\\])\.(git|hg|svn)($|[/\\])|node_modules/,
     persistent:        true,
     usePolling:        false,
     awaitWriteFinish:  { stabilityThreshold: 100, pollInterval: 50 },
@@ -1342,7 +1379,8 @@ async function getProcessName(pid) {
   try {
     if (process.platform === "win32") {
       const out = await execAsync(`tasklist /FI "PID eq ${pid}" /NH /FO CSV 2>nul`, 1200);
-      const m = out.match(/"([^"]+)"\s*,\s*"${pid}"/) || out.match(/"([^"]+)","${pid}"/);
+      const re = new RegExp(`"([^"]+)"\\s*,\\s*"${pid}"`);
+      const m = out.match(re);
       if (m) return m[1];
       const parts = out.split(",");
       if (parts[0]) return parts[0].replace(/"/g, "").trim();
@@ -1477,8 +1515,9 @@ ipcMain.handle("port:kill", async (_e, port) => {
     try {
       const { execSync } = require("child_process");
       if (process.platform === "win32") {
-        const out = execSync(`netstat -ano | findstr :${p} | findstr LISTENING`, { encoding: "utf8", timeout: 2000 });
-        const m = out.match(/\s+(\d+)\s*$/m);
+        const out = execSync(`netstat -ano`, { encoding: "utf8", timeout: 2000 });
+        const portRe = new RegExp(`:${p}\\s+.*\\s+LISTENING\\s+(\\d+)`, "i");
+        const m = out.match(portRe);
         if (m) pid = parseInt(m[1], 10);
       } else {
         const out = execSync(`lsof -ti :${p} -sTCP:LISTEN 2>/dev/null | head -n 1`, { encoding: "utf8", timeout: 2000 });
@@ -1770,7 +1809,7 @@ function buildMenu() {
         { type: "separator" },
         { label: "Save",            accelerator: "CmdOrCtrl+S",          click: () => sendToRenderer("menu:saveFile", null) },
         { label: "Save As…",         accelerator: "CmdOrCtrl+Shift+S",    click: () => sendToRenderer("menu:saveFileAs", null) },
-        { label: "Save All",        accelerator: "CmdOrCtrl+K S",        click: () => sendToRenderer("menu:saveFile", null) },
+        { label: "Save All",        accelerator: "CmdOrCtrl+Alt+S",      click: () => sendToRenderer("menu:saveFile", null) },
         { label: "Auto Save", type: "checkbox", checked: autoSaveEnabled, click: (item) => { autoSaveEnabled = item.checked; sendToRenderer("menu:toggleAutoSave", item.checked); } },
         { type: "separator" },
         { label: "Close Editor",    accelerator: "CmdOrCtrl+W", click: () => sendToRenderer("menu:closeProject", null) },
@@ -2141,14 +2180,30 @@ app.whenReady().then(async () => {
     ".woff2": "font/woff2",
     ".woff": "font/woff",
   };
-  protocol.handle("ppoo-file", async (request) => {
+  protocol.handle("ibx-file", async (request) => {
     try {
+      const referrer = request.referrer || "";
+      if (referrer.startsWith("http:") || referrer.startsWith("https:")) {
+        // Block external untrusted website origins from accessing local filesystem
+        const refUrl = new URL(referrer);
+        if (refUrl.hostname !== "localhost" && refUrl.hostname !== "127.0.0.1") {
+          return new Response("Access Denied", { status: 403 });
+        }
+      }
       const url = new URL(request.url);
       const filePath = decodeURIComponent(url.pathname.replace(/^\/([A-Za-z]):/, (_m, d) => d.toUpperCase() + ":"));
-      const res = await electronNet.fetch(pathToFileURL(filePath).toString());
+      const normPath = path.normalize(filePath);
+      if (!fs.existsSync(normPath)) {
+        return new Response("Not found", { status: 404 });
+      }
+      const res = await electronNet.fetch(pathToFileURL(normPath).toString());
       const headers = new Headers(res.headers);
-      headers.set("Access-Control-Allow-Origin", "*");
-      headers.set("Content-Type", PP_FILE_MIME[path.extname(filePath).toLowerCase()] || "application/octet-stream");
+      if (referrer.startsWith("file:") || referrer.startsWith("ibx-file:")) {
+        headers.set("Access-Control-Allow-Origin", "*");
+      } else {
+        headers.set("Access-Control-Allow-Origin", "null");
+      }
+      headers.set("Content-Type", PP_FILE_MIME[path.extname(normPath).toLowerCase()] || "application/octet-stream");
       return new Response(res.body, { status: res.status, headers });
     } catch {
       return new Response("Not found", { status: 404 });

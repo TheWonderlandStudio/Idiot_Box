@@ -209,7 +209,7 @@ const BrowserPanel = (props) => {
       if (t.startsWith("__IBX_DROP__")) {
         const p = t.slice("__IBX_DROP__".length);
         if (/\.html?$/i.test(p)) {
-          const url = "ppoo-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
+          const url = "ibx-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
           goToUrlRef.current(url);
         }
         return;
@@ -442,7 +442,8 @@ const BrowserPanel = (props) => {
     setLockOpen(next);
     if (next && lockRef.current) {
       const r = lockRef.current.getBoundingClientRect();
-      setPopupStyle({ left: Math.max(8, r.left - 10), top: r.bottom + 6 });
+      const maxLeft = Math.max(8, window.innerWidth - 300);
+      setPopupStyle({ left: Math.min(Math.max(8, r.left - 10), maxLeft), top: r.bottom + 6 });
     }
   }, [lockOpen]);
 

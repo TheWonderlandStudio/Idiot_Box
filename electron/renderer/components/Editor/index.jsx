@@ -50,17 +50,16 @@ import { registerExtension, ExtensionHostKind } from "@codingame/monaco-vscode-a
 window.MonacoEnvironment = {
   getWorker: (_moduleId, label) => {
     if (label === "TextMateWorker") return new Worker("./textmate.worker.js");
+    if (label === "typescript" || label === "javascript") return new Worker("./ts.worker.js");
+    if (label === "json") return new Worker("./json.worker.js");
+    if (label === "html" || label === "handlebars" || label === "razor") return new Worker("./html.worker.js");
+    if (label === "css" || label === "scss" || label === "less") return new Worker("./css.worker.js");
     return new Worker("./editor.worker.js");
   },
   getWorkerUrl: (_moduleId, label) => {
-    // Extension host machinery (monaco-vscode-api):
-    //  - "webWorkerExtensionHostIframe"  → the ext-host iframe document
-    //  - "extensionHostWorkerMain"       → the worker that runs extensions
     if (label === "webWorkerExtensionHostIframe") return "./worker/webWorkerExtensionHostIframe.html";
     if (label === "extensionHostWorkerMain") {
-      // file:// URLs cannot be fetched/imported from the sandboxed ext-host
-      // iframe — serve the worker bundle through the privileged ppoo-file: scheme.
-      return "ppoo-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensionHost.worker.js";
+      return "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensionHost.worker.js";
     }
     return undefined;
   },
@@ -75,9 +74,9 @@ const demoExtension = registerExtension(
   {
     name: "demo-extension",
     displayName: "Demo Extension",
-    description: "Test extension proving the ppoo extension host works",
+    description: "Test extension proving the extension host works",
     version: "1.0.0",
-    publisher: "ppoo",
+    publisher: "idiot-box",
     license: "MIT",
     engines: { vscode: "*" },
     categories: ["Other"],
@@ -91,9 +90,9 @@ const demoExtension = registerExtension(
   },
   ExtensionHostKind.LocalWebWorker
 );
-const ppooExtRoot = "ppoo-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension";
-demoExtension.registerFileUrl("/package.json", ppooExtRoot + "/package.json");
-demoExtension.registerFileUrl("/extension.js", ppooExtRoot + "/extension.js");
+const ibxExtRoot = "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension";
+demoExtension.registerFileUrl("/package.json", ibxExtRoot + "/package.json");
+demoExtension.registerFileUrl("/extension.js", ibxExtRoot + "/extension.js");
 
 // ── VS Code services init (once) ───────────────────────────────────────────
 let initPromise;
@@ -115,11 +114,14 @@ const ensureEditorReady = () => {
           try {
             themeService.setTheme("Dark+");
             const applied = themeService.getTheme();
-            if (applied && /dark/i.test(applied.id || "")) return;
+            if (applied && /dark/i.test(applied.id || "")) break;
           } catch {}
-          await new Promise((resolve) => setTimeout(resolve, 250));
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
       } catch {}
+    }).catch((err) => {
+      initPromise = null;
+      throw err;
     });
   }
   return initPromise;
@@ -472,8 +474,14 @@ const EditorPanel = ({ config, nodeId }) => {
     (async () => {
       const text = await window.electronAPI.readTextFile(filePath);
       if (cancelled || disposed || !hostRef.current) return;
-      if (text === null) {
-        flashStatus(`Failed to read file: ${fileName(filePath)}`);
+      const isBinaryExt = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".wasm"].some(ext => filePath.toLowerCase().endsWith(ext));
+      if (text === null || isBinaryExt) {
+        loadedRef.current = false;
+        flashStatus(`Binary or unreadable file: ${fileName(filePath)}`);
+        const host = hostRef.current;
+        if (host) {
+          host.innerHTML = `<div style="padding:24px; color:#888; text-align:center; font-family:sans-serif; font-size:13px;">Binary or unsupported file type (${fileName(filePath)}).<br/>Editing is disabled to prevent corruption.</div>`;
+        }
         return;
       }
 

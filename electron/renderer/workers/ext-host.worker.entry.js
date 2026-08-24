@@ -3,9 +3,9 @@
 // monaco-vscode-api iframe). Nested workers requested by extensions
 // (language services etc.) are routed to our locally bundled workers.
 
-globalThis.__ppooNativePost = self.postMessage.bind(self);
-globalThis.__ppooProbe = (dbg) => {
-  try { globalThis.__ppooNativePost({ __ppooProbe: true, dbg }); } catch {}
+globalThis.__ibxNativePost = self.postMessage.bind(self);
+globalThis.__ibxProbe = (dbg) => {
+  try { globalThis.__ibxNativePost({ __ibxProbe: true, dbg }); } catch {}
 };
 
 const workerFiles = {
