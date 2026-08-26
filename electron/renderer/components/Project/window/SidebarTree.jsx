@@ -2,12 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import VscodeIcon from "../../shared/VscodeIcon.jsx";
 import { useInputDialog } from "../../shared/InputDialog.jsx";
 import { PreviewIcon } from "./ContentArea.jsx";
+import { ChevronRight, FilePlus, FolderPlus, RefreshCw, FoldVertical } from "lucide-react";
 
-const ArrowSvg = () => (
-  <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
-    <path d="M2 1l4 3-4 3V1z"/>
-  </svg>
-);
+const ArrowSvg = () => <ChevronRight size={10} style={{ display: "block" }} />;
 
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 const TreeRow = ({
@@ -1002,16 +999,16 @@ const SidebarTree = ({
         <span className="pw-sidebar__title">Explorer</span>
         <div className="pw-sidebar__actions">
           <button className="pw-sidebar__action-btn" title="New File (Ctrl+N)" onClick={handleHeaderNewFile}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 5.5a.5.5 0 0 1 .5.5v2h2a.5.5 0 0 1 0 1h-2v2a.5.5 0 0 1-1 0v-2H5.5a.5.5 0 0 1 0-1H7.5v-2A.5.5 0 0 1 8 5.5z"/><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+            <FilePlus size={14} />
           </button>
           <button className="pw-sidebar__action-btn" title="New Folder (Ctrl+Shift+N)" onClick={handleHeaderNewFolder}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z"/><path d="M8 7.5a.5.5 0 0 1 .5.5v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1H6.5a.5.5 0 0 1 0-1H7.5v-1A.5.5 0 0 1 8 7.5z"/></svg>
+            <FolderPlus size={14} />
           </button>
           <button className="pw-sidebar__action-btn" title="Refresh (F5)" onClick={handleHeaderRefresh}>
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+            <RefreshCw size={13} />
           </button>
           <button className="pw-sidebar__action-btn" title="Collapse All" onClick={handleHeaderCollapse}>
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8z"/><path d="M2 6.5L3.5 8 2 9.5 2 6.5zM11 6.5L9.5 8 11 9.5V6.5z"/></svg>
+            <FoldVertical size={13} />
           </button>
         </div>
       </div>

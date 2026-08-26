@@ -3,6 +3,7 @@ import SidebarTree from "./SidebarTree.jsx";
 import ContentArea from "./ContentArea.jsx";
 import StatusBar   from "./StatusBar.jsx";
 import "./project-window.css";
+import { FolderOpen } from "lucide-react";
 
 const SIDEBAR_MIN     = 120;
 const SIDEBAR_MAX     = 400;
@@ -376,9 +377,7 @@ const ProjectWindow = () => {
             onMouseEnter={(e) => { e.currentTarget.style.background = "#383838"; e.currentTarget.style.borderColor = "#5a9fd4"; e.currentTarget.style.color = "#e8e8e8"; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = "#2d2d2d"; e.currentTarget.style.borderColor = "#3c3c3c"; e.currentTarget.style.color = "#c8c8c8"; }}
           >
-            <svg width="28" height="28" viewBox="0 0 16 16" fill="none">
-              <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z" fill="#c8a84b"/>
-            </svg>
+            <FolderOpen size={28} style={{ color: "#c8a84b" }} />
             Open Folder
           </button>
         </div>

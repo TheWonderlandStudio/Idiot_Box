@@ -3,13 +3,14 @@ import React, {
 } from "react";
 import VscodeIcon  from "../../shared/VscodeIcon.jsx";
 import useSettings from "../../shared/useSettings.jsx";
+import { Folder, File, Eye, EyeOff, Image as ImageIcon, Search, Video } from "lucide-react";
 
-// ── SVG icons ─────────────────────────────────────────────────────────────────
-const IcoFolder  = () => (<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z"/></svg>);
-const IcoFile    = () => (<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4Zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5Z"/></svg>);
-const IcoEye     = () => (<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8ZM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8Z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>);
-const IcoHidden  = () => (<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.36 2.64a.5.5 0 0 1 0 .707l-10 10a.5.5 0 0 1-.707-.707l10-10a.5.5 0 0 1 .707 0zm-.277 3.754A12.09 12.09 0 0 1 14.828 8c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-.746 0-1.444-.13-2.083-.354l1.05-1.05A2.5 2.5 0 0 0 9.904 8.967l1.18-1.18c.226-.241.444-.5.64-.78zM4.917 5.623l-1.17 1.17c-.226.242-.444.5-.64.78A12.09 12.09 0 0 0 1.172 8c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.746 0 1.444-.13 2.083-.354l.792.792A9.996 9.996 0 0 1 8 14C3 14 0 8 0 8s1.128-2.303 3.122-3.78l1.795 1.795zm1.479-1.015A8.534 8.534 0 0 1 8 4c5 0 8 4 8 4s-1.128 2.303-3.122 3.78L10.3 9.202A2.5 2.5 0 0 0 6.396 5.402l.707-.707z"/><path d="M8 5.5a2.53 2.53 0 0 1 .794.13l-1.552 1.552A.5.5 0 0 1 6.5 6.5v-.001a2.5 2.5 0 0 1 1.5-.999z"/></svg>);
-const IcoPreview = () => (<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2zm0 1h12a1 1 0 0 1 1 1v5.5l-3.78-3.78a.5.5 0 0 0-.68.02L6.5 10.5 4.28 8.28a.5.5 0 0 0-.56-.1L1 9.96V4a1 1 0 0 1 1-1zm11 9H3.62l3.2-3.2 2.2 2.2a.5.5 0 0 0 .71.05L12 9.96l1 1V12z"/></svg>);
+// ── SVG icons (lucide) ─────────────────────────────────────────────────────────
+const IcoFolder  = () => <Folder size={14} />;
+const IcoFile    = () => <File size={13} />;
+const IcoEye     = () => <Eye size={14} />;
+const IcoHidden  = () => <EyeOff size={14} />;
+const IcoPreview = () => <ImageIcon size={14} />;
 
 const IconBtn = ({ title, active, onClick, children }) => (
   <button className={`pw-bar-btn${active ? " pw-bar-btn--active" : ""}`} title={title} onClick={onClick}>{children}</button>
@@ -44,12 +45,7 @@ const PreviewIcon = ({ entry, showPreview, size }) => {
     return <img src={preview.data} width={size} height={size} alt="" style={{ objectFit: "contain", display: "block", borderRadius: 2 }} />;
   }
   if (preview.type === "video") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-        <rect x="1" y="3.5" width="14" height="9" rx="1.2" fill="#3a3a3a" stroke="#666" strokeWidth="0.8"/>
-        <polygon points="5.5,5.5 5.5,10.5 10.5,8" fill="#999"/>
-      </svg>
-    );
+    return <Video size={size} style={{ display: "block", color: "#999" }} />;
   }
   return <VscodeIcon name={entry.name} isDir={entry.isDir} size={size} />;
 };
@@ -115,9 +111,7 @@ const Bar = ({ rootPath, currentPath, onNavigate, query, onQuery, showFolders, o
       </div>
       <div className="pw-bar__actions">
         <div className="pw-bar__search">
-          <svg className="pw-bar__search-ico" width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
-          </svg>
+          <Search size={11} className="pw-bar__search-ico" />
           <input className="pw-bar__search-input" type="text" placeholder="Search" value={query}
             onChange={(e) => onQuery(e.target.value)} spellCheck={false}/>
           {query && <button className="pw-bar__search-clear" onClick={() => onQuery("")}>×</button>}

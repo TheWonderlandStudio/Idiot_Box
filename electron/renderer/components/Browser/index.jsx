@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
 const LOCK_ICON   = "M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4zm-2 6V5a2 2 0 1 1 4 0v2H6z";
@@ -493,25 +494,22 @@ const BrowserPanel = (props) => {
         <div className="browser__bar">
           <button className="browser__btn" disabled={!canGoBack}
             onClick={() => webviewRef.current?.goBack()} title="Back">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M10 12L6 8l4-4"/></svg>
+            <ChevronLeft size={14} />
           </button>
           <button className="browser__btn" disabled={!canGoForward}
             onClick={() => webviewRef.current?.goForward()} title="Forward">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6 4l4 4-4 4"/></svg>
+            <ChevronRight size={14} />
           </button>
           <button className="browser__btn" onClick={() => webviewRef.current?.reload()} title="Refresh">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 8a6 6 0 0 1 10.47-4M14 8a6 6 0 0 1-10.47 4M9 1l3 3-3 3M7 15l-3-3 3-3"/>
-            </svg>
+            <RefreshCw size={14} />
           </button>
 
           {/* URL bar */}
           <div className={`browser__url-wrap${focused ? " browser__url-wrap--focused" : ""}`}>
             {isLoading && <div className="browser__spinner" />}
-            <svg className="browser__lock" ref={lockRef} width="14" height="14" viewBox="0 0 16 16"
-              fill="currentColor" onClick={handleLockClick} style={{ color: iconColor }}>
-              <path d={iconPath} />
-            </svg>
+            <span ref={lockRef} className="browser__lock" onClick={handleLockClick} style={{ color: iconColor, display: "flex", alignItems: "center", cursor: "pointer" }}>
+              {isLocal ? <Globe size={14} /> : isHttps ? <Lock size={14} /> : <Unlock size={14} />}
+            </span>
             <input
               className="browser__url"
               value={inputValue}
@@ -539,14 +537,11 @@ const BrowserPanel = (props) => {
             }}
             title="Inspect Element / DevTools"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M9.5 9.5L13.5 13.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
+            <Search size={14} />
           </button>
 
           <button className="browser__btn" onClick={() => setBarHidden(true)} title="Hide toolbar">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 10l5-5 5 5"/></svg>
+            <ChevronUp size={14} />
           </button>
 
           {/* Extension actions (browser-action-list) */}
@@ -559,7 +554,7 @@ const BrowserPanel = (props) => {
 
       {barHidden && (
         <button className="browser__show-btn" onClick={() => setBarHidden(false)} title="Show toolbar">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 6l5 5 5-5"/></svg>
+          <ChevronDown size={14} />
         </button>
       )}
 

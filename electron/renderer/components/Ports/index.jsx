@@ -1,5 +1,6 @@
-// Ports Panel — Minimal, current-project filter only
+// Ports Panel — Minimal, current-project filter only (lucide icons)
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { Search, RefreshCw, ExternalLink, Copy, Square, X } from "lucide-react";
 
 const s = {
   wrap: { display: "flex", flexDirection: "column", height: "100%", background: "#1e1e1e", color: "#cccccc", overflow: "hidden", fontFamily: "'Segoe UI',system-ui,sans-serif" },
@@ -150,16 +151,16 @@ const PortsPanel = () => {
             <input type="checkbox" checked={showProjectOnly} onChange={(e) => setShowProjectOnly(e.target.checked)} style={{ accentColor: "#0e639c" }} />
             Current project only
           </label>
-          <button onClick={() => fetchPorts(false)} title="Refresh" style={s.iconBtn}>↻</button>
+          <button onClick={() => fetchPorts(false)} title="Refresh" style={{ ...s.iconBtn, display: "flex", alignItems: "center", justifyContent: "center" }}><RefreshCw size={12} /></button>
         </div>
       </div>
 
       <div style={{ padding: "6px 8px", borderBottom: "1px solid #232323", display: "flex", gap: 6, background: "#1e1e1e" }}>
         <div style={{ position: "relative", flex: 1 }}>
-          <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#666" }}>⌕</span>
+          <Search size={12} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#666", pointerEvents: "none" }} />
           <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter" style={s.input} />
         </div>
-        {filter && <button onClick={() => setFilter("")} style={s.btnGhost}>✕</button>}
+        {filter && <button onClick={() => setFilter("")} style={{ ...s.btnGhost, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} /></button>}
       </div>
 
       {error && <div style={{ margin: "8px", padding: "8px 10px", background: "#5a1d1d", border: "1px solid #7a2a2a", borderRadius: 4, color: "#ffb3b3", fontSize: 11 }}>{error}</div>}
@@ -197,9 +198,9 @@ const PortsPanel = () => {
               </span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#ccc" }} title={p.process}>{p.process || "—"}</span>
               <span style={{ flex: "0 0 110px", display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                <button onClick={(e) => { e.stopPropagation(); openInBrowser(p.port); }} style={{ ...s.iconBtn, background: "#094771", color: "#fff", borderColor: "#0e639c" }}>↗</button>
-                <button onClick={(e) => { e.stopPropagation(); copyUrl(p.port); }} style={s.iconBtn}>⧉</button>
-                {p.pid ? <button onClick={(e) => { e.stopPropagation(); handleKill(p); }} style={{ ...s.iconBtn, color: "#f44747" }}>■</button> : null}
+                <button onClick={(e) => { e.stopPropagation(); openInBrowser(p.port); }} title="Open in Browser" style={{ ...s.iconBtn, background: "#094771", color: "#fff", borderColor: "#0e639c", display: "flex", alignItems: "center", justifyContent: "center" }}><ExternalLink size={12} /></button>
+                <button onClick={(e) => { e.stopPropagation(); copyUrl(p.port); }} title="Copy URL" style={{ ...s.iconBtn, display: "flex", alignItems: "center", justifyContent: "center" }}><Copy size={12} /></button>
+                {p.pid ? <button onClick={(e) => { e.stopPropagation(); handleKill(p); }} title="Stop process" style={{ ...s.iconBtn, color: "#f44747", display: "flex", alignItems: "center", justifyContent: "center" }}><Square size={10} fill="currentColor" /></button> : null}
               </span>
             </div>
           );

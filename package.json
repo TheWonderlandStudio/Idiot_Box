@@ -58,6 +58,7 @@
     "electron-chrome-extensions": "^4.9.0",
     "esbuild": "^0.25.6",
     "flexlayout-react": "^0.8.19",
+    "lucide-react": "^1.34.0",
     "monaco-editor": "^0.56.0",
     "node-pty": "^1.1.0",
     "react": "^19.2.8",

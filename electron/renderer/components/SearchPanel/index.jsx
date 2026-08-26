@@ -1,5 +1,6 @@
-// SearchPanel — Ctrl+Shift+F project-wide text search
+// SearchPanel — Ctrl+Shift+F project-wide text search (lucide)
 import React, { useState, useEffect, useRef } from "react";
+import { Search } from "lucide-react";
 
 const SearchPanel = () => {
   const [open, setOpen] = useState(false);
@@ -70,7 +71,7 @@ const SearchPanel = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "#1e1e1e", borderBottom: "1px solid #3a3a3a" }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="#888" strokeWidth="1.2"/><path d="M11 11L13.5 13.5" stroke="#888" strokeWidth="1.2" strokeLinecap="round"/></svg>
+          <Search size={14} style={{ color: "#888" }} />
           <input
             ref={inputRef}
             value={query}
