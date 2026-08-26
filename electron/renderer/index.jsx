@@ -308,6 +308,33 @@ const App = () => {
           } catch {}
         }
       }
+      // ── Deduplicate Ports tabs — fix for saved session with 2 Ports tabs on startup
+      (() => {
+        let seen = false;
+        const dedup = (node) => {
+          if (!node || !node.children) return;
+          node.children = node.children.filter((child) => {
+            if (child.type === "tab" && child.component === "ports") {
+              if (!seen) { seen = true; return true; }
+              return false;
+            }
+            return true;
+          });
+          node.children.forEach(dedup);
+        };
+        try { dedup(json.layout || json); } catch {}
+        const cleanEmpty = (node) => {
+          if (!node || !node.children) return;
+          node.children.forEach(cleanEmpty);
+          node.children = node.children.filter(
+            (ch) => !(ch.type === "tabset" && (!ch.children || ch.children.length === 0))
+          );
+          node.children = node.children.filter(
+            (ch) => !(ch.type === "row" && (!ch.children || ch.children.length === 0))
+          );
+        };
+        try { cleanEmpty(json.layout || json); } catch {}
+      })();
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
       setTick((t) => t + 1);
@@ -508,7 +535,20 @@ const App = () => {
     const onBrowser = (e) => addPanel("panel3", "Browser", e.detail?.config || { type: "browser", title: "Browser", url: e.detail?.url || "https://www.google.com" });
     const onPreview = () => addPanel("componentPreview", "Component Preview", {});
     const onCanvas = () => addPanel("canvas", "Canvas", {});
-    const onPorts = () => addPanel("ports", "Ports", {});
+    const onPorts = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findPorts = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "ports") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findPorts(c); if (r) return r; }
+          return null;
+        };
+        const existing = findPorts(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("ports", "Ports", {});
+    };
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-component-preview-panel", onPreview);
     window.addEventListener("add-canvas-panel", onCanvas);

@@ -324,6 +324,15 @@ const ProjectWindow = () => {
     setSelectedItems(new Set([filePath]));
   }, []);
 
+  const handleCollapseAll = useCallback(() => {
+    setExpandedSet(new Set());
+  }, []);
+
+  const handleRefreshAll = useCallback(() => {
+    setChildCache(new Map());
+    setRefreshToken((t) => t + 1);
+  }, []);
+
   const handleSidebarDrop = useCallback(async (targetFolderPath, draggedPaths) => {
     const pairs = [];
     const sourceParents = new Set();
@@ -399,6 +408,8 @@ const ProjectWindow = () => {
             showPreview={showPreview}
             onFileSelect={handleSidebarFileSelect}
             pushUndo={pushUndo}
+            onCollapseAll={handleCollapseAll}
+            onRefreshAll={handleRefreshAll}
           />
           <div className="pw-sidebar__resize" onMouseDown={onResizeStart} />
         </div>

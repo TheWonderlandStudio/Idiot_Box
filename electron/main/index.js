@@ -1861,9 +1861,13 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "New Folder",              accelerator: "Ctrl+Shift+N", click: () => act("newFolder") },
         { label: "New File",                accelerator: "Ctrl+N",       click: () => act("newFile")   },
         sep,
+        { label: "Open in Terminal",                                     click: () => act("openInTerminal") },
+        sep,
         { label: "Paste",                   accelerator: "Ctrl+V", enabled: !!(clipboardPaths?.length), click: () => act("paste") },
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")  },
+        { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh") },
       ];
     } else if (type === "multi") {
@@ -1874,6 +1878,10 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Cut",                     accelerator: "Ctrl+X", click: () => act("cut")  },
         sep,
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
+        sep,
+        { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal") },
+        { label: "Refresh",                 accelerator: "F5", click: () => act("refresh") },
       ];
     } else if (type === "pinned") {
       items = [
@@ -1894,6 +1902,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")   },
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh")  },
       ];
     } else if (type === "folder") {
@@ -1915,6 +1924,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")   },
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh")  },
       ];
     } else if (type === "file") {
@@ -1938,6 +1948,11 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
           { label: "Open with Live Server",        accelerator: "Alt+L", click: () => act("openWithLiveServer") },
         ] : []),
         sep,
+        { label: "New File",                accelerator: "Ctrl+N",       click: () => act("newFile") },
+        { label: "New Folder",              accelerator: "Ctrl+Shift+N", click: () => act("newFolder") },
+        sep,
+        { label: "Open in Terminal",                                     click: () => act("openInTerminal") },
+        sep,
         { label: "Rename",                  accelerator: "F2",           click: () => act("rename")    },
         { label: "Delete",                  accelerator: "Delete",       click: () => act("delete")    },
         { label: "Duplicate",               accelerator: "Ctrl+D",       click: () => act("duplicate") },
@@ -1948,6 +1963,9 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")   },
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
+        sep,
+        { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh") },
       ];
     } else if (type === "mediaViewer") {
       const filePath = selectedPaths?.[0] || "";

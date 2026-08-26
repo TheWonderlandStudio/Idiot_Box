@@ -11,7 +11,7 @@ const ArrowSvg = () => (
 
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 const TreeRow = ({
-  label, iconEl, depth, hasChildren, isOpen, isSelected, isDropTarget,
+  label, iconEl, depth, hasChildren, isOpen, isSelected, isDropTarget, isCut,
   onClick, onDoubleClick, onArrowClick, onDragEnter, onDragOver, onDragLeave, onDrop, onContextMenu,
   gitStatus,
 }) => {
@@ -23,11 +23,12 @@ const TreeRow = ({
     String(gitStatus).includes("R") ? "#569cd6" : "#888"
   ) : null;
   return (
-  <div
+   <div
     className={[
       "pw-tree-row",
       isSelected   ? "pw-tree-row--selected"    : "",
       isDropTarget ? "pw-tree-row--drop-target" : "",
+      isCut        ? "pw-tree-row--cut"         : "",
     ].filter(Boolean).join(" ")}
     style={{ paddingLeft: `${6 + depth * 14}px` }}
     onClick={onClick}
@@ -68,6 +69,7 @@ const FolderNode = ({
   onFileClick, onFileDblClick, onFileCtxMenu,
   onExternalDrop,
   getGitStatus = () => null,
+  clipboard,
 }) => {
   const isOpen     = expandedSet.has(entry.path);
   const isSelected = selectedPath === entry.path;
@@ -132,6 +134,7 @@ const FolderNode = ({
   }, [entry.path, onDrop, setDropTarget, onExternalDrop]);
   const handleCtxMenu   = useCallback((e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(entry.path, e.shiftKey); }, [entry.path, onContextMenu]);
 
+  const isCutSelf = clipboard?.mode === "cut" && clipboard?.paths?.includes(entry.path);
   return (
     <>
       <TreeRow
@@ -142,6 +145,7 @@ const FolderNode = ({
         isOpen={isOpen}
         isSelected={isSelected}
         isDropTarget={dropTarget === entry.path}
+        isCut={isCutSelf}
         onClick={() => onSelect(entry.path)}
         onDoubleClick={() => onToggle(entry.path)}
         onArrowClick={() => onToggle(entry.path)}
@@ -177,6 +181,7 @@ const FolderNode = ({
           onFileCtxMenu={onFileCtxMenu}
           onExternalDrop={onExternalDrop}
           getGitStatus={getGitStatus}
+          clipboard={clipboard}
         />
       ) : (
         <TreeRow
@@ -188,6 +193,7 @@ const FolderNode = ({
           isOpen={false}
           isSelected={selectedPath === child.path}
           isDropTarget={false}
+          isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(child.path)}
           onClick={() => onFileClick?.(child.path)}
           onDoubleClick={() => onFileDblClick?.(child.path)}
           onArrowClick={() => {}}
@@ -212,6 +218,7 @@ const SidebarTree = ({
   clipboard, invalidateCache, onClipboardChange,
   showHidden, showFolders, showFiles, showPreview,
   onFileSelect, pushUndo,
+  onCollapseAll, onRefreshAll,
 }) => {
   const [rootChildren, setRootChildren] = useState(null);
   const [dropTarget,   setDropTarget]   = useState(null);
@@ -425,9 +432,12 @@ const SidebarTree = ({
 
     switch (result.action) {
       case "newFolder": {
+        const askName = await ask("New folder name:", "New Folder");
+        if (!askName) break;
         try {
-          const created = await window.electronAPI.newFolder(folderPath, "New Folder");
+          const created = await window.electronAPI.newFolder(folderPath, askName);
           if (created) {
+            if (pushUndo) pushUndo({ type: "create", path: created, parentDir: folderPath, name: askName, isDir: true });
             invalidateCache(folderPath);
             setLocalRefresh((k) => k + 1);
             onSelect(folderPath);
@@ -436,9 +446,12 @@ const SidebarTree = ({
         break;
       }
       case "newFile": {
+        const askName = await ask("New file name:", "New File.txt");
+        if (!askName) break;
         try {
-          const created = await window.electronAPI.newFile(folderPath, "New File.txt");
+          const created = await window.electronAPI.newFile(folderPath, askName);
           if (created) {
+            if (pushUndo) pushUndo({ type: "create", path: created, parentDir: folderPath, name: askName, isDir: false });
             invalidateCache(folderPath);
             setLocalRefresh((k) => k + 1);
             onSelect(folderPath);
@@ -493,8 +506,41 @@ const SidebarTree = ({
       }
       case "copy": onClipboardChange?.({ paths: [folderPath], mode: "copy" }); break;
       case "cut":  onClipboardChange?.({ paths: [folderPath], mode: "cut"  }); break;
+      case "paste": {
+        if (!clipboard?.paths?.length) break;
+        const failed = [];
+        const pairs = [];
+        const srcParents = new Set();
+        for (const src of clipboard.paths) {
+          if (clipboard.mode === "copy") {
+            try { await window.electronAPI.copyItem(src, folderPath); }
+            catch (err) { failed.push(src.split(/[\\/]/).pop()); }
+          } else {
+            const srcParent = src.replace(/[\\/][^\\/]+$/, "") || src;
+            srcParents.add(srcParent);
+            try {
+              const dest = await window.electronAPI.moveItem(src, folderPath);
+              if (dest) pairs.push({ from: src, to: dest });
+            } catch (err) { failed.push(src.split(/[\\/]/).pop()); }
+          }
+        }
+        if (failed.length) await window.electronAPI.showAlert(`Cannot paste:\n${failed.join(", ")}`);
+        if (clipboard.mode === "cut" && pairs.length) {
+          if (pushUndo) pushUndo({ type: "move", pairs });
+          onClipboardChange?.(null);
+        }
+        for (const p of srcParents) invalidateCache(p);
+        invalidateCache(folderPath);
+        setLocalRefresh((k) => k + 1);
+        break;
+      }
       case "reveal":   window.electronAPI.revealInExplorer(folderPath); break;
       case "copyPath": navigator.clipboard.writeText(folderPath); break;
+      case "copyRelativePath": {
+        const rel = rootPath && folderPath.startsWith(rootPath) ? folderPath.slice(rootPath.length + 1) : folderPath;
+        navigator.clipboard.writeText(rel);
+        break;
+      }
       case "openInTerminal": {
         window.dispatchEvent(new CustomEvent("open-terminal", { detail: { dir: folderPath } }));
         break;
@@ -508,7 +554,7 @@ const SidebarTree = ({
       }
       case "refresh":  refresh(); break;
     }
-  }, [selectedPath, onSelect, clipboard, invalidateCache, handlePinToggle, onClipboardChange]);
+  }, [selectedPath, onSelect, clipboard, invalidateCache, handlePinToggle, onClipboardChange, ask, pushUndo, rootPath, findTrashRoot]);
 
   // ── File handlers ────────────────────────────────────────────────────────
   const handleFileClick = useCallback((filePath) => {
@@ -572,6 +618,32 @@ const SidebarTree = ({
         window.dispatchEvent(new CustomEvent("open-terminal", { detail: { dir: parentDir } }));
         break;
       }
+      case "newFile": {
+        const askName = await ask("New file name:", "New File.txt");
+        if (!askName) break;
+        try {
+          const created = await window.electronAPI.newFile(parentDir, askName);
+          if (created) {
+            if (pushUndo) pushUndo({ type: "create", path: created, parentDir, name: askName, isDir: false });
+            invalidateCache(parentDir);
+            setLocalRefresh((k) => k + 1);
+          }
+        } catch (err) { await window.electronAPI.showAlert(`Cannot create file:\n${err.message}`); }
+        break;
+      }
+      case "newFolder": {
+        const askName = await ask("New folder name:", "New Folder");
+        if (!askName) break;
+        try {
+          const created = await window.electronAPI.newFolder(parentDir, askName);
+          if (created) {
+            if (pushUndo) pushUndo({ type: "create", path: created, parentDir, name: askName, isDir: true });
+            invalidateCache(parentDir);
+            setLocalRefresh((k) => k + 1);
+          }
+        } catch (err) { await window.electronAPI.showAlert(`Cannot create folder:\n${err.message}`); }
+        break;
+      }
       case "rename": {
         const oldName = filePath.replace(/.*[\\/]/, "");
         const n = await ask("Rename to:", oldName);
@@ -617,15 +689,47 @@ const SidebarTree = ({
         } catch (err) { await window.electronAPI.showAlert(`Cannot duplicate:\n${err.message}`); }
         break;
       }
-      // FIX: copy/cut were no-ops; now properly update clipboard state
       case "copy": onClipboardChange?.({ paths: [filePath], mode: "copy" }); break;
       case "cut":  onClipboardChange?.({ paths: [filePath], mode: "cut"  }); break;
+      case "paste": {
+        if (!clipboard?.paths?.length) break;
+        const failed = [];
+        const pairs = [];
+        const srcParents = new Set();
+        for (const src of clipboard.paths) {
+          if (clipboard.mode === "copy") {
+            try { await window.electronAPI.copyItem(src, parentDir); }
+            catch (err) { failed.push(src.split(/[\\/]/).pop()); }
+          } else {
+            const srcParent = src.replace(/[\\/][^\\/]+$/, "") || src;
+            srcParents.add(srcParent);
+            try {
+              const dest = await window.electronAPI.moveItem(src, parentDir);
+              if (dest) pairs.push({ from: src, to: dest });
+            } catch (err) { failed.push(src.split(/[\\/]/).pop()); }
+          }
+        }
+        if (failed.length) await window.electronAPI.showAlert(`Cannot paste:\n${failed.join(", ")}`);
+        if (clipboard.mode === "cut" && pairs.length) {
+          if (pushUndo) pushUndo({ type: "move", pairs });
+          onClipboardChange?.(null);
+        }
+        for (const p of srcParents) invalidateCache(p);
+        invalidateCache(parentDir);
+        setLocalRefresh((k) => k + 1);
+        break;
+      }
       case "reveal":
         window.electronAPI.revealInExplorer(filePath);
         break;
       case "copyPath":
         navigator.clipboard.writeText(filePath);
         break;
+      case "copyRelativePath": {
+        const rel = rootPath && filePath.startsWith(rootPath) ? filePath.slice(rootPath.length + 1) : filePath;
+        navigator.clipboard.writeText(rel);
+        break;
+      }
       case "refresh": {
         invalidateCache(parentDir);
         setLocalRefresh((k) => k + 1);
@@ -639,7 +743,7 @@ const SidebarTree = ({
         break;
       }
     }
-  }, [selectedPath, onSelect, clipboard, invalidateCache, findTrashRoot, onClipboardChange]);
+  }, [selectedPath, onSelect, clipboard, invalidateCache, findTrashRoot, onClipboardChange, ask, pushUndo, rootPath]);
 
   // ── Blank area context menu (right-click empty space) ─────────────────────
   const handleBlankContext = useCallback(async (e) => {
@@ -656,48 +760,264 @@ const SidebarTree = ({
 
     switch (result.action) {
       case "newFolder": {
+        const askName = await ask("New folder name:", "New Folder");
+        if (!askName) break;
         try {
-          await window.electronAPI.newFolder(rootPath, "New Folder");
+          const created = await window.electronAPI.newFolder(rootPath, askName);
+          if (created && pushUndo) pushUndo({ type: "create", path: created, parentDir: rootPath, name: askName, isDir: true });
           refresh();
         } catch (err) { await window.electronAPI.showAlert(`Cannot create folder:\n${err.message}`); }
         break;
       }
       case "newFile": {
+        const askName = await ask("New file name:", "New File.txt");
+        if (!askName) break;
         try {
-          await window.electronAPI.newFile(rootPath, "New File.txt");
+          const created = await window.electronAPI.newFile(rootPath, askName);
+          if (created && pushUndo) pushUndo({ type: "create", path: created, parentDir: rootPath, name: askName, isDir: false });
           refresh();
         } catch (err) { await window.electronAPI.showAlert(`Cannot create file:\n${err.message}`); }
+        break;
+      }
+      case "openInTerminal": {
+        window.dispatchEvent(new CustomEvent("open-terminal", { detail: { dir: rootPath } }));
         break;
       }
       case "paste": {
         if (!clipboard?.paths?.length) break;
         const failed = [];
+        const pairs = [];
+        const srcParents = new Set();
         for (const src of clipboard.paths) {
           if (clipboard.mode === "copy") {
             try { await window.electronAPI.copyItem(src, rootPath); }
             catch (err) { failed.push(src.split(/[\\/]/).pop()); }
           } else {
-            try { await window.electronAPI.moveItem(src, rootPath); }
-            catch (err) { failed.push(src.split(/[\\/]/).pop()); }
+            const srcParent = src.replace(/[\\/][^\\/]+$/, "") || src;
+            srcParents.add(srcParent);
+            try {
+              const dest = await window.electronAPI.moveItem(src, rootPath);
+              if (dest) pairs.push({ from: src, to: dest });
+            } catch (err) { failed.push(src.split(/[\\/]/).pop()); }
           }
         }
         if (failed.length) await window.electronAPI.showAlert(`Cannot paste:\n${failed.join(", ")}`);
+        if (clipboard.mode === "cut" && pairs.length) {
+          if (pushUndo) pushUndo({ type: "move", pairs });
+          onClipboardChange?.(null);
+        }
+        for (const p of srcParents) invalidateCache(p);
         refresh();
         break;
       }
       case "reveal":
         window.electronAPI.revealInExplorer(rootPath);
         break;
+      case "copyPath":
+        navigator.clipboard.writeText(rootPath);
+        break;
+      case "copyRelativePath": {
+        const rel = rootPath ? rootPath.split(/[\\/]/).pop() : rootPath;
+        navigator.clipboard.writeText(rel);
+        break;
+      }
       case "refresh":
         refresh();
         break;
     }
-  }, [rootPath, clipboard, invalidateCache]);
+  }, [rootPath, clipboard, invalidateCache, pushUndo, onClipboardChange, ask]);
+
+  // ── Header actions ──────────────────────────────────────────────────────────
+  const getActiveDir = useCallback(async () => {
+    if (!rootPath) return null;
+    if (!selectedPath) return rootPath;
+    try {
+      const st = await window.electronAPI.stat(selectedPath);
+      if (st?.isDir) return selectedPath;
+    } catch {}
+    const parent = selectedPath.replace(/[\\/][^\\/]+$/, "") || rootPath;
+    // ensure parent exists under root; fallback to root
+    if (!parent || !parent.startsWith(rootPath)) return rootPath;
+    return parent;
+  }, [rootPath, selectedPath]);
+
+  const handleHeaderNewFile = useCallback(async () => {
+    const targetDir = await getActiveDir();
+    if (!targetDir) return;
+    const name = await ask("New file name:", "New File.txt");
+    if (!name) return;
+    try {
+      const created = await window.electronAPI.newFile(targetDir, name);
+      if (created) {
+        if (pushUndo) pushUndo({ type: "create", path: created, parentDir: targetDir, name, isDir: false });
+        invalidateCache(targetDir);
+        setLocalRefresh((k) => k + 1);
+        if (!expandedSet.has(targetDir)) onToggle(targetDir);
+      }
+    } catch (err) { await window.electronAPI.showAlert(`Cannot create file:\n${err.message}`); }
+  }, [getActiveDir, ask, pushUndo, invalidateCache, expandedSet, onToggle]);
+
+  const handleHeaderNewFolder = useCallback(async () => {
+    const targetDir = await getActiveDir();
+    if (!targetDir) return;
+    const name = await ask("New folder name:", "New Folder");
+    if (!name) return;
+    try {
+      const created = await window.electronAPI.newFolder(targetDir, name);
+      if (created) {
+        if (pushUndo) pushUndo({ type: "create", path: created, parentDir: targetDir, name, isDir: true });
+        invalidateCache(targetDir);
+        setLocalRefresh((k) => k + 1);
+        if (!expandedSet.has(targetDir)) onToggle(targetDir);
+      }
+    } catch (err) { await window.electronAPI.showAlert(`Cannot create folder:\n${err.message}`); }
+  }, [getActiveDir, ask, pushUndo, invalidateCache, expandedSet, onToggle]);
+
+  const handleHeaderRefresh = useCallback(() => {
+    if (onRefreshAll) onRefreshAll();
+    else {
+      invalidateCache(rootPath);
+      setLocalRefresh((k) => k + 1);
+    }
+  }, [onRefreshAll, rootPath, invalidateCache]);
+
+  const handleHeaderCollapse = useCallback(() => {
+    if (onCollapseAll) onCollapseAll();
+    else {
+      // fallback: clear all expanded except root
+      // handled via parent
+    }
+  }, [onCollapseAll]);
+
+  // ── Sidebar keyboard shortcuts ───────────────────────────────────────
+  const handleSidebarKeyDown = useCallback(async (e) => {
+    if (!rootPath || !selectedPath) return;
+    const isFile = (() => {
+      // heuristic: if expandedSet has it, it's a folder; otherwise treat as file.
+      // For accurate check we could stat, but sync heuristic is fine for keyboard.
+      if (expandedSet.has(selectedPath)) return false;
+      // also check rootChildren to see if isDir false?
+      return true;
+    })();
+    // Don't handle if input dialog open
+    if (document.activeElement?.tagName === "INPUT") return;
+
+    if (e.key === "F2") {
+      e.preventDefault();
+      const oldName = selectedPath.replace(/.*[\\/]/, "");
+      const n = await ask("Rename to:", oldName);
+      if (n && n !== oldName) {
+        const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
+        try {
+          const newPath = await window.electronAPI.rename(selectedPath, n);
+          if (pushUndo) pushUndo({ type: "rename", oldPath: selectedPath, oldName, newPath: newPath || parentDir + (parentDir.includes("\\") ? "\\" : "/") + n, newName: n, parentDir });
+          invalidateCache(parentDir);
+          setLocalRefresh((k) => k + 1);
+        } catch (err) { await window.electronAPI.showAlert(`Cannot rename:\n${err.message}`); }
+      }
+      return;
+    }
+    if (e.key === "Delete") {
+      e.preventDefault();
+      const name = selectedPath.replace(/.*[\\/]/, "");
+      const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
+      if (e.shiftKey) {
+        const ok = await window.electronAPI.confirmDialog(`Permanently delete "${name}"?`);
+        if (!ok) return;
+        try { await window.electronAPI.deleteItem(selectedPath); invalidateCache(parentDir); setLocalRefresh((k)=>k+1); } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
+      } else {
+        const ok = await window.electronAPI.confirmDialog(`Move "${name}" to Trash?`);
+        if (!ok) return;
+        try {
+          const result = await window.electronAPI.trashItem(selectedPath, findTrashRoot(selectedPath));
+          if (pushUndo && result?.trashId) pushUndo({ type: "delete", trashIds: [{ from: selectedPath, trashId: result.trashId }], parentDir, rootPath: findTrashRoot(selectedPath) });
+          invalidateCache(parentDir);
+          setLocalRefresh((k)=>k+1);
+        } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
+      }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      onClipboardChange?.({ paths: [selectedPath], mode: "copy" });
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
+      e.preventDefault();
+      onClipboardChange?.({ paths: [selectedPath], mode: "cut" });
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+      e.preventDefault();
+      if (!clipboard?.paths?.length) return;
+      // paste into active dir
+      const targetDir = await getActiveDir();
+      if (!targetDir) return;
+      const failed = [];
+      const pairs = [];
+      const srcParents = new Set();
+      for (const src of clipboard.paths) {
+        if (clipboard.mode === "copy") {
+          try { await window.electronAPI.copyItem(src, targetDir); } catch { failed.push(src.split(/[\\/]/).pop()); }
+        } else {
+          const sp = src.replace(/[\\/][^\\/]+$/, "") || src;
+          srcParents.add(sp);
+          try { const dest = await window.electronAPI.moveItem(src, targetDir); if (dest) pairs.push({ from: src, to: dest }); } catch { failed.push(src.split(/[\\/]/).pop()); }
+        }
+      }
+      if (failed.length) await window.electronAPI.showAlert(`Cannot paste:\n${failed.join(", ")}`);
+      if (clipboard.mode === "cut" && pairs.length) { if (pushUndo) pushUndo({ type: "move", pairs }); onClipboardChange?.(null); }
+      for (const p of srcParents) invalidateCache(p);
+      invalidateCache(targetDir);
+      setLocalRefresh((k)=>k+1);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+      e.preventDefault();
+      if (e.shiftKey) await handleHeaderNewFolder();
+      else await handleHeaderNewFile();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
+      try { await window.electronAPI.duplicate(selectedPath); invalidateCache(parentDir); setLocalRefresh((k)=>k+1); } catch (err) { await window.electronAPI.showAlert(`Cannot duplicate:\n${err.message}`); }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+      // select all not applicable in tree; ignore
+      return;
+    }
+    if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")) {
+      e.preventDefault();
+      handleHeaderRefresh();
+      return;
+    }
+  }, [rootPath, selectedPath, expandedSet, clipboard, ask, pushUndo, invalidateCache, onClipboardChange, getActiveDir, handleHeaderRefresh, handleHeaderNewFile, handleHeaderNewFolder, findTrashRoot]);
 
   return (
     <>
       {inputDialog}
+      <div className="pw-sidebar__header">
+        <span className="pw-sidebar__title">Explorer</span>
+        <div className="pw-sidebar__actions">
+          <button className="pw-sidebar__action-btn" title="New File (Ctrl+N)" onClick={handleHeaderNewFile}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 5.5a.5.5 0 0 1 .5.5v2h2a.5.5 0 0 1 0 1h-2v2a.5.5 0 0 1-1 0v-2H5.5a.5.5 0 0 1 0-1H7.5v-2A.5.5 0 0 1 8 5.5z"/><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5z"/></svg>
+          </button>
+          <button className="pw-sidebar__action-btn" title="New Folder (Ctrl+Shift+N)" onClick={handleHeaderNewFolder}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z"/><path d="M8 7.5a.5.5 0 0 1 .5.5v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1H6.5a.5.5 0 0 1 0-1H7.5v-1A.5.5 0 0 1 8 7.5z"/></svg>
+          </button>
+          <button className="pw-sidebar__action-btn" title="Refresh (F5)" onClick={handleHeaderRefresh}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+          </button>
+          <button className="pw-sidebar__action-btn" title="Collapse All" onClick={handleHeaderCollapse}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8z"/><path d="M2 6.5L3.5 8 2 9.5 2 6.5zM11 6.5L9.5 8 11 9.5V6.5z"/></svg>
+          </button>
+        </div>
+      </div>
       <div className="pw-sidebar__scroll" role="tree" aria-label="Project tree"
+        tabIndex={0}
+        onKeyDown={handleSidebarKeyDown}
         onContextMenu={handleBlankContext}
         onDragOver={handleSidebarDragOver}
         onDrop={handleSidebarDrop}>
@@ -722,6 +1042,7 @@ const SidebarTree = ({
                     isOpen={false}
                     isSelected={selectedPath === fullPath}
                     isDropTarget={false}
+                    isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(fullPath)}
                     onClick={() => onSelect(fullPath)}
                     onDoubleClick={() => onToggle(fullPath)}
                     onArrowClick={() => {}}
@@ -737,16 +1058,20 @@ const SidebarTree = ({
                       if (!result) return;
                       switch (result.action) {
                         case "newFolder": {
+                          const askName = await ask("New folder name:", "New Folder");
+                          if (!askName) break;
                           try {
-                            const created = await window.electronAPI.newFolder(fullPath, "New Folder");
-                            if (created) { invalidateCache(fullPath); setLocalRefresh((k) => k + 1); onSelect(fullPath); }
+                            const created = await window.electronAPI.newFolder(fullPath, askName);
+                            if (created) { if (pushUndo) pushUndo({ type: "create", path: created, parentDir: fullPath, name: askName, isDir: true }); invalidateCache(fullPath); setLocalRefresh((k) => k + 1); onSelect(fullPath); }
                           } catch (err) { await window.electronAPI.showAlert(`Cannot create folder:\n${err.message}`); }
                           break;
                         }
                         case "newFile": {
+                          const askName = await ask("New file name:", "New File.txt");
+                          if (!askName) break;
                           try {
-                            const created = await window.electronAPI.newFile(fullPath, "New File.txt");
-                            if (created) { invalidateCache(fullPath); setLocalRefresh((k) => k + 1); onSelect(fullPath); }
+                            const created = await window.electronAPI.newFile(fullPath, askName);
+                            if (created) { if (pushUndo) pushUndo({ type: "create", path: created, parentDir: fullPath, name: askName, isDir: false }); invalidateCache(fullPath); setLocalRefresh((k) => k + 1); onSelect(fullPath); }
                           } catch (err) { await window.electronAPI.showAlert(`Cannot create file:\n${err.message}`); }
                           break;
                         }
@@ -760,7 +1085,8 @@ const SidebarTree = ({
                           const n = await ask("Rename to:", oldName);
                           if (n && n !== oldName) {
                             try {
-                              await window.electronAPI.rename(fullPath, n);
+                              const newPath = await window.electronAPI.rename(fullPath, n);
+                              if (pushUndo) pushUndo({ type: "rename", oldPath: fullPath, oldName, newPath: newPath || parentDir + (parentDir.includes("\\") ? "\\" : "/") + n, newName: n, parentDir });
                               invalidateCache(parentDir);
                               setLocalRefresh((k) => k + 1);
                             } catch (err) { await window.electronAPI.showAlert(`Cannot rename:\n${err.message}`); }
@@ -772,7 +1098,8 @@ const SidebarTree = ({
                           const ok = await window.electronAPI.confirmDialog(`Move "${dname}" to Trash?`);
                           if (ok) {
                             try {
-                              await window.electronAPI.trashItem(fullPath, rootPath);
+                              const result = await window.electronAPI.trashItem(fullPath, rootPath);
+                              if (pushUndo && result?.trashId) pushUndo({ type: "delete", trashIds: [{ from: fullPath, trashId: result.trashId }], parentDir, rootPath });
                               invalidateCache(parentDir);
                               setLocalRefresh((k) => k + 1);
                             } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
@@ -791,16 +1118,34 @@ const SidebarTree = ({
                         case "cut":  onClipboardChange?.({ paths: [fullPath], mode: "cut"  }); break;
                         case "paste": {
                           if (!clipboard?.paths?.length) break;
+                          const failed = [];
+                          const pairs = [];
+                          const srcParents = new Set();
                           for (const src of clipboard.paths) {
-                            if (clipboard.mode === "copy") await window.electronAPI.copyItem(src, fullPath);
-                            else await window.electronAPI.moveItem(src, fullPath);
+                            if (clipboard.mode === "copy") {
+                              try { await window.electronAPI.copyItem(src, fullPath); }
+                              catch { failed.push(src.split(/[\\/]/).pop()); }
+                            } else {
+                              const sp = src.replace(/[\\/][^\\/]+$/, "") || src;
+                              srcParents.add(sp);
+                              try { const dest = await window.electronAPI.moveItem(src, fullPath); if (dest) pairs.push({ from: src, to: dest }); }
+                              catch { failed.push(src.split(/[\\/]/).pop()); }
+                            }
                           }
+                          if (failed.length) await window.electronAPI.showAlert(`Cannot paste:\n${failed.join(", ")}`);
+                          if (clipboard.mode === "cut" && pairs.length) { if (pushUndo) pushUndo({ type: "move", pairs }); onClipboardChange?.(null); }
+                          for (const p of srcParents) invalidateCache(p);
                           invalidateCache(fullPath);
                           setLocalRefresh((k) => k + 1);
                           break;
                         }
                         case "reveal": window.electronAPI.revealInExplorer(fullPath); break;
                         case "copyPath": navigator.clipboard.writeText(fullPath); break;
+                        case "copyRelativePath": {
+                          const rel = rootPath && fullPath.startsWith(rootPath) ? fullPath.slice(rootPath.length + 1) : fullPath;
+                          navigator.clipboard.writeText(rel);
+                          break;
+                        }
                         case "refresh": {
                           invalidateCache(fullPath);
                           invalidateCache(parentDir);
@@ -825,6 +1170,7 @@ const SidebarTree = ({
             isOpen={expandedSet.has(rootPath)}
             isSelected={selectedPath === rootPath}
             isDropTarget={dropTarget === rootPath}
+            isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(rootPath)}
             onClick={() => onSelect(rootPath)}
             onDoubleClick={() => onToggle(rootPath)}
             onArrowClick={() => onToggle(rootPath)}
@@ -861,6 +1207,7 @@ const SidebarTree = ({
               onFileDblClick={handleFileDoubleClick}
               onFileCtxMenu={handleFileContextMenu}
               onExternalDrop={handleExternalDrop}
+              clipboard={clipboard}
             />
           ) : (
             <TreeRow
@@ -872,6 +1219,7 @@ const SidebarTree = ({
               isOpen={false}
               isSelected={selectedPath === entry.path}
               isDropTarget={false}
+              isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(entry.path)}
               onClick={() => handleFileClick(entry.path)}
               onDoubleClick={() => handleFileDoubleClick(entry.path)}
               onArrowClick={() => {}}

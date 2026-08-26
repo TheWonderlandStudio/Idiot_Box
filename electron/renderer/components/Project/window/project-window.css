@@ -54,6 +54,46 @@
 .pw-sidebar__scroll::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
 .pw-sidebar__scroll::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
+/* ── Sidebar header (Explorer toolbar) ───────────────────────────────────── */
+.pw-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 4px 0 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: #222;
+}
+.pw-sidebar__title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.pw-sidebar__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.pw-sidebar__action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.pw-sidebar__action-btn:hover { background: var(--bg-subtle); color: var(--icon-hover); }
+.pw-sidebar__action-btn:active { background: var(--bg-hover); }
+
 /* ── Section header ──────────────────────────────────────────────────────── */
 .pw-section { padding: 14px 8px 2px 8px; }
 .pw-section__label {
@@ -81,6 +121,7 @@
 .pw-tree-row:hover              { background: var(--bg-subtle); }
 .pw-tree-row--selected          { background: var(--selection-bg) !important; color: var(--text-inverse); }
 .pw-tree-row--selected .pw-tree-row__label { color: var(--text-inverse); }
+.pw-tree-row--cut               { opacity: 0.45; }
 
 .pw-tree-row__arrow {
   width: 14px;

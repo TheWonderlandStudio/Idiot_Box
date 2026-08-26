@@ -432,6 +432,12 @@ const ContentArea = ({
       case "copyPath":
         navigator.clipboard.writeText(targetPaths.length ? targetPaths.join("\n") : dir);
         return;
+      case "copyRelativePath": {
+        const rp = rootPathRef.current;
+        const rels = (targetPaths.length ? targetPaths : [dir]).map((p) => rp && p.startsWith(rp) ? p.slice(rp.length + 1) : p);
+        navigator.clipboard.writeText(rels.join("\n"));
+        return;
+      }
       case "refresh":
         invalidateCache(dir);
         loadEntries();
