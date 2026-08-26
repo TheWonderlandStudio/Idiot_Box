@@ -123,12 +123,12 @@ const FolderNode = ({
     if (expandTimerRef.current) { clearTimeout(expandTimerRef.current); expandTimerRef.current = null; }
     expandHoverRef.current = null;
     // Internal native drag (from startDrag) fallback
-    if (window.__ppooDragPaths?.length) {
-      const paths = window.__ppooDragPaths; window.__ppooDragPaths = null;
+    if (window.__ibxDragPaths?.length) {
+      const paths = window.__ibxDragPaths; window.__ibxDragPaths = null;
       onDrop(entry.path, paths); return;
     }
     if (await onExternalDrop?.(e, entry.path)) return;
-    try { const paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths")); if (paths?.length) onDrop(entry.path, paths); } catch {}
+    try { const paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); if (paths?.length) onDrop(entry.path, paths); } catch {}
   }, [entry.path, onDrop, setDropTarget, onExternalDrop]);
   const handleCtxMenu   = useCallback((e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(entry.path, e.shiftKey); }, [entry.path, onContextMenu]);
 
@@ -221,11 +221,13 @@ const SidebarTree = ({
   const [gitStatus,    setGitStatus]    = useState(new Map());
   const { dialog: inputDialog, ask }    = useInputDialog();
 
-  // ── Git status polling ───────────────────────────────────────────────────
+  // ── Git status — lightweight, shared with GitPanel cache
   useEffect(() => {
     if (!rootPath) { setGitStatus(new Map()); return; }
     let cancelled = false;
+    let fsDebounce = null;
     const fetchGit = async () => {
+      if (document.hidden) return;
       try {
         const res = await window.electronAPI.gitStatus(rootPath);
         if (cancelled) return;
@@ -235,21 +237,27 @@ const SidebarTree = ({
           const full = String(item.path || "").replace(/\\/g, "/");
           if (rel) m.set(rel, item.status);
           if (full) m.set(full, item.status);
-          // Also store without leading ./ 
           if (rel.startsWith("./")) m.set(rel.slice(2), item.status);
         }
         setGitStatus(m);
       } catch {}
     };
     fetchGit();
-    const iv = setInterval(fetchGit, 4000);
-    const onFs = () => setTimeout(fetchGit, 600);
+    const iv = setInterval(() => { if (!document.hidden) fetchGit(); }, 12000);
+    const onFs = () => {
+      clearTimeout(fsDebounce);
+      fsDebounce = setTimeout(() => { if (!document.hidden) fetchGit(); }, 1200);
+    };
     window.addEventListener("project:opened", onFs);
     const unsub = window.electronAPI.onFsChange(onFs);
+    const onVis = () => { if (!document.hidden) fetchGit(); };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       clearInterval(iv);
+      clearTimeout(fsDebounce);
       window.removeEventListener("project:opened", onFs);
+      document.removeEventListener("visibilitychange", onVis);
       unsub();
     };
   }, [rootPath]);
@@ -536,7 +544,7 @@ const SidebarTree = ({
         window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
         break;
       case "openInBrowser": {
-        const url = "ppoo-file://file/" + encodeURI(filePath.replace(/\\/g, "/")).replace(/#/g, "%23");
+        const url = "ibx-file://file/" + encodeURI(filePath.replace(/\\/g, "/")).replace(/#/g, "%23");
         window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url, config: { type: "browser", title: "Browser", url } } }));
         break;
       }
@@ -545,6 +553,18 @@ const SidebarTree = ({
         catch {
           const fileUrl = "file:///" + filePath.replace(/\\/g, "/");
           try { await window.electronAPI.openUrl(fileUrl); } catch {}
+        }
+        break;
+      }
+      case "openWithLiveServer": {
+        try {
+          const root = window.__currentProjectPath || rootPath;
+          const { url } = await window.electronAPI.startLiveServer(root, filePath);
+          window.dispatchEvent(new CustomEvent("add-browser-panel", {
+            detail: { url, config: { type: "browser", title: "Live Server", url } },
+          }));
+        } catch (err) {
+          await window.electronAPI.showAlert(`Live Server failed:\n${err.message}`);
         }
         break;
       }

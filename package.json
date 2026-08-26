@@ -89,7 +89,9 @@
       {
         "from": "electron/renderer/assets/",
         "to": "assets",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "asar": true,
@@ -101,7 +103,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/renderer/assets/idot_box.png",

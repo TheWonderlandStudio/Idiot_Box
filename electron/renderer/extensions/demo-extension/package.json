@@ -1,9 +1,9 @@
 {
   "name": "demo-extension",
   "displayName": "Demo Extension",
-  "description": "Test extension proving the ppoo extension host works",
+  "description": "Test extension proving the ibx extension host works",
   "version": "1.0.0",
-  "publisher": "ppoo",
+  "publisher": "idiot-box",
   "license": "MIT",
   "engines": { "vscode": "*" },
   "categories": ["Other"],

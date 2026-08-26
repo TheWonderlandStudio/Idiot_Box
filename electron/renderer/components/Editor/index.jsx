@@ -130,31 +130,31 @@ const ensureEditorReady = () => {
 const ext = (p) => { try { return p.slice(p.lastIndexOf(".")).toLowerCase(); } catch { return ""; } };
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
 
-window.__ppooProbes = [];
+window.__ibxProbes = [];
 window.addEventListener("message", (e) => {
   if (e.data && e.data.probeType === "if") {
-    window.__ppooProbes.push(e.data);
-    if (window.__ppooProbes.length > 60) window.__ppooProbes.shift();
+    window.__ibxProbes.push(e.data);
+    if (window.__ibxProbes.length > 60) window.__ibxProbes.shift();
   }
 });
 
 // Self-check hook: run the demo extension's command over the ext-host RPC.
 ensureEditorReady()
   .then(() => {
-window.__ppooExtCheck = async () => {
+window.__ibxExtCheck = async () => {
       const body = async () => {
         let info = {};
-        const mark = (s) => { info.step = s; window.__ppooDbg = { ...info }; };
+        const mark = (s) => { info.step = s; window.__ibxDbg = { ...info }; };
         mark("proto");
         try {
           const u = window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension/extension.js";
-          const res = await fetch("ppoo-file://" + u);
+          const res = await fetch("ibx-file://" + u);
           info.protoStatus = res.status;
           info.protoText = (await res.text()).slice(0, 60);
         } catch (e) { info.protoErr = String(e); }
         mark("protoWorker");
         try {
-          const url = "ppoo-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension/extension.js";
+          const url = "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension/extension.js";
           info.protoWorker = await new Promise((resolve) => {
             try {
               const blob = new Blob([`fetch(${JSON.stringify(url)}).then(r => { self.postMessage({ status: r.status }); return r.text(); }).then(t => self.postMessage({ text: String(t).slice(0, 40) })).catch(e => self.postMessage({ err: String(e) }));`], { type: "application/javascript" });
@@ -170,7 +170,7 @@ window.__ppooExtCheck = async () => {
           const wb = window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/"));
           info.blobTest = await new Promise(async (resolve) => {
             const results = {};
-            for (const [tag, workerUrl] of [["file", "file://" + wb + "/extensionHost.worker.js"], ["ppoo", "ppoo-file://" + wb + "/extensionHost.worker.js"]]) {
+            for (const [tag, workerUrl] of [["file", "file://" + wb + "/extensionHost.worker.js"], ["ibx", "ibx-file://" + wb + "/extensionHost.worker.js"]]) {
               results[tag] = await new Promise((r2) => {
                 try {
                   const blob = new Blob([`await import(${JSON.stringify(workerUrl)});`], { type: "application/javascript" });
@@ -226,7 +226,7 @@ window.__ppooExtCheck = async () => {
           try {
             mark("status");
             const status = extSvc.getExtensionsStatus();
-            const d = status["ppoo.demo-extension"];
+            const d = status["idiot-box.demo-extension"] || status["ibx.demo-extension"];
             info.demoStatus = d && {
               activationErrors: d.activationErrors?.map((e) => e.message),
               activationTimes: d.activationTimes,
@@ -255,7 +255,7 @@ window.__ppooExtCheck = async () => {
       };
       return await Promise.race([
         body(),
-        new Promise((resolve) => setTimeout(() => resolve({ outerTimeout: true, dbg: window.__ppooDbg || null, probes: window.__ppooProbes || [] }), 9000)),
+        new Promise((resolve) => setTimeout(() => resolve({ outerTimeout: true, dbg: window.__ibxDbg || null, probes: window.__ibxProbes || [] }), 9000)),
       ]);
     };
   })
@@ -356,16 +356,33 @@ const getEditorSettings = async () => {
 // Settings window and main window are separate BrowserWindows; we use a
 // BroadcastChannel so toggle changes in Settings propagate here instantly.
 const settingsListeners = new Set();
+const _broadcastHandler = (e) => {
+  if (e.data && typeof e.data === "object") {
+    // Merge into cached settings
+    _cachedEditorSettings = { ...(_cachedEditorSettings ?? {}), ...e.data };
+    settingsListeners.forEach((fn) => fn(e.data));
+  }
+};
 try {
   const bc = new BroadcastChannel("editor-settings");
-  bc.onmessage = (e) => {
-    if (e.data && typeof e.data === "object") {
-      // Merge into cached settings
-      _cachedEditorSettings = { ...(_cachedEditorSettings ?? {}), ...e.data };
-      settingsListeners.forEach((fn) => fn(e.data));
-    }
-  };
+  bc.onmessage = _broadcastHandler;
 } catch { /* BroadcastChannel unavailable */ }
+try {
+  const bc2 = new BroadcastChannel("app-settings");
+  bc2.onmessage = _broadcastHandler;
+} catch { /* BroadcastChannel unavailable */ }
+try {
+  const bc3 = new BroadcastChannel("terminal-settings");
+  bc3.onmessage = _broadcastHandler;
+} catch {}
+try {
+  const bc4 = new BroadcastChannel("git-settings");
+  bc4.onmessage = _broadcastHandler;
+} catch {}
+try {
+  const bc5 = new BroadcastChannel("canvas-settings");
+  bc5.onmessage = _broadcastHandler;
+} catch {}
 
 const EditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
@@ -397,6 +414,12 @@ const EditorPanel = ({ config, nodeId }) => {
   // minimap & wordWrap come from settings, not local toggle buttons
   const [minimap,         setMinimap]         = useState(true);
   const [wordWrap,        setWordWrap]        = useState("on");
+  const [lineNumbers,     setLineNumbers]     = useState("on");
+  const [fontSize,        setFontSize]        = useState(13);
+  const [fontFamily,      setFontFamily]      = useState('Consolas, "Courier New", monospace');
+  const [tabSize,         setTabSize]         = useState(2);
+  const [editorTheme,     setEditorTheme]     = useState("dark"); // default dark
+  const [autoSave,        setAutoSave]        = useState(false);
 
   const editorRef   = useRef(null);
   const hostRef     = useRef(null);
@@ -418,12 +441,40 @@ const EditorPanel = ({ config, nodeId }) => {
     getEditorSettings().then((s) => {
       setMinimap(s.minimap !== false);
       setWordWrap(s.wordWrap !== false ? "on" : "off");
+      setLineNumbers(s.lineNumbers !== false ? "on" : "off");
+      if (Number.isFinite(s.fontSize)) setFontSize(Math.min(32, Math.max(8, s.fontSize)));
+      if (s.fontFamily) setFontFamily(s.fontFamily);
+      if (Number.isFinite(s.tabSize)) setTabSize(s.tabSize);
+      const th = s.editorTheme || s.theme || "dark";
+      setEditorTheme(th);
+      if ("autoSave" in s) {
+        const enabled = s.autoSave === true || s.autoSave === "afterDelay";
+        autoSaveEnabled = enabled;
+        setAutoSave(enabled);
+        try { window.dispatchEvent(new CustomEvent("editor:autosave", { detail: { enabled } })); } catch {}
+      } else {
+        setAutoSave(false);
+      }
     });
 
     // Listen for live changes from the Settings window
     const handler = (patch) => {
       if ("minimap"  in patch) setMinimap(patch.minimap !== false);
       if ("wordWrap" in patch) setWordWrap(patch.wordWrap !== false ? "on" : "off");
+      if ("lineNumbers" in patch) setLineNumbers(patch.lineNumbers !== false ? "on" : "off");
+      if ("fontSize" in patch && Number.isFinite(patch.fontSize)) setFontSize(Math.min(32, Math.max(8, patch.fontSize)));
+      if ("fontFamily" in patch && patch.fontFamily) setFontFamily(patch.fontFamily);
+      if ("tabSize" in patch && Number.isFinite(patch.tabSize)) setTabSize(patch.tabSize);
+      if ("editorTheme" in patch || "theme" in patch) {
+        const th = patch.editorTheme || patch.theme;
+        if (th) setEditorTheme(th);
+      }
+      if ("autoSave" in patch) {
+        const enabled = patch.autoSave === true || patch.autoSave === "afterDelay";
+        autoSaveEnabled = enabled;
+        setAutoSave(enabled);
+        try { window.dispatchEvent(new CustomEvent("editor:autosave", { detail: { enabled } })); } catch {}
+      }
     };
     settingsListeners.add(handler);
     return () => settingsListeners.delete(handler);
@@ -451,7 +502,76 @@ const EditorPanel = ({ config, nodeId }) => {
       .catch((err) => setInitError(err?.message || String(err)));
   }, []);
 
-  // ── Create / swap the configured editor when the file or options change ──
+  // ── Apply editor theme from settings (default dark) ───────────────────────
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const ts = await getService(IThemeService);
+        if (cancelled) return;
+        // Exact IDs from theme-defaults extension package.json
+        const map = {
+          dark: "Visual Studio Dark",        // default dark
+          darkPlus: "Dark+",
+          darkModern: "Dark Modern",
+          dark2026: "Dark 2026",
+          light: "Visual Studio Light",
+          lightPlus: "Light+",
+          lightModern: "Light Modern",
+          light2026: "Light 2026",
+          hcDark: "Default High Contrast",
+          hcLight: "Default High Contrast Light",
+          // also accept exact IDs directly
+          "Visual Studio Dark": "Visual Studio Dark",
+          "Visual Studio Light": "Visual Studio Light",
+          "Dark+": "Dark+",
+          "Dark Modern": "Dark Modern",
+          "Dark 2026": "Dark 2026",
+          "Light+": "Light+",
+          "Light Modern": "Light Modern",
+          "Light 2026": "Light 2026",
+        };
+        const target = map[editorTheme] || map.dark;
+        try {
+          ts.setTheme(target);
+          // Verify – if theme not found, fallback to Dark+
+          const applied = ts.getTheme();
+          const id = applied?.id || applied?.label || "";
+          // If applied theme doesn't match requested, try fallback
+          if (!id || (target.toLowerCase() !== id.toLowerCase() && !id.toLowerCase().includes(target.toLowerCase().split(" ")[0]))) {
+            // still check if it's at least dark/light as requested; if not, fallback
+            if (!/visual studio dark|dark\+|dark modern|dark 2026/i.test(id) && /dark/i.test(target)) {
+              ts.setTheme("Visual Studio Dark");
+            } else if (!/visual studio light|light\+|light modern|light 2026/i.test(id) && /light/i.test(target)) {
+              ts.setTheme("Visual Studio Light");
+            }
+          }
+        } catch {
+          try { ts.setTheme("Visual Studio Dark"); } catch {}
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [ready, editorTheme]);
+
+  // ── Live apply settings via editor.updateOptions (no recreation) ──────────
+  useEffect(() => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    try {
+      ed.updateOptions({
+        minimap: { enabled: minimap },
+        wordWrap: wordWrap,
+        lineNumbers: lineNumbers,
+        fontSize: fontSize,
+        fontFamily: fontFamily,
+        tabSize: tabSize,
+      });
+    } catch {}
+  }, [minimap, wordWrap, lineNumbers, fontSize, fontFamily, tabSize]);
+
+  // ── Create / swap the configured editor when the file changes ──────────────
   useEffect(() => {
     if (!ready || !filePath || !hostRef.current) return;
     loadedRef.current = false;
@@ -507,13 +627,14 @@ const EditorPanel = ({ config, nodeId }) => {
           automaticLayout: true,
           minimap: { enabled: minimap },
           wordWrap: wordWrap,
-          fontSize: 13,
-          fontFamily: 'Consolas, "Courier New", monospace',
+          lineNumbers: lineNumbers,
+          fontSize: fontSize,
+          fontFamily: fontFamily,
           smoothScrolling: true,
           cursorBlink: "smooth",
           renderLineHighlight: "all",
           scrollBeyondLastLine: false,
-          tabSize: 2,
+          tabSize: tabSize,
         });
       } catch (err) {
         setInitError(err?.message || String(err));
@@ -612,7 +733,7 @@ const EditorPanel = ({ config, nodeId }) => {
     })();
 
     return () => { cancelled = true; cleanup(); };
-  }, [ready, filePath, minimap, wordWrap, nodeId, hasProject]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, filePath, nodeId, hasProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live reload: external edits (other apps / git / build tools) → auto-update
   useEffect(() => {
@@ -671,6 +792,7 @@ const EditorPanel = ({ config, nodeId }) => {
     let cancelled = false;
     let decorationIds = [];
     const updateDiff = async () => {
+      if (document.hidden) return;
       const ed = editorRef.current;
       if (!ed || cancelled) return;
       try {
@@ -727,14 +849,22 @@ const EditorPanel = ({ config, nodeId }) => {
       } catch {}
     };
     updateDiff();
-    const iv = setInterval(updateDiff, 3000);
-    const onFs = () => setTimeout(updateDiff, 500);
+    const iv = setInterval(() => { if (!document.hidden) updateDiff(); }, 10000);
+    let fsDebounce = null;
+    const onFs = () => {
+      clearTimeout(fsDebounce);
+      fsDebounce = setTimeout(() => { if (!document.hidden) updateDiff(); }, 1200);
+    };
+    const onVis = () => { if (!document.hidden) updateDiff(); };
     window.addEventListener("project:opened", onFs);
+    document.addEventListener("visibilitychange", onVis);
     const unsub = window.electronAPI.onFsChange(onFs);
     return () => {
       cancelled = true;
       clearInterval(iv);
+      clearTimeout(fsDebounce);
       window.removeEventListener("project:opened", onFs);
+      document.removeEventListener("visibilitychange", onVis);
       unsub();
       try {
         const ed = editorRef.current;
@@ -785,16 +915,42 @@ const EditorPanel = ({ config, nodeId }) => {
     flashStatus(`Saved as: ${fileName(newPath)}`);
   }, [nodeId, content]);
 
-  // ── File menu commands ───────────────────────────────────────────────────
+  // ── File & Edit menu commands ────────────────────────────────────────────
   useEffect(() => {
     const onCmd = (e) => {
       const cmd = e.detail?.cmd;
+      if (!cmd) return;
+
       const p = pathRef.current;
-      if (!cmd || !p) return;
+      // For save/saveAs the file must be loaded; for editor actions we just
+      // need the editor to be the active one (path matches or no path given).
       const target = e.detail?.path ?? activeEditorPath;
-      if (p !== target) return;
-      if (cmd === "save") doSave();
-      else if (cmd === "saveAs") doSaveAs();
+      const isActive = !target || p === target;
+
+      // ── Save commands (require a loaded file) ──────────────────────────
+      if (cmd === "save")   { if (p && isActive) doSave();   return; }
+      if (cmd === "saveAs") { if (p && isActive) doSaveAs(); return; }
+
+      // ── Monaco editor actions (no file required, but must be active) ───
+      if (!isActive) return;
+      const ed = editorRef.current;
+      if (!ed) return;
+
+      try {
+        switch (cmd) {
+          case "undo":         ed.trigger("menu", "undo",                    {}); break;
+          case "redo":         ed.trigger("menu", "redo",                    {}); break;
+          case "cut":          ed.trigger("menu", "editor.action.clipboardCutAction",   {}); break;
+          case "copy":         ed.trigger("menu", "editor.action.clipboardCopyAction",  {}); break;
+          case "paste":        ed.trigger("menu", "editor.action.clipboardPasteAction", {}); break;
+          case "selectAll":    ed.trigger("menu", "editor.action.selectAll",  {}); break;
+          case "find":         ed.trigger("menu", "actions.find",             {}); break;
+          case "findNext":     ed.trigger("menu", "editor.action.nextMatchFindAction",     {}); break;
+          case "findPrevious": ed.trigger("menu", "editor.action.previousMatchFindAction", {}); break;
+          case "replace":      ed.trigger("menu", "editor.action.startFindReplaceAction", {}); break;
+          default: break;
+        }
+      } catch { /* ignore if editor not ready */ }
     };
     window.addEventListener("editor:command", onCmd);
     return () => window.removeEventListener("editor:command", onCmd);
@@ -802,7 +958,11 @@ const EditorPanel = ({ config, nodeId }) => {
 
   // ── AutoSave toggle ──────────────────────────────────────────────────────
   useEffect(() => {
-    const onAuto = (e) => { autoSaveEnabled = e.detail?.enabled === true; };
+    const onAuto = (e) => {
+      const enabled = e.detail?.enabled === true;
+      autoSaveEnabled = enabled;
+      setAutoSave(enabled);
+    };
     window.addEventListener("editor:autosave", onAuto);
     return () => window.removeEventListener("editor:autosave", onAuto);
   }, []);
@@ -906,8 +1066,8 @@ const EditorPanel = ({ config, nodeId }) => {
                 <span>{statusMsg || `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                {autoSaveEnabled && <span>AutoSave: On</span>}
-                <span>Spaces: 2</span>
+                {(autoSave || autoSaveEnabled) && <span>AutoSave: On</span>}
+                <span>Spaces: {tabSize}</span>
                 <span>UTF-8</span>
                 <span style={{ textTransform: "uppercase", fontWeight: 600 }}>{language}</span>
               </div>

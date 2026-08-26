@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage, clipboard
 const path    = require("path");
 const fs      = require("fs");
 const { pathToFileURL } = require("url");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 let chokidar = null;
 try { chokidar = require("chokidar"); } catch (e) { console.warn("[main] chokidar not available:", e.message); }
 let pty = null;
@@ -151,6 +151,118 @@ const toLongPath = (p) => {
   return n;
 };
 
+// ─── Safe rename (handles EXDEV cross-device) ────────────────────────────────
+function safeRename(src, dest) {
+  try {
+    fs.renameSync(src, dest);
+  } catch (err) {
+    if (err.code === "EXDEV") {
+      const st = fs.statSync(src);
+      if (st.isDirectory()) fs.cpSync(src, dest, { recursive: true });
+      else fs.copyFileSync(src, dest);
+      fs.rmSync(src, { recursive: true, force: true });
+    } else {
+      throw err;
+    }
+  }
+}
+
+// ─── Project storage — app memory (userData) instead of polluting project ───
+const crypto = require("crypto");
+const getProjectStoreRoot = () => path.join(app.getPath("userData"), "projects");
+function getProjectStoreDir(rootPath) {
+  if (!rootPath) return null;
+  try {
+    const resolved = path.resolve(rootPath);
+    const hash = crypto.createHash("md5").update(resolved).digest("hex").slice(0, 12);
+    const safe = (path.basename(resolved) || "project").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 32) || "project";
+    const dir = path.join(getProjectStoreRoot(), `${safe}-${hash}`);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    // keep a human-readable index for debugging/manage UI
+    try {
+      const indexFile = path.join(getProjectStoreRoot(), "index.json");
+      let idx = {};
+      try { idx = JSON.parse(fs.readFileSync(indexFile, "utf8")); } catch {}
+      if (idx[resolved] !== `${safe}-${hash}`) {
+        idx[resolved] = `${safe}-${hash}`;
+        // also store reverse: folder -> original path for manage UI
+        idx[`_folder:${safe}-${hash}`] = resolved;
+        fs.mkdirSync(getProjectStoreRoot(), { recursive: true });
+        fs.writeFileSync(indexFile, JSON.stringify(idx, null, 2));
+      }
+    } catch {}
+    return dir;
+  } catch { return null; }
+}
+
+// Migrate legacy files from project folder to new store (one-time, keeps project clean)
+function migrateLegacyFile(rootPath, legacyRel, storeFileName) {
+  try {
+    if (!rootPath || !legacyRel || !storeFileName) return;
+    const legacy = path.join(rootPath, legacyRel);
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir || !fs.existsSync(legacy)) return;
+    const dest = path.join(storeDir, storeFileName);
+    if (fs.existsSync(dest)) return; // already migrated
+    const st = fs.statSync(legacy);
+    if (st.isDirectory()) {
+      fs.cpSync(legacy, dest, { recursive: true });
+    } else {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(legacy, dest);
+    }
+    // remove legacy after successful copy — keep project clean
+    try { fs.rmSync(legacy, { recursive: true, force: true }); } catch {}
+  } catch {}
+}
+function migrateLegacyIfNeeded(rootPath) {
+  if (!rootPath) return;
+  migrateLegacyFile(rootPath, path.join(".project_config", "tabs.json"), "tabs.json");
+  migrateLegacyFile(rootPath, path.join(".project_config", ".pinconfig"), "pinconfig.json");
+  migrateLegacyFile(rootPath, path.join(".canvas", "layout.json"), "canvas-layout.json");
+  // .trash is handled separately (large files) — migrate manifest + contents lazily on first trash access
+  try {
+    const legacyTrash = path.join(rootPath, ".trash");
+    const storeTrash = path.join(getProjectStoreDir(rootPath), "trash");
+    const legacyManifest = path.join(legacyTrash, "manifest.json");
+    if (fs.existsSync(legacyTrash) && !fs.existsSync(storeTrash)) {
+      // move entire .trash folder
+      try { fs.cpSync(legacyTrash, storeTrash, { recursive: true }); } catch {}
+      // keep manifest migration but don't delete immediately if large — try
+      try { fs.rmSync(legacyTrash, { recursive: true, force: true }); } catch {}
+    } else if (fs.existsSync(legacyManifest) && fs.existsSync(storeTrash)) {
+      // merge manifests if both exist
+      try {
+        const legacyM = JSON.parse(fs.readFileSync(legacyManifest, "utf8"));
+        const newMPath = path.join(storeTrash, "manifest.json");
+        let newM = {};
+        try { newM = JSON.parse(fs.readFileSync(newMPath, "utf8")); } catch {}
+        let changed = false;
+        for (const [k, v] of Object.entries(legacyM)) {
+          if (!newM[k]) { newM[k] = v; changed = true; }
+          const legacyItem = path.join(legacyTrash, k);
+          const newItem = path.join(storeTrash, k);
+          if (fs.existsSync(legacyItem) && !fs.existsSync(newItem)) {
+            try {
+              const s = fs.statSync(legacyItem);
+              if (s.isDirectory()) fs.cpSync(legacyItem, newItem, { recursive: true });
+              else fs.copyFileSync(legacyItem, newItem);
+              changed = true;
+            } catch {}
+          }
+        }
+        if (changed) fs.writeFileSync(newMPath, JSON.stringify(newM, null, 2));
+        try { fs.rmSync(legacyTrash, { recursive: true, force: true }); } catch {}
+      } catch {}
+    }
+  } catch {}
+}
+
+// In-memory cache for project configs (app memory) — speeds up reads + survives until app quit
+const memPinCache = new Map(); // rootPath -> data
+const memTabsCache = new Map();
+const memCanvasCache = new Map();
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 const SETTINGS_FILE = path.join(app.getPath("userData"), "settings.json");
 const readSettings  = () => { try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8")); } catch { return {}; } };
@@ -197,7 +309,7 @@ ipcMain.handle("fs:openFile", async (event, { filePath, editorId }) => {
   }
   const editor = KNOWN_EDITORS.find((e) => e.id === editorId);
   if (!editor || editor.id === "system" || !editor.commands.length) { await shell.openPath(filePath); return; }
-  try { require("child_process").spawn(editor.commands[0], [filePath], { detached: true, stdio: "ignore" }).unref(); }
+  try { spawn(editor.commands[0], [filePath], { detached: true, stdio: "ignore" }).unref(); }
   catch { await shell.openPath(filePath); }
 });
 
@@ -353,7 +465,6 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
   const q = String(query).trim();
   if (q.length < 2) return [];
   const tryRg = () => new Promise((resolve) => {
-    const { spawn } = require("child_process");
     const rg = spawn("rg", ["--no-heading", "--line-number", "--color", "never", "--max-count", String(limit), "--glob", "!.git/*", "--glob", "!node_modules/*", "-i", q, rootPath], { timeout: 8000, windowsHide: true });
     let out = "";
     let err = "";
@@ -423,39 +534,183 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
   return results.slice(0, limit);
 });
 
-// ─── Git helpers ───────────────────────────────────────────────────────────────
-const { execFileSync } = require("child_process");
+// ─── Git helpers — lightweight async (non-blocking) ────────────────────────────
+function gitExec(args, cwd, timeout = 4000) {
+  return new Promise((resolve, reject) => {
+    execFile("git", args, { cwd, timeout, encoding: "utf8", windowsHide: true }, (err, stdout, stderr) => {
+      if (err) {
+        err.stdout = stdout;
+        err.stderr = stderr;
+        return reject(err);
+      }
+      resolve(stdout);
+    });
+  });
+}
+function humanGitError(raw) {
+  const s = String(raw || "").toLowerCase();
+  if (!s) return "Git operation failed";
+  if (s.includes("not a git repository")) return "Not a git repository. Initialize with “git init” or open a git project.";
+  if (s.includes("no remote") || s.includes("no configured push destination") || s.includes("fatal: no remote")) return "No remote configured. Add a remote with “git remote add origin <url>”.";
+  if (s.includes("authentication failed") || s.includes("could not read username") || s.includes("could not read password") || s.includes("invalid username or password") || s.includes("401") || s.includes("403")) return "Authentication failed — check your git credentials or remote URL.";
+  if (s.includes("could not resolve host") || s.includes("unable to access") && s.includes("could not resolve")) return "Network error — could not reach the git remote. Check your internet connection.";
+  if (s.includes("network is unreachable") || s.includes("connection timed out") || s.includes("timed out") || s.includes("failed to connect")) return "Network error — remote is unreachable.";
+  if (s.includes("merge conflict") || s.includes("automatic merge failed") || s.includes("fix conflicts") || s.includes("conflict")) return "Merge conflict — resolve conflicts, stage the files, then commit.";
+  if (s.includes("rebase conflict") || s.includes("could not apply")) return "Rebase conflict — resolve conflicts and continue the rebase.";
+  if (s.includes("non-fast-forward") || s.includes("fetch first") || s.includes("rejected") && s.includes("fetch first")) return "Push rejected — remote has newer commits. Pull (or fetch + rebase) first, then push again.";
+  if (s.includes("rejected") && s.includes("non-fast-forward")) return "Push rejected (non-fast-forward) — pull/merge first.";
+  if (s.includes("nothing to commit") || s.includes("no changes added to commit")) return "Nothing to commit — stage some changes first.";
+  if (s.includes("please tell me who you are") || s.includes("author identity unknown")) return "Git user not configured. Run: git config --global user.name and git config --global user.email.";
+  if (s.includes("pathspec") && s.includes("did not match")) return "File not found in git index — refresh and try again.";
+  if (s.includes("permission denied")) return "Permission denied — check file permissions or remote access rights.";
+  if (s.includes("would be overwritten by merge") || s.includes("overwritten by merge")) return "Local changes would be overwritten — stash or commit them first, then pull.";
+  if (s.includes("branch") && s.includes("already exists")) return "Branch already exists — pick a different name or switch to it.";
+  if (s.includes("cannot lock ref") || s.includes("unable to create")) return "Git lock error — another git operation may be running. Try again.";
+  // fallback: first meaningful line
+  const first = String(raw).split("\n").map(l=>l.trim()).filter(Boolean)[0];
+  return first ? first.slice(0, 320) : "Git operation failed";
+}
+function sanitizeGitArg(v) {
+  if (typeof v !== "string") return "";
+  // allow letters, numbers, - _ / .  but also allow spaces for commit messages? caller handles -m separately
+  return v.trim();
+}
+function validateRelPath(rel) {
+  if (!rel || typeof rel !== "string") return false;
+  if (rel.includes("..") || rel.includes("\0")) return false;
+  if (path.isAbsolute(rel)) return false;
+  return true;
+}
+function ensureInsideRoot(root, rel) {
+  try {
+    const joined = path.resolve(path.join(root, rel));
+    const r = path.resolve(root);
+    if (joined === r || joined.startsWith(r + path.sep)) return true;
+  } catch {}
+  return false;
+}
+// tiny cache to avoid hammering git when multiple panels poll simultaneously
+const gitCache = new Map(); // key -> { data, time, promise }
+function gitCacheGet(key, ttl) {
+  const e = gitCache.get(key);
+  if (!e) return null;
+  if (e.promise && Date.now() - e.time < ttl) return e.promise; // in-flight
+  if (e.data !== undefined && Date.now() - e.time < ttl) return e.data;
+  return null;
+}
+function gitCacheSet(key, data, isPromise = false) {
+  if (isPromise) gitCache.set(key, { promise: data, time: Date.now(), data: undefined });
+  else gitCache.set(key, { data, time: Date.now() });
+}
+function gitCacheInvalidate(rootPath) {
+  if (!rootPath) return;
+  for (const k of [...gitCache.keys()]) {
+    if (k.includes(rootPath)) gitCache.delete(k);
+  }
+}
 
 ipcMain.handle("git:status", async (_e, rootPath) => {
   if (!rootPath) return [];
-  try {
-    const raw = execFileSync("git", ["status", "--porcelain", "-z", "-uall"], { cwd: rootPath, timeout: 4000, encoding: "utf8", windowsHide: true });
-    if (!raw) return [];
-    const out = [];
-    const parts = raw.split("\0");
-    for (let i = 0; i < parts.length; i++) {
-      const entry = parts[i];
-      if (!entry) continue;
-      const x = entry.slice(0, 1), y = entry.slice(1, 2);
-      const status = (x + y).trim() || "??";
-      let rel = entry.slice(3).trim();
-      // Renames or copies in porcelain -z output store the old path in the next null-separated part
-      if (x === "R" || x === "C" || y === "R" || y === "C") {
-        i++; // skip original path item
+  const key = `status:${rootPath}`;
+  const cached = gitCacheGet(key, 2500);
+  if (cached) return cached instanceof Promise ? cached : cached;
+  const p = (async () => {
+    try {
+      const raw = await gitExec(["status", "--porcelain", "-z", "-uall"], rootPath, 4000);
+      if (!raw) return [];
+      const out = [];
+      const parts = raw.split("\0");
+      for (let i = 0; i < parts.length; i++) {
+        let entry = parts[i];
+        if (!entry) continue;
+        const x = entry[0] || " ", y = entry[1] || " ";
+        let rawStatus = (x + y);
+        let rel = entry.slice(3);
+        // handle rename/copy: "R  old\0new\0"  -> second part is new path
+        let origRel = null;
+        if (x === "R" || x === "C" || y === "R" || y === "C") {
+          origRel = rel.trim();
+          // next NUL is destination
+          const next = parts[i + 1] || "";
+          if (next && !next.match(/^[ ?!A-Z][ ?!A-Z] /)) {
+            // heuristic: if next doesn't look like a new git entry (2-char status), treat as dest
+            // git -z for R/C emits: "R100\0old\0new\0" or "R  old -> new" depending on -z variant
+            // With our slice(3), for normal it'd be orig; next is dest
+            rel = next.trim();
+            i++;
+          } else {
+            rel = rel.trim();
+          }
+        } else {
+          rel = rel.trim();
+        }
+        if (!rel) continue;
+        // filter out entries where rel is numeric score like "100"
+        if (/^\d+$/.test(rel) && origRel) { rel = (parts[i+1]||"").trim(); if (!rel) continue; }
+        const status = rawStatus.trim() || (x==="?" && y==="?" ? "??" : rawStatus);
+        // conflict detection: UU, AA, DD, AU, UA, DU, UD etc.
+        const isConflict = (x === "U" || y === "U" || (x==="A"&&y==="A") || (x==="D"&&y==="D"));
+        const isUntracked = rawStatus === "??" || (x==="?" && y==="?") || status==="??";
+        // detect partially staged: both x and y indicate changes (e.g., MM, AM, MD...)
+        const stagedChange = x !== " " && x !== "?" && x !== "!" && x !== "U";
+        const unstagedChange = y !== " " && y !== "?" && y !== "!" && y !== "U";
+        const partiallyStaged = stagedChange && unstagedChange;
+        out.push({
+          status: isUntracked ? "??" : (rawStatus.trim() || rawStatus),
+          x, y,
+          path: path.join(rootPath, rel),
+          rel,
+          origRel: origRel || undefined,
+          conflicted: !!isConflict,
+          partiallyStaged: !!partiallyStaged,
+        });
       }
-      if (rel) {
-        out.push({ status, x, y, path: path.join(rootPath, rel), rel });
-      }
-    }
-    return out;
-  } catch { return []; }
+      return out;
+    } catch { return []; }
+  })();
+  gitCacheSet(key, p, true);
+  p.then((d) => gitCacheSet(key, d)).catch(() => gitCache.delete(key));
+  return p;
 });
 
 ipcMain.handle("git:diff", async (_e, rootPath, filePath) => {
   if (!rootPath || !filePath) return "";
   try {
-    const rel = path.relative(rootPath, filePath).replace(/\\/g, "/");
-    const out = execFileSync("git", ["diff", "--unified=0", "--", rel], { cwd: rootPath, timeout: 4000, encoding: "utf8", windowsHide: true });
+    let rel = filePath;
+    if (path.isAbsolute(filePath)) rel = path.relative(rootPath, filePath).replace(/\\/g, "/");
+    else rel = String(filePath).replace(/\\/g, "/");
+    if (!validateRelPath(rel)) rel = String(filePath).replace(/\\/g, "/").replace(/^\//, "");
+    // ensure inside
+    if (!ensureInsideRoot(rootPath, rel)) return "";
+    // Try staged diff first, then unstaged, then combined with --no-color, handle binary
+    // If file is untracked, diff returns empty -> try --no-index vs /dev/null handling
+    try {
+      const out = await gitExec(["diff", "--", rel], rootPath, 4000);
+      if (out && out.trim()) return String(out);
+    } catch {}
+    try {
+      const out2 = await gitExec(["diff", "--staged", "--", rel], rootPath, 4000);
+      if (out2 && out2.trim()) return String(out2);
+    } catch {}
+    try {
+      const out3 = await gitExec(["diff", "HEAD", "--", rel], rootPath, 4000);
+      if (out3 && out3.trim()) return String(out3);
+    } catch {}
+    // check binary
+    try {
+      const check = await gitExec(["diff", "--numstat", "--", rel], rootPath, 2000);
+      if (check && check.includes("-\t-\t")) return "Binary file — diff not displayed";
+    } catch {}
+    return "";
+  } catch { return ""; }
+});
+
+ipcMain.handle("git:diffStaged", async (_e, rootPath, filePath) => {
+  if (!rootPath || !filePath) return "";
+  try {
+    let rel = path.isAbsolute(filePath) ? path.relative(rootPath, filePath).replace(/\\/g, "/") : String(filePath).replace(/\\/g, "/");
+    if (!ensureInsideRoot(rootPath, rel)) return "";
+    const out = await gitExec(["diff", "--staged", "--", rel], rootPath, 4000);
     return String(out || "");
   } catch { return ""; }
 });
@@ -463,136 +718,313 @@ ipcMain.handle("git:diff", async (_e, rootPath, filePath) => {
 ipcMain.handle("git:diffAll", async (_e, rootPath) => {
   if (!rootPath) return "";
   try {
-    const out = execFileSync("git", ["diff", "--unified=0"], { cwd: rootPath, timeout: 4000, encoding: "utf8", windowsHide: true });
+    const out = await gitExec(["diff", "--unified=0"], rootPath, 4000);
     return String(out || "");
   } catch { return ""; }
 });
 
 ipcMain.handle("git:branch", async (_e, rootPath) => {
   if (!rootPath) return { branch: "", isRepo: false };
-  try {
-    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true });
-  } catch { return { branch: "", isRepo: false }; }
-  try {
-    const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true }).trim();
-    let ahead = 0, behind = 0;
+  const key = `branch:${rootPath}`;
+  const cached = gitCacheGet(key, 5000);
+  if (cached) return cached instanceof Promise ? cached : cached;
+  const p = (async () => {
     try {
-      const ab = execFileSync("git", ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], { cwd: rootPath, timeout: 2000, encoding: "utf8", windowsHide: true }).trim();
-      const parts = ab.split(/\s+/); ahead = parseInt(parts[0] || "0", 10) || 0; behind = parseInt(parts[1] || "0", 10) || 0;
-    } catch {}
-    return { branch, isRepo: true, ahead, behind };
-  } catch { return { branch: "HEAD", isRepo: true, ahead: 0, behind: 0 }; }
+      await gitExec(["rev-parse", "--is-inside-work-tree"], rootPath, 2000);
+    } catch { return { branch: "", isRepo: false }; }
+    try {
+      const branch = (await gitExec(["rev-parse", "--abbrev-ref", "HEAD"], rootPath, 2000)).trim();
+      let ahead = 0, behind = 0;
+      try {
+        const ab = (await gitExec(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], rootPath, 2000)).trim();
+        const parts = ab.split(/\s+/); ahead = parseInt(parts[0] || "0", 10) || 0; behind = parseInt(parts[1] || "0", 10) || 0;
+      } catch {}
+      // also check remote existence
+      let hasRemote = true;
+      try { await gitExec(["remote"], rootPath, 1500); const r = (await gitExec(["remote"], rootPath, 1500)).trim(); hasRemote = !!r; } catch { hasRemote = false; }
+      return { branch, isRepo: true, ahead, behind, hasRemote };
+    } catch { return { branch: "HEAD", isRepo: true, ahead: 0, behind: 0, hasRemote: false }; }
+  })();
+  gitCacheSet(key, p, true);
+  p.then((d) => gitCacheSet(key, d)).catch(() => gitCache.delete(key));
+  return p;
+});
+
+ipcMain.handle("git:branches", async (_e, rootPath) => {
+  if (!rootPath) return { local: [], remote: [], current: "" };
+  try {
+    await gitExec(["rev-parse", "--is-inside-work-tree"], rootPath, 2000);
+  } catch { return { local: [], remote: [], current: "", isRepo: false }; }
+  try {
+    const [curRaw, localRaw, remoteRaw] = await Promise.all([
+      gitExec(["rev-parse", "--abbrev-ref", "HEAD"], rootPath, 2000).catch(()=> ""),
+      gitExec(["branch", "--format=%(refname:short)"], rootPath, 2500).catch(()=> ""),
+      gitExec(["branch", "-r", "--format=%(refname:short)"], rootPath, 2500).catch(()=> ""),
+    ]);
+    const current = curRaw.trim();
+    const local = localRaw.split("\n").map(s=>s.trim()).filter(Boolean);
+    const remote = remoteRaw.split("\n").map(s=>s.trim()).filter(Boolean);
+    return { current, local, remote, isRepo: true };
+  } catch (e) {
+    return { local: [], remote: [], current: "", error: humanGitError(e?.stderr||e?.message) };
+  }
+});
+
+ipcMain.handle("git:createBranch", async (_e, rootPath, name) => {
+  if (!rootPath || !name) return { ok: false, error: "Missing branch name" };
+  const n = sanitizeGitArg(name);
+  if (!n || /[\s~^:?*\[\\]/.test(n) || n.includes("..") || n.includes("//")) return { ok: false, error: "Invalid branch name" };
+  try { await gitExec(["checkout", "-b", n], rootPath, 6000); gitCacheInvalidate(rootPath); return { ok: true, branch: n }; }
+  catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+});
+
+ipcMain.handle("git:switchBranch", async (_e, rootPath, name) => {
+  if (!rootPath || !name) return { ok: false, error: "Missing branch name" };
+  const n = String(name).trim();
+  if (!n || n.includes("\0")) return { ok: false, error: "Invalid branch name" };
+  try { await gitExec(["checkout", n], rootPath, 8000); gitCacheInvalidate(rootPath); return { ok: true, branch: n }; }
+  catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+});
+
+ipcMain.handle("git:deleteBranch", async (_e, rootPath, name, force) => {
+  if (!rootPath || !name) return { ok: false, error: "Missing branch name" };
+  const n = String(name).trim();
+  try { await gitExec(["branch", force ? "-D" : "-d", n], rootPath, 5000); gitCacheInvalidate(rootPath); return { ok: true }; }
+  catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+});
+
+ipcMain.handle("git:renameBranch", async (_e, rootPath, oldName, newName) => {
+  if (!rootPath || !oldName || !newName) return { ok: false, error: "Missing names" };
+  const nn = sanitizeGitArg(newName);
+  if (!nn) return { ok: false, error: "Invalid new name" };
+  try { await gitExec(["branch", "-m", String(oldName).trim(), nn], rootPath, 5000); gitCacheInvalidate(rootPath); return { ok: true, branch: nn }; }
+  catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+});
+
+ipcMain.handle("git:init", async (_e, rootPath) => {
+  if (!rootPath) return { ok: false, error: "Missing path" };
+  try { await gitExec(["init"], rootPath, 5000); gitCacheInvalidate(rootPath); return { ok: true }; }
+  catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+});
+
+ipcMain.handle("git:conflicts", async (_e, rootPath) => {
+  if (!rootPath) return [];
+  try {
+    const raw = await gitExec(["diff", "--name-only", "--diff-filter=U"], rootPath, 3000);
+    const list = raw.split("\n").map(s=>s.trim()).filter(Boolean).map(rel=>({ rel, path: path.join(rootPath, rel) }));
+    return list;
+  } catch { return []; }
+});
+
+ipcMain.handle("git:markResolved", async (_e, rootPath, relPath) => {
+  if (!rootPath || !relPath) return { ok: false, error: "missing path" };
+  if (!validateRelPath(relPath) || !ensureInsideRoot(rootPath, relPath)) return { ok: false, error: "Invalid path" };
+  try { await gitExec(["add", "--", relPath], rootPath, 4000); gitCacheInvalidate(rootPath); return { ok: true }; }
+  catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+});
+
+ipcMain.handle("git:commitShow", async (_e, rootPath, hash) => {
+  if (!rootPath || !hash) return "";
+  const h = String(hash).trim();
+  if (!/^[0-9a-f]{4,40}$/i.test(h)) return "";
+  try { const out = await gitExec(["show", "--stat", "--oneline", h], rootPath, 4000); return String(out||""); } catch { return ""; }
+});
+ipcMain.handle("git:commitDiff", async (_e, rootPath, hash) => {
+  if (!rootPath || !hash) return "";
+  const h = String(hash).trim();
+  if (!/^[0-9a-f]{4,40}$/i.test(h)) return "";
+  try { const out = await gitExec(["show", h], rootPath, 6000); return String(out||""); } catch { return ""; }
 });
 
 ipcMain.handle("git:log", async (_e, rootPath, limit = 20) => {
   if (!rootPath) return [];
-  try {
-    const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
-    const fmt = "%H%x1f%an%x1f%ae%x1f%ar%x1f%s%x1f%D";
-    const out = execFileSync("git", ["log", "--oneline", "-n", String(n), `--pretty=format:${fmt}`], { cwd: rootPath, timeout: 3000, encoding: "utf8", windowsHide: true });
-    return out.split("\n").filter(Boolean).map((l) => {
-      const [hash, author, email, relTime, msg, refs] = l.split("\x1f");
-      return { hash: hash?.slice(0, 7), fullHash: hash, author, email, relTime, msg, refs: refs || "" };
-    });
-  } catch { return []; }
+  const key = `log:${rootPath}:${limit}`;
+  const cached = gitCacheGet(key, 8000);
+  if (cached) return cached instanceof Promise ? cached : cached;
+  const p = (async () => {
+    try {
+      const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50); // cap 50 vs 100 to lighten
+      const fmt = "%H%x1f%an%x1f%ae%x1f%ar%x1f%s%x1f%D";
+      const out = await gitExec(["log", "--oneline", "-n", String(n), `--pretty=format:${fmt}`], rootPath, 3000);
+      return out.split("\n").filter(Boolean).map((l) => {
+        const [hash, author, email, relTime, msg, refs] = l.split("\x1f");
+        return { hash: hash?.slice(0, 7), fullHash: hash, author, email, relTime, msg, refs: refs || "" };
+      });
+    } catch { return []; }
+  })();
+  gitCacheSet(key, p, true);
+  p.then((d) => gitCacheSet(key, d)).catch(() => gitCache.delete(key));
+  return p;
 });
 
 ipcMain.handle("git:stage", async (_e, rootPath, relPath) => {
   if (!rootPath || !relPath) return { ok: false, error: "missing path" };
-  try { execFileSync("git", ["add", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+  if (!validateRelPath(relPath) || !ensureInsideRoot(rootPath, relPath)) return { ok: false, error: "Invalid path" };
+  try { await gitExec(["add", "--", relPath], rootPath, 4000); gitCacheInvalidate(rootPath); return { ok: true }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 
 ipcMain.handle("git:unstage", async (_e, rootPath, relPath) => {
   if (!rootPath || !relPath) return { ok: false, error: "missing path" };
+  if (!validateRelPath(relPath) || !ensureInsideRoot(rootPath, relPath)) return { ok: false, error: "Invalid path" };
   try {
-    try { execFileSync("git", ["restore", "--staged", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); }
-    catch { execFileSync("git", ["reset", "HEAD", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); }
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
+    try { await gitExec(["restore", "--staged", "--", relPath], rootPath, 4000); }
+    catch { await gitExec(["reset", "HEAD", "--", relPath], rootPath, 4000); }
+    gitCacheInvalidate(rootPath); return { ok: true };
+  } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 
 ipcMain.handle("git:stageAll", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { execFileSync("git", ["add", "-A"], { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+  try { await gitExec(["add", "-A"], rootPath, 5000); gitCacheInvalidate(rootPath); return { ok: true }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 
 ipcMain.handle("git:unstageAll", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { execFileSync("git", ["reset", "HEAD"], { cwd: rootPath, timeout: 5000, windowsHide: true }); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+  try { await gitExec(["reset", "HEAD"], rootPath, 5000); gitCacheInvalidate(rootPath); return { ok: true }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 
 ipcMain.handle("git:discard", async (_e, rootPath, relPath) => {
   if (!rootPath || !relPath) return { ok: false };
+  if (!validateRelPath(relPath) || !ensureInsideRoot(rootPath, relPath)) return { ok: false, error: "Invalid path" };
   try {
-    try { execFileSync("git", ["checkout", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); } catch {}
-    try { execFileSync("git", ["clean", "-f", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); } catch {}
-    try { execFileSync("git", ["restore", "--", relPath], { cwd: rootPath, timeout: 4000, windowsHide: true }); } catch {}
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.message }; }
+    // For untracked, clean handles removal; for tracked, restore
+    try { await gitExec(["clean", "-fd", "--", relPath], rootPath, 4000); } catch {}
+    try { await gitExec(["restore", "--", relPath], rootPath, 4000); } catch {}
+    try { await gitExec(["checkout", "--", relPath], rootPath, 4000); } catch {}
+    gitCacheInvalidate(rootPath); return { ok: true };
+  } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 
-ipcMain.handle("git:commit", async (_e, rootPath, message) => {
+ipcMain.handle("git:commit", async (_e, rootPath, message, opts) => {
   if (!rootPath || !message?.trim()) return { ok: false, error: "Empty message" };
+  const amend = opts && opts.amend;
   try {
-    execFileSync("git", ["commit", "-m", message.trim()], { cwd: rootPath, timeout: 6000, encoding: "utf8", windowsHide: true });
-    return { ok: true };
-  } catch (e) { return { ok: false, error: e.stderr?.toString() || e.message || String(e) }; }
+    if (amend) await gitExec(["commit", "--amend", "-m", message.trim()], rootPath, 6000);
+    else await gitExec(["commit", "-m", message.trim()], rootPath, 6000);
+    gitCacheInvalidate(rootPath); return { ok: true };
+  } catch (e) { return { ok: false, error: humanGitError(e.stderr?.toString() || e.message || String(e)) }; }
+});
+ipcMain.handle("git:commitAmend", async (_e, rootPath, message) => {
+  if (!rootPath || !message?.trim()) return { ok: false, error: "Empty message" };
+  try { await gitExec(["commit", "--amend", "-m", message.trim()], rootPath, 6000); gitCacheInvalidate(rootPath); return { ok: true }; }
+  catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 ipcMain.handle("git:push", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { const out = execFileSync("git", ["push"], { cwd: rootPath, timeout: 15000, encoding: "utf8", windowsHide: true }); return { ok: true, out }; } catch (e) { return { ok: false, error: e.message }; }
+  try { const out = await gitExec(["push"], rootPath, 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 ipcMain.handle("git:pull", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { const out = execFileSync("git", ["pull"], { cwd: rootPath, timeout: 15000, encoding: "utf8", windowsHide: true }); return { ok: true, out }; } catch (e) { return { ok: false, error: e.message }; }
+  try { const out = await gitExec(["pull"], rootPath, 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 ipcMain.handle("git:fetch", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { const out = execFileSync("git", ["fetch"], { cwd: rootPath, timeout: 15000, encoding: "utf8", windowsHide: true }); return { ok: true, out }; } catch (e) { return { ok: false, error: e.message }; }
+  try { const out = await gitExec(["fetch"], rootPath, 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 
-// ─── Project config (tabs state + pin config) ──────────────────────────────────
-const PIN_DIR  = ".project_config";
+// ─── Project config (tabs state + pin config) — stored in appData/projects/ ───
+// Legacy constants kept for migration only — new data lives in userData/projects/
 const PIN_FILE = ".pinconfig";
 const TABS_FILE = "tabs.json";
 
 ipcMain.handle("projectConfig:readTabs", async (_e, rootPath) => {
-  const filePath = path.join(rootPath, PIN_DIR, TABS_FILE);
-  try { return JSON.parse(fs.readFileSync(filePath, "utf8")); }
-  catch { return null; }
+  if (!rootPath) return null;
+  try {
+    if (memTabsCache.has(rootPath)) return memTabsCache.get(rootPath);
+    migrateLegacyIfNeeded(rootPath);
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir) return null;
+    const filePath = path.join(storeDir, TABS_FILE);
+    if (!fs.existsSync(filePath)) return null;
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    memTabsCache.set(rootPath, data);
+    return data;
+  } catch { return null; }
 });
 
 ipcMain.handle("projectConfig:writeTabs", async (_e, rootPath, data) => {
-  const dir = path.join(rootPath, PIN_DIR);
-  const filePath = path.join(dir, TABS_FILE);
+  if (!rootPath) return false;
   try {
-    fs.mkdirSync(dir, { recursive: true });
+    migrateLegacyIfNeeded(rootPath);
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir) return false;
+    const filePath = path.join(storeDir, TABS_FILE);
+    fs.mkdirSync(storeDir, { recursive: true });
+    if (data == null) {
+      try { fs.unlinkSync(filePath); } catch {}
+      memTabsCache.delete(rootPath);
+      return true;
+    }
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    memTabsCache.set(rootPath, data);
     return true;
   } catch { return false; }
 });
 
 // ─── Pin config ────────────────────────────────────────────────────────────────
 ipcMain.handle("fs:readPinConfig", async (_e, rootPath) => {
-  const filePath = path.join(rootPath, PIN_DIR, PIN_FILE);
-  try { return JSON.parse(fs.readFileSync(filePath, "utf8")); }
-  catch {
-    const exists = (name) => fs.existsSync(path.join(rootPath, name));
-    return ["assets", "components"].filter(exists);
-  }
+  if (!rootPath) return [];
+  try {
+    if (memPinCache.has(rootPath)) return memPinCache.get(rootPath);
+    migrateLegacyIfNeeded(rootPath);
+    const storeDir = getProjectStoreDir(rootPath);
+    if (storeDir) {
+      const filePath = path.join(storeDir, "pinconfig.json");
+      if (fs.existsSync(filePath)) {
+        const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        memPinCache.set(rootPath, data);
+        return data;
+      }
+    }
+  } catch {}
+  // fallback defaults - check legacy location once
+  try {
+    const legacy = path.join(rootPath, ".project_config", PIN_FILE);
+    if (fs.existsSync(legacy)) {
+      const data = JSON.parse(fs.readFileSync(legacy, "utf8"));
+      memPinCache.set(rootPath, data);
+      // migrate immediately
+      try {
+        const storeDir = getProjectStoreDir(rootPath);
+        if (storeDir) {
+          fs.mkdirSync(storeDir, { recursive: true });
+          fs.writeFileSync(path.join(storeDir, "pinconfig.json"), JSON.stringify(data, null, 2));
+          memPinCache.set(rootPath, data);
+        }
+      } catch {}
+      return data;
+    }
+  } catch {}
+  const exists = (name) => fs.existsSync(path.join(rootPath, name));
+  const def = ["assets", "components"].filter(exists);
+  memPinCache.set(rootPath, def);
+  return def;
 });
 
 ipcMain.handle("fs:writePinConfig", async (_e, rootPath, data) => {
-  const dir  = path.join(rootPath, PIN_DIR);
-  const filePath = path.join(dir, PIN_FILE);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  if (!rootPath) return false;
+  try {
+    migrateLegacyIfNeeded(rootPath);
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir) return false;
+    fs.mkdirSync(storeDir, { recursive: true });
+    fs.writeFileSync(path.join(storeDir, "pinconfig.json"), JSON.stringify(data, null, 2));
+    memPinCache.set(rootPath, data);
+    // also clean up legacy file if exists — keep project clean
+    try { fs.rmSync(path.join(rootPath, ".project_config", PIN_FILE), { force: true }); } catch {}
+    try {
+      const legacyDir = path.join(rootPath, ".project_config");
+      if (fs.existsSync(legacyDir) && fs.readdirSync(legacyDir).length === 0) fs.rmdirSync(legacyDir);
+    } catch {}
+    return true;
+  } catch { return false; }
 });
 
 // ─── Canvas (Visual Project Map) ──────────────────────────────────────────────
 const CANVAS_EXT_RE        = /\.(jsx|tsx|js|ts|vue|svelte|html)$/i;
 const CANVAS_EXCLUDE_DIRS  = new Set(["node_modules", "dist", "build", ".git", ".next", ".nuxt", ".output", ".cache", "coverage", "out"]);
 const CANVAS_SCAN_NAMES    = ["pages", "components", "views", "widgets", "features", "ui"];
+// Legacy dir/file for migration — new location is userData/projects/<hash>/canvas-layout.json
 const CANVAS_LAYOUT_DIR    = ".canvas";
 const CANVAS_LAYOUT_FILE   = "layout.json";
 
@@ -660,17 +1092,58 @@ ipcMain.handle("canvas:scan", async (_e, rootPath) => {
 });
 
 ipcMain.handle("canvas:saveLayout", async (_e, rootPath, data) => {
-  const dir = path.join(rootPath, CANVAS_LAYOUT_DIR);
+  if (!rootPath) return false;
   try {
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, CANVAS_LAYOUT_FILE), JSON.stringify(data || {}, null, 2));
+    if (memCanvasCache.has(rootPath) && data == null) memCanvasCache.delete(rootPath);
+    else if (data) memCanvasCache.set(rootPath, data);
+    migrateLegacyIfNeeded(rootPath);
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir) return false;
+    const filePath = path.join(storeDir, "canvas-layout.json");
+    if (data == null) {
+      try { fs.unlinkSync(filePath); } catch {}
+      return true;
+    }
+    fs.mkdirSync(storeDir, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(data || {}, null, 2));
+    // clean legacy
+    try { fs.rmSync(path.join(rootPath, CANVAS_LAYOUT_DIR, CANVAS_LAYOUT_FILE), { force: true }); } catch {}
+    try {
+      const legacyDir = path.join(rootPath, CANVAS_LAYOUT_DIR);
+      if (fs.existsSync(legacyDir) && fs.readdirSync(legacyDir).length === 0) fs.rmdirSync(legacyDir);
+    } catch {}
     return true;
   } catch { return false; }
 });
 
 ipcMain.handle("canvas:loadLayout", async (_e, rootPath) => {
+  if (!rootPath) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(rootPath, CANVAS_LAYOUT_DIR, CANVAS_LAYOUT_FILE), "utf8"));
+    if (memCanvasCache.has(rootPath)) return memCanvasCache.get(rootPath);
+    migrateLegacyIfNeeded(rootPath);
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir) return null;
+    const filePath = path.join(storeDir, "canvas-layout.json");
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      memCanvasCache.set(rootPath, data);
+      return data;
+    }
+    // try legacy once
+    try {
+      const legacy = path.join(rootPath, CANVAS_LAYOUT_DIR, CANVAS_LAYOUT_FILE);
+      if (fs.existsSync(legacy)) {
+        const data = JSON.parse(fs.readFileSync(legacy, "utf8"));
+        memCanvasCache.set(rootPath, data);
+        // migrate
+        try {
+          fs.mkdirSync(storeDir, { recursive: true });
+          fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        } catch {}
+        return data;
+      }
+    } catch {}
+    return null;
   } catch { return null; }
 });
 
@@ -708,36 +1181,57 @@ ipcMain.handle("fs:delete", async (_e, { itemPath }) => {
   }
 });
 
-// ─── Local trash (project-level recycle bin) ──────────────────────────────
-const TRASH_DIR = ".trash";
+// ─── Local trash (project-level recycle bin) — stored in userData/projects/ ───
+// Legacy: was .trash in project folder — now migrated to userData
+const TRASH_DIR = ".trash"; // kept for legacy migration check only
+const TRASH_DIR_NAME = "trash"; // inside storeDir
 const MANIFEST  = "manifest.json";
 
 function trashDir(rootPath) {
-  return path.join(rootPath, TRASH_DIR);
+  // New location: userData/projects/<hash>/trash
+  if (!rootPath) return null;
+  // migrate on first access
+  try { migrateLegacyIfNeeded(rootPath); } catch {}
+  const storeDir = getProjectStoreDir(rootPath);
+  if (!storeDir) return null;
+  const td = path.join(storeDir, TRASH_DIR_NAME);
+  if (!fs.existsSync(td)) {
+    try { fs.mkdirSync(td, { recursive: true }); } catch {}
+  }
+  return td;
 }
 
 function manifestPath(rootPath) {
-  return path.join(trashDir(rootPath), MANIFEST);
+  const td = trashDir(rootPath);
+  if (!td) return null;
+  return path.join(td, MANIFEST);
 }
 
 function readManifest(rootPath) {
-  try { return JSON.parse(fs.readFileSync(manifestPath(rootPath), "utf8")); }
+  try {
+    const mp = manifestPath(rootPath);
+    if (!mp || !fs.existsSync(mp)) return {};
+    return JSON.parse(fs.readFileSync(mp, "utf8"));
+  }
   catch { return {}; }
 }
 
 function writeManifest(rootPath, manifest) {
   const td = trashDir(rootPath);
+  if (!td) return;
   if (!fs.existsSync(td)) fs.mkdirSync(td, { recursive: true });
-  fs.writeFileSync(manifestPath(rootPath), JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(path.join(td, MANIFEST), JSON.stringify(manifest, null, 2));
 }
 
 ipcMain.handle("fs:trashItem", async (_e, { itemPath, rootPath }) => {
   const lpItem = toLongPath(itemPath);
-  const lpRoot = toLongPath(rootPath);
+  // rootPath may be different from itemPath's parent — use provided rootPath for store location
+  const effectiveRoot = rootPath || path.dirname(itemPath);
   try {
     if (!fs.existsSync(lpItem)) throw new Error(`File does not exist: ${itemPath}`);
     const name = path.basename(lpItem);
-    const td   = trashDir(lpRoot);
+    const td   = trashDir(effectiveRoot);
+    if (!td) throw new Error("Cannot resolve trash dir");
     if (!fs.existsSync(td)) fs.mkdirSync(td, { recursive: true });
 
     let trashId = `${Date.now()}_${name}`;
@@ -748,15 +1242,17 @@ ipcMain.handle("fs:trashItem", async (_e, { itemPath, rootPath }) => {
       dest    = path.join(td, trashId);
     }
 
-    if (lpItem === td || lpItem.startsWith(td + path.sep)) {
-      throw new Error("Cannot trash item inside .trash folder");
+    // prevent trashing the trash store itself or legacy .trash
+    const legacyTrash = path.join(path.resolve(effectiveRoot), TRASH_DIR);
+    if (lpItem === td || lpItem.startsWith(td + path.sep) || lpItem === legacyTrash || lpItem.startsWith(legacyTrash + path.sep)) {
+      throw new Error("Cannot trash item inside trash folder");
     }
 
     safeRename(lpItem, dest);
 
-    const manifest = readManifest(lpRoot);
+    const manifest = readManifest(effectiveRoot);
     manifest[trashId] = { originalPath: itemPath, timestamp: Date.now(), isDir: fs.statSync(dest).isDirectory() };
-    writeManifest(lpRoot, manifest);
+    writeManifest(effectiveRoot, manifest);
 
     return { trashId, originalPath: itemPath };
   } catch (err) {
@@ -765,12 +1261,15 @@ ipcMain.handle("fs:trashItem", async (_e, { itemPath, rootPath }) => {
 });
 
 ipcMain.handle("fs:restoreTrashItem", async (_e, { trashId, rootPath }) => {
-  const lpRoot = toLongPath(rootPath);
-  const manifest = readManifest(lpRoot);
+  const effectiveRoot = rootPath;
+  if (!effectiveRoot) throw new Error("Missing rootPath");
+  const manifest = readManifest(effectiveRoot);
   const entry = manifest[trashId];
   if (!entry) throw new Error(`Trash entry "${trashId}" not found`);
 
-  const src = path.join(trashDir(lpRoot), trashId);
+  const td = trashDir(effectiveRoot);
+  if (!td) throw new Error("Cannot resolve trash dir");
+  const src = path.join(td, trashId);
   const dst = toLongPath(entry.originalPath);
 
   let finalDst = dst, i = 1;
@@ -785,9 +1284,295 @@ ipcMain.handle("fs:restoreTrashItem", async (_e, { trashId, rootPath }) => {
   safeRename(src, finalDst);
 
   delete manifest[trashId];
-  writeManifest(lpRoot, manifest);
+  writeManifest(effectiveRoot, manifest);
 
   return finalDst;
+});
+
+// ─── Project storage management (app memory) — menu bar actions ──────────────
+function getStorageInfo(rootPath) {
+  try {
+    if (!rootPath) return null;
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir) return null;
+    const pinPath = path.join(storeDir, "pinconfig.json");
+    const tabsPath = path.join(storeDir, "tabs.json");
+    const canvasPath = path.join(storeDir, "canvas-layout.json");
+    const td = path.join(storeDir, "trash");
+    const mf = path.join(td, "manifest.json");
+    let trashCount = 0;
+    let trashSize = 0;
+    try {
+      if (fs.existsSync(mf)) {
+        const m = JSON.parse(fs.readFileSync(mf, "utf8"));
+        trashCount = Object.keys(m).length;
+      }
+      if (fs.existsSync(td)) {
+        const entries = fs.readdirSync(td);
+        for (const e of entries) {
+          if (e === "manifest.json") continue;
+          try {
+            const st = fs.statSync(path.join(td, e));
+            trashSize += st.isDirectory() ? 0 : st.size;
+            // for dirs, rough size
+            if (st.isDirectory()) {
+              try {
+                const walk = (dir) => {
+                  let s = 0;
+                  for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const fp = path.join(dir, f.name);
+                    try {
+                      const ss = fs.statSync(fp);
+                      if (ss.isDirectory()) s += walk(fp);
+                      else s += ss.size;
+                    } catch {}
+                  }
+                  return s;
+                };
+                trashSize += walk(path.join(td, e));
+              } catch {}
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+    const exists = (p) => fs.existsSync(p);
+    return {
+      storeDir,
+      pinExists: exists(pinPath),
+      tabsExists: exists(tabsPath),
+      canvasExists: exists(canvasPath),
+      trashCount,
+      trashSize,
+      pinPath,
+      tabsPath,
+      canvasPath,
+      trashDir: td,
+      manifestPath: mf,
+    };
+  } catch { return null; }
+}
+
+ipcMain.handle("projectStorage:getInfo", async (_e, rootPath) => {
+  return getStorageInfo(rootPath || lastProjectPath);
+});
+
+ipcMain.handle("projectStorage:getTrashList", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  if (!rp) return [];
+  try {
+    const manifest = readManifest(rp);
+    const td = trashDir(rp);
+    const out = [];
+    for (const [id, info] of Object.entries(manifest)) {
+      let size = 0;
+      let exists = false;
+      try {
+        const fp = path.join(td, id);
+        if (fs.existsSync(fp)) {
+          exists = true;
+          const st = fs.statSync(fp);
+          if (!st.isDirectory()) size = st.size;
+          else {
+            // dir size approx
+            try {
+              const walk = (dir) => {
+                let s = 0;
+                for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+                  const fp2 = path.join(dir, f.name);
+                  try {
+                    const ss = fs.statSync(fp2);
+                    if (ss.isDirectory()) s += walk(fp2);
+                    else s += ss.size;
+                  } catch {}
+                }
+                return s;
+              };
+              size = walk(fp);
+            } catch {}
+          }
+        }
+      } catch {}
+      out.push({ trashId: id, originalPath: info.originalPath, timestamp: info.timestamp, isDir: !!info.isDir, size, exists });
+    }
+    out.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    return out;
+  } catch { return []; }
+});
+
+ipcMain.handle("projectStorage:reveal", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  const info = getStorageInfo(rp);
+  const target = info?.storeDir || getProjectStoreRoot();
+  try {
+    if (fs.existsSync(target)) {
+      await shell.openPath(target);
+      return { ok: true, path: target };
+    }
+    return { ok: false, error: "Not found: " + target };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:revealTrash", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  const td = trashDir(rp);
+  try {
+    if (td && fs.existsSync(td)) {
+      await shell.openPath(td);
+      return { ok: true, path: td };
+    }
+    return { ok: false, error: "Trash empty or not found" };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:clearPin", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  if (!rp) return { ok: false, error: "No project" };
+  try {
+    memPinCache.delete(rp);
+    const p = path.join(getProjectStoreDir(rp), "pinconfig.json");
+    try { fs.unlinkSync(p); } catch {}
+    // legacy cleanup
+    try { fs.rmSync(path.join(rp, ".project_config", ".pinconfig"), { force: true }); } catch {}
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:clearTabs", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  if (!rp) return { ok: false, error: "No project" };
+  try {
+    memTabsCache.delete(rp);
+    const p = path.join(getProjectStoreDir(rp), "tabs.json");
+    try { fs.unlinkSync(p); } catch {}
+    try { fs.rmSync(path.join(rp, ".project_config", "tabs.json"), { force: true }); } catch {}
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:clearCanvas", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  if (!rp) return { ok: false, error: "No project" };
+  try {
+    memCanvasCache.delete(rp);
+    const p = path.join(getProjectStoreDir(rp), "canvas-layout.json");
+    try { fs.unlinkSync(p); } catch {}
+    try { fs.rmSync(path.join(rp, ".canvas", "layout.json"), { force: true }); } catch {}
+    try {
+      const legacyDir = path.join(rp, ".canvas");
+      if (fs.existsSync(legacyDir) && fs.readdirSync(legacyDir).length === 0) fs.rmdirSync(legacyDir);
+    } catch {}
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:clearTrash", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  if (!rp) return { ok: false, error: "No project" };
+  try {
+    const td = trashDir(rp);
+    if (td && fs.existsSync(td)) {
+      const entries = fs.readdirSync(td);
+      for (const e of entries) {
+        if (e === "manifest.json") continue;
+        try { fs.rmSync(path.join(td, e), { recursive: true, force: true }); } catch {}
+      }
+      try { fs.writeFileSync(path.join(td, "manifest.json"), JSON.stringify({}, null, 2)); } catch {}
+    }
+    // legacy cleanup
+    try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:clearAll", async (_e, rootPath) => {
+  const rp = rootPath || lastProjectPath;
+  if (!rp) return { ok: false, error: "No project" };
+  try {
+    memPinCache.delete(rp);
+    memTabsCache.delete(rp);
+    memCanvasCache.delete(rp);
+    const storeDir = getProjectStoreDir(rp);
+    if (storeDir && fs.existsSync(storeDir)) {
+      fs.rmSync(storeDir, { recursive: true, force: true });
+    }
+    // legacy cleanup — keep project folder clean
+    try { fs.rmSync(path.join(rp, ".project_config"), { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(path.join(rp, ".canvas"), { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
+    // remove from index
+    try {
+      const idxFile = path.join(getProjectStoreRoot(), "index.json");
+      if (fs.existsSync(idxFile)) {
+        const idx = JSON.parse(fs.readFileSync(idxFile, "utf8"));
+        const resolved = path.resolve(rp);
+        let changed = false;
+        if (idx[resolved]) { delete idx[resolved]; changed = true; }
+        // find folder key
+        for (const k of Object.keys(idx)) {
+          if (k.startsWith("_folder:") && idx[k] === resolved) { delete idx[k]; changed = true; }
+        }
+        if (changed) fs.writeFileSync(idxFile, JSON.stringify(idx, null, 2));
+      }
+    } catch {}
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:listAll", async () => {
+  try {
+    const root = getProjectStoreRoot();
+    if (!fs.existsSync(root)) return [];
+    const idxFile = path.join(root, "index.json");
+    let idx = {};
+    try { idx = JSON.parse(fs.readFileSync(idxFile, "utf8")); } catch {}
+    const dirs = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
+    const out = [];
+    for (const dirName of dirs) {
+      const storeDir = path.join(root, dirName);
+      let original = idx[`_folder:${dirName}`] || null;
+      if (!original) {
+        // try reverse lookup
+        for (const [k, v] of Object.entries(idx)) {
+          if (v === dirName) { original = k; break; }
+        }
+      }
+      let info = null;
+      try { info = getStorageInfo(original || storeDir); } catch {}
+      // fallback: use dirName as pseudo root if not resolved
+      out.push({
+        folder: dirName,
+        storeDir,
+        originalPath: original || "(unknown)",
+        exists: original ? fs.existsSync(original) : false,
+        pinExists: info?.pinExists || false,
+        tabsExists: info?.tabsExists || false,
+        canvasExists: info?.canvasExists || false,
+        trashCount: info?.trashCount || 0,
+      });
+    }
+    return out;
+  } catch { return []; }
+});
+
+ipcMain.handle("projectStorage:revealAll", async () => {
+  const root = getProjectStoreRoot();
+  try {
+    fs.mkdirSync(root, { recursive: true });
+    await shell.openPath(root);
+    return { ok: true, path: root };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("projectStorage:clearAllProjects", async () => {
+  try {
+    const root = getProjectStoreRoot();
+    if (fs.existsSync(root)) fs.rmSync(root, { recursive: true, force: true });
+    memPinCache.clear();
+    memTabsCache.clear();
+    memCanvasCache.clear();
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
 });
 
 ipcMain.handle("fs:duplicate", async (_e, { itemPath }) => {
@@ -1148,8 +1933,9 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Open with", submenu: openWithSubmenu },
         ...(isHtml ? [
           sep,
-          { label: "Open in Browser",                accelerator: "Alt+B", click: () => act("openInBrowser") },
-          { label: "Open in External Browser",                       click: () => act("openInExternalBrowser") },
+          { label: "Open in Browser",             accelerator: "Alt+B", click: () => act("openInBrowser") },
+          { label: "Open in External Browser",                          click: () => act("openInExternalBrowser") },
+          { label: "Open with Live Server",        accelerator: "Alt+L", click: () => act("openWithLiveServer") },
         ] : []),
         sep,
         { label: "Rename",                  accelerator: "F2",           click: () => act("rename")    },
@@ -1247,6 +2033,7 @@ ipcMain.handle("terminal:open", async (event, { tabId, cwd, forceRestart }) => {
 
   p.onData((data) => {
     try { event.sender.send("terminal:data", { tabId, data }); } catch {}
+    try { if (typeof sniffPortsFromTerminalOutput === "function") sniffPortsFromTerminalOutput(data); } catch {}
   });
 
   p.onExit(({ exitCode, signal }) => {
@@ -1311,281 +2098,13 @@ ipcMain.handle("terminal:tabContextMenu", (event) => {
   });
 });
 
-// ─── Port scanner ────────────────────────────────────────────────────────────
-const net = require("net");
-const COMMON_PORTS = [3000, 3001, 5000, 5173, 8080, 8081, 4200, 8000, 3005, 3006, 4173, 4321, 9000, 9001];
-let scanPortsInProgress = null;
-function scanPortsViaConnect(ports) {
-  return new Promise((resolve) => {
-    const active = [];
-    let remaining = ports.length;
-    if (!remaining) { resolve(active); return; }
-    for (const port of ports) {
-      let done = false;
-      const tryHost = (host) => {
-        const s = net.createConnection({ port, host, timeout: 700 });
-        s.on("connect", () => { if (!done) { done = true; s.destroy(); active.push(port); checkDone(); } else s.destroy(); });
-        s.on("error", () => { s.destroy(); if (host === "127.0.0.1") tryHost("::1"); else if (!done) checkDone(); });
-        s.on("timeout", () => { s.destroy(); if (host === "127.0.0.1") tryHost("::1"); else checkDone(); });
-      };
-      tryHost("127.0.0.1");
-      function checkDone() { if (!done) { done = true; if (--remaining <= 0) resolve(active.sort((a, b) => a - b)); } else if (--remaining <= 0) resolve(active.sort((a, b) => a - b)); }
-    }
-  });
-}
-function scanPortsViaNetstatDetailed() {
-  return new Promise((resolve) => {
-    const { exec } = require("child_process");
-    const cmd = process.platform === "win32" ? "netstat -ano | findstr LISTENING" : "ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || ss -tln 2>/dev/null || echo ''";
-    exec(cmd, { timeout: 2500 }, (err, stdout) => {
-      if (err || !stdout) return resolve([]);
-      const map = new Map(); // port -> pid
-      const lines = stdout.split("\n");
-      for (const line of lines) {
-        // Windows: TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING       1234
-        // Linux: LISTEN 0 128 0.0.0.0:3000 0.0.0.0:* users:(("node",pid=1234,fd=3))
-        let m = line.match(/:(\d+)\s+.*\s+(\d+)\s*$/);
-        if (m) {
-          const port = parseInt(m[1], 10);
-          const pid = parseInt(m[2], 10);
-          if (port >= 1024 && port <= 65535 && pid) {
-            if (!map.has(port) || !map.get(port).pid) map.set(port, { port, pid });
-          }
-          continue;
-        }
-        m = line.match(/:(\d+)\b/);
-        if (m) {
-          const port = parseInt(m[1], 10);
-          if (port >= 1024 && port <= 65535 && !map.has(port)) {
-            map.set(port, { port, pid: null });
-          }
-        }
-      }
-      resolve([...map.values()]);
-    });
-  });
-}
-function execAsync(cmd, timeout = 1800) {
-  return new Promise((resolve) => {
-    const { exec } = require("child_process");
-    exec(cmd, { timeout, windowsHide: true }, (err, stdout) => {
-      if (err || !stdout) return resolve("");
-      resolve(String(stdout));
-    });
-  });
-}
-async function getProcessName(pid) {
-  if (!pid) return "";
-  try {
-    if (process.platform === "win32") {
-      const out = await execAsync(`tasklist /FI "PID eq ${pid}" /NH /FO CSV 2>nul`, 1200);
-      const re = new RegExp(`"([^"]+)"\\s*,\\s*"${pid}"`);
-      const m = out.match(re);
-      if (m) return m[1];
-      const parts = out.split(",");
-      if (parts[0]) return parts[0].replace(/"/g, "").trim();
-    } else {
-      const out = await execAsync(`ps -p ${pid} -o comm= 2>/dev/null || ps -o comm= -p ${pid} 2>/dev/null`, 1200);
-      return out.trim().split("\n")[0].trim();
-    }
-  } catch {}
-  return "";
-}
-async function getProcessCmdline(pid) {
-  if (!pid) return "";
-  try {
-    if (process.platform === "win32") {
-      let out = await execAsync(`powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine" 2>nul`, 1200);
-      if (out && out.trim()) return out.trim();
-      const out2 = await execAsync(`wmic process where ProcessId=${pid} get CommandLine /value 2>nul`, 1200);
-      const m = out2.match(/CommandLine=(.*)/);
-      if (m) return m[1].trim();
-      // Fallback to parent's cmdline (e.g., npm -> node)
-      try {
-        const parentOut = await execAsync(`powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').ParentProcessId" 2>nul`, 800);
-        const ppid = parseInt((parentOut || "").trim(), 10);
-        if (ppid) {
-          const pOut = await execAsync(`powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${ppid}').CommandLine" 2>nul`, 800);
-          if (pOut && pOut.trim()) return pOut.trim();
-        }
-      } catch {}
-    } else {
-      const out = await execAsync(`ps -p ${pid} -o args= 2>/dev/null || cat /proc/${pid}/cmdline 2>/dev/null | tr '\\0' ' '`, 1200);
-      if (out && out.trim()) return out.trim();
-      // Try parent
-      try {
-        const ppidOut = await execAsync(`ps -o ppid= -p ${pid} 2>/dev/null`, 800);
-        const ppid = parseInt(ppidOut.trim(), 10);
-        if (ppid) {
-          const pOut = await execAsync(`ps -p ${ppid} -o args= 2>/dev/null`, 800);
-          if (pOut && pOut.trim()) return pOut.trim();
-        }
-      } catch {}
-    }
-  } catch {}
-  return "";
-}
-async function getProcessCwd(pid) {
-  if (!pid) return "";
-  try {
-    if (process.platform !== "win32") {
-      const out = await execAsync(`readlink /proc/${pid}/cwd 2>/dev/null || pwdx ${pid} 2>/dev/null | cut -d: -f2`, 1000);
-      if (out && out.trim()) return out.trim();
-      const out2 = await execAsync(`lsof -a -p ${pid} -d cwd -Fn 2>/dev/null | grep '^n' | cut -c2-`, 1000);
-      if (out2 && out2.trim()) return out2.trim();
-    } else {
-      // Windows: executable path's dir is best we can get without handle.exe
-      const out = await execAsync(`powershell -NoProfile -Command "try{(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').ExecutablePath}catch{}" 2>nul`, 1000);
-      const exe = out.trim();
-      if (exe) return require("path").dirname(exe);
-    }
-  } catch {}
-  return "";
-}
-async function scanPortsDetailed() {
-  if (scanPortsInProgress) return scanPortsInProgress;
-  scanPortsInProgress = (async () => {
-  const [detailed, viaConnect] = await Promise.all([
-    scanPortsViaNetstatDetailed().catch(() => []),
-    scanPortsViaConnect(COMMON_PORTS).catch(() => []),
-  ]);
-  const map = new Map();
-  for (const d of detailed) {
-    if (!map.has(d.port)) map.set(d.port, d);
-  }
-  for (const p of viaConnect) {
-    if (!map.has(p)) map.set(p, { port: p, pid: null });
-  }
-  // Enrich with process names/cwd/cmdline (limit to avoid slow/blocking)
-  const entries = [...map.values()].sort((a, b) => a.port - b.port).slice(0, 30);
-  const enrichCount = Math.min(entries.length, 10);
-  for (let i = 0; i < enrichCount; i++) {
-    const e = entries[i];
-    if (e.pid) {
-      try { e.name = await getProcessName(e.pid); } catch { e.name = ""; }
-      try { e.cwd = await getProcessCwd(e.pid); } catch { e.cwd = ""; }
-      try { e.cmdline = await getProcessCmdline(e.pid); } catch { e.cmdline = ""; }
-      // Small yield to avoid blocking
-      await new Promise((r) => setImmediate(r));
-    } else {
-      e.name = "";
-      e.cwd = "";
-      e.cmdline = "";
-    }
-  }
-  for (let i = enrichCount; i < entries.length; i++) {
-    entries[i].name = "";
-    entries[i].cwd = "";
-    entries[i].cmdline = "";
-  }
-  // Filter to web range if too many, but keep all if under 30
-  const web = entries.filter((e) => (e.port >= 3000 && e.port <= 9999) || [80, 443].includes(e.port));
-  return web.length ? web : entries;
-  })();
-  try { return await scanPortsInProgress; } finally { scanPortsInProgress = null; }
-}
-async function scanPorts() {
-  const detailed = await scanPortsDetailed().catch(() => []);
-  // Fallback to simple numbers if detailed fails
-  if (detailed.length) return detailed;
-  try {
-    const viaConnect = await scanPortsViaConnect(COMMON_PORTS);
-    return viaConnect.map((p) => ({ port: p, pid: null, name: "" }));
-  } catch { return []; }
-}
-
-ipcMain.handle("port:scan", async () => {
-  try { return await scanPorts(); } catch { return []; }
-});
-// Backward compat: old callers expect number[], but new returns objects — handle both
-ipcMain.handle("port:scanDetailed", async () => {
-  try { return await scanPortsDetailed(); } catch { return []; }
-});
-
-ipcMain.handle("port:kill", async (_e, port) => {
-  const p = parseInt(port, 10);
-  if (!p || p < 1 || p > 65535) return { ok: false, error: "Invalid port" };
-  let pid = null;
-  try {
-    const detailed = await scanPortsDetailed().catch(() => []);
-    const entry = detailed.find((e) => e.port === p);
-    pid = entry?.pid || null;
-  } catch {}
-  if (!pid) {
-    try {
-      const { execSync } = require("child_process");
-      if (process.platform === "win32") {
-        const out = execSync(`netstat -ano`, { encoding: "utf8", timeout: 2000 });
-        const portRe = new RegExp(`:${p}\\s+.*\\s+LISTENING\\s+(\\d+)`, "i");
-        const m = out.match(portRe);
-        if (m) pid = parseInt(m[1], 10);
-      } else {
-        const out = execSync(`lsof -ti :${p} -sTCP:LISTEN 2>/dev/null | head -n 1`, { encoding: "utf8", timeout: 2000 });
-        pid = parseInt(out.trim(), 10) || null;
-      }
-    } catch {}
-  }
-  if (!pid) return { ok: false, error: `No process found on port ${p}` };
-  try {
-    if (process.platform === "win32") {
-      require("child_process").execSync(`taskkill /F /PID ${pid}`, { timeout: 4000, stdio: "ignore" });
-    } else {
-      try { process.kill(pid, "SIGTERM"); } catch {}
-      await new Promise((r) => setTimeout(r, 900));
-      try { process.kill(pid, 0); require("child_process").execSync(`kill -9 ${pid} 2>/dev/null`, { timeout: 2000, stdio: "ignore" }); } catch {}
-    }
-    return { ok: true, pid };
-  } catch (e) {
-    return { ok: false, error: e.message || String(e) };
-  }
-});
-
-ipcMain.handle("port:restart", async (_e, port) => {
-  // Kill first
-  const killRes = await (async () => {
-    try {
-      const p = parseInt(port, 10);
-      const { execSync } = require("child_process");
-      let pid = null;
-      try {
-        const detailed = await scanPortsDetailed().catch(() => []);
-        const entry = detailed.find((e) => e.port === p);
-        pid = entry?.pid || null;
-      } catch {}
-      if (!pid && process.platform === "win32") {
-        try {
-          const out = execSync(`netstat -ano | findstr :${p} | findstr LISTENING`, { encoding: "utf8", timeout: 2000 });
-          const m = out.match(/\s+(\d+)\s*$/m);
-          if (m) pid = parseInt(m[1], 10);
-        } catch {}
-      }
-      if (!pid) return { ok: false, error: `No process on ${p}` };
-      if (process.platform === "win32") execSync(`taskkill /F /PID ${pid}`, { timeout: 4000, stdio: "ignore" });
-      else { try { process.kill(pid, "SIGTERM"); } catch {} }
-      return { ok: true, pid };
-    } catch (e) { return { ok: false, error: String(e) }; }
-  })();
-  // We don't auto-restart unknown command — just report killed, user can start again
-  return killRes;
-});
-
 ipcMain.handle("panel:addMenu", async (event) => {
-  const ports = await scanPorts();
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
     const items = [
       { label: "Browser", click: () => act("browser") },
       { label: "Terminal", click: () => act("terminal") },
     ];
-    if (ports.length) {
-      items.push({ type: "separator" });
-      items.push({ label: "Running Ports", enabled: false });
-      for (const p of ports) {
-        const portNum = typeof p === "object" ? p.port : p;
-        const labelPid = typeof p === "object" && p.pid ? ` (PID ${p.pid})` : "";
-        items.push({ label: `  http://localhost:${portNum}${labelPid}`, click: () => act(`port:${portNum}`) });
-      }
-    }
     const menu = Menu.buildFromTemplate(items);
     const win = BrowserWindow.fromWebContents(event.sender);
     menu.popup({ window: win, callback: () => resolve(null) });
@@ -1600,6 +2119,469 @@ ipcMain.handle("open:url", async (_e, url) => {
   }
   return false;
 });
+
+// ─── Live Server (static file server for HTML preview) ────────────────────────
+const net = require("net");
+const http = require("http");
+const mime = {
+  ".html": "text/html; charset=utf-8",
+  ".htm":  "text/html; charset=utf-8",
+  ".css":  "text/css; charset=utf-8",
+  ".js":   "application/javascript; charset=utf-8",
+  ".mjs":  "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png":  "image/png",
+  ".jpg":  "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif":  "image/gif",
+  ".webp": "image/webp",
+  ".svg":  "image/svg+xml; charset=utf-8",
+  ".ico":  "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2":"font/woff2",
+  ".ttf":  "font/ttf",
+  ".txt":  "text/plain; charset=utf-8",
+};
+const liveServers = new Map(); // rootPath -> { server, port }
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.listen(0, "127.0.0.1", () => {
+      const port = s.address().port;
+      s.close(() => resolve(port));
+    });
+    s.on("error", reject);
+  });
+}
+
+ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFile }) => {
+  // Reuse an already-running server for this project root
+  if (liveServers.has(lsRoot)) {
+    const { port } = liveServers.get(lsRoot);
+    const rel = path.relative(lsRoot, lsFile).replace(/\\/g, "/");
+    return { url: `http://127.0.0.1:${port}/${rel}`, port };
+  }
+
+  const port = await getFreePort();
+
+  const server = http.createServer((req, res) => {
+    try {
+      let urlPath = decodeURIComponent(req.url.split("?")[0]);
+      if (urlPath === "/" || urlPath === "") urlPath = "/index.html";
+      const filePath = path.join(lsRoot, urlPath);
+      // Security: prevent directory traversal outside root
+      const resolved = path.resolve(filePath);
+      if (!resolved.startsWith(path.resolve(lsRoot))) {
+        res.writeHead(403); res.end("Forbidden"); return;
+      }
+      fs.readFile(resolved, (err, data) => {
+        if (err) {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end(`Not found: ${urlPath}`);
+          return;
+        }
+        const ext = path.extname(resolved).toLowerCase();
+        const ct  = mime[ext] || "application/octet-stream";
+        res.writeHead(200, {
+          "Content-Type": ct,
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-cache",
+        });
+        res.end(data);
+      });
+    } catch (e) {
+      res.writeHead(500); res.end(String(e));
+    }
+  });
+
+  await new Promise((resolve, reject) => {
+    server.listen(port, "127.0.0.1", resolve);
+    server.once("error", reject);
+  });
+
+  liveServers.set(lsRoot, { server, port });
+
+  // Clean up when the server's window closes
+  server.on("close", () => liveServers.delete(lsRoot));
+
+  const rel = path.relative(lsRoot, lsFile).replace(/\\/g, "/");
+  return { url: `http://127.0.0.1:${port}/${rel}`, port };
+});
+
+// ─── Port Manager — detect listening ports & manage forwarding ────────────────
+const forwardedPorts = new Map(); // port(string) -> { label, createdAt }
+const autoDetectedPorts = new Map(); // port -> { lastSeen, source }
+let _portPidCache = { map: new Map(), ts: 0 };
+
+function execOutAsync(cmd, args, timeout = 4000) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout, windowsHide: true, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return reject(err);
+      resolve(stdout || "");
+    });
+  });
+}
+
+async function getListeningWindows() {
+  const out = await execOutAsync("netstat", ["-ano"], 4500);
+  const lines = out.split("\n");
+  const raw = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+    // Example: TCP    0.0.0.0:3000           0.0.0.0:0              LISTENING       12345
+    //          TCP    [::]:5173             [::]:0                 LISTENING       6789
+    if (!/LISTENING/i.test(t)) continue;
+    const parts = t.split(/\s+/);
+    if (parts.length < 4) continue;
+    const proto = parts[0].toUpperCase();
+    if (proto !== "TCP" && proto !== "TCPv6") continue;
+    const local = parts[1];
+    const pidStr = parts[parts.length - 1];
+    const pid = parseInt(pidStr, 10);
+    if (!pid || isNaN(pid)) continue;
+    // extract port — last :port
+    const pm = local.match(/:(\d+)\s*$/);
+    if (!pm) continue;
+    const port = parseInt(pm[1], 10);
+    if (!port || port < 1 || port > 65535) continue;
+    // extract address part before :port — keep brackets
+    let address = local.slice(0, local.lastIndexOf(":"));
+    if (!address) address = "0.0.0.0";
+    // normalize
+    if (address === "0.0.0.0" || address === "[::]" || address === "::") address = "0.0.0.0";
+    raw.push({ port, pid, address, proto: "TCP", state: "LISTEN", source: "netstat" });
+  }
+  return raw;
+}
+
+async function enrichWindows(ports) {
+  if (!ports.length) return ports;
+  // cache tasklist for 3s
+  if (Date.now() - _portPidCache.ts < 3000 && _portPidCache.map.size) {
+    for (const p of ports) p.process = _portPidCache.map.get(String(p.pid)) || p.process || "";
+    return ports;
+  }
+  try {
+    const out = await execOutAsync("tasklist", ["/FO", "CSV", "/NH"], 4000);
+    const map = new Map();
+    for (const line of out.split("\n")) {
+      const t = line.trim();
+      if (!t) continue;
+      // CSV: "Image Name","PID","Session Name","Session#","Mem Usage"
+      // naive split respecting quotes
+      const cols = [];
+      let cur = "", inQ = false;
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if (ch === '"') { inQ = !inQ; continue; }
+        if (ch === "," && !inQ) { cols.push(cur); cur = ""; continue; }
+        cur += ch;
+      }
+      cols.push(cur);
+      if (cols.length >= 2) {
+        const name = (cols[0] || "").trim();
+        const pid = (cols[1] || "").trim();
+        if (pid && name) map.set(pid, name);
+      }
+    }
+    _portPidCache = { map, ts: Date.now() };
+    for (const p of ports) p.process = map.get(String(p.pid)) || p.process || "";
+  } catch {}
+  return ports;
+}
+
+async function getListeningUnixLsof() {
+  // lsof -iTCP -sTCP:LISTEN -n -P
+  const out = await execOutAsync("lsof", ["-iTCP", "-sTCP:LISTEN", "-n", "-P"], 4000);
+  const lines = out.split("\n");
+  const raw = [];
+  // skip header
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    // COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME
+    // NAME field like *:3000 (LISTEN) or 127.0.0.1:5173 (LISTEN) or [::1]:3000
+    const m = line.match(/(\S+)\s+(\d+)\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+(.+)/);
+    if (!m) continue;
+    const cmd = m[1];
+    const pid = parseInt(m[2], 10);
+    const nameField = m[3];
+    // find :port pattern before space or (
+    const pm = nameField.match(/:(\d+)(?:\s|\(|$)/);
+    if (!pm) continue;
+    const port = parseInt(pm[1], 10);
+    if (!port || port < 1 || port > 65535) continue;
+    let address = "*";
+    const am = nameField.match(/^(\S+):\d+/);
+    if (am) address = am[1];
+    if (address === "*") address = "0.0.0.0";
+    raw.push({ port, pid, address, proto: "TCP", state: "LISTEN", source: "lsof", process: cmd });
+  }
+  return raw;
+}
+
+async function getListeningUnixSs() {
+  const trySs = async (cmd) => {
+    const out = await execOutAsync(cmd, ["-tlnp"], 4000);
+    const lines = out.split("\n");
+    const raw = [];
+    for (const line of lines) {
+      if (!line.includes("LISTEN")) continue;
+      // ss -tlnp: State Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+      // Local column is 4th field (index 3) for ss, but be flexible: find :port pattern
+      const pm = line.match(/(?:\[?[\d\w\.\:\*\]]+):(\d+)\s/);
+      if (!pm) continue;
+      const port = parseInt(pm[1], 10);
+      if (!port || port < 1 || port > 65535) continue;
+      // address: extract local addr before port
+      let address = "0.0.0.0";
+      const addrMatch = line.match(/(\S+):\d+\s/);
+      if (addrMatch) {
+        // careful: line has multiple :port occurrences; take first (local)
+        const first = line.match(/LISTEN\s+\d+\s+\d+\s+(\S+):\d+/);
+        if (first) address = first[1];
+        else address = addrMatch[1];
+      }
+      if (address === "*" || address === "0.0.0.0" || address === "::" || address === "[::]") address = "0.0.0.0";
+      // process: users:(("node",pid=12345,fd=3))
+      let proc = "";
+      let pid = null;
+      const pidMatch = line.match(/pid=(\d+)/);
+      if (pidMatch) pid = parseInt(pidMatch[1], 10);
+      const nameMatch = line.match(/users:\(\("([^"]+)"/);
+      if (nameMatch) proc = nameMatch[1];
+      raw.push({ port, pid, address, proto: "TCP", state: "LISTEN", source: cmd, process: proc });
+    }
+    return raw;
+  };
+  try { const lsof = await trySs("ss"); if (lsof.length) return lsof; } catch {}
+  try { const nt = await trySs("netstat"); if (nt.length) return nt; } catch {}
+  return [];
+}
+
+async function enrichUnix(ports) {
+  if (!ports.length) return ports;
+  // try to fill missing process names via ps
+  const missing = ports.filter((p) => !p.process && p.pid);
+  if (!missing.length) return ports;
+  // batch ps
+  try {
+    const out = await execOutAsync("ps", ["-A", "-o", "pid=,comm="], 3500);
+    const map = new Map();
+    for (const line of out.split("\n")) {
+      const m = line.trim().match(/^(\d+)\s+(.+)$/);
+      if (m) map.set(m[1], m[2].trim());
+    }
+    for (const p of ports) if (!p.process && p.pid) p.process = map.get(String(p.pid)) || p.process || "";
+  } catch {}
+  return ports;
+}
+
+async function enrichWithCommand(ports) {
+  if (!ports.length) return ports;
+  const withPid = ports.filter((p) => p.pid);
+  if (!withPid.length) return ports;
+  const fetchCmd = async (pid) => {
+    if (process.platform === "win32") {
+      try {
+        const out = await execOutAsync("wmic", ["process", "where", `ProcessId=${pid}`, "get", "CommandLine", "/value"], 2500);
+        const m = out.match(/CommandLine=(.*)/s);
+        if (m) {
+          const v = m[1].trim().split("\n")[0].trim();
+          if (v) return v;
+        }
+      } catch {}
+      try {
+        const out2 = await execOutAsync("powershell", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process -Filter "ProcessId=${pid}" | Select-Object -ExpandProperty CommandLine`], 3000);
+        const t = out2.trim().split("\n").map((l) => l.trim()).filter(Boolean).join(" ");
+        if (t) return t.slice(0, 600);
+      } catch {}
+      return "";
+    } else {
+      try {
+        const out = await execOutAsync("ps", ["-p", String(pid), "-o", "args="], 2000);
+        return out.trim().slice(0, 800);
+      } catch { return ""; }
+    }
+  };
+  // limit concurrency to avoid spawning too many at once
+  const CONC = 6;
+  for (let i = 0; i < withPid.length; i += CONC) {
+    const chunk = withPid.slice(i, i + CONC);
+    await Promise.all(chunk.map(async (p) => {
+      try {
+        const cmd = await fetchCmd(p.pid);
+        if (cmd) p.command = cmd;
+      } catch {}
+    }));
+  }
+  return ports;
+}
+
+async function getListeningPorts() {
+  let raw = [];
+  if (process.platform === "win32") {
+    try { raw = await getListeningWindows(); } catch { raw = []; }
+    try { raw = await enrichWindows(raw); } catch {}
+  } else {
+    // unix: try lsof first, then ss/netstat
+    try {
+      raw = await getListeningUnixLsof();
+      if (!raw.length) raw = await getListeningUnixSs();
+      else raw = await enrichUnix(raw);
+    } catch {
+      try { raw = await getListeningUnixSs(); raw = await enrichUnix(raw); } catch { raw = []; }
+    }
+    try { raw = await enrichUnix(raw); } catch {}
+  }
+  // dedupe by port (multiple addresses bind same port)
+  const byPort = new Map();
+  for (const p of raw) {
+    const key = String(p.port);
+    if (!byPort.has(key)) byPort.set(key, p);
+    else {
+      const ex = byPort.get(key);
+      // prefer entry with pid/process and non 0.0.0.0? keep most informative
+      const score = (x) => (x.pid ? 1 : 0) + (x.process ? 1 : 0) + (x.address !== "0.0.0.0" ? 0.5 : 0);
+      if (score(p) > score(ex)) byPort.set(key, p);
+    }
+  }
+  let list = [...byPort.values()];
+
+  // enrich with command line for better project filtering (best effort, non-blocking)
+  try { await enrichWithCommand(list); } catch {}
+
+  // merge live servers (IbX internal) — ensure visible even if OS scan missed (race)
+  for (const [, { port }] of liveServers) {
+    if (!byPort.has(String(port))) {
+      list.push({ port, pid: process.pid, process: "Idiot Box — Live Server", address: "127.0.0.1", proto: "TCP", state: "LISTEN", source: "liveServer" });
+    } else {
+      const e = list.find((x) => x.port === port);
+      if (e) { e.source = "liveServer"; e.process = e.process || "Idiot Box — Live Server"; }
+    }
+  }
+
+  // merge auto-detected terminal ports (not yet listening but seen in terminal output) — show as detected
+  for (const [portStr, info] of autoDetectedPorts) {
+    const port = parseInt(portStr, 10);
+    if (!list.find((x) => x.port === port)) {
+      // only keep recent (last 5min)
+      if (Date.now() - info.lastSeen < 5 * 60 * 1000) {
+        list.push({ port, pid: null, process: info.label || "Terminal", address: "127.0.0.1", proto: "TCP", state: "DETECTED", source: "terminal" });
+      }
+    }
+  }
+
+  // merge forwarded/manual ports (user added) — show even if not listening as forwarded
+  for (const [portStr, info] of forwardedPorts) {
+    const port = parseInt(portStr, 10);
+    if (!list.find((x) => x.port === port)) {
+      list.push({ port, pid: null, process: info.label || "Forwarded", address: "localhost", proto: "TCP", state: "FORWARDED", source: "forwarded", forwarded: true });
+    } else {
+      const e = list.find((x) => x.port === port);
+      if (e) e.forwarded = true;
+    }
+  }
+
+  // ensure each has url and defaults
+  for (const p of list) {
+    if (!p.process) p.process = p.pid ? `PID ${p.pid}` : (p.source === "forwarded" ? "Forwarded" : "Unknown");
+    if (!p.address) p.address = "localhost";
+    p.url = `http://localhost:${p.port}`;
+    p.localUrl = `http://localhost:${p.port}`;
+    p.host = p.address === "0.0.0.0" ? "localhost" : p.address;
+  }
+
+  list.sort((a, b) => a.port - b.port);
+  return list;
+}
+
+function portInUse(host, port, timeout = 1200) {
+  return new Promise((resolve) => {
+    const s = net.createConnection({ host, port }, () => { s.end(); resolve(true); });
+    s.on("error", () => resolve(false));
+    s.setTimeout(timeout, () => { try { s.destroy(); } catch {}; resolve(false); });
+  });
+}
+
+ipcMain.handle("ports:list", async () => {
+  try { return await getListeningPorts(); } catch (e) { console.error("[ports:list] failed:", e); return []; }
+});
+
+ipcMain.handle("ports:check", async (_e, port) => {
+  const p = parseInt(port, 10);
+  if (!p || p < 1 || p > 65535) return { ok: false, error: "Invalid port" };
+  const open = await portInUse("127.0.0.1", p).catch(() => false);
+  return { ok: true, port: p, open };
+});
+
+ipcMain.handle("ports:forward", async (_e, port, label) => {
+  const p = parseInt(port, 10);
+  if (!p || p < 1 || p > 65535) return { ok: false, error: "Port must be 1–65535" };
+  forwardedPorts.set(String(p), { label: String(label || "").slice(0, 80) || "Forwarded", createdAt: Date.now() });
+  return { ok: true, port: p };
+});
+
+ipcMain.handle("ports:unforward", async (_e, port) => {
+  const p = String(parseInt(port, 10));
+  if (!forwardedPorts.has(p)) return { ok: false, error: "Not forwarded" };
+  forwardedPorts.delete(p);
+  // also remove from autoDetected if present
+  autoDetectedPorts.delete(p);
+  return { ok: true };
+});
+
+ipcMain.handle("ports:kill", async (_e, pid) => {
+  const n = parseInt(pid, 10);
+  if (!n || n <= 0) return { ok: false, error: "Invalid PID" };
+  if (n === process.pid) return { ok: false, error: "Refusing to kill Idiot Box itself" };
+  try {
+    if (process.platform === "win32") {
+      await execOutAsync("taskkill", ["/PID", String(n), "/F"], 5000);
+    } else {
+      process.kill(n, "SIGTERM");
+      // give 1.2s then SIGKILL if still around
+      await new Promise((r) => setTimeout(r, 1200));
+      try { process.kill(n, 0); process.kill(n, "SIGKILL"); } catch {}
+    }
+    return { ok: true };
+  } catch (err) {
+    const msg = err?.stderr?.toString?.() || err?.message || String(err);
+    // fallback: try taskkill without /F or kill -9 directly
+    try {
+      if (process.platform === "win32") await execOutAsync("taskkill", ["/PID", String(n)], 3000);
+      else { try { process.kill(n, "SIGKILL"); } catch {}}
+      return { ok: true };
+    } catch (e2) {
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+  }
+});
+
+ipcMain.handle("ports:clearAutoDetected", async () => {
+  autoDetectedPorts.clear();
+  return { ok: true };
+});
+
+// helper to register terminal port sniffing — called from terminal onData
+function sniffPortsFromTerminalOutput(data) {
+  if (!data || typeof data !== "string") return;
+  const re = /(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::|\s*:\s*)(\d{2,5})/gi;
+  let m;
+  while ((m = re.exec(data)) !== null) {
+    const port = parseInt(m[1], 10);
+    if (!port || port < 1 || port > 65535) continue;
+    // ignore common false positives like 0, 1? ignore well-known <1024 except 3000 etc? keep all 1024+
+    // keep all but filter obviously not dev ports > 1024 or common 80/443 allowed
+    // we store anyway, will be shown as detected if not already listening
+    const key = String(port);
+    if (!autoDetectedPorts.has(key) || Date.now() - (autoDetectedPorts.get(key)?.lastSeen || 0) > 5000) {
+      autoDetectedPorts.set(key, { lastSeen: Date.now(), label: "Terminal" });
+    }
+  }
+}
 
 // ─── Native file drag ──────────────────────────────────────────────────────────
 const dragIcon = nativeImage.createFromDataURL(
@@ -1852,6 +2834,8 @@ function buildMenu() {
         { type: "separator" },
         { label: "Reset Layout", accelerator: "CmdOrCtrl+Alt+R", click: () => sendToRenderer("menu:resetLayout", null) },
         { type: "separator" },
+        { label: "Ports — Forwarded & Running", click: () => sendToRenderer("menu:openPorts", null) },
+        { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
       ],
     },
@@ -1878,6 +2862,117 @@ function buildMenu() {
         { type: "separator" },
         { label: "Clear Terminal", accelerator: "Ctrl+K", click: () => sendToRenderer("menu:clearTerminal", null) },
         { label: "Kill Terminal", click: () => sendToRenderer("menu:killTerminal", null) },
+      ],
+    },
+    {
+      label: "Storage", submenu: [
+        { label: "Current Project Storage…", enabled: false },
+        { label: "Reveal Project Storage Folder", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) { dialog.showMessageBox({ type: "info", message: "No project open", detail: "Open a project first to reveal its storage." }); return; }
+          const info = getStorageInfo(rp);
+          const target = info?.storeDir || getProjectStoreDir(rp);
+          try { if (target && fs.existsSync(target)) await shell.openPath(target); else dialog.showMessageBox({ type: "info", message: "No storage yet", detail: `Storage will be created at:\n${target}` }); } catch (e) { dialog.showErrorBox("Error", String(e)); }
+        }},
+        { label: "Show Storage Info", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) { dialog.showMessageBox({ type: "info", message: "No project open" }); return; }
+          const info = getStorageInfo(rp);
+          if (!info) { dialog.showErrorBox("Error", "Cannot get storage info"); return; }
+          const detail = `Project: ${rp}\nStore: ${info.storeDir}\n\nPin: ${info.pinExists ? "yes" : "no"}  Tabs: ${info.tabsExists ? "yes" : "no"}  Canvas: ${info.canvasExists ? "yes" : "no"}\nTrash: ${info.trashCount} items (${(info.trashSize/1024).toFixed(1)} KB)\n\n(App memory: userData/projects — not in project folder)`;
+          dialog.showMessageBox({ type: "info", message: "Project Storage — App Memory", detail });
+        }},
+        { label: "Reveal Trash Folder", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) { dialog.showMessageBox({ type: "info", message: "No project open" }); return; }
+          const td = trashDir(rp);
+          if (td && fs.existsSync(td)) await shell.openPath(td);
+          else dialog.showMessageBox({ type: "info", message: "Trash is empty", detail: `Trash location:\n${td || "(unknown)"}` });
+        }},
+        { type: "separator" },
+        { label: "Clear Pin Config", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) return;
+          const { response } = await dialog.showMessageBox({ type: "question", buttons: ["Cancel", "Clear"], defaultId: 1, cancelId: 0, message: "Clear pinned folders for this project?" });
+          if (response !== 1) return;
+          memPinCache.delete(rp);
+          try { fs.unlinkSync(path.join(getProjectStoreDir(rp), "pinconfig.json")); } catch {}
+          try { fs.rmSync(path.join(rp, ".project_config", ".pinconfig"), { force: true }); } catch {}
+          dialog.showMessageBox({ type: "info", message: "Pin config cleared (app memory)" });
+          try { Menu.setApplicationMenu(buildMenu()); } catch {}
+        }},
+        { label: "Clear Tabs (Open Editors)", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) return;
+          const { response } = await dialog.showMessageBox({ type: "question", buttons: ["Cancel", "Clear"], defaultId: 1, cancelId: 0, message: "Clear saved tabs for this project?" });
+          if (response !== 1) return;
+          memTabsCache.delete(rp);
+          try { fs.unlinkSync(path.join(getProjectStoreDir(rp), "tabs.json")); } catch {}
+          try { fs.rmSync(path.join(rp, ".project_config", "tabs.json"), { force: true }); } catch {}
+          dialog.showMessageBox({ type: "info", message: "Tabs cleared (app memory)" });
+        }},
+        { label: "Clear Canvas Layout", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) return;
+          const { response } = await dialog.showMessageBox({ type: "question", buttons: ["Cancel", "Clear"], defaultId: 1, cancelId: 0, message: "Clear canvas layout for this project?" });
+          if (response !== 1) return;
+          memCanvasCache.delete(rp);
+          try { fs.unlinkSync(path.join(getProjectStoreDir(rp), "canvas-layout.json")); } catch {}
+          try { fs.rmSync(path.join(rp, ".canvas", "layout.json"), { force: true }); } catch {}
+          dialog.showMessageBox({ type: "info", message: "Canvas layout cleared" });
+        }},
+        { label: "Empty Trash (App Memory)", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) return;
+          const info = getStorageInfo(rp);
+          if (!info || info.trashCount === 0) { dialog.showMessageBox({ type: "info", message: "Trash is already empty" }); return; }
+          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Empty Trash"], defaultId: 1, cancelId: 0, message: `Empty trash?`, detail: `${info.trashCount} items will be permanently deleted from app memory.` });
+          if (response !== 1) return;
+          try {
+            const td = trashDir(rp);
+            if (td && fs.existsSync(td)) {
+              for (const e of fs.readdirSync(td)) {
+                if (e === "manifest.json") continue;
+                try { fs.rmSync(path.join(td, e), { recursive: true, force: true }); } catch {}
+              }
+              try { fs.writeFileSync(path.join(td, "manifest.json"), JSON.stringify({}, null, 2)); } catch {}
+            }
+            try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
+            dialog.showMessageBox({ type: "info", message: "Trash emptied" });
+          } catch (e) { dialog.showErrorBox("Error", String(e)); }
+        }},
+        { type: "separator" },
+        { label: "Clear All Project Data…", click: async () => {
+          const rp = lastProjectPath;
+          if (!rp) { dialog.showMessageBox({ type: "info", message: "No project open" }); return; }
+          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Clear All"], defaultId: 1, cancelId: 0, message: "Clear ALL data for this project?", detail: `Project: ${rp}\n\nThis deletes pin config, tabs, canvas layout and trash from app memory (userData/projects). Project files are NOT deleted.\n\nLegacy .project_config / .canvas / .trash in project folder will also be removed.` });
+          if (response !== 1) return;
+          try {
+            memPinCache.delete(rp); memTabsCache.delete(rp); memCanvasCache.delete(rp);
+            const storeDir = getProjectStoreDir(rp);
+            if (storeDir && fs.existsSync(storeDir)) fs.rmSync(storeDir, { recursive: true, force: true });
+            try { fs.rmSync(path.join(rp, ".project_config"), { recursive: true, force: true }); } catch {}
+            try { fs.rmSync(path.join(rp, ".canvas"), { recursive: true, force: true }); } catch {}
+            try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
+            dialog.showMessageBox({ type: "info", message: "All project data cleared" });
+          } catch (e) { dialog.showErrorBox("Error", String(e)); }
+        }},
+        { type: "separator" },
+        { label: "Global Storage…", enabled: false },
+        { label: "Reveal All Storages Folder", click: async () => {
+          const root = getProjectStoreRoot();
+          try { fs.mkdirSync(root, { recursive: true }); await shell.openPath(root); } catch (e) { dialog.showErrorBox("Error", String(e)); }
+        }},
+        { label: "Clear All Projects Data…", click: async () => {
+          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Clear Everything"], defaultId: 1, cancelId: 0, message: "Clear data for ALL projects?", detail: "This deletes every project's pin, tabs, canvas and trash from app memory (userData/projects). Project files are NOT deleted. This cannot be undone." });
+          if (response !== 1) return;
+          try {
+            const root = getProjectStoreRoot();
+            if (fs.existsSync(root)) fs.rmSync(root, { recursive: true, force: true });
+            memPinCache.clear(); memTabsCache.clear(); memCanvasCache.clear();
+            dialog.showMessageBox({ type: "info", message: "All projects storage cleared" });
+          } catch (e) { dialog.showErrorBox("Error", String(e)); }
+        }},
       ],
     },
     { label: "Settings", accelerator: "CmdOrCtrl+,", click: openSettingsWindow },
@@ -1918,8 +3013,8 @@ function createWindow() {
       const x = s.window.x != null ? parseInt(s.window.x, 10) : undefined;
       const y = s.window.y != null ? parseInt(s.window.y, 10) : undefined;
       winState = {
-        width: Number.isFinite(w) && w >= 800 ? Math.min(w, 3000) : 1280,
-        height: Number.isFinite(h) && h >= 600 ? Math.min(h, 2000) : 720,
+        width: Number.isFinite(w) && w >= 640 ? Math.min(w, 3000) : 1280,
+        height: Number.isFinite(h) && h >= 480 ? Math.min(h, 2000) : 720,
         ...(Number.isFinite(x) ? { x } : {}),
         ...(Number.isFinite(y) ? { y } : {}),
       };
@@ -1929,8 +3024,8 @@ function createWindow() {
 
   const win = new BrowserWindow({
     ...winState,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 640,
+    minHeight: 480,
     backgroundColor: "#0d0d0d",
     icon: path.join(__dirname, "../renderer/assets/idot_box.png"),
     show: false,
@@ -1965,7 +3060,7 @@ function createWindow() {
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith("file://")) {
       event.preventDefault();
-      if (/^(https?:|ppoo-file:|view-source:)/i.test(url) || url.startsWith("localhost") || /^\d+\.\d+\.\d+\.\d+/.test(url) || /^[^\s]+\.[^\s]+/.test(url)) {
+      if (/^(https?:|ibx-file:|view-source:)/i.test(url) || url.startsWith("localhost") || /^\d+\.\d+\.\d+\.\d+/.test(url) || /^[^\s]+\.[^\s]+/.test(url)) {
         safeForward(url);
       } else {
         safeForward(url);
@@ -2065,8 +3160,8 @@ function createWindow() {
       try { layout = await win.webContents.executeJavaScript("window.__getLayoutJSON()"); } catch {}
       // Sanitize bounds — never save 0 or fullscreen-sized normal bounds that would make restore-down cover screen
       const sane = {
-        width: Math.max(900, Math.min(bounds.width || 1280, 3000)),
-        height: Math.max(600, Math.min(bounds.height || 720, 2000)),
+        width: Math.max(640, Math.min(bounds.width || 1280, 3000)),
+        height: Math.max(480, Math.min(bounds.height || 720, 2000)),
         x: bounds.x,
         y: bounds.y,
         maximized,

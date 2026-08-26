@@ -163,7 +163,7 @@ const BrowserPanel = (props) => {
     // Mouse back/forward buttons (XButtons) inside the page → navigation.
     // The guest page cannot reach us directly, so we relay via a title marker
     // ("__IBX_NAV__b"/"__IBX_NAV__f") caught below in page-title-updated.
-    // HTML file drag-and-drop → "__IBX_DROP__<path>" marker → opened via ppoo-file://
+    // HTML file drag-and-drop → "__IBX_DROP__<path>" marker → opened via ibx-file://
     const INJECT_SCRIPT = `(() => {
       try {
         var mark = function(b){ try{ document.title="__IBX_NAV__"+b; }catch(e){} };
@@ -420,8 +420,8 @@ const BrowserPanel = (props) => {
     try {
       wv.addEventListener("will-navigate", (e) => {
         const url = e.url || "";
-        // Allow navigation inside webview for http/https and ppoo-file/view-source
-        if (/^(https?:|ppoo-file:|view-source:|data:|blob:|about:)/i.test(url)) return;
+        // Allow navigation inside webview for http/https and ibx-file/view-source
+        if (/^(https?:|ibx-file:|view-source:|data:|blob:|about:)/i.test(url)) return;
         // Block exotic top-navigation attempts
       });
     } catch {}
@@ -477,7 +477,7 @@ const BrowserPanel = (props) => {
       } catch {}
     }
     if (p && /\.html?$/i.test(p)) {
-      const url = "ppoo-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
+      const url = "ibx-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
       goToUrlRef.current(url);
     }
   }, []);

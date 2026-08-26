@@ -19,8 +19,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readTextFile:   (filePath) => ipcRenderer.invoke("fs:readTextFile", filePath),
   writeFileText:  (filePath, text) => ipcRenderer.invoke("fs:writeFile", { filePath, text }),
   saveFileAs:     (filePath, text) => ipcRenderer.invoke("fs:saveFileAs", { filePath, text }),
-  readFileAsDataUrl: (filePath) => ipcRenderer.invoke("fs:readFileAsDataUrl", filePath),
-  transpileJsx:   (code) => ipcRenderer.invoke("jsx:transpile", code),
+   readFileAsDataUrl: (filePath) => ipcRenderer.invoke("fs:readFileAsDataUrl", filePath),
   bundleComponent: (source, filePath, projectRoot) => ipcRenderer.invoke("component:bundle", { source, filePath, projectRoot }),
   copyImageToClipboard: (filePath) => ipcRenderer.invoke("media:copyImage", filePath),
   onOpenFileInEditor: (callback) => {
@@ -93,7 +92,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:find","menu:findNext","menu:findPrevious","menu:replace",
       "menu:fullscreen",
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
-      "menu:clearTerminal","menu:killTerminal"
+      "menu:clearTerminal","menu:killTerminal",
+      "menu:openPorts"
     ];
     if (!valid.includes(channel)) return () => {};
     const handler = (_e, payload) => callback(payload);
@@ -146,11 +146,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Panel Add Menu ──────────────────────────────────────────────────────────
   showPanelAddMenu: () => ipcRenderer.invoke("panel:addMenu"),
 
-  // ── Port scanner ────────────────────────────────────────────────────────────
-  scanPorts: () => ipcRenderer.invoke("port:scan"),
-  scanPortsDetailed: () => ipcRenderer.invoke("port:scanDetailed"),
-  killPort: (port) => ipcRenderer.invoke("port:kill", port),
-  restartPort: (port) => ipcRenderer.invoke("port:restart", port),
+  // ── Live Server ─────────────────────────────────────────────────────────────
+  startLiveServer: (rootPath, filePath) => ipcRenderer.invoke("liveServer:start", { rootPath, filePath }),
+
+  // ── Port Manager ────────────────────────────────────────────────────────────
+  getPorts:        () => ipcRenderer.invoke("ports:list"),
+  checkPort:      (port) => ipcRenderer.invoke("ports:check", port),
+  forwardPort:    (port, label) => ipcRenderer.invoke("ports:forward", port, label),
+  unforwardPort:  (port) => ipcRenderer.invoke("ports:unforward", port),
+  killPort:       (pid) => ipcRenderer.invoke("ports:kill", pid),
+  clearAutoDetectedPorts: () => ipcRenderer.invoke("ports:clearAutoDetected"),
 
   // ── Open URL in browser ───────────────────────────────────────────────────
   openUrl: (url) => ipcRenderer.invoke("open:url", url),
@@ -162,15 +167,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Git ─────────────────────────────────────────────────────────────────────
   gitStatus:  (rootPath)             => ipcRenderer.invoke("git:status", rootPath),
   gitDiff:    (rootPath, filePath)   => ipcRenderer.invoke("git:diff", rootPath, filePath),
+  gitDiffStaged: (rootPath, filePath)=> ipcRenderer.invoke("git:diffStaged", rootPath, filePath),
   gitDiffAll: (rootPath)             => ipcRenderer.invoke("git:diffAll", rootPath),
   gitBranch:  (rootPath)             => ipcRenderer.invoke("git:branch", rootPath),
+  gitBranches: (rootPath)            => ipcRenderer.invoke("git:branches", rootPath),
+  gitCreateBranch: (rootPath, name)  => ipcRenderer.invoke("git:createBranch", rootPath, name),
+  gitSwitchBranch: (rootPath, name)  => ipcRenderer.invoke("git:switchBranch", rootPath, name),
+  gitDeleteBranch: (rootPath, name, force) => ipcRenderer.invoke("git:deleteBranch", rootPath, name, force),
+  gitRenameBranch: (rootPath, oldN, newN) => ipcRenderer.invoke("git:renameBranch", rootPath, oldN, newN),
+  gitInit:    (rootPath)             => ipcRenderer.invoke("git:init", rootPath),
+  gitConflicts: (rootPath)           => ipcRenderer.invoke("git:conflicts", rootPath),
+  gitMarkResolved: (rootPath, rel)   => ipcRenderer.invoke("git:markResolved", rootPath, rel),
+  gitCommitShow: (rootPath, hash)    => ipcRenderer.invoke("git:commitShow", rootPath, hash),
+  gitCommitDiff: (rootPath, hash)    => ipcRenderer.invoke("git:commitDiff", rootPath, hash),
   gitLog:     (rootPath, n)          => ipcRenderer.invoke("git:log", rootPath, n),
   gitStage:   (rootPath, rel)        => ipcRenderer.invoke("git:stage", rootPath, rel),
   gitUnstage: (rootPath, rel)        => ipcRenderer.invoke("git:unstage", rootPath, rel),
   gitStageAll: (rootPath)            => ipcRenderer.invoke("git:stageAll", rootPath),
   gitUnstageAll: (rootPath)          => ipcRenderer.invoke("git:unstageAll", rootPath),
   gitDiscard: (rootPath, rel)        => ipcRenderer.invoke("git:discard", rootPath, rel),
-  gitCommit:  (rootPath, msg)        => ipcRenderer.invoke("git:commit", rootPath, msg),
+  gitCommit:  (rootPath, msg, opts)  => ipcRenderer.invoke("git:commit", rootPath, msg, opts),
+  gitCommitAmend: (rootPath, msg)    => ipcRenderer.invoke("git:commitAmend", rootPath, msg),
   gitPush:    (rootPath)             => ipcRenderer.invoke("git:push", rootPath),
   gitPull:    (rootPath)             => ipcRenderer.invoke("git:pull", rootPath),
   gitFetch:   (rootPath)             => ipcRenderer.invoke("git:fetch", rootPath),
@@ -179,6 +196,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
   scanCanvas:        (rootPath) => ipcRenderer.invoke("canvas:scan",        rootPath),
   saveCanvasLayout:  (rootPath, data) => ipcRenderer.invoke("canvas:saveLayout", rootPath, data),
   loadCanvasLayout:  (rootPath) => ipcRenderer.invoke("canvas:loadLayout",  rootPath),
+
+  // ── Project storage (app memory — not in project folder) ──────────────────
+  getProjectStorageInfo: (rootPath) => ipcRenderer.invoke("projectStorage:getInfo", rootPath),
+  getProjectTrashList:   (rootPath) => ipcRenderer.invoke("projectStorage:getTrashList", rootPath),
+  revealProjectStorage:  (rootPath) => ipcRenderer.invoke("projectStorage:reveal", rootPath),
+  revealProjectTrash:    (rootPath) => ipcRenderer.invoke("projectStorage:revealTrash", rootPath),
+  clearProjectPin:       (rootPath) => ipcRenderer.invoke("projectStorage:clearPin", rootPath),
+  clearProjectTabs:      (rootPath) => ipcRenderer.invoke("projectStorage:clearTabs", rootPath),
+  clearProjectCanvas:    (rootPath) => ipcRenderer.invoke("projectStorage:clearCanvas", rootPath),
+  clearProjectTrash:     (rootPath) => ipcRenderer.invoke("projectStorage:clearTrash", rootPath),
+  clearProjectAll:       (rootPath) => ipcRenderer.invoke("projectStorage:clearAll", rootPath),
+  listAllProjectStorages:() => ipcRenderer.invoke("projectStorage:listAll"),
+  revealAllStorages:     () => ipcRenderer.invoke("projectStorage:revealAll"),
+  clearAllProjectsStorage:() => ipcRenderer.invoke("projectStorage:clearAllProjects"),
 
   // ── Window state ────────────────────────────────────────────────────────────
   onWindowStateChanged: (callback) => {

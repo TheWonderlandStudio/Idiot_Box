@@ -98,19 +98,6 @@ const PANEL_TYPES = [
     config: {},
   },
   {
-    id: "portManager",
-    name: "Port Manager",
-    component: "portManager",
-    description: "Scan and open localhost development ports",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-        <rect x="2" y="4" width="12" height="8" rx="1.5" stroke="#569cd6" strokeWidth="1.2" fill="none" />
-        <path d="M6 8H10M8 6V10" stroke="#569cd6" strokeWidth="1.2" strokeLinecap="round" />
-      </svg>
-    ),
-    config: {},
-  },
-  {
     id: "problems",
     name: "Problems",
     component: "problems",
@@ -133,6 +120,23 @@ const PANEL_TYPES = [
       <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
         <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H5L7 4.5H13.5A1.5 1.5 0 0 1 15 6V12.5A1.5 1.5 0 0 1 13.5 14H3.5A1.5 1.5 0 0 1 2 12.5V3.5Z" fill="#f14e32" opacity="0.9" />
         <path d="M6 7L8 9L10 7" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+    config: {},
+  },
+  {
+    id: "ports",
+    name: "Ports",
+    component: "ports",
+    description: "Forwarded ports & running dev servers",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="#4ec9b0" strokeWidth="1.2" fill="none" />
+        <circle cx="5.2" cy="6.5" r="1" fill="#4ec9b0" />
+        <circle cx="8" cy="6.5" r="1" fill="#4ec9b0" />
+        <circle cx="10.8" cy="6.5" r="1" fill="#4ec9b0" />
+        <path d="M4 9.5H12" stroke="#4ec9b0" strokeWidth="1" strokeLinecap="round" opacity="0.7" />
+        <path d="M8 9.5V12" stroke="#4ec9b0" strokeWidth="1" strokeLinecap="round" opacity="0.7" />
       </svg>
     ),
     config: {},

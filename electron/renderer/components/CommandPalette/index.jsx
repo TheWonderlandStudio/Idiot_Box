@@ -15,6 +15,7 @@ const COMMANDS = [
   { id: "add-browser",    title: "Add Browser Panel",      run: () => window.dispatchEvent(new CustomEvent("add-browser-panel")) },
   { id: "add-preview",    title: "Add Component Preview",  run: () => window.dispatchEvent(new CustomEvent("add-component-preview-panel")) },
   { id: "add-canvas",     title: "Add Canvas Panel",       run: () => window.dispatchEvent(new CustomEvent("add-canvas-panel")) },
+  { id: "add-ports",      title: "Add Ports Panel",        run: () => window.dispatchEvent(new CustomEvent("add-ports-panel")) },
   { type: "separator" },
   { id: "reset-layout",   title: "Reset Window Layout",    run: () => window.dispatchEvent(new CustomEvent("menu:action", { detail: { cmd: "resetLayout" } })) },
   { id: "toggle-fullscreen", title: "Toggle Full Screen",  run: () => window.dispatchEvent(new CustomEvent("app:fullscreen")) },

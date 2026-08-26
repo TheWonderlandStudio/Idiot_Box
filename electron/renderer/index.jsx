@@ -4,6 +4,7 @@ import { Layout, Model, Actions, DockLocation } from "flexlayout-react";
 import "./variables.css";
 import "flexlayout-react/style/dark.css";
 import "./layout.css";
+import "./responsive.css";
 
 import MediaViewer from "./components/MediaViewer/index.jsx";
 import BrowserPanel from "./components/Browser/index.jsx";
@@ -18,9 +19,7 @@ import QuickOpen from "./components/QuickOpen/index.jsx";
 import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
-import PortPanel from "./components/Port/index.jsx";
-
-import PortManager from "./components/PortManager/index.jsx";
+import PortsPanel from "./components/Ports/index.jsx";
 
 const DEFAULT_JSON = {
   global: {
@@ -32,7 +31,11 @@ const DEFAULT_JSON = {
     tabSetHeaderShown: true,
     tabSetTabStripHeight: 26,
     splitterSize: 6,
-    splitterExtra: 4,
+    splitterExtra: 8,
+    tabSetMinWidth: 100,
+    tabSetMinHeight: 80,
+    borderMinSize: 80,
+    enableUseVisibility: true,
   },
   layout: {
     type: "row",
@@ -64,9 +67,9 @@ const DEFAULT_JSON = {
       {
         type: "row", weight: 20,
         children: [
-          { type: "tabset", weight: 40, children: [{ type: "tab", name: "Port Manager", component: "portManager" }] },
-          { type: "tabset", weight: 30, children: [{ type: "tab", name: "Problems", component: "problems" }] },
-          { type: "tabset", weight: 30, children: [{ type: "tab", name: "Git", component: "gitPanel" }] },
+          { type: "tabset", weight: 33, children: [{ type: "tab", name: "Problems", component: "problems" }] },
+          { type: "tabset", weight: 33, children: [{ type: "tab", name: "Git", component: "gitPanel" }] },
+          { type: "tabset", weight: 34, children: [{ type: "tab", name: "Ports", component: "ports" }] },
         ],
       },
     ],
@@ -83,11 +86,10 @@ const factory = (node) => {
     case "blank":             return <BlankPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
     case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "problems":          return <ProblemsPanel />;
-    case "gitPanel":          return <GitPanel />;
-    case "portPanel":         return <PortPanel />;
-    case "portManager":       return <PortManager />;
-    default:                  return null;
+  case "problems":          return <ProblemsPanel />;
+  case "gitPanel":          return <GitPanel />;
+  case "ports":             return <PortsPanel />;
+  default:                  return null;
   }
 };
 
@@ -140,6 +142,33 @@ const App = () => {
   const saveTabsTimer     = useRef(null);
   const lastBrowserTabsetRef = useRef(null); // last group where a Browser was opened
   const [, setTick] = useState(0);
+
+  // ── Theme handling (default dark) ──────────────────────────────────────
+  useEffect(() => {
+    const apply = (th) => {
+      const isLight = th === "light" || th === "lightPlus" || th === "lightModern" || th === "light2026"
+        || th === "Visual Studio Light" || th === "Light+" || th === "Light Modern" || th === "Light 2026";
+      document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
+    };
+    // initial load
+    try {
+      window.electronAPI.readSettings().then((s) => {
+        const th = s?.theme || s?.editorTheme || "dark";
+        apply(th);
+      });
+    } catch {}
+    // listen to changes from Settings window
+    let bc, bc2;
+    try {
+      bc = new BroadcastChannel("app-settings");
+      bc.onmessage = (e) => { if (e.data?.theme) apply(e.data.theme); if (e.data?.editorTheme) apply(e.data.editorTheme); };
+    } catch {}
+    try {
+      bc2 = new BroadcastChannel("editor-settings");
+      bc2.onmessage = (e) => { if (e.data?.theme) apply(e.data.theme); if (e.data?.editorTheme) apply(e.data.editorTheme); };
+    } catch {}
+    return () => { try { bc?.close(); } catch {} try { bc2?.close(); } catch {} };
+  }, []);
 
   // Find the biggest tabset (largest area, fallback to most tabs) for fallback when no Browser yet
   const getBiggestTabsetId = useCallback((m) => {
@@ -231,9 +260,53 @@ const App = () => {
             if (node.name === "panel1") node.name = "Media Viewer";
             if (node.component === "panel5") node.component = "editor";
             if (node.name === "panel5") node.name = "Editor";
+            // Migrate any removed/unknown components to blank
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","terminal","blank","componentPreview","canvas","problems","gitPanel","ports"]);
+            if (!allowed.has(node.component)) {
+              node.component = "blank";
+              node.name = "Blank";
+            }
           }
           if (node.children) node.children.forEach(migrate);
         })(json);
+        // Auto-inject Ports panel for existing sessions that predate it
+        const hasPorts = ((n) => {
+          const walk = (x) => {
+            if (x.type === "tab" && x.component === "ports") return true;
+            if (x.children && x.children.some(walk)) return true;
+            return false;
+          };
+          return walk(n);
+        })(json);
+        if (!hasPorts) {
+          try {
+            const rootRow = json.layout;
+            // find bottom row that holds Problems/Git
+            let bottom = null;
+            const findBottom = (node) => {
+              if (!node || !node.children) return;
+              for (const ch of node.children) {
+                if (ch.type === "row" && ch.children && ch.children.some((ts) => ts.children && ts.children.some((t) => t.component === "problems" || t.component === "gitPanel"))) {
+                  bottom = ch;
+                  return;
+                }
+                findBottom(ch);
+              }
+            };
+            findBottom(rootRow);
+            if (bottom && Array.isArray(bottom.children)) {
+              bottom.children.push({ type: "tabset", weight: 34, children: [{ type: "tab", name: "Ports", component: "ports" }] });
+              // rebalance first two to 33 each if they were 50
+              if (bottom.children.length === 3) {
+                bottom.children[0].weight = 33;
+                bottom.children[1].weight = 33;
+                bottom.children[2].weight = 34;
+              }
+            } else if (rootRow && rootRow.children) {
+              rootRow.children.push({ type: "tabset", weight: 15, children: [{ type: "tab", name: "Ports", component: "ports" }] });
+            }
+          } catch {}
+        }
       }
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
@@ -435,13 +508,16 @@ const App = () => {
     const onBrowser = (e) => addPanel("panel3", "Browser", e.detail?.config || { type: "browser", title: "Browser", url: e.detail?.url || "https://www.google.com" });
     const onPreview = () => addPanel("componentPreview", "Component Preview", {});
     const onCanvas = () => addPanel("canvas", "Canvas", {});
+    const onPorts = () => addPanel("ports", "Ports", {});
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-component-preview-panel", onPreview);
     window.addEventListener("add-canvas-panel", onCanvas);
+    window.addEventListener("add-ports-panel", onPorts);
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
       window.removeEventListener("add-component-preview-panel", onPreview);
       window.removeEventListener("add-canvas-panel", onCanvas);
+      window.removeEventListener("add-ports-panel", onPorts);
     };
   }, []);
 
@@ -476,6 +552,12 @@ const App = () => {
     });
     return unsub;
   }, []);
+  useEffect(() => {
+    const unsub = window.electronAPI.onMenuEvent("menu:openPorts", () => {
+      window.dispatchEvent(new CustomEvent("add-ports-panel"));
+    });
+    return unsub;
+  }, []);
 
   // Open settings window when browser panel requests it
   useEffect(() => {
@@ -489,7 +571,17 @@ const App = () => {
   }, []);
 
   // Handle window maximize/restore/resize — force flexlayout to reflow (fixes restore-down crash/black)
+  // + responsive class for small windows
   useEffect(() => {
+    const updateResponsive = () => {
+      const w = window.innerWidth;
+      const root = document.documentElement;
+      root.classList.toggle("is-compact", w <= 900);
+      root.classList.toggle("is-narrow", w <= 700);
+      root.classList.toggle("is-tiny", w <= 560);
+      root.dataset.winW = String(w);
+    };
+    updateResponsive();
     const doRedraw = () => {
       const m = modelRef.current;
       if (!m) return;
@@ -498,9 +590,9 @@ const App = () => {
       setTimeout(() => { try { forceLayoutRedraw(m); } catch {} }, 80);
     };
     const onWinState = window.electronAPI?.onWindowStateChanged
-      ? window.electronAPI.onWindowStateChanged(() => setTimeout(doRedraw, 40))
+      ? window.electronAPI.onWindowStateChanged(() => { updateResponsive(); setTimeout(doRedraw, 40); })
       : () => {};
-    const onResize = () => doRedraw();
+    const onResize = () => { updateResponsive(); doRedraw(); };
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
@@ -534,7 +626,7 @@ const App = () => {
       if (!url || typeof url !== "string") return false;
       try {
         const u = new URL(url, window.location.href);
-        if (u.protocol === "http:" || u.protocol === "https:" || u.protocol === "ppoo-file:") return true;
+        if (u.protocol === "http:" || u.protocol === "https:" || u.protocol === "ibx-file:") return true;
         if (u.hostname === "localhost" || u.hostname === "127.0.0.1" || /^\d+\.\d+\.\d+\.\d+$/.test(u.hostname)) return true;
       } catch {}
       return false;
@@ -855,6 +947,16 @@ const App = () => {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: 10 }} />
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("add-ports-panel"))}
+            title="Open Ports — forwarded & running dev servers"
+            style={{
+              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
+              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+            }}
+          >
+            Ports
+          </button>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-canvas-panel"))}
             title="Open Canvas — visual project map of every page & component"

@@ -1,4 +1,4 @@
-// Demo extension for the ppoo extension host.
+// Demo extension for the ibx extension host.
 // Proves: activation, command registration, completion provider registration.
 
 const vscode = require("vscode");

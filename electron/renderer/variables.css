@@ -55,3 +55,53 @@
   --overlay:         rgba(0,0,0,0.5);
   --overlay-dark:    rgba(0,0,0,0.6);
 }
+
+/* ── Light theme overrides ─────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg-app:          #ffffff;
+  --bg-panel:        #f3f3f3;
+  --bg-surface:      #ffffff;
+  --bg-workspace:    #f3f3f3;
+  --bg-raised:       #e8e8e8;
+  --bg-hover:        #e5e5e5;
+  --bg-active:       #d4d4d4;
+  --bg-input:        #ffffff;
+  --bg-header:       #f3f3f3;
+  --bg-subtle:       #e0e0e0;
+
+  --text-primary:    #1e1e1e;
+  --text-bright:     #222;
+  --text-highlight:  #1a1a1a;
+  --text-hover:      #000;
+  --text-secondary:  #555;
+  --text-label:      #333;
+  --text-muted:      #777;
+  --text-placeholder:#999;
+  --text-nav:        #555;
+  --text-input:      #1a1a1a;
+  --text-inverse:    #fff;
+  --text-disabled:   #aaa;
+
+  --border:          #e0e0e0;
+  --border-light:    #d0d0d0;
+  --border-subtle:   #e8e8e8;
+  --border-input:    #d0d0d0;
+  --border-focus:    #007acc;
+
+  --scrollbar:       #c0c0c0;
+  --scrollbar-hover: #a0a0a0;
+
+  --icon:            #666;
+  --icon-muted:      #777;
+  --icon-hover:      #333;
+}
+
+/* Light theme component overrides (hard-coded backgrounds in settings.css etc.) */
+:root[data-theme="light"] .sw-sidebar { background: #f0f0f0; border-right-color: #e0e0e0; }
+:root[data-theme="light"] .sw-sidebar__title { color: #777; }
+:root[data-theme="light"] .sw-nav-item { color: #555; }
+:root[data-theme="light"] .sw-nav-item:hover { background: #e5e5e5; color: #1a1a1a; }
+:root[data-theme="light"] .sw-nav-item--active { background: #e8e8e8; color: #1a1a1a; border-left-color: #007acc; }
+:root[data-theme="light"] .sw-content__header { background: #ffffff; border-bottom-color: #e0e0e0; }
+:root[data-theme="light"] .sw-content__title { color: #1a1a1a; }
+:root[data-theme="light"] html, :root[data-theme="light"] body, :root[data-theme="light"] #settings-root { background: #f3f3f3; color: #1a1a1a; }

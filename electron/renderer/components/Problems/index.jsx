@@ -24,13 +24,13 @@ const ProblemsPanel = () => {
       } catch {}
     };
 
-    interval = setInterval(pollMarkers, 1000);
+    // lightweight: event-driven, fallback poll only when visible
     pollMarkers();
-
+    interval = setInterval(() => { if (!document.hidden) pollMarkers(); }, 5000);
     try {
       const monaco = window.monaco;
       if (monaco && monaco.editor && monaco.editor.onDidChangeMarkers) {
-        dispose = monaco.editor.onDidChangeMarkers(pollMarkers);
+        dispose = monaco.editor.onDidChangeMarkers(() => { if (!document.hidden) pollMarkers(); });
       }
     } catch {}
 

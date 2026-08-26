@@ -1,0 +1,158 @@
+/* ── Responsive — small windows (<900, <700, <600, <480) ────────────────── */
+/* Base: window now allows 640x480, flexlayout min 100px tabsets */
+
+/* 900px — tablet-ish: tighten chrome, reduce fixed widths */
+@media (max-width: 900px) {
+  .pw-bar__search,
+  .pw-bar__search-input { width: 90px !important; }
+  .pw-bar__search-input { font-size: 10.5px !important; }
+  .pw-sidebar { width: 140px !important; }
+  .browser__btn { width: 26px !important; height: 26px !important; }
+  .browser__url { font-size: 12px !important; height: 26px !important; }
+  .flexlayout__tabset { min-width: 90px !important; }
+}
+
+/* 750px — compact: hide secondary labels, compress headers */
+@media (max-width: 750px) {
+  .pw-bar__search { width: 70px !important; }
+  .pw-bar__search-input { width: 70px !important; }
+  .pw-bar__count__label { display: none !important; }
+  .pw-bar__divider { display: none !important; }
+  .pw-sidebar { width: 120px !important; }
+  .browser__bar { gap: 1px !important; padding: 3px 4px !important; }
+  .browser__btn { width: 24px !important; height: 24px !important; }
+  /* Panel headers wrap */
+  .flexlayout__tabset_content { overflow: auto !important; }
+}
+
+/* 640px — new min: stack project body, make layout scrollable, wrap headers */
+@media (max-width: 640px) {
+  /* Top IDE bar: allow wrap */
+  #root > div > div:last-child { /* status bar */
+    flex-wrap: wrap !important;
+    height: auto !important;
+    min-height: 22px !important;
+    padding: 2px 8px !important;
+    gap: 6px !important;
+  }
+  /* FlexLayout: allow horizontal scroll instead of crushing to 30px */
+  .flexlayout__layout {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+  .flexlayout__layout > div {
+    min-width: 640px !important;
+  }
+  /* Project window: sidebar collapses to top */
+  .pw-root { flex-direction: column !important; }
+  .pw-body { flex-direction: column !important; }
+  .pw-sidebar {
+    width: 100% !important;
+    max-height: 140px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    min-width: 0 !important;
+  }
+  .pw-sidebar__resize { display: none !important; }
+  .pw-content { padding: 4px !important; }
+  .pw-bar { height: auto !important; min-height: 26px !important; flex-wrap: wrap !important; padding: 4px !important; gap: 6px !important; }
+  .pw-bar__crumbs { flex-basis: 100% !important; }
+  .pw-bar__search { width: 100% !important; flex: 1 1 100% !important; }
+  .pw-bar__search-input { width: 100% !important; }
+  .pw-bar__actions { width: 100% !important; justify-content: space-between !important; }
+  /* Hide zoom slider on tiny */
+  .pw-statusbar__zoom { display: none !important; }
+}
+
+/* 560px — phone-ish: hide non-essential chrome */
+@media (max-width: 560px) {
+  .browser__btn[title="Forward"],
+  .browser__btn[title="Inspect"],
+  .browser__btn[title="More"] { display: none !important; }
+  .browser__url-wrap { margin: 0 2px !important; }
+  .browser__lock { display: none !important; }
+  .flexlayout__tabset_header { height: 24px !important; }
+  /* Panel headers: stack */
+  /* Use attribute to target via inline styles fallback — generic wrap */
+  [style*="justify-content: space-between"] {
+    flex-wrap: wrap !important;
+  }
+}
+
+/* 480px — minimal: single column feel, hide sidebar fully with toggle */
+@media (max-width: 480px) {
+  .pw-sidebar { display: none !important; }
+  .pw-bar__search { display: flex !important; }
+  /* Make grid items smaller */
+  .pw-item { padding: 4px 2px !important; }
+  .pw-grid { gap: 1px !important; }
+  /* Settings window already 600 min, but main now 640 — keep */
+}
+
+/* Touch-friendly splitters */
+@media (max-width: 700px) {
+  .flexlayout__splitter { background: transparent !important; }
+  .flexlayout__splitter:hover { background: var(--bg-hover) !important; }
+  /* Larger hit area via extra */
+  .flexlayout__splitter--horizontal,
+  .flexlayout__splitter--vertical {
+    min-width: 8px !important;
+    min-height: 8px !important;
+  }
+}
+
+/* Ensure no horizontal clip — allow scroll where needed */
+@media (max-width: 700px) {
+  .flexlayout__tab { overflow: auto !important; }
+  .flexlayout__tabset_content { overflow: auto !important; }
+  html, body, #root { overflow: auto !important; }
+}
+
+/* High-DPI / small height */
+@media (max-height: 500px) {
+  .flexlayout__tabset_header { height: 22px !important; }
+  .pw-bar { height: 22px !important; }
+  .pw-statusbar { height: 20px !important; }
+}
+
+/* ── JS class fallbacks (same as media, for Electron where media query may lag) ── */
+.is-compact .pw-bar__search,
+.is-compact .pw-bar__search-input { width: 90px !important; }
+.is-compact .pw-sidebar { width: 140px !important; }
+.is-narrow .pw-bar__search { width: 70px !important; }
+.is-narrow .pw-bar__search-input { width: 70px !important; }
+.is-narrow .flexlayout__tabset_content { overflow: auto !important; }
+.is-narrow .flexlayout__tab { overflow: auto !important; }
+.is-tiny .browser__btn[title="Forward"],
+.is-tiny .browser__btn[title="Inspect"] { display: none !important; }
+.is-tiny [style*="justify-content: space-between"] { flex-wrap: wrap !important; gap: 6px !important; }
+
+/* ── Component-specific responsive: Panel headers ── */
+@media (max-width: 700px) {
+  /* Panel headers use inline flex justify-content:space-between — force wrap */
+  div[style*="display: flex"][style*="justify-content: space-between"] {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  /* Commit box + filter rows */
+  div[style*="display: flex"][style*="gap: 6px"] {
+    flex-wrap: wrap !important;
+  }
+}
+@media (max-width: 640px) {
+  /* Make panel cards full-width feel */
+  div[style*="display: flex"][style*="gap: 6px"][style*="padding: 6px 8px"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+}
+
+/* Ensure flexlayout never crushes below readable — scroll instead */
+.flexlayout__layout {
+  min-width: 0;
+}
+.flexlayout__tabset,
+.flexlayout__border {
+  min-width: 80px;
+  min-height: 60px;
+}

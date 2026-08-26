@@ -62,7 +62,9 @@ const RenameInput = ({ initialValue, onCommit, onCancel }) => {
     ref.current?.focus();
     ref.current?.select();
   }, []);
+  const blurTimer = useRef(null);
   const commit = () => {
+    if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
     const v = val.trim();
     if (v && v !== initialValue) onCommit(v); else onCancel();
   };
@@ -72,7 +74,7 @@ const RenameInput = ({ initialValue, onCommit, onCancel }) => {
       className="pw-rename-input"
       value={val}
       onChange={(e) => setVal(e.target.value)}
-      onBlur={commit}
+      onBlur={() => { blurTimer.current = setTimeout(commit, 150); }}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Enter")  commit();
@@ -257,7 +259,7 @@ const ContentArea = ({
       }
       case "openInBrowser": {
         for (const p of targetPaths) {
-          const url = "ppoo-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
+          const url = "ibx-file://file/" + encodeURI(p.replace(/\\/g, "/")).replace(/#/g, "%23");
           window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url, config: { type: "browser", title: "Browser", url } } }));
         }
         return;
@@ -270,6 +272,19 @@ const ContentArea = ({
             // fallback to file:// url via shell
             const fileUrl = "file:///" + p.replace(/\\/g, "/");
             try { await window.electronAPI.openUrl(fileUrl); } catch {}
+          }
+        }
+        return;
+      }
+      case "openWithLiveServer": {
+        for (const p of targetPaths) {
+          try {
+            const { url } = await window.electronAPI.startLiveServer(rootPathRef.current, p);
+            window.dispatchEvent(new CustomEvent("add-browser-panel", {
+              detail: { url, config: { type: "browser", title: "Live Server", url } },
+            }));
+          } catch (err) {
+            await alertErr("Live Server failed to start", err);
           }
         }
         return;
@@ -717,10 +732,10 @@ const ContentArea = ({
     // Resolve paths: custom MIME → internal native drag → external files
     let paths;
     let isInternal = true;
-    try { paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths")); } catch {}
-    if (!paths?.length && window.__ppooDragPaths?.length) {
-      paths = window.__ppooDragPaths;
-      window.__ppooDragPaths = null;
+    try { paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); } catch {}
+    if (!paths?.length && window.__ibxDragPaths?.length) {
+      paths = window.__ibxDragPaths;
+      window.__ibxDragPaths = null;
     }
     if (!paths?.length) {
       const externalPaths = getExternalPaths(e);
@@ -784,10 +799,10 @@ const ContentArea = ({
     // Resolve paths
     let paths;
     let isInternal = true;
-    try { paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths")); } catch {}
-    if (!paths?.length && window.__ppooDragPaths?.length) {
-      paths = window.__ppooDragPaths;
-      window.__ppooDragPaths = null;
+    try { paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); } catch {}
+    if (!paths?.length && window.__ibxDragPaths?.length) {
+      paths = window.__ibxDragPaths;
+      window.__ibxDragPaths = null;
     }
     if (!paths?.length) {
       const externalPaths = getExternalPaths(e);
@@ -857,10 +872,10 @@ const ContentArea = ({
     // Resolve paths
     let paths;
     let isInternal = true;
-    try { paths = JSON.parse(e.dataTransfer.getData("application/ppoo-paths")); } catch {}
-    if (!paths?.length && window.__ppooDragPaths?.length) {
-      paths = window.__ppooDragPaths;
-      window.__ppooDragPaths = null;
+    try { paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); } catch {}
+    if (!paths?.length && window.__ibxDragPaths?.length) {
+      paths = window.__ibxDragPaths;
+      window.__ibxDragPaths = null;
     }
     if (!paths?.length) {
       const externalPaths = getExternalPaths(e);

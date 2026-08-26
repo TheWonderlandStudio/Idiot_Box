@@ -1,15 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import useSettings from "../shared/useSettings.jsx";
-import EditorPage     from "./pages/EditorPage.jsx";
-import ExtensionsPage from "./pages/ExtensionsPage.jsx";
+import GeneralPage     from "./pages/GeneralPage.jsx";
+import EditorPage      from "./pages/EditorPage.jsx";
+import TerminalPage    from "./pages/TerminalPage.jsx";
+import GitPage         from "./pages/GitPage.jsx";
+import CanvasPage      from "./pages/CanvasPage.jsx";
+import KeybindingsPage from "./pages/KeybindingsPage.jsx";
+import ExtensionsPage  from "./pages/ExtensionsPage.jsx";
 import "../../variables.css";
 import "./settings.css";
 
 // ─── Navigation items ─────────────────────────────────────────────────────────
 const NAV = [
-  { id: "editor",     label: "Editor" },
-  { id: "extensions", label: "Extensions" },
-  // Add more categories here — each needs a matching <Page> in the switch below
+  { id: "general",     label: "General" },
+  { id: "editor",      label: "Editor" },
+  { id: "terminal",    label: "Terminal" },
+  { id: "git",         label: "Git" },
+  { id: "canvas",      label: "Canvas" },
+  { id: "keybindings", label: "Keybindings" },
+  { id: "extensions",  label: "Extensions" },
 ];
 
 // ─── SettingsWindow ───────────────────────────────────────────────────────────
@@ -18,15 +27,53 @@ const NAV = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SettingsWindow = () => {
-  const [activePage, setActivePage] = useState("editor");
+  const [activePage, setActivePage] = useState("general");
   const [settings, updateSettings, loading] = useSettings();
+
+  // Apply theme to settings window itself (default dark)
+  useEffect(() => {
+    if (loading) return;
+    const th = settings.theme || settings.editorTheme || "dark";
+    const isLight = th === "light" || th === "lightPlus" || th === "lightModern" || th === "light2026" || th === "Visual Studio Light" || th === "Light+" || th === "Light Modern" || th === "Light 2026";
+    document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
+  }, [settings.theme, settings.editorTheme, loading]);
+
+  // Also listen to cross-window theme changes (e.g., from main window)
+  useEffect(() => {
+    const applyTheme = (th) => {
+      if (!th) return;
+      const isLight = th === "light" || th === "lightPlus" || th === "lightModern" || th === "light2026" || th === "Visual Studio Light" || th === "Light+" || th === "Light Modern" || th === "Light 2026";
+      document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
+    };
+    let bc, bc2;
+    try {
+      bc = new BroadcastChannel("app-settings");
+      bc.onmessage = (e) => {
+        const th = e.data?.theme || e.data?.editorTheme;
+        if (th) applyTheme(th);
+      };
+    } catch {}
+    try {
+      bc2 = new BroadcastChannel("editor-settings");
+      bc2.onmessage = (e) => {
+        const th = e.data?.theme || e.data?.editorTheme;
+        if (th) applyTheme(th);
+      };
+    } catch {}
+    return () => { try { bc?.close(); } catch {} try { bc2?.close(); } catch {} };
+  }, []);
 
   const renderPage = () => {
     if (loading) return <div style={{ color: "#555", fontSize: 12 }}>Loading...</div>;
     switch (activePage) {
-      case "editor":     return <EditorPage settings={settings} onSave={updateSettings} />;
-      case "extensions": return <ExtensionsPage />;
-      default:           return null;
+      case "general":     return <GeneralPage settings={settings} onSave={updateSettings} />;
+      case "editor":      return <EditorPage settings={settings} onSave={updateSettings} />;
+      case "terminal":    return <TerminalPage settings={settings} onSave={updateSettings} />;
+      case "git":         return <GitPage settings={settings} onSave={updateSettings} />;
+      case "canvas":      return <CanvasPage settings={settings} onSave={updateSettings} />;
+      case "keybindings": return <KeybindingsPage />;
+      case "extensions":  return <ExtensionsPage />;
+      default:            return null;
     }
   };
 
