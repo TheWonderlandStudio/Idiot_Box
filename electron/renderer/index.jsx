@@ -56,6 +56,8 @@ const DEFAULT_JSON = {
             children: [
               { type: "tab", name: "Project", component: "projectPanel" },
               { type: "tab", name: "Terminal", component: "terminal", id: "terminal-tab" },
+              { type: "tab", name: "Ports", component: "ports" },
+              { type: "tab", name: "Problems", component: "problems" },
             ],
           },
         ],
@@ -65,12 +67,8 @@ const DEFAULT_JSON = {
         children: [{ type: "tab", name: "Editor", component: "editor" }],
       },
       {
-        type: "row", weight: 20,
-        children: [
-          { type: "tabset", weight: 33, children: [{ type: "tab", name: "Problems", component: "problems" }] },
-          { type: "tabset", weight: 33, children: [{ type: "tab", name: "Git", component: "gitPanel" }] },
-          { type: "tabset", weight: 34, children: [{ type: "tab", name: "Ports", component: "ports" }] },
-        ],
+        type: "tabset", weight: 20,
+        children: [{ type: "tab", name: "Git", component: "gitPanel" }],
       },
     ],
   },
@@ -310,12 +308,12 @@ const App = () => {
       }
       // ── Deduplicate Ports tabs — fix for saved session with 2 Ports tabs on startup
       (() => {
-        let seen = false;
+        const seen = new Set();
         const dedup = (node) => {
           if (!node || !node.children) return;
           node.children = node.children.filter((child) => {
-            if (child.type === "tab" && child.component === "ports") {
-              if (!seen) { seen = true; return true; }
+            if (child.type === "tab" && (child.component === "ports" || child.component === "problems")) {
+              if (!seen.has(child.component)) { seen.add(child.component); return true; }
               return false;
             }
             return true;
@@ -334,6 +332,61 @@ const App = () => {
           );
         };
         try { cleanEmpty(json.layout || json); } catch {}
+      })();
+      // ── Move Ports + Problems into Project/Terminal group (default layout change)
+      (() => {
+        try {
+          let target = null;
+          const findTarget = (node) => {
+            if (node.type === "tabset" && node.children && node.children.some((c) => c.component === "projectPanel" || c.component === "terminal")) {
+              target = node; return true;
+            }
+            if (node.children) for (const ch of node.children) if (findTarget(ch)) return true;
+            return false;
+          };
+          findTarget(json.layout);
+          if (!target) return;
+          for (const comp of ["ports", "problems"]) {
+            const inTarget = target.children.some((c) => c.component === comp);
+            if (inTarget) {
+              const removeOutside = (node) => {
+                if (!node.children) return;
+                node.children = node.children.filter((ch) => !(ch.type === "tab" && ch.component === comp && node !== target));
+                node.children.forEach(removeOutside);
+              };
+              removeOutside(json.layout);
+              continue;
+            }
+            let found = null, foundParent = null;
+            const findTab = (node) => {
+              if (!node.children) return false;
+              for (const ch of node.children) if (ch.type === "tab" && ch.component === comp) { found = ch; foundParent = node; return true; }
+              for (const ch of node.children) if (findTab(ch)) return true;
+              return false;
+            };
+            findTab(json.layout);
+            if (found && foundParent) {
+              foundParent.children = foundParent.children.filter((c) => c !== found);
+              target.children.push(found);
+            } else {
+              const name = comp === "ports" ? "Ports" : "Problems";
+              target.children.push({ type: "tab", name, component: comp });
+            }
+          }
+          const order = { projectPanel: 0, terminal: 1, ports: 2, problems: 3 };
+          target.children.sort((a, b) => {
+            const ao = order[a.component] !== undefined ? order[a.component] : 99;
+            const bo = order[b.component] !== undefined ? order[b.component] : 99;
+            return ao - bo;
+          });
+          const cleanEmpty2 = (node) => {
+            if (!node.children) return;
+            node.children.forEach(cleanEmpty2);
+            node.children = node.children.filter((ch) => !(ch.type === "tabset" && (!ch.children || ch.children.length === 0)));
+            node.children = node.children.filter((ch) => !(ch.type === "row" && (!ch.children || ch.children.length === 0)));
+          };
+          cleanEmpty2(json.layout);
+        } catch {}
       })();
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
