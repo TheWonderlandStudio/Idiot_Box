@@ -649,7 +649,7 @@ export default function GitPanel(){
             </div>
             {!collapsed.untracked && groups.untracked.map(it=>(
               <div key={"unt:"+it.rel} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",cursor:"pointer",fontSize:12,borderBottom:"1px solid #232323", background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "#2a2d2e":"transparent"}} onClick={()=>openFile(it.rel)} title={it.rel} onMouseEnter={e=>e.currentTarget.style.background="#2a2d2e"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
-                <span style={s.statusBox("#73c991")}>?</span>
+                <span style={s.statusBox("#73c991")}>U</span>
                 <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.rel}>{it.rel}</span>
                 <span style={{fontSize:10,color:"#73c991",background:"#1a2a1a",padding:"1px 5px",borderRadius:3,border:"1px solid #2a5a2a"}}>Untracked</span>
                 <span style={{display:"flex",gap:3}}>

@@ -51,7 +51,7 @@ const TreeRow = ({
     <span className="pw-tree-row__icon" aria-hidden="true">{iconEl}</span>
     <span className="pw-tree-row__label" title={label}>{label}</span>
     {gitStatus && (
-      <span style={{ marginLeft: "auto", fontSize: 10, color: gitColor, fontWeight: 700, paddingRight: 8, flexShrink: 0 }}>{String(gitStatus).trim().slice(0, 2)}</span>
+      <span title={String(gitStatus).trim()==="??" ? "Untracked" : String(gitStatus).trim()} style={{ marginLeft: "auto", fontSize: 10, color: gitColor, fontWeight: 700, paddingRight: 8, flexShrink: 0 }}>{String(gitStatus).trim()==="??" ? "U" : String(gitStatus).trim().slice(0, 2)}</span>
     )}
   </div>
 );
