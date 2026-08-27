@@ -20,6 +20,7 @@ import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
+import BuilderPanel from "./components/Builder/index.jsx";
 
 const DEFAULT_JSON = {
   global: {
@@ -67,8 +68,11 @@ const DEFAULT_JSON = {
         children: [{ type: "tab", name: "Editor", component: "editor" }],
       },
       {
-        type: "tabset", weight: 20,
-        children: [{ type: "tab", name: "Git", component: "gitPanel" }],
+        type: "row", weight: 20,
+        children: [
+          { type: "tabset", weight: 50, children: [{ type: "tab", name: "Git", component: "gitPanel" }] },
+          { type: "tabset", weight: 50, children: [{ type: "tab", name: "Builder", component: "builder" }] },
+        ],
       },
     ],
   },
@@ -87,6 +91,7 @@ const factory = (node) => {
   case "problems":          return <ProblemsPanel />;
   case "gitPanel":          return <GitPanel />;
   case "ports":             return <PortsPanel />;
+  case "builder":            return <BuilderPanel />;
   default:                  return null;
   }
 };
@@ -259,7 +264,7 @@ const App = () => {
             if (node.component === "panel5") node.component = "editor";
             if (node.name === "panel5") node.name = "Editor";
             // Migrate any removed/unknown components to blank
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","terminal","blank","componentPreview","canvas","problems","gitPanel","ports"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","terminal","blank","componentPreview","canvas","problems","gitPanel","ports","builder"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
@@ -305,6 +310,43 @@ const App = () => {
             }
           } catch {}
         }
+        // Auto-inject Builder for old sessions
+        const hasBuilder = ((n) => {
+          const walk = (x) => {
+            if (x.type === "tab" && x.component === "builder") return true;
+            if (x.children && x.children.some(walk)) return true;
+            return false;
+          };
+          return walk(n);
+        })(json);
+        if (!hasBuilder) {
+          try {
+            const rootRow = json.layout;
+            let targetRow = null;
+            const findRow = (node) => {
+              if (!node || !node.children) return;
+              for (const ch of node.children) {
+                if (ch.type === "row" && ch.children && ch.children.some(ts => ts.children && ts.children.some(t => t.component === "gitPanel"))) { targetRow = ch; return; }
+                if (ch.type === "tabset" && ch.children && ch.children.some(t => t.component === "gitPanel")) { targetRow = node; return; }
+                findRow(ch);
+              }
+            };
+            findRow(rootRow);
+            if (targetRow && targetRow.type === "row") {
+              if (targetRow.children.length === 1 && targetRow.children[0].children?.some(t=>t.component==="gitPanel")) {
+                targetRow.children.push({ type: "tabset", weight: 50, children: [{ type: "tab", name: "Builder", component: "builder" }] });
+                targetRow.children[0].weight = 50;
+              } else {
+                targetRow.children.push({ type: "tabset", weight: 50, children: [{ type: "tab", name: "Builder", component: "builder" }] });
+              }
+            } else if (rootRow && rootRow.children) {
+              rootRow.children.push({ type: "row", weight: 20, children: [
+                { type: "tabset", weight: 50, children: [{ type: "tab", name: "Git", component: "gitPanel" }] },
+                { type: "tabset", weight: 50, children: [{ type: "tab", name: "Builder", component: "builder" }] },
+              ]});
+            }
+          } catch {}
+        }
       }
       // ── Deduplicate Ports tabs — fix for saved session with 2 Ports tabs on startup
       (() => {
@@ -312,7 +354,7 @@ const App = () => {
         const dedup = (node) => {
           if (!node || !node.children) return;
           node.children = node.children.filter((child) => {
-            if (child.type === "tab" && (child.component === "ports" || child.component === "problems")) {
+            if (child.type === "tab" && (child.component === "ports" || child.component === "problems" || child.component === "builder")) {
               if (!seen.has(child.component)) { seen.add(child.component); return true; }
               return false;
             }
@@ -602,15 +644,31 @@ const App = () => {
       }
       addPanel("ports", "Ports", {});
     };
+    const onBuilder = () => {
+      const m = modelRef.current;
+      if (m) {
+        const find = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "builder") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = find(c); if (r) return r; }
+          return null;
+        };
+        const existing = find(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("builder", "Builder", {});
+    };
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-component-preview-panel", onPreview);
     window.addEventListener("add-canvas-panel", onCanvas);
     window.addEventListener("add-ports-panel", onPorts);
+    window.addEventListener("add-builder-panel", onBuilder);
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
       window.removeEventListener("add-component-preview-panel", onPreview);
       window.removeEventListener("add-canvas-panel", onCanvas);
       window.removeEventListener("add-ports-panel", onPorts);
+      window.removeEventListener("add-builder-panel", onBuilder);
     };
   }, []);
 
@@ -1049,6 +1107,16 @@ const App = () => {
             }}
           >
             Ports
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("add-builder-panel"))}
+            title="Open Builder — JSX / TSX / HTML visual editor (Craft.js)"
+            style={{
+              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
+              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+            }}
+          >
+            Builder
           </button>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-canvas-panel"))}
