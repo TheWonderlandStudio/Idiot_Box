@@ -322,6 +322,274 @@ ipcMain.handle("fs:writeFile", async (_e, { filePath, text }) => {
   }
 });
 
+// ─── Live Edit (Browser edit-mode) — text-only, auto detection html/js/jsx/ts/tsx ─
+const LIVE_EDIT_EXTS = new Set([".html", ".htm", ".js", ".jsx", ".ts", ".tsx"]);
+const LIVE_EDIT_IGNORE_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "out", "coverage", ".cache", ".parcel-cache", ".turbo", ".vscode", ".idea", ".output", ".trash", ".project_config", ".canvas", "trash"]);
+
+function decodeIbxFileUrl(url) {
+  try {
+    if (!url || typeof url !== "string") return null;
+    let p = url.trim();
+    // ibx-file://file/C:/...  or ibx-file://file//C:/...
+    if (p.startsWith("ibx-file://")) {
+      p = p.replace(/^ibx-file:\/\/file\//, "").replace(/^ibx-file:\/\//, "");
+      // remove leading slash for Windows drive
+      if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
+      // decode URI components and hash fragments
+      p = decodeURI(p.replace(/#/g, "%23").split("?")[0].split("#")[0]);
+      // ibx-file urls encode backslashes as / still
+      p = p.replace(/\//g, path.sep);
+      // on Windows, ensure drive letter
+      if (process.platform === "win32" && /^[A-Za-z]:/.test(p)) p = p.replace(/\//g, "\\");
+      return p;
+    }
+    if (p.startsWith("file://")) {
+      try { return path.normalize(decodeURI(new URL(p).pathname).replace(/^\/([A-Za-z]:)/, "$1")); } catch { return null; }
+    }
+    return null;
+  } catch { return null; }
+}
+
+function scoreLiveEditContext(content, pos, outerSnippet, tagName, oldText) {
+  try {
+    const ctxStart = Math.max(0, pos - 400);
+    const ctxEnd = Math.min(content.length, pos + oldText.length + 400);
+    const ctx = content.slice(ctxStart, ctxEnd);
+    const ctxLow = ctx.toLowerCase();
+    const snippetLow = String(outerSnippet || "").toLowerCase().slice(0, 800);
+    let score = 0;
+    // Exact snippet overlap (outerHTML)
+    if (snippetLow && ctxLow.includes(snippetLow.slice(0, 80))) score += 100;
+    else if (snippetLow) {
+      // token overlap
+      const tokens = snippetLow.split(/[^a-z0-9]+/).filter(t => t.length >= 3).slice(0, 20);
+      let hits = 0;
+      for (const tok of tokens) if (ctxLow.includes(tok)) hits++;
+      score += hits * 6;
+    }
+    // tagName proximity
+    if (tagName) {
+      const tn = String(tagName).toLowerCase();
+      if (ctxLow.includes("<" + tn)) score += 18;
+      if (ctxLow.includes("</" + tn)) score += 10;
+    }
+    // Prefer occurrence where oldText is inside JSX/HTML tag content: check surrounding chars
+    const before = content.slice(Math.max(0, pos - 4), pos);
+    const after = content.slice(pos + oldText.length, pos + oldText.length + 4);
+    if (before.includes(">") || before.includes('"') || before.includes("'") || before.includes("`") || before.includes("{")) score += 4;
+    if (after.includes("<") || after.includes('"') || after.includes("'") || after.includes("`") || after.includes("}")) score += 4;
+    // Prefer closer to snippet tag
+    // Smaller distance? not needed
+    return score;
+  } catch { return 0; }
+}
+
+ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldText, newText, outerSnippet, tagName } = {}) => {
+  try {
+    const o = String(oldText || "");
+    const n = String(newText || "");
+    if (!o || !o.trim()) return { ok: false, error: "Empty original text" };
+    if (o === n) return { ok: false, error: "No change" };
+    if (n.length > 5000) return { ok: false, error: "New text too long" };
+    const oldTrim = o.trim();
+    const newTrim = n.trim();
+    // Try ibx-file direct path first
+    const ibxPath = decodeIbxFileUrl(url);
+    let candidates = [];
+    let directPath = null;
+    if (ibxPath && fs.existsSync(toLongPath(ibxPath))) {
+      try {
+        const st = fs.statSync(toLongPath(ibxPath));
+        if (st.isFile() && LIVE_EDIT_EXTS.has(path.extname(ibxPath).toLowerCase())) {
+          const contentCheck = fs.readFileSync(toLongPath(ibxPath), "utf8");
+          if (contentCheck.includes(oldTrim) || contentCheck.includes(o)) {
+            directPath = ibxPath;
+          } else {
+            // try normalized whitespace match
+            const normOld = oldTrim.replace(/\s+/g, " ");
+            const normContent = contentCheck.replace(/\s+/g, " ");
+            if (normContent.includes(normOld)) directPath = ibxPath;
+          }
+        }
+      } catch {}
+      if (directPath) candidates = [directPath];
+    }
+    // If not direct, search project
+    if (!candidates.length) {
+      const root = projectRoot || lastProjectPath;
+      if (!root || !fs.existsSync(toLongPath(root))) {
+        return { ok: false, error: "No project open — open a project or load a project file via ibx-file" };
+      }
+      // iterative walk, collect files that contain oldTrim
+      const stack = [path.resolve(root)];
+      const visited = new Set();
+      const found = [];
+      const limitFiles = 8000;
+      let scanned = 0;
+      while (stack.length && found.length < 80 && scanned < limitFiles) {
+        const dir = stack.pop();
+        let real = dir;
+        try { real = fs.realpathSync(toLongPath(dir)); } catch {}
+        if (visited.has(real)) continue;
+        visited.add(real);
+        let entries = [];
+        try { entries = fs.readdirSync(toLongPath(dir), { withFileTypes: true }); } catch { continue; }
+        for (const e of entries) {
+          if (e.name.startsWith(".") && e.name !== ".env" && e.name !== ".env.example") continue;
+          if (LIVE_EDIT_IGNORE_DIRS.has(e.name)) continue;
+          const full = path.join(dir, e.name);
+          if (e.isDirectory()) {
+            stack.push(full);
+          } else if (e.isFile()) {
+            const ext = path.extname(e.name).toLowerCase();
+            if (!LIVE_EDIT_EXTS.has(ext)) continue;
+            scanned++;
+            if (scanned > limitFiles) break;
+            try {
+              const st = fs.statSync(toLongPath(full));
+              if (st.size > 2 * 1024 * 1024) continue; // skip huge
+              const content = fs.readFileSync(toLongPath(full), "utf8");
+              if (content.includes(oldTrim) || content.includes(o)) {
+                found.push({ path: full, content });
+                if (found.length >= 80) break;
+              } else {
+                // try normalized whitespace fallback — check if normalized version contains
+                const normOld = oldTrim.replace(/\s+/g, " ");
+                if (normOld.length >= 3) {
+                  const snippet = normOld.slice(0, 60);
+                  if (content.includes(snippet)) {
+                    // do more thorough normalized check
+                    const normContent = content.replace(/\s+/g, " ");
+                    if (normContent.includes(normOld)) found.push({ path: full, content });
+                  }
+                }
+              }
+            } catch {}
+            if (found.length >= 80) break;
+          }
+        }
+      }
+      if (!found.length) {
+        return { ok: false, error: `Text "${oldTrim.slice(0, 40)}" not found in project (${path.basename(root)}). Auto detection searched html/js/jsx/ts/tsx.` };
+      }
+      if (found.length === 1) {
+        candidates = [found[0].path];
+        // keep content for scoring optimization
+      } else {
+        // rank by context score
+        let best = null;
+        let bestScore = -1;
+        let bestPos = -1;
+        let bestContent = null;
+        for (const { path: fp, content } of found) {
+          let pos = content.indexOf(oldTrim);
+          let localBestPos = -1;
+          let localBestScore = -1;
+          let idx = pos;
+          let iter = 0;
+          while (idx !== -1 && iter < 12) {
+            const sc = scoreLiveEditContext(content, idx, outerSnippet, tagName, oldTrim);
+            if (sc > localBestScore) { localBestScore = sc; localBestPos = idx; }
+            idx = content.indexOf(oldTrim, idx + 1);
+            iter++;
+          }
+          // also try original o (untrimmed) if different
+          if (o !== oldTrim) {
+            let idx2 = content.indexOf(o);
+            let it2 = 0;
+            while (idx2 !== -1 && it2 < 6) {
+              const sc = scoreLiveEditContext(content, idx2, outerSnippet, tagName, o);
+              if (sc > localBestScore) { localBestScore = sc; localBestPos = idx2; }
+              // store which oldText matched best for replacement
+              idx2 = content.indexOf(o, idx2 + 1);
+              it2++;
+            }
+          }
+          if (localBestScore > bestScore) {
+            bestScore = localBestScore;
+            best = fp;
+            bestPos = localBestPos;
+            bestContent = content;
+          }
+        }
+        // If scores are tied low (0), prefer shortest path or recently modified? Prefer file with smaller size or jsx/tsx first
+        if (bestScore <= 0) {
+          // fallback: prefer .tsx/.jsx/.html over .js/.ts, and shorter path depth
+          found.sort((a, b) => {
+            const rank = (p) => {
+              const e = path.extname(p.path).toLowerCase();
+              if (e === ".tsx" || e === ".jsx") return 0;
+              if (e === ".html" || e === ".htm") return 1;
+              return 2;
+            };
+            const ra = rank(a), rb = rank(b);
+            if (ra !== rb) return ra - rb;
+            return a.path.length - b.path.length;
+          });
+          best = found[0].path;
+          bestContent = found[0].content;
+          bestPos = bestContent.indexOf(oldTrim) !== -1 ? bestContent.indexOf(oldTrim) : bestContent.indexOf(o);
+        }
+        candidates = best ? [best] : found.slice(0, 1).map(f=>f.path);
+        // store bestPos for precise replacement
+        if (best && bestPos !== -1) {
+          // attach via map
+          global.__liveEditBestPos = { file: best, pos: bestPos, oldUsed: (bestContent.indexOf(oldTrim, bestPos)===bestPos ? oldTrim : o) };
+        }
+      }
+    }
+
+    const targetPath = candidates[0];
+    if (!targetPath) return { ok: false, error: "No candidate file found" };
+
+    // Read, replace at best position if available, else global first occurrence
+    let content = fs.readFileSync(toLongPath(targetPath), "utf8");
+    let oldUsed = oldTrim;
+    let pos = -1;
+    const bestInfo = global.__liveEditBestPos && global.__liveEditBestPos.file === targetPath ? global.__liveEditBestPos : null;
+    if (bestInfo && typeof bestInfo.pos === "number" && bestInfo.pos >= 0) {
+      pos = bestInfo.pos;
+      oldUsed = bestInfo.oldUsed || oldTrim;
+      // verify still at position
+      if (content.slice(pos, pos + oldUsed.length) !== oldUsed) {
+        pos = content.indexOf(oldTrim);
+        if (pos === -1) pos = content.indexOf(o);
+        if (pos !== -1) oldUsed = content.slice(pos, pos + (content.indexOf(oldTrim) !== -1 ? oldTrim.length : o.length));
+      }
+    } else {
+      pos = content.indexOf(oldTrim);
+      if (pos === -1) { pos = content.indexOf(o); if (pos !== -1) oldUsed = o; }
+      // try normalized fallback: find via regex whitespace flexible
+      if (pos === -1) {
+        const esc = oldTrim.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pat = esc.replace(/\s+/g, "\\s+");
+        try {
+          const re = new RegExp(pat);
+          const m = content.match(re);
+          if (m && m.index !== undefined) { pos = m.index; oldUsed = m[0]; }
+        } catch {}
+      }
+    }
+    if (pos === -1) return { ok: false, error: `Text "${oldTrim.slice(0,40)}" not found at expected location in ${path.basename(targetPath)}` };
+
+    const newContent = content.slice(0, pos) + newTrim + content.slice(pos + oldUsed.length);
+    // safety: ensure file still valid? For html/jsx we could do light check, but skip
+    fs.writeFileSync(toLongPath(targetPath), newContent, "utf8");
+    // clear cache
+    try { global.__liveEditBestPos = null; } catch {}
+    const rel = (projectRoot || lastProjectPath) ? path.relative(projectRoot || lastProjectPath, targetPath).replace(/\\/g, "/") : path.basename(targetPath);
+    // notify renderer for live update (Monaco etc.)
+    try {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send("liveEdit:fileChanged", { filePath: targetPath, rel, oldText: oldUsed, newText: newTrim });
+      }
+    } catch {}
+    return { ok: true, filePath: targetPath, rel, ext: path.extname(targetPath).toLowerCase() };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
 ipcMain.handle("fs:saveFileAs", async (event, { filePath, text }) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const defaultName = filePath ? filePath.replace(/.*[\\/]/, "") : "untitled.txt";

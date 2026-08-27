@@ -767,6 +767,73 @@ const EditorPanel = ({ config, nodeId }) => {
     return () => { unsub(); if (timer) clearTimeout(timer); };
   }, [filePath, nodeId]);
 
+  // ── Live Edit from Browser (text-only) ───────────────────────────────────
+  useEffect(() => {
+    if (!filePath) return;
+    const handler = async (e) => {
+      const p = e.detail?.filePath || e.detail?.path;
+      if (!p || p !== filePath) return;
+      try {
+        const text = await window.electronAPI.readTextFile(filePath);
+        if (text === null) return;
+        const ed = editorRef.current;
+        if (!ed) {
+          // no editor yet, just update refs
+          originalRef.current = text;
+          setOriginalContent(text);
+          setContent(text);
+          return;
+        }
+        const model = ed.getModel();
+        const cur = model?.getValue() ?? "";
+        if (cur === text) return;
+        // Preserve cursor/selection
+        let sel = null;
+        try { sel = ed.getSelection(); } catch {}
+        if (model) model.setValue(text);
+        originalRef.current = text;
+        setOriginalContent(text);
+        // mark dirty = false since disk is source of truth after live edit (unless user had unsaved changes, we still sync but keep dirty? prefer resync)
+        dirtyFlags.set(filePath, false);
+        updateTabName(nodeId, filePath);
+        setCursorPos((pr) => ({ ...pr, totalLines: text.split("\n").length }));
+        if (sel) try { ed.setSelection(sel); ed.revealLineInCenter(sel.positionLineNumber || 1); } catch {}
+        try { window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } })); } catch {}
+        flashStatus(`Live edit — updated from Browser (${e.detail?.rel || filePath.split(/[\\/]/).pop()})`);
+      } catch {}
+    };
+    const handlerMain = async (payload) => {
+      const p = payload?.filePath;
+      if (!p || p !== filePath) return;
+      // reuse same logic
+      try {
+        const text = await window.electronAPI.readTextFile(filePath);
+        if (text === null) return;
+        const ed = editorRef.current;
+        if (!ed) return;
+        const model = ed.getModel();
+        const cur = model?.getValue() ?? "";
+        if (cur === text) return;
+        let sel = null; try { sel = ed.getSelection(); }catch{}
+        if (model) model.setValue(text);
+        originalRef.current = text; setOriginalContent(text);
+        dirtyFlags.set(filePath, false); updateTabName(nodeId, filePath);
+        setCursorPos((pr)=> ({...pr, totalLines: text.split("\n").length}));
+        if(sel) try{ ed.setSelection(sel);}catch{}
+        try{ window.dispatchEvent(new CustomEvent("component:sourceChanged",{detail:{path:filePath,code:text}}));}catch{}
+        flashStatus(`Live edit — ${payload?.rel || "updated"}`);
+      } catch {}
+    };
+    window.addEventListener("liveEdit:applied", handler);
+    window.addEventListener("liveEdit:fileChanged", handler);
+    const unsub = window.electronAPI.onLiveEditFileChanged ? window.electronAPI.onLiveEditFileChanged(handlerMain) : () => {};
+    return () => {
+      window.removeEventListener("liveEdit:applied", handler);
+      window.removeEventListener("liveEdit:fileChanged", handler);
+      try{ unsub(); }catch{}
+    };
+  }, [filePath, nodeId]);
+
   // ── Reveal line (from SearchPanel / Problems) ──────────────────────────────
   useEffect(() => {
     const handler = (e) => {

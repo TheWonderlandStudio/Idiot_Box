@@ -50,8 +50,6 @@
     "@codingame/monaco-vscode-typescript-basics-default-extension": "^36.0.0",
     "@codingame/monaco-vscode-xml-default-extension": "^36.0.0",
     "@codingame/monaco-vscode-yaml-default-extension": "^36.0.0",
-    "@craftjs/core": "^0.2.12",
-    "@craftjs/layers": "^0.2.7",
     "@monaco-editor/react": "^4.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",

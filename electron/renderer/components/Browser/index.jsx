@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
-import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
 const LOCK_ICON   = "M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4zm-2 6V5a2 2 0 1 1 4 0v2H6z";
@@ -25,6 +25,10 @@ const BrowserPanel = (props) => {
   const [lockOpen,     setLockOpen]     = useState(false);
   const [barHidden,    setBarHidden]    = useState(false);
   const [popupStyle,   setPopupStyle]   = useState({});
+  const [editMode,     setEditMode]     = useState(false);
+  const [toast,        setToast]        = useState(null);
+  const editModeRef  = useRef(false);
+  const toastTimerRef = useRef(null);
 
   const webviewRef   = useRef(null);
   const attachedRef  = useRef(false);
@@ -44,6 +48,53 @@ const BrowserPanel = (props) => {
 
   // Keep nodeIdRef current (nodeId itself doesn't change but keep defensive)
   useEffect(() => { nodeIdRef.current = nodeId; }, [nodeId]);
+  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
+
+  const showToast = useCallback((msg, type="info") => {
+    setToast({ msg, type });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(()=> setToast(null), 2800);
+  }, []);
+
+  const handleLiveEdit = useCallback(async (data) => {
+    const oldText = String(data?.oldText || "").trim();
+    const newText = String(data?.newText || "").trim();
+    if (!oldText || !newText || oldText === newText) { showToast("No change", "info"); return; }
+    if (!newText) { showToast("Empty text not allowed", "error"); return; }
+    try {
+      showToast("Updating source…", "info");
+      const projectRoot = window.__currentProjectPath || null;
+      const url = data?.url || webviewRef.current?.getURL?.() || displayUrl;
+      const res = await window.electronAPI.liveEditApply({
+        projectRoot,
+        url,
+        oldText,
+        newText,
+        outerSnippet: String(data?.outerSnippet || "").slice(0, 800),
+        tagName: String(data?.tagName || ""),
+      });
+      if (res?.ok) {
+        const rel = res.rel || res.filePath?.split(/[\\/]/).pop() || "file";
+        showToast(`✓ Updated ${rel} (${res.ext||""})`, "success");
+        try { window.dispatchEvent(new CustomEvent("liveEdit:applied", { detail: { filePath: res.filePath, oldText, newText, rel } })); } catch {}
+        // live code refresh: if ibx-file, reload webview after short delay
+        try {
+          const cur = webviewRef.current?.getURL?.() || "";
+          if (cur.startsWith("ibx-file://") && res.filePath && cur.includes(encodeURI(res.filePath.replace(/\\/g,"/")).slice(-40))) {
+            setTimeout(()=> { try { webviewRef.current?.reload(); } catch {} }, 400);
+          }
+        } catch {}
+        // also trigger fs watcher friendly toast for Monaco
+        try { window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: res.filePath, code: await window.electronAPI.readTextFile(res.filePath) } })); } catch {}
+      } else {
+        showToast(res?.error || "Update failed", "error");
+        // revert visually by reloading if possible? Keep DOM as is but notify
+        try { webviewRef.current?.executeJavaScript(`(() => { try{ document.title="__IBX_EDIT_REVERT__"; }catch{} return true; })()`); } catch {}
+      }
+    } catch (e) {
+      showToast(e?.message || String(e), "error");
+    }
+  }, [displayUrl, showToast]);
 
   // Track last Browser group — so links from terminal/port/preview open in same group
   useEffect(() => {
@@ -188,6 +239,169 @@ const BrowserPanel = (props) => {
         return true;
       } catch(e){ return true; }
     })()`;
+    // ── Live Edit helper: text-only inline editing with auto detection ──
+    const EDIT_HELPER_SCRIPT = `(() => {
+      try {
+        if (window.__ibxEditHelpersInstalled) return true;
+        window.__ibxEditHelpersInstalled = true;
+        window.__ibxEditEnabled = !!window.__ibxEditEnabled;
+        let hoverEl = null;
+        let activeEl = null;
+        let styleEl = null;
+        let prevTitle = document.title;
+        function ensureStyle(){
+          if (styleEl) return;
+          styleEl = document.createElement('style');
+          styleEl.id = '__ibx-edit-style';
+          styleEl.textContent = \`
+            .__ibx-edit-hover { outline: 2px dashed #4ec9b0 !important; outline-offset: 2px !important; cursor: text !important; background: rgba(78,201,176,0.08) !important; box-shadow: 0 0 0 1px rgba(78,201,176,0.15) inset !important; }
+            .__ibx-edit-active { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; background: rgba(78,201,176,0.14) !important; box-shadow: 0 0 0 1px rgba(78,201,176,0.25) inset !important; }
+            .__ibx-edit-badge { position: absolute; top: -18px; left: 0; background: #4ec9b0; color: #0d0d0d; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; pointer-events: none; font-family: sans-serif; letter-spacing: 0.3px; z-index: 99999; }
+          \`;
+          (document.head||document.documentElement).appendChild(styleEl);
+        }
+        function removeStyle(){ try{ if(styleEl) styleEl.remove(); }catch{} styleEl=null; try{ if(hoverEl) hoverEl.classList.remove('__ibx-edit-hover'); }catch{} hoverEl=null; }
+        function isSkippedTag(el){
+          if(!el || !el.tagName) return true;
+          const t=el.tagName.toLowerCase();
+          return ['script','style','noscript','iframe','canvas','svg','path','head','meta','link','input','textarea','select','button','video','audio','img','br','hr'].indexOf(t)!==-1 || el.isContentEditable;
+        }
+        function hasVisibleText(el){
+          try{
+            const txt=(el.innerText||'').trim();
+            if(!txt) return false;
+            if(txt.length>600) return false;
+            // ignore hidden
+            const st=window.getComputedStyle(el);
+            if(st && (st.display==='none' || st.visibility==='hidden' || parseFloat(st.opacity)===0)) return false;
+            return true;
+          }catch{ return false; }
+        }
+        function findEditableTarget(start){
+          let el=start;
+          let depth=0;
+          while(el && el!==document.body && el!==document.documentElement && depth<7){
+            if(!isSkippedTag(el) && hasVisibleText(el)) return el;
+            el=el.parentElement; depth++;
+          }
+          return null;
+        }
+        function clearHover(){ try{ if(hoverEl){ hoverEl.classList.remove('__ibx-edit-hover'); const b=hoverEl.querySelector && hoverEl.querySelector('.__ibx-edit-badge'); if(b) b.remove(); } }catch{} hoverEl=null; }
+        function onMouseOver(e){
+          if(!window.__ibxEditEnabled || activeEl) return;
+          const t=findEditableTarget(e.target);
+          if(t===hoverEl) return;
+          clearHover();
+          if(t){ hoverEl=t; try{ hoverEl.classList.add('__ibx-edit-hover'); if(!hoverEl.querySelector('.__ibx-edit-badge')){ const badge=document.createElement('span'); badge.className='__ibx-edit-badge'; badge.textContent='✎ edit'; hoverEl.style.position = hoverEl.style.position || 'relative'; if(window.getComputedStyle(hoverEl).position==='static') hoverEl.style.position='relative'; hoverEl.appendChild(badge); } }catch{} }
+        }
+        function onMouseOut(e){
+          if(!window.__ibxEditEnabled || activeEl) return;
+          try{ const rel=e.relatedTarget; if(hoverEl && rel && hoverEl.contains(rel)) return; }catch{}
+          clearHover();
+        }
+        function cleanupActive(cancel){
+          if(!activeEl) return;
+          const el=activeEl;
+          try{
+            el.removeEventListener('keydown', onEditKey);
+            el.removeEventListener('blur', onEditBlur);
+            el.removeEventListener('input', onEditInput);
+            if(cancel){
+              if(el.__ibxOldText!=null) el.innerText = el.__ibxOldText;
+            }
+            el.removeAttribute('contenteditable');
+            el.classList.remove('__ibx-edit-active');
+            const b=el.querySelector && el.querySelector('.__ibx-edit-badge');
+            if(b) b.remove();
+            el.style.outline='';
+          }catch{}
+          activeEl=null;
+        }
+        function commitEdit(){
+          if(!activeEl) return;
+          const el=activeEl;
+          const oldText=el.__ibxOldText||'';
+          let newText='';
+          try{ newText=(el.innerText||el.textContent||'').trim(); }catch{}
+          // capture outer before cleanup
+          let outerSnippet='';
+          try{ outerSnippet=String(el.outerHTML||'').slice(0,300); }catch{ outerSnippet=''; }
+          const tagName=String(el.tagName||'');
+          cleanupActive(false);
+          clearHover();
+          if(!newText || newText===oldText.trim()){ try{ el.innerText=oldText.trim(); }catch{} return; }
+          const payload={ oldText: String(oldText).trim(), newText: String(newText).trim(), outerSnippet: outerSnippet, tagName: tagName, url: location.href };
+          const prev=prevTitle;
+          try{ prevTitle=document.title; document.title="__IBX_EDIT__"+JSON.stringify(payload); setTimeout(()=>{ try{ if(String(document.title).startsWith("__IBX_EDIT__")) document.title=prev; }catch{} }, 900); }catch{}
+        }
+        window.__ibxCommitPendingEdit = function(){
+          try{ if(activeEl) commitEdit(); return true; }catch(e){ return false; }
+        };
+        function onEditKey(e){
+          if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); cleanupActive(true); clearHover(); }
+          else if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); try{ activeEl && activeEl.blur(); }catch{} }
+        }
+        function onEditBlur(){ setTimeout(()=>{ if(activeEl) commitEdit(); }, 80); }
+        function onEditInput(){}
+        function onClick(e){
+          if(!window.__ibxEditEnabled) return;
+          const t=findEditableTarget(e.target);
+          if(!t) return;
+          // allow clicks inside already active editor
+          if(activeEl && activeEl.contains(e.target)) return;
+          e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{}
+          clearHover();
+          if(activeEl) cleanupActive(true);
+          activeEl=t;
+          try{
+            activeEl.__ibxOldText = (activeEl.innerText||'').trim();
+            activeEl.classList.add('__ibx-edit-active');
+            const b=activeEl.querySelector && activeEl.querySelector('.__ibx-edit-badge');
+            if(b) b.remove();
+            activeEl.setAttribute('contenteditable','true');
+            activeEl.focus();
+            // select all
+            try{
+              const range=document.createRange(); range.selectNodeContents(activeEl); const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+            }catch{}
+            activeEl.addEventListener('keydown', onEditKey);
+            activeEl.addEventListener('blur', onEditBlur);
+            activeEl.addEventListener('input', onEditInput);
+          }catch{}
+        }
+        window.__ibxSetEditMode = function(enabled){
+          window.__ibxEditEnabled = !!enabled;
+          if(window.__ibxEditEnabled){
+            ensureStyle();
+            try{ document.addEventListener('mouseover', onMouseOver, true); }catch{}
+            try{ document.addEventListener('mouseout', onMouseOut, true); }catch{}
+            try{ document.addEventListener('click', onClick, true); }catch{}
+            try{ document.body.style.cursor='text'; }catch{}
+            prevTitle=document.title;
+          } else {
+            try{ document.removeEventListener('mouseover', onMouseOver, true); }catch{}
+            try{ document.removeEventListener('mouseout', onMouseOut, true); }catch{}
+            try{ document.removeEventListener('click', onClick, true); }catch{}
+            // Done pe pending edit ko commit karo, cancel nahi — taaki file me update ho
+            try{
+              if(activeEl){
+                const old=(activeEl.__ibxOldText||'').trim();
+                let cur='';
+                try{ cur=(activeEl.innerText||'').trim(); }catch{}
+                if(cur && cur!==old){ commitEdit(); } else { cleanupActive(true); }
+              }
+            }catch{ try{ if(activeEl) cleanupActive(true);}catch{} }
+            clearHover();
+            removeStyle();
+            try{ document.body.style.cursor=''; }catch{}
+          }
+          return true;
+        };
+        // honor pending state if set before install
+        if(window.__ibxPendingEditMode) window.__ibxSetEditMode(true);
+        return true;
+      } catch(e){ return false; }
+    })()`;
     const injectGuest = (attempt) => {
       if (attempt > 3) return;
       try {
@@ -198,10 +412,30 @@ const BrowserPanel = (props) => {
         setTimeout(() => injectGuest(attempt + 1), 250);
       }
     };
-    wv.addEventListener("dom-ready", () => injectGuest(1));
+    const injectEditHelper = (attempt) => {
+      if (attempt > 3) return;
+      try {
+        wv.executeJavaScript(EDIT_HELPER_SCRIPT)
+          .then((ok)=>{
+            if (!ok && attempt < 3) setTimeout(()=> injectEditHelper(attempt+1), 250);
+            else if (editModeRef.current) {
+              setTimeout(()=> { try{ wv.executeJavaScript('window.__ibxSetEditMode && window.__ibxSetEditMode(true)'); }catch{} }, 120);
+            }
+          })
+          .catch(()=> setTimeout(()=> injectEditHelper(attempt+1), 250));
+      } catch { setTimeout(()=> injectEditHelper(attempt+1), 250); }
+    };
+    wv.addEventListener("dom-ready", () => { injectGuest(1); injectEditHelper(1); });
 
     wv.addEventListener("page-title-updated", (e) => {
       const t = e.title || "";
+      if (t.startsWith("__IBX_EDIT__")) {
+        try {
+          const payload = JSON.parse(t.slice("__IBX_EDIT__".length));
+          handleLiveEdit(payload);
+        } catch {}
+        return;
+      }
       if (t.startsWith("__IBX_NAV__")) {
         if (t === "__IBX_NAV__b") { try { wv.goBack(); } catch {} }
         else if (t === "__IBX_NAV__f") { try { wv.goForward(); } catch {} }
@@ -436,6 +670,27 @@ const BrowserPanel = (props) => {
     else    { attachedRef.current = false; webviewRef.current = null; }
   }, [syncActionTab]);
 
+  // ── Edit mode toggle → inject into webview ─────────────────────────────────
+  useEffect(() => {
+    const wv = webviewRef.current;
+    const js = `window.__ibxSetEditMode && window.__ibxSetEditMode(${editMode ? "true" : "false"})`;
+    if (wv) {
+      try { wv.executeJavaScript(js).catch(()=>{}); } catch {}
+      // also store pending flag for next navigation if helpers not yet installed
+      try { wv.executeJavaScript(`window.__ibxPendingEditMode=${editMode?"true":"false"}`).catch(()=>{}); } catch {}
+    }
+    if (editMode) showToast("Edit mode ON — click any text to edit (Enter to save, Esc to cancel)", "info");
+    else if (attachedRef.current) showToast("Edit mode OFF", "info");
+  }, [editMode, showToast]);
+
+  // ── Listen for liveEdit file changes from main to show in UI (optional) ────
+  useEffect(()=>{
+    const unsub = window.electronAPI.onLiveEditFileChanged?.((payload)=>{
+      // handled via handleLiveEdit already; just could show extra toast if from other Browser
+    });
+    return ()=> { try{ unsub?.(); }catch{} };
+  }, []);
+
   // ── Lock popup ─────────────────────────────────────────────────────────────
   const handleLockClick = useCallback((e) => {
     e.stopPropagation();
@@ -521,6 +776,23 @@ const BrowserPanel = (props) => {
             />
           </div>
 
+          {/* Edit Mode Toggle — text-only live editing, auto detection html/js/jsx/ts/tsx */}
+          <button
+            className={`browser__btn${editMode ? " browser__btn--active" : ""}`}
+            onClick={async () => {
+              if (editMode) {
+                try { await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); } catch {}
+                setTimeout(()=> setEditMode(false), 220);
+              } else {
+                setEditMode(true);
+              }
+            }}
+            title={editMode ? "Done — save pending edit & exit" : "Edit Mode — click any text to edit (live updates source: html/js/jsx/ts/tsx auto)"}
+            style={editMode ? { background: "rgba(78,201,176,0.18)", color: "#4ec9b0", border: "1px solid rgba(78,201,176,0.35)" } : undefined}
+          >
+            {editMode ? <PencilOff size={14} /> : <Pencil size={14} />}
+          </button>
+
           {/* Inspect Element button */}
           <button
             className="browser__btn"
@@ -549,6 +821,28 @@ const BrowserPanel = (props) => {
             ref={actionListRef}
             style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}
           />
+        </div>
+      )}
+
+      {/* Edit Mode Banner */}
+      {editMode && !barHidden && (
+        <div style={{
+          display:"flex", alignItems:"center", gap:8,
+          padding:"3px 10px", background:"rgba(78,201,176,0.12)", borderBottom:"1px solid rgba(78,201,176,0.25)",
+          color:"#4ec9b0", fontSize:11, fontWeight:600, flexShrink:0, letterSpacing:0.2,
+        }}>
+          <Type size={12} />
+          <span>EDIT MODE ON — Click any text to edit • Enter to save • Esc to cancel • Auto saves to html/js/jsx/ts/tsx</span>
+          <span style={{ marginLeft:"auto", background:"rgba(78,201,176,0.22)", padding:"1px 6px", borderRadius:3, fontSize:10, color:"#0d1117", fontWeight:700 }}>LIVE</span>
+          <button
+            onClick={async ()=>{
+              try{ await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); }catch{}
+              setTimeout(()=> setEditMode(false), 220);
+            }}
+            style={{ marginLeft:4, background:"#4ec9b0", color:"#0d1117", border:"none", borderRadius:3, padding:"2px 8px", fontSize:11, fontWeight:700, cursor:"pointer" }}
+          >
+            Done
+          </button>
         </div>
       )}
 
@@ -595,6 +889,31 @@ const BrowserPanel = (props) => {
           allowpopups=""
           allowFullScreen=""
         />
+        {/* Edit mode overlay hint when bar hidden */}
+        {editMode && barHidden && (
+          <div style={{
+            position:"absolute", top:8, left:"50%", transform:"translateX(-50%)",
+            background:"rgba(78,201,176,0.95)", color:"#0d1117", fontSize:11, fontWeight:700,
+            padding:"4px 10px", borderRadius:4, display:"flex", alignItems:"center", gap:6,
+            boxShadow:"0 4px 12px rgba(0,0,0,0.3)", zIndex:20, pointerEvents:"none"
+          }}>
+            <Pencil size={12} /> EDIT MODE ON — click any text
+          </div>
+        )}
+        {/* Toast */}
+        {toast && (
+          <div style={{
+            position:"absolute", bottom:16, left:"50%", transform:"translateX(-50%)",
+            background: toast.type==="error" ? "#732222" : toast.type==="success" ? "#1a3a2a" : "#252526",
+            color: toast.type==="error" ? "#ff8a8a" : toast.type==="success" ? "#4ec9b0" : "#d4d4d4",
+            border: `1px solid ${toast.type==="error" ? "#a33" : toast.type==="success" ? "#2d6a4f" : "#3c3c3c"}`,
+            padding:"8px 14px", borderRadius:6, fontSize:12, fontWeight:500,
+            boxShadow:"0 6px 18px rgba(0,0,0,0.4)", zIndex:30, maxWidth:"80%", textAlign:"center",
+            display:"flex", alignItems:"center", gap:8
+          }}>
+            {toast.type==="success" ? "✓" : toast.type==="error" ? "✕" : "•"} <span>{toast.msg}</span>
+          </div>
+        )}
       </div>
     </div>
   );

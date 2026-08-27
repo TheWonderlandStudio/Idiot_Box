@@ -98,6 +98,8 @@ body,
 }
 .browser__btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-hover); }
 .browser__btn:disabled { opacity: 0.25; cursor: default; }
+.browser__btn--active { background: rgba(78,201,176,0.18) !important; color: #4ec9b0 !important; border: 1px solid rgba(78,201,176,0.35) !important; }
+.browser__btn--active:hover { background: rgba(78,201,176,0.28) !important; color: #5fd8be !important; }
 .browser__url-wrap {
   position: relative;
   flex: 1;

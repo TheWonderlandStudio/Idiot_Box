@@ -218,6 +218,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("window:stateChanged", handler);
   },
 
+  // ── Live Edit (Browser edit-mode) — text-only, auto detection html/js/jsx/ts/tsx ─
+  liveEditApply: (payload) => ipcRenderer.invoke("liveEdit:applyTextChange", payload),
+  onLiveEditFileChanged: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("liveEdit:fileChanged", handler);
+    return () => ipcRenderer.removeListener("liveEdit:fileChanged", handler);
+  },
+
   // ── Session ─────────────────────────────────────────────────────────────────
   saveSession:   (data) => ipcRenderer.invoke("session:save", data),
   loadSession:   ()     => ipcRenderer.invoke("session:load"),
