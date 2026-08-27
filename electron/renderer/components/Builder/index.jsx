@@ -37,6 +37,26 @@ const Select = ({ label, value, options, onChange }) => (
   </div>
 );
 
+// ── RenderNode — shows selection outline + quick actions (fixes “menu not showing”) ─
+const RenderNode = ({ render }) => {
+  const { id } = useNode((node) => ({ id: node.id }));
+  const { actions, query, isActive } = useEditor((state, query) => {
+    const active = query.getEvent("selected").contains(id);
+    return { isActive: active };
+  });
+  if (id === "ROOT" || !isActive) return render;
+  return (
+    <div style={{ position: "relative" }}>
+      {render}
+      <div style={{ position: "absolute", top: -22, right: 0, display: "flex", gap: 4, background: "#1e1e1e", border: "1px solid #4ec9b0", borderRadius: 4, padding: 2, zIndex: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
+        <button title="Move — drag element" style={{ background: "#2d2d2d", border: "none", color: "#bbb", borderRadius: 2, padding: "2px 4px", cursor: "grab", display: "flex", alignItems: "center" }}><Move size={10} /></button>
+        <button title="Duplicate" onClick={(e) => { e.stopPropagation(); try { const node = query.node(id).get(); actions.addNodeTree(query.parseFreshNode(node.data), node.data.parent); } catch {} }} style={{ background: "#2d2d2d", border: "none", color: "#bbb", borderRadius: 2, padding: "2px 4px", cursor: "pointer", display: "flex", alignItems: "center" }}><Copy size={10} /></button>
+        <button title="Delete" onClick={(e) => { e.stopPropagation(); if (query.node(id).isDeletable()) actions.delete(id); }} style={{ background: "#3a1d1d", border: "none", color: "#f48771", borderRadius: 2, padding: "2px 4px", cursor: "pointer", display: "flex", alignItems: "center" }}><Trash2 size={10} /></button>
+      </div>
+    </div>
+  );
+};
+
 // ── User Components (Craft.js tutorial based, extended for HTML elements) ────
 export const Container = ({ background, padding, gap, display, flexDirection, borderRadius, border, children }) => {
   const { connectors: { connect, drag }, selected, hovered } = useNode((node) => ({
@@ -68,6 +88,23 @@ function ContainerSettings() {
   const { actions: { setProp }, props } = useNode((node) => ({ props: node.data.props }));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 11, color: "#aaa", fontWeight: 600, marginBottom: 2 }}>Placement</div>
+      <div style={{ display: "flex", gap: 4, background: "#1e1e1e", border: "1px solid #333", borderRadius: 4, padding: 2 }}>
+        <button
+          onClick={() => setProp((p) => { p.display = "flex"; p.flexDirection = "column"; })}
+          title="Vertical — children stacked"
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, background: props.flexDirection === "column" && props.display === "flex" ? "#333" : "transparent", color: props.flexDirection === "column" && props.display === "flex" ? "#fff" : "#aaa", border: "none", borderRadius: 3, padding: "6px 4px", fontSize: 11, cursor: "pointer" }}
+        >
+          <span style={{ display: "flex", flexDirection: "column", gap: 2 }}><span style={{ width: 12, height: 2, background: "currentColor", borderRadius: 1 }} /><span style={{ width: 12, height: 2, background: "currentColor", borderRadius: 1 }} /><span style={{ width: 12, height: 2, background: "currentColor", borderRadius: 1 }} /></span> Vertical
+        </button>
+        <button
+          onClick={() => setProp((p) => { p.display = "flex"; p.flexDirection = "row"; })}
+          title="Horizontal — children side-by-side"
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, background: props.flexDirection === "row" && props.display === "flex" ? "#333" : "transparent", color: props.flexDirection === "row" && props.display === "flex" ? "#fff" : "#aaa", border: "none", borderRadius: 3, padding: "6px 4px", fontSize: 11, cursor: "pointer" }}
+        >
+          <span style={{ display: "flex", gap: 2 }}><span style={{ width: 2, height: 12, background: "currentColor", borderRadius: 1 }} /><span style={{ width: 2, height: 12, background: "currentColor", borderRadius: 1 }} /><span style={{ width: 2, height: 12, background: "currentColor", borderRadius: 1 }} /></span> Horizontal
+        </button>
+      </div>
       <Slider label="Padding" value={props.padding} min={0} max={48} onChange={(v) => setProp((p) => (p.padding = v))} />
       <Slider label="Gap" value={props.gap} min={0} max={32} onChange={(v) => setProp((p) => (p.gap = v))} />
       <Slider label="Radius" value={props.borderRadius} min={0} max={24} onChange={(v) => setProp((p) => (p.borderRadius = v))} />
@@ -314,14 +351,12 @@ const Toolbox = () => {
 
 // ── Settings Panel (shows selected node's related.settings) ───────────────────
 const SettingsPanel = () => {
-  const { selected, query, actions } = useEditor((state, query) => {
-    const [id] = state.events.selected;
-    let selected;
-    if (id) selected = state.nodes[id];
-    return { selected, query };
+  const { actions, query, selected, selectedId } = useEditor((state, query) => {
+    const selectedId = state.events.selected.values().next().value;
+    const selected = selectedId ? state.nodes[selectedId] : null;
+    return { selected, selectedId, query };
   });
-  const selectedId = useEditor((state) => state.events.selected.values().next().value);
-  if (!selected) return <div style={{ padding: 12, color: "#666", fontSize: 11, textAlign: "center" }}>Select an element to edit<br/>props & styles</div>;
+  if (!selected) return <div style={{ padding: 12, color: "#666", fontSize: 11, textAlign: "center" }}>Select an element to edit<br/>props & styles<br/><span style={{ fontSize: 10, color: "#555" }}>Click any element on canvas</span></div>;
   const related = selected.related?.settings;
   return (
     <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -533,6 +568,7 @@ const BuilderPanel = () => {
         resolver={{ Container, Text, Heading, Button: ButtonComp, Input: InputComp, Image: ImageComp, Box: BoxComp, Divider: DividerComp, Card, CardTop, CardBottom }}
         enabled={true}
         indicator={{ success: "#4ec9b0", error: "#f44747" }}
+        onRender={RenderNode}
       >
         {/* File + Type Bar */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", background: "#252526", borderBottom: "1px solid #2d2d2d", flexWrap: "wrap" }}>
