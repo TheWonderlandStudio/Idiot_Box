@@ -1,6 +1,6 @@
 // Visual Builder — Full Craft.js (https://github.com/prevwong/craft.js) — JSX / TSX / HTML
 // Implements Craft.js tutorial + docs concepts: nodes, connectors, canvas, droppable regions, rules, resolver, serialize
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Editor, Frame, Element, useEditor, useNode } from "@craftjs/core";
 import { Layers as CraftLayers } from "@craftjs/layers";
 import {
