@@ -6,7 +6,7 @@ import { Layers as CraftLayers } from "@craftjs/layers";
 import {
   Heading1, Type, Square, Box, Image as ImageIcon, Minus, MousePointerClick,
   TextCursorInput, Container as ContainerIcon, Layers, Settings2, Trash2, Copy,
-  Eye, Code2, Save, RefreshCw, FilePlus, Download, Palette, Move, Undo2, Redo2, FileCode, FileText
+  Eye, Code2, Save, RefreshCw, FilePlus, Download, Palette, Move, Undo2, Redo2, FileCode, FileText, Search, X
 } from "lucide-react";
 import { useInputDialog } from "../shared/InputDialog.jsx";
 
