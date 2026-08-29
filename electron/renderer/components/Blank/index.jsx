@@ -141,6 +141,21 @@ const PANEL_TYPES = [
     ),
     config: {},
   },
+  {
+    id: "ai",
+    name: "AI Assistant",
+    component: "aiPanel",
+    description: "OpenCode AI — full app control, file ops, git, terminal, search",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="2" width="12" height="12" rx="2" stroke="#4ec9b0" strokeWidth="1.5" />
+        <path d="M6 8L8 10L11 6" stroke="#4ec9b0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="5" cy="5" r="1" fill="#4ec9b0" />
+        <circle cx="11" cy="11" r="1" fill="#4ec9b0" />
+      </svg>
+    ),
+    config: {},
+  },
 ];
 
 const BlankPanel = ({ nodeId, config }) => {

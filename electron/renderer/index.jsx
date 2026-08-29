@@ -20,6 +20,7 @@ import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
+import AIPanel from "./components/AIPanel/index.jsx";
 
 const DEFAULT_JSON = {
   global: {
@@ -66,10 +67,7 @@ const DEFAULT_JSON = {
         type: "tabset", weight: 25, id: "editor-tabset",
         children: [{ type: "tab", name: "Editor", component: "editor" }],
       },
-      {
-        type: "tabset", weight: 20,
-        children: [{ type: "tab", name: "Git", component: "gitPanel" }],
-      },
+      
     ],
   },
 };
@@ -85,8 +83,9 @@ const factory = (node) => {
     case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
     case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
   case "problems":          return <ProblemsPanel />;
-  case "gitPanel":          return <GitPanel />;
+  case "gitPanel":          return <GitPanel nodeId={node.getId()} />;
   case "ports":             return <PortsPanel />;
+  case "aiPanel":           return <AIPanel nodeId={node.getId()} />;
   default:                  return null;
   }
 };
@@ -611,15 +610,47 @@ const App = () => {
       }
       addPanel("ports", "Ports", {});
     };
+    const onGit = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findGit = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "gitPanel") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findGit(c); if (r) return r; }
+          return null;
+        };
+        const existing = findGit(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("gitPanel", "Git", {});
+    };
+    const onAI = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findAI = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "aiPanel") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findAI(c); if (r) return r; }
+          return null;
+        };
+        const existing = findAI(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("aiPanel", "AI Assistant", {});
+    };
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-component-preview-panel", onPreview);
     window.addEventListener("add-canvas-panel", onCanvas);
     window.addEventListener("add-ports-panel", onPorts);
+    window.addEventListener("add-git-panel", onGit);
+    window.addEventListener("add-ai-panel", onAI);
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
       window.removeEventListener("add-component-preview-panel", onPreview);
       window.removeEventListener("add-canvas-panel", onCanvas);
       window.removeEventListener("add-ports-panel", onPorts);
+      window.removeEventListener("add-git-panel", onGit);
+      window.removeEventListener("add-ai-panel", onAI);
     };
   }, []);
 
@@ -657,6 +688,12 @@ const App = () => {
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:openPorts", () => {
       window.dispatchEvent(new CustomEvent("add-ports-panel"));
+    });
+    return unsub;
+  }, []);
+  useEffect(() => {
+    const unsub = window.electronAPI.onMenuEvent("menu:openGit", () => {
+      window.dispatchEvent(new CustomEvent("add-git-panel"));
     });
     return unsub;
   }, []);

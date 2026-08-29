@@ -567,6 +567,11 @@ const EditorPanel = ({ config, nodeId }) => {
         fontSize: fontSize,
         fontFamily: fontFamily,
         tabSize: tabSize,
+        glyphMargin: false,
+        lineDecorationsWidth: 0,
+        lineNumbersMinChars: 4,
+        folding: false,
+        renderLineHighlight: "all",
       });
     } catch {}
   }, [minimap, wordWrap, lineNumbers, fontSize, fontFamily, tabSize]);
@@ -635,6 +640,10 @@ const EditorPanel = ({ config, nodeId }) => {
           renderLineHighlight: "all",
           scrollBeyondLastLine: false,
           tabSize: tabSize,
+          glyphMargin: false,
+          lineDecorationsWidth: 0,
+          lineNumbersMinChars: 4,
+          folding: false,
         });
       } catch (err) {
         setInitError(err?.message || String(err));

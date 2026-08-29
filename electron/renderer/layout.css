@@ -148,6 +148,10 @@ body,
   to { transform: rotate(360deg); }
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Lock icon info popup ──────────────────────────── */
 .browser__lock-overlay {
   position: fixed; inset: 0; z-index: 999;

@@ -51,7 +51,7 @@ const s = {
 };
 
 // ── commit context menu ───────────────────────────────────────────────
-export default function GitPanel(){
+export default function GitPanel({ nodeId }){
   const [projectPath,setProjectPath]=useState(window.__currentProjectPath||null);
   const [status,setStatus]=useState([]);
   const [branchInfo,setBranchInfo]=useState({ branch:"", isRepo:true, ahead:0, behind:0, hasRemote:true });
@@ -439,6 +439,17 @@ export default function GitPanel(){
           <button onClick={doPull} disabled={!!busy} title="Pull" style={{...s.iconBtn,opacity:busy?0.6:1}}>{busy==="pull"?"…":"↓"}</button>
           <button onClick={doPush} disabled={!!busy} title="Push" style={{...s.iconBtn,opacity:busy?0.6:1}}>{busy==="push"?"…":"↑"}</button>
           <button onClick={()=>doRefresh(true)} disabled={loading} title={lastRefresh?`Last: ${lastRefresh.toLocaleTimeString()}`:"Refresh"} style={{...s.iconBtn, opacity:loading?0.5:1}}>{loading?"…":"↻"}</button>
+          {nodeId && (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("close-flex-tab", { detail: { nodeId } }))}
+              title="Close Git panel"
+              style={{...s.iconBtn, color:"#888", opacity:0.7}}
+              onMouseEnter={(e)=>{ e.currentTarget.style.color="#fff"; e.currentTarget.style.opacity="1"; }}
+              onMouseLeave={(e)=>{ e.currentTarget.style.color="#888"; e.currentTarget.style.opacity="0.7"; }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 

@@ -3120,7 +3120,7 @@ function buildMenu() {
         { type: "separator" },
         { label: "Reset Layout", accelerator: "CmdOrCtrl+Alt+R", click: () => sendToRenderer("menu:resetLayout", null) },
         { type: "separator" },
-        { label: "Ports — Forwarded & Running", click: () => sendToRenderer("menu:openPorts", null) },
+        { label: "Ports", click: () => sendToRenderer("menu:openPorts", null) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
       ],

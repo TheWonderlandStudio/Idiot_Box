@@ -16,6 +16,8 @@ const COMMANDS = [
   { id: "add-preview",    title: "Add Component Preview",  run: () => window.dispatchEvent(new CustomEvent("add-component-preview-panel")) },
   { id: "add-canvas",     title: "Add Canvas Panel",       run: () => window.dispatchEvent(new CustomEvent("add-canvas-panel")) },
   { id: "add-ports",      title: "Add Ports Panel",        run: () => window.dispatchEvent(new CustomEvent("add-ports-panel")) },
+  { id: "add-git",        title: "Add Git Panel",          run: () => window.dispatchEvent(new CustomEvent("add-git-panel")) },
+  { id: "add-ai",         title: "Add AI Assistant Panel", run: () => window.dispatchEvent(new CustomEvent("add-ai-panel")) },
   { type: "separator" },
   { id: "reset-layout",   title: "Reset Window Layout",    run: () => window.dispatchEvent(new CustomEvent("menu:action", { detail: { cmd: "resetLayout" } })) },
   { id: "toggle-fullscreen", title: "Toggle Full Screen",  run: () => window.dispatchEvent(new CustomEvent("app:fullscreen")) },
