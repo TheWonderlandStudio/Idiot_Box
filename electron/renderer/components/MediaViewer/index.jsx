@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 
-const TEXT_EXTS  = [".txt", ".md", ".json", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".py", ".xml", ".yaml", ".yml", ".ini", ".cfg", ".log", ".sh", ".bat", ".ps1", ".sql", ".rb", ".php", ".c", ".cpp", ".h", ".hpp", ".java", ".rs", ".go", ".toml"];
-const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico"];
-const VIDEO_EXTS_SUPPORTED   = [".mp4", ".webm"];
-const VIDEO_EXTS_UNSUPPORTED = [".avi", ".mov", ".mkv", ".wmv", ".flv"];
+const TEXT_EXTS  = [".txt", ".md", ".json", ".js", ".jsx", ".ts", ".tsx", ".html", ".htm", ".css", ".scss", ".less", ".py", ".xml", ".yaml", ".yml", ".ini", ".cfg", ".conf", ".env", ".log", ".sh", ".bash", ".bat", ".ps1", ".sql", ".rb", ".php", ".c", ".cpp", ".h", ".hpp", ".java", ".rs", ".go", ".toml", ".csv", ".tsv", ".properties", ".gradle", ".gitignore", ".dockerfile", ".makefile"];
+const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".avif", ".tiff", ".tif", ".heic", ".heif"];
+const VIDEO_EXTS_SUPPORTED   = [".mp4", ".webm", ".ogv"];
+const VIDEO_EXTS_UNSUPPORTED = [".avi", ".mov", ".mkv", ".wmv", ".flv", ".m4v", ".3gp"];
+const PDF_EXTS  = [".pdf"];
+const AUDIO_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma", ".opus", ".aiff", ".mid", ".midi"];
 
 const ext = (p) => {
   try {
@@ -119,6 +121,32 @@ const MediaViewer = () => {
     if (VIDEO_EXTS_UNSUPPORTED.includes(e)) {
       setError(`${e.toUpperCase().slice(1)} videos are not supported natively. Convert to MP4 or WebM.`);
       setFilePath(fp);
+      return;
+    }
+
+    if (PDF_EXTS.includes(e)) {
+      const fileUrl = toFileUrl(fp);
+      if (fileUrl) {
+        setContent(fileUrl);
+        setType("pdf");
+        setFilePath(fp);
+      } else {
+        setError(`Could not resolve path: ${fileName(fp)}`);
+        setFilePath(fp);
+      }
+      return;
+    }
+
+    if (AUDIO_EXTS.includes(e)) {
+      const fileUrl = toFileUrl(fp);
+      if (fileUrl) {
+        setContent(fileUrl);
+        setType("audio");
+        setFilePath(fp);
+      } else {
+        setError(`Could not resolve path: ${fileName(fp)}`);
+        setFilePath(fp);
+      }
       return;
     }
 
@@ -352,7 +380,7 @@ const MediaViewer = () => {
             <path d="M2 2.5A1.5 1.5 0 0 1 3.5 1h6.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914A1.5 1.5 0 0 1 14 5.414V13.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5v-11z"/>
           </svg>
           <span style={{ color: "#888", fontWeight: 500 }}>Drop file here to view</span>
-          <span style={{ fontSize: 11, color: "#555" }}>or right-click any file in project tree → Open in Media Viewer</span>
+          <span style={{ fontSize: 11, color: "#555", textAlign: "center", lineHeight: 1.5 }}>Images • Videos • PDFs • Audio • Text<br/>or right-click any file → Open in Media Viewer</span>
         </div>
       )}
 
@@ -632,6 +660,30 @@ const MediaViewer = () => {
               src={content}
               onError={() => setError(`Failed to play video. Unsupported codec or corrupted file.`)}
             />
+          </div>
+        )}
+
+        {/* ── PDF VIEW ─────────────────────────────────────────────── */}
+        {type === "pdf" && content && (
+          <iframe
+            src={content}
+            style={{ width: "100%", height: "100%", border: "none", background: "#525659" }}
+            title={fileName(filePath)}
+          />
+        )}
+
+        {/* ── AUDIO VIEW ───────────────────────────────────────────── */}
+        {type === "audio" && content && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, width: "100%" }}>
+            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#252526", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>♫</div>
+            <div style={{ color: "#e0e0e0", fontSize: 13, fontWeight: 600, textAlign: "center", maxWidth: "80%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName(filePath)}</div>
+            <audio
+              controls
+              src={content}
+              style={{ width: "80%", maxWidth: 480, outline: "none" }}
+              onError={() => setError(`Failed to play audio.`)}
+            />
+            {fileInfo?.size && <div style={{ color: "#888", fontSize: 11 }}>{formatFileSize(fileInfo.size)}</div>}
           </div>
         )}
 

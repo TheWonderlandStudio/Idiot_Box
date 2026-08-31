@@ -842,7 +842,7 @@ const App = () => {
 
   // ── Open files in the Editor as flexlayout tabs ──────────────────────────
   useEffect(() => {
-    const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm"];
+    const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".avif", ".tiff", ".tif", ".heic", ".mp4", ".webm", ".ogv", ".pdf", ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma", ".opus"];
 
     // Find the currently active/selected editor tab node
     const findActiveEditorTab = (m) => {
@@ -994,7 +994,7 @@ const App = () => {
         if (!paths?.length) return;
         window.__ibxDragPaths = null;
 
-        const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm"];
+        const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".avif", ".tiff", ".tif", ".heic", ".mp4", ".webm", ".ogv", ".pdf", ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma", ".opus"];
         const m = modelRef.current;
         if (!m) return;
 

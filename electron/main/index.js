@@ -3570,7 +3570,17 @@ function buildMenu() {
     },
     {
       label: "Help", submenu: [
-        { label: "About Idiot Box", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) dialog.showMessageBox(win, { type: "info", title: "About Idiot Box", message: `Idiot Box v${app.getVersion()}`, detail: "A VS Code-like editor built with Electron, React, and Monaco.\n\n© 2026 Idiot Box" }); } },
+        { label: "About Idiot Box", click: () => {
+            const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+            if (win) dialog.showMessageBox(win, {
+              type: "info",
+              title: "About Idiot Box",
+              message: `Idiot Box v${app.getVersion()}`,
+              detail: "A fast, modern and lightweight code editor crafted for developers.\nDesigned to be simple, powerful and extensible.\n\n© 2026 TheWonderlandStudio\nhttps://github.com/TheWonderlandStudio/Idiot_Box",
+              buttons: ["OK", "View on GitHub"],
+              defaultId: 0,
+            }).then(({ response }) => { if (response === 1) shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box"); });
+          } },
         { label: "Check for Updates…", click: async () => {
             if (!autoUpdater) { dialog.showMessageBox({ type:"info", message:"Updater not available" }); return; }
             try {

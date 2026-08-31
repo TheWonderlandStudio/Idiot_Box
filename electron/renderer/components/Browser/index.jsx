@@ -36,6 +36,7 @@ const BrowserPanel = (props) => {
   const nodeIdRef    = useRef(nodeId);
   const goToUrlRef   = useRef(null);
   const actionListRef = useRef(null);
+  const inputRef     = useRef(null);
 
   const syncActionTab = useCallback(() => {
     try {
@@ -691,6 +692,76 @@ const BrowserPanel = (props) => {
     return ()=> { try{ unsub?.(); }catch{} };
   }, []);
 
+  // ── Browser shortcuts (F5, Ctrl+R, etc.) — only when this tab is active ──
+  useEffect(() => {
+    const isActiveBrowser = () => {
+      try {
+        const m = window.__flexModel?.current;
+        if (!m) return false;
+        const active = m.getActiveTabset()?.getSelectedNode();
+        return active && active.getId() === nodeIdRef.current;
+      } catch { return false; }
+    };
+    const handler = (e) => {
+      if (!isActiveBrowser()) return;
+      const wv = webviewRef.current;
+      if (!wv) return;
+      // F5 or Ctrl+R → reload
+      if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "r")) {
+        e.preventDefault();
+        try { wv.reload(); } catch {}
+        return;
+      }
+      // Ctrl+Shift+R / Ctrl+F5 → hard reload
+      if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "r") || (e.ctrlKey && e.key === "F5")) {
+        e.preventDefault();
+        try { if (wv.reloadIgnoringCache) wv.reloadIgnoringCache(); else wv.reload(); } catch { try { wv.reload(); } catch {} }
+        return;
+      }
+      // Alt+Left → back, Alt+Right → forward
+      if (e.altKey && e.key === "ArrowLeft") {
+        e.preventDefault();
+        try { if (wv.canGoBack()) wv.goBack(); } catch {}
+        return;
+      }
+      if (e.altKey && e.key === "ArrowRight") {
+        e.preventDefault();
+        try { if (wv.canGoForward()) wv.goForward(); } catch {}
+        return;
+      }
+      // Ctrl+L / Alt+D → focus URL bar
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l" || (e.altKey && e.key.toLowerCase() === "d")) {
+        e.preventDefault();
+        try { inputRef.current?.focus(); inputRef.current?.select(); } catch {}
+        return;
+      }
+      // Escape → stop loading
+      if (e.key === "Escape" && isLoading) {
+        e.preventDefault();
+        try { wv.stop(); } catch {}
+        return;
+      }
+      // Ctrl+0 → reset zoom, Ctrl+Plus/Ctrl+Minus → zoom (webview)
+      if ((e.ctrlKey || e.metaKey) && (e.key === "0")) {
+        e.preventDefault();
+        try { wv.setZoomFactor(1); } catch {}
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+" )) {
+        e.preventDefault();
+        try { const z = wv.getZoomFactor(); wv.setZoomFactor(Math.min(z + 0.1, 3)); } catch {}
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "-") {
+        e.preventDefault();
+        try { const z = wv.getZoomFactor(); wv.setZoomFactor(Math.max(z - 0.1, 0.2)); } catch {}
+        return;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isLoading]);
+
   // ── Lock popup ─────────────────────────────────────────────────────────────
   const handleLockClick = useCallback((e) => {
     e.stopPropagation();
@@ -766,6 +837,7 @@ const BrowserPanel = (props) => {
               {isLocal ? <Globe size={14} /> : isHttps ? <Lock size={14} /> : <Unlock size={14} />}
             </span>
             <input
+              ref={inputRef}
               className="browser__url"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
