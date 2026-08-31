@@ -82,11 +82,15 @@ When the user asks you to do something, use the appropriate tool. Explain what y
 function AIPanel({ nodeId }) {
   console.log("[AIPanel] Mounted, nodeId:", nodeId, "projectPath:", window.__currentProjectPath);
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hello! I'm OpenCode AI. I can help you with coding tasks, file operations, git, terminal, and more. What would you like to do?", toolCalls: null, toolResults: null },
+    { role: "assistant", content: "Hello! I'm OpenCode AI. I can help you with coding tasks, file operations, git, terminal, and more. I'm connecting to the OpenCode server...", toolCalls: null, toolResults: null },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [projectPath, setProjectPath] = useState(() => window.__currentProjectPath || null);
+  const [connectionStatus, setConnectionStatus] = useState("disconnected");
+  const [installingCLI, setInstallingCLI] = useState(false);
+  const [serverPassword, setServerPassword] = useState("");
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -103,6 +107,53 @@ function AIPanel({ nodeId }) {
     window.addEventListener("project:opened", onOpened);
     window.addEventListener("project:closed", onClosed);
     return () => { window.removeEventListener("project:opened", onOpened); window.removeEventListener("project:closed", onClosed); };
+  }, []);
+
+  // Initialize OpenCode SDK via IPC
+  useEffect(() => {
+    const initSDK = async () => {
+      try {
+        setConnectionStatus("connecting");
+        const result = await window.electronAPI.opencodeInit({
+          hostname: "127.0.0.1",
+          port: 4096,
+        });
+        
+        if (result.success) {
+          setConnectionStatus("connected");
+          console.log("[AIPanel] OpenCode SDK connected:", result.url);
+          // Update initial message to show successful connection
+          setMessages(prev => [{
+            role: "assistant",
+            content: "Hello! I'm OpenCode AI. I can help you with coding tasks, file operations, git, terminal, and more. I'm connected and ready to help!",
+            toolCalls: null,
+            toolResults: null,
+            id: Date.now() + Math.random()
+          }]);
+        } else {
+          setConnectionStatus("error");
+          setMessages(prev => [...prev, {
+            role: "assistant",
+            content: `Failed to connect to OpenCode AI server: ${result.error}. Make sure the OpenCode server is running on 127.0.0.1:4096.`,
+            toolCalls: null,
+            toolResults: null,
+            id: Date.now() + Math.random()
+          }]);
+        }
+      } catch (error) {
+        console.error("[AIPanel] Failed to connect to OpenCode SDK:", error);
+        setConnectionStatus("error");
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "Failed to connect to OpenCode AI server. Make sure the OpenCode server is running on 127.0.0.1:4096.",
+          toolCalls: null,
+          toolResults: null,
+          id: Date.now() + Math.random()
+        }]);
+      }
+    };
+
+    initSDK();
   }, []);
 
   const addMessage = (role, content, toolCalls, toolResults) => {
@@ -255,130 +306,331 @@ function AIPanel({ nodeId }) {
     abortControllerRef.current = new AbortController();
 
     try {
-      // Simple intent detection for quick actions without LLM
-      const lower = userInput.toLowerCase();
+      if (connectionStatus !== "connected") {
+        addMessage("assistant", "OpenCode AI is not connected. Please make sure the OpenCode server is running on 127.0.0.1:4096.");
+        setLoading(false);
+        return;
+      }
+
+      // Prepare conversation history for the SDK
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Add current user message
+      conversationHistory.push({ role: "user", content: userInput });
+
+      // Define tools for the AI
+      const tools = [
+        {
+          name: "openFile",
+          description: "Open a file in the code editor",
+          parameters: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "File path to open" }
+            },
+            required: ["path"]
+          }
+        },
+        {
+          name: "openMedia",
+          description: "Open image/video in media viewer",
+          parameters: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "Media file path" }
+            },
+            required: ["path"]
+          }
+        },
+        {
+          name: "openBrowser",
+          description: "Open a URL in the internal browser",
+          parameters: {
+            type: "object",
+            properties: {
+              url: { type: "string", description: "URL to open" },
+              title: { type: "string", description: "Tab title (optional)" }
+            },
+            required: ["url"]
+          }
+        },
+        {
+          name: "openTerminal",
+          description: "Open a new terminal panel",
+          parameters: {
+            type: "object",
+            properties: {
+              cwd: { type: "string", description: "Working directory (optional)" }
+            }
+          }
+        },
+        {
+          name: "runTerminalCommand",
+          description: "Run a command in the active terminal",
+          parameters: {
+            type: "object",
+            properties: {
+              command: { type: "string", description: "Command to run" },
+              cwd: { type: "string", description: "Working directory (optional)" }
+            },
+            required: ["command"]
+          }
+        },
+        {
+          name: "openGit",
+          description: "Open the Git panel",
+          parameters: { type: "object" }
+        },
+        {
+          name: "openPorts",
+          description: "Open the Ports panel",
+          parameters: { type: "object" }
+        },
+        {
+          name: "openCanvas",
+          description: "Open the Canvas (visual project map)",
+          parameters: { type: "object" }
+        },
+        {
+          name: "searchFiles",
+          description: "Search files by name in the project",
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Search query" },
+              limit: { type: "number", description: "Max results (default 50)" }
+            },
+            required: ["query"]
+          }
+        },
+        {
+          name: "searchText",
+          description: "Search text content in project files",
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Text to search for" },
+              limit: { type: "number", description: "Max results (default 100)" }
+            },
+            required: ["query"]
+          }
+        },
+        {
+          name: "gitStatus",
+          description: "Get git status of current project",
+          parameters: { type: "object" }
+        },
+        {
+          name: "gitDiff",
+          description: "Get diff for a specific file",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "File path to diff" }
+            },
+            required: ["filePath"]
+          }
+        },
+        {
+          name: "gitCommit",
+          description: "Commit staged changes",
+          parameters: {
+            type: "object",
+            properties: {
+              message: { type: "string", description: "Commit message" }
+            },
+            required: ["message"]
+          }
+        },
+        {
+          name: "gitStage",
+          description: "Stage a specific file",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "File path to stage" }
+            },
+            required: ["filePath"]
+          }
+        },
+        {
+          name: "gitStageAll",
+          description: "Stage all changes",
+          parameters: { type: "object" }
+        },
+        {
+          name: "gitUnstage",
+          description: "Unstage a file",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "File path to unstage" }
+            },
+            required: ["filePath"]
+          }
+        },
+        {
+          name: "gitDiscard",
+          description: "Discard changes in a file",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "File path" }
+            },
+            required: ["filePath"]
+          }
+        },
+        {
+          name: "openProject",
+          description: "Open a project folder",
+          parameters: { type: "object" }
+        },
+        {
+          name: "getProjectPath",
+          description: "Get current project path",
+          parameters: { type: "object" }
+        },
+        {
+          name: "listFiles",
+          description: "List files in a directory",
+          parameters: {
+            type: "object",
+            properties: {
+              dirPath: { type: "string", description: "Directory path (optional, defaults to project root)" }
+            }
+          }
+        },
+        {
+          name: "readFile",
+          description: "Read file content",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "File path to read" }
+            },
+            required: ["filePath"]
+          }
+        },
+        {
+          name: "writeFile",
+          description: "Write content to a file",
+          parameters: {
+            type: "object",
+            properties: {
+              filePath: { type: "string", description: "File path to write" },
+              content: { type: "string", description: "Content to write" }
+            },
+            required: ["filePath", "content"]
+          }
+        },
+        {
+          name: "createFile",
+          description: "Create a new file",
+          parameters: {
+            type: "object",
+            properties: {
+              parentPath: { type: "string", description: "Parent directory path" },
+              name: { type: "string", description: "File name" }
+            },
+            required: ["parentPath", "name"]
+          }
+        },
+        {
+          name: "createFolder",
+          description: "Create a new folder",
+          parameters: {
+            type: "object",
+            properties: {
+              parentPath: { type: "string", description: "Parent directory path" },
+              name: { type: "string", description: "Folder name" }
+            },
+            required: ["parentPath", "name"]
+          }
+        },
+        {
+          name: "deleteFile",
+          description: "Delete a file or folder",
+          parameters: {
+            type: "object",
+            properties: {
+              path: { type: "string", description: "Path to delete" }
+            },
+            required: ["path"]
+          }
+        },
+        {
+          name: "openSettings",
+          description: "Open settings window",
+          parameters: { type: "object" }
+        },
+        {
+          name: "resetLayout",
+          description: "Reset window layout to default",
+          parameters: { type: "object" }
+        },
+        {
+          name: "toggleFullscreen",
+          description: "Toggle fullscreen mode",
+          parameters: { type: "object" }
+        }
+      ];
+
+      // Call OpenCode SDK via IPC for AI response
+      const result = await window.electronAPI.opencodeChat({
+        messages: conversationHistory,
+        tools
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      const response = result.response;
+
+      // Handle tool calls from AI response
       let toolCalls = [];
       let toolResults = [];
 
-      // Quick local actions
-      if (lower.includes("open git") || lower === "git") {
-        toolCalls.push({ name: "openGit", args: {} });
-      } else if (lower.includes("open ports") || lower === "ports") {
-        toolCalls.push({ name: "openPorts", args: {} });
-      } else if (lower.includes("open canvas") || lower === "canvas") {
-        toolCalls.push({ name: "openCanvas", args: {} });
-      } else if (lower.includes("open terminal") || lower === "terminal") {
-        toolCalls.push({ name: "openTerminal", args: {} });
-      } else if (lower.includes("open browser") || lower.startsWith("http")) {
-        const url = lower.startsWith("http") ? userInput : "https://www.google.com";
-        toolCalls.push({ name: "openBrowser", args: { url } });
-      } else if (lower.includes("reset layout")) {
-        toolCalls.push({ name: "resetLayout", args: {} });
-      } else if (lower.includes("fullscreen")) {
-        toolCalls.push({ name: "toggleFullscreen", args: {} });
-      } else if (lower.includes("open settings") || lower === "settings") {
-        toolCalls.push({ name: "openSettings", args: {} });
-      } else if (lower.includes("open project")) {
-        toolCalls.push({ name: "openProject", args: {} });
-      } else if (lower.startsWith("open ") && (lower.includes(".png") || lower.includes(".jpg") || lower.includes(".jpeg") || lower.includes(".gif") || lower.includes(".webp") || lower.includes(".mp4") || lower.includes(".webm"))) {
-        const path = userInput.slice(5).trim();
-        toolCalls.push({ name: "openMedia", args: { path } });
-      } else if (lower.startsWith("open ") && (lower.includes(".") || lower.includes("/") || lower.includes("\\"))) {
-        const path = userInput.slice(5).trim();
-        toolCalls.push({ name: "openFile", args: { path } });
-      } else if (lower.startsWith("search ") || lower.startsWith("find ")) {
-        const query = userInput.slice(userInput.indexOf(" ") + 1).trim();
-        if (query) {
-          toolCalls.push({ name: "searchFiles", args: { query } });
+      if (response.toolCalls && response.toolCalls.length > 0) {
+        toolCalls = response.toolCalls;
+        
+        // Execute all tool calls
+        for (const call of toolCalls) {
+          const result = await executeTool(call.name, call.arguments);
+          toolResults.push({ name: call.name, args: call.arguments, result });
         }
-      } else if (lower.startsWith("grep ") || lower.startsWith("search text ")) {
-        const query = userInput.slice(userInput.indexOf(" ") + 1).trim();
-        if (query) {
-          toolCalls.push({ name: "searchText", args: { query } });
-        }
-      } else if (lower.includes("git status")) {
-        toolCalls.push({ name: "gitStatus", args: {} });
-      } else if (lower.startsWith("git diff ")) {
-        const filePath = userInput.slice(9).trim();
-        toolCalls.push({ name: "gitDiff", args: { filePath } });
-      } else if (lower.startsWith("git commit ")) {
-        const message = userInput.slice(11).trim();
-        toolCalls.push({ name: "gitCommit", args: { message } });
-      } else if (lower.startsWith("git stage ") || lower.startsWith("git add ")) {
-        const filePath = userInput.split(" ").slice(2).join(" ").trim();
-        if (filePath === "all" || filePath === ".") {
-          toolCalls.push({ name: "gitStageAll", args: {} });
-        } else {
-          toolCalls.push({ name: "gitStage", args: { filePath } });
-        }
-      } else if (lower.startsWith("git unstage ")) {
-        const filePath = userInput.slice(12).trim();
-        toolCalls.push({ name: "gitUnstage", args: { filePath } });
-      } else if (lower.startsWith("git discard ")) {
-        const filePath = userInput.slice(12).trim();
-        toolCalls.push({ name: "gitDiscard", args: { filePath } });
-      } else if (lower.startsWith("list ") || lower.startsWith("ls ")) {
-        const dirPath = userInput.slice(userInput.indexOf(" ") + 1).trim() || projectPath;
-        toolCalls.push({ name: "listFiles", args: { dirPath } });
-      } else if (lower.startsWith("read ")) {
-        const filePath = userInput.slice(5).trim();
-        toolCalls.push({ name: "readFile", args: { filePath } });
-      } else if (lower.startsWith("write ")) {
-        const parts = userInput.slice(6).trim().split(" ");
-        const filePath = parts[0];
-        const content = parts.slice(1).join(" ");
-        toolCalls.push({ name: "writeFile", args: { filePath, content } });
-      }
 
-      // Execute all tool calls
-      for (const call of toolCalls) {
-        const result = await executeTool(call.name, call.args);
-        toolResults.push({ name: call.name, args: call.args, result });
-      }
+        // If there were tool calls, we might need to get a follow-up response
+        if (toolResults.length > 0) {
+          const followUpMessages = [
+            ...conversationHistory,
+            { role: "assistant", content: response.content, toolCalls: toolCalls },
+            { role: "tool", content: JSON.stringify(toolResults) }
+          ];
 
-      // Generate response
-      let response = "";
-      if (toolCalls.length > 0) {
-        response = "Done! ";
-        for (const tr of toolResults) {
-          if (tr.result.success) {
-            response += tr.result.message + " ";
+          const followUpResult = await window.electronAPI.opencodeChat({
+            messages: followUpMessages,
+            tools: []
+          });
+
+          if (followUpResult.success) {
+            addMessage("assistant", followUpResult.response.content, toolCalls, toolResults);
           } else {
-            response += `Error: ${tr.result.message} `;
+            addMessage("assistant", response.content, toolCalls, toolResults);
           }
-        }
-        if (toolResults.some(tr => tr.name === "searchFiles" && tr.result.data?.length)) {
-          const files = toolResults.find(tr => tr.name === "searchFiles").result.data;
-          response += "\n\nFound " + files.length + " files:\n" + files.slice(0, 10).map(f => `- ${f.rel || f.name}`).join("\n");
-          if (files.length > 10) response += "\n... and " + (files.length - 10) + " more";
-        }
-        if (toolResults.some(tr => tr.name === "searchText" && tr.result.data?.length)) {
-          const results = toolResults.find(tr => tr.name === "searchText").result.data;
-          response += "\n\nFound " + results.length + " matches:\n" + results.slice(0, 5).map(r => `${r.rel}:${r.line} - ${r.preview}`).join("\n");
-        }
-        if (toolResults.some(tr => tr.name === "gitStatus" && tr.result.data?.length)) {
-          const status = toolResults.find(tr => tr.name === "gitStatus").result.data;
-          response += "\n\nGit Status (" + status.length + " files):\n" + status.slice(0, 15).map(f => `${f.status} ${f.rel}`).join("\n");
-        }
-        if (toolResults.some(tr => tr.name === "gitDiff" && tr.result.data)) {
-          const diff = toolResults.find(tr => tr.name === "gitDiff").result.data;
-          response += "\n\n```diff\n" + diff.slice(0, 2000) + (diff.length > 2000 ? "\n... (truncated)" : "") + "\n```";
-        }
-        if (toolResults.some(tr => tr.name === "listFiles" && tr.result.data?.length)) {
-          const files = toolResults.find(tr => tr.name === "listFiles").result.data;
-          response += "\n\nFiles:\n" + files.map(f => `${f.isDir ? "📁" : "📄"} ${f.name}`).join("\n");
-        }
-        if (toolResults.some(tr => tr.name === "readFile" && tr.result.data)) {
-          const content = toolResults.find(tr => tr.name === "readFile").result.data;
-          response += "\n\n```\n" + content.slice(0, 3000) + (content.length > 3000 ? "\n... (truncated)" : "") + "\n```";
+        } else {
+          addMessage("assistant", response.content, toolCalls, toolResults);
         }
       } else {
-        // Fallback: simple chat response
-        response = "I can help you with that! Try commands like:\n- `open <file>` - Open file in editor\n- `open <image/video>` - Open in media viewer\n- `search <query>` - Find files\n- `grep <query>` - Search text in project\n- `git status` - Show git status\n- `git diff <file>` - Show diff\n- `git commit <msg>` - Commit\n- `git stage <file>` / `git stage all` - Stage changes\n- `open terminal` - New terminal\n- `open browser <url>` - Open browser\n- `open git` / `open ports` / `open canvas` - Open panels\n- `list [dir]` - List directory\n- `read <file>` - Read file\n- `write <file> <content>` - Write file\n- `reset layout` - Reset layout\n- `fullscreen` - Toggle fullscreen";
+        // Just a text response, no tool calls
+        addMessage("assistant", response.content, null, null);
       }
 
-      addMessage("assistant", response, toolCalls.length > 0 ? toolCalls : null, toolResults.length > 0 ? toolResults : null);
     } catch (e) {
+      console.error("[AIPanel] Error in handleSend:", e);
       addMessage("assistant", "Error: " + (e?.message || e));
     } finally {
       setLoading(false);
@@ -427,14 +679,205 @@ function AIPanel({ nodeId }) {
     setMessages([{ role: "assistant", content: "Chat cleared. How can I help you?", toolCalls: null, toolResults: null }]);
   };
 
+  const handleStartServer = async () => {
+    try {
+      setConnectionStatus("starting");
+      const result = await window.electronAPI.opencodeStartServer({
+        hostname: "127.0.0.1",
+        port: 4096,
+        projectPath: projectPath || undefined,
+        password: serverPassword || undefined,
+      });
+      
+      if (result.success) {
+        setConnectionStatus("connected");
+        const projectMsg = projectPath ? ` for project: ${projectPath}` : "";
+        setMessages(prev => [{
+          role: "assistant",
+          content: `OpenCode AI server started and connected${projectMsg}! I'm ready to help you with coding tasks, file operations, git, terminal, and more.`,
+          toolCalls: null,
+          toolResults: null,
+          id: Date.now() + Math.random()
+        }]);
+      } else {
+        setConnectionStatus("error");
+        const errorMsg = result.error || "";
+        // Check if error indicates missing password
+        if (errorMsg.includes("OPENCODE_SERVER_PASSWORD") || errorMsg.includes("unsecured")) {
+          setShowPasswordInput(true);
+          setMessages(prev => [...prev, {
+            role: "assistant",
+            content: `Failed to start OpenCode server: The server requires a password for security.\n\nPlease enter a password in the input field above and click the + button again.`,
+            toolCalls: null,
+            toolResults: null,
+            id: Date.now() + Math.random()
+          }]);
+        }
+        // Check if error indicates missing CLI
+        else if (errorMsg.includes("CLI") || errorMsg.includes("ServeError") || errorMsg.includes("Unexpected error")) {
+          setMessages(prev => [...prev, {
+            role: "assistant",
+            content: `Failed to start OpenCode server: ${result.error}\n\nThe OpenCode CLI is not installed. Click the "Install CLI" button above to install it automatically.`,
+            toolCalls: null,
+            toolResults: null,
+            id: Date.now() + Math.random()
+          }]);
+        } else {
+          setMessages(prev => [...prev, {
+            role: "assistant",
+            content: `Failed to start OpenCode server: ${result.error}`,
+            toolCalls: null,
+            toolResults: null,
+            id: Date.now() + Math.random()
+          }]);
+        }
+      }
+    } catch (error) {
+      setConnectionStatus("error");
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Error starting server: ${error?.message || String(error)}`,
+        toolCalls: null,
+        toolResults: null,
+        id: Date.now() + Math.random()
+      }]);
+    }
+  };
+
+  const handleInstallCLI = async () => {
+    try {
+      setInstallingCLI(true);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Installing OpenCode CLI globally... This may take a minute or two.",
+        toolCalls: null,
+        toolResults: null,
+        id: Date.now() + Math.random()
+      }]);
+
+      const result = await window.electronAPI.opencodeInstallCLI();
+      
+      if (result.success) {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "OpenCode CLI installed successfully! You can now start the server by clicking the + button.",
+          toolCalls: null,
+          toolResults: null,
+          id: Date.now() + Math.random()
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `Failed to install CLI: ${result.error}\n\nPlease run manually: npm install -g @opencode-ai/cli`,
+          toolCalls: null,
+          toolResults: null,
+          id: Date.now() + Math.random()
+        }]);
+      }
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Error installing CLI: ${error?.message || String(error)}`,
+        toolCalls: null,
+        toolResults: null,
+        id: Date.now() + Math.random()
+      }]);
+    } finally {
+      setInstallingCLI(false);
+    }
+  };
+
+  const handleRefreshConnection = async () => {
+    try {
+      setConnectionStatus("connecting");
+      const result = await window.electronAPI.opencodeInit({
+        hostname: "127.0.0.1",
+        port: 4096,
+      });
+      
+      if (result.success) {
+        setConnectionStatus("connected");
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "Reconnected to OpenCode AI server!",
+          toolCalls: null,
+          toolResults: null,
+          id: Date.now() + Math.random()
+        }]);
+      } else {
+        setConnectionStatus("error");
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `Failed to reconnect: ${result.error}`,
+          toolCalls: null,
+          toolResults: null,
+          id: Date.now() + Math.random()
+        }]);
+      }
+    } catch (error) {
+      setConnectionStatus("error");
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Error reconnecting: ${error?.message || String(error)}`,
+        toolCalls: null,
+        toolResults: null,
+        id: Date.now() + Math.random()
+      }]);
+    }
+  };
+
   return (
     <div style={s.wrap}>
       <div style={s.header}>
         <div style={s.title}>
           <Sparkles style={{ width: 16, height: 16, color: "#4ec9b0" }} />
           <span>OpenCode AI</span>
+          {connectionStatus === "connecting" && (
+            <span style={{ fontSize: 10, color: "#888", marginLeft: 8 }}>Connecting...</span>
+          )}
+          {connectionStatus === "connected" && (
+            <span style={{ fontSize: 10, color: "#4ec9b0", marginLeft: 8 }}>● Connected</span>
+          )}
+          {connectionStatus === "error" && (
+            <span style={{ fontSize: 10, color: "#f44747", marginLeft: 8 }}>● Disconnected</span>
+          )}
+          {connectionStatus === "disconnected" && (
+            <span style={{ fontSize: 10, color: "#888", marginLeft: 8 }}>● Disconnected</span>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          {showPasswordInput && (
+            <input
+              type="password"
+              placeholder="Server password"
+              value={serverPassword}
+              onChange={(e) => setServerPassword(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleStartServer()}
+              style={{
+                background: "#1e1e1e",
+                border: "1px solid #3a3a3a",
+                color: "#e0e0e0",
+                borderRadius: 4,
+                padding: "4px 8px",
+                fontSize: 11,
+                outline: "none",
+                width: 120,
+              }}
+            />
+          )}
+          {connectionStatus !== "connected" && (
+            <button onClick={handleStartServer} disabled={installingCLI} title="Start OpenCode Server" style={s.iconBtn}>
+              <Plus size={14} />
+            </button>
+          )}
+          {connectionStatus === "error" && (
+            <button onClick={handleInstallCLI} disabled={installingCLI} title="Install OpenCode CLI" style={{ ...s.iconBtn, background: installingCLI ? "#2a2d2e" : "#2d2d2d", opacity: installingCLI ? 0.6 : 1 }}>
+              {installingCLI ? <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Settings size={14} />}
+            </button>
+          )}
+          <button onClick={handleRefreshConnection} title="Refresh Connection" style={s.iconBtn}>
+            <RefreshCw size={14} />
+          </button>
           {nodeId && (
             <button onClick={() => window.dispatchEvent(new CustomEvent("close-flex-tab", { detail: { nodeId } }))} title="Close panel" style={s.iconBtn}>
               <X size={14} />
@@ -456,11 +899,11 @@ function AIPanel({ nodeId }) {
 
       <div style={s.messages} role="log" aria-live="polite">
         {messages.map((msg, i) => (
-          <div key={msg.id} style={[s.msgRow, msg.role === "user" ? s.msgRowUser : s.msgRowBot]}>
-            <div style={[s.avatar, msg.role === "user" ? s.avatarUser : s.avatarBot]}>
+          <div key={msg.id} style={msg.role === "user" ? { ...s.msgRow, ...s.msgRowUser } : { ...s.msgRow, ...s.msgRowBot }}>
+            <div style={msg.role === "user" ? { ...s.avatar, ...s.avatarUser } : { ...s.avatar, ...s.avatarBot }}>
               {msg.role === "user" ? <MessageSquare size={14} /> : <Sparkles size={14} />}
             </div>
-            <div style={[s.bubble, msg.role === "user" ? s.bubbleUser : s.bubbleBot]}>
+            <div style={msg.role === "user" ? { ...s.bubble, ...s.bubbleUser } : { ...s.bubble, ...s.bubbleBot }}>
               <div>{msg.content}</div>
               {msg.toolCalls && msg.toolCalls.map((tc, idx) => (
                 <div key={idx} style={s.toolCall}>
@@ -481,7 +924,7 @@ function AIPanel({ nodeId }) {
           </div>
         ))}
         {loading && (
-          <div key="loading" style={[s.msgRow, s.msgRowBot]}>
+          <div key="loading" style={{ ...s.msgRow, ...s.msgRowBot }}>
             <div style={s.avatarBot}><Sparkles size={14} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#2d2d2d", border: "1px solid #3a3a3a", borderRadius: 12, borderBottomLeftRadius: 4 }}>
               <div style={s.spinner} />
@@ -503,7 +946,7 @@ function AIPanel({ nodeId }) {
           style={s.input}
           rows={1}
         />
-        <button onClick={handleSend} disabled={loading || !input.trim() || !projectPath} style={[s.sendBtn, (loading || !input.trim() || !projectPath) && s.sendBtnDisabled]}>
+        <button onClick={handleSend} disabled={loading || !input.trim() || !projectPath} style={{ ...s.sendBtn, ...(loading || !input.trim() || !projectPath) && s.sendBtnDisabled }}>
           <Send size={16} />
 </button>
 </div>

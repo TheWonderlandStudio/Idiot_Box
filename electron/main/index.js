@@ -12,6 +12,7 @@ let esbuild = null;
 try { esbuild = require("esbuild"); } catch (e) { console.warn("[main] esbuild not available:", e.message); }
 let ElectronChromeExtensions = null;
 try { ({ ElectronChromeExtensions } = require("electron-chrome-extensions")); } catch (e) { console.warn("[main] electron-chrome-extensions not available:", e.message); }
+let opencodeSDK = null;
 
 // ─── Global error handlers — prevent crash on missing optional deps ──────────
 process.on("uncaughtException", (err) => {
@@ -1226,7 +1227,155 @@ ipcMain.handle("projectConfig:writeTabs", async (_e, rootPath, data) => {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     memTabsCache.set(rootPath, data);
     return true;
-  } catch { return false; }
+  } catch { return false;
+  }
+});
+
+// ─── OpenCode AI SDK ─────────────────────────────────────────────────────────────
+let opencodeInstance = null;
+let opencodeStatus = "disconnected";
+let opencodeServerProcess = null;
+
+ipcMain.handle("opencode:startServer", async (_e, { hostname = "127.0.0.1", port = 4096, projectPath, password } = {}) => {
+  try {
+    if (opencodeServerProcess) {
+      return { success: false, error: "Server already running" };
+    }
+    
+    opencodeStatus = "starting";
+    
+    // Set environment variable for password if provided
+    const env = { ...process.env };
+    if (password) {
+      env.OPENCODE_SERVER_PASSWORD = password;
+    }
+    
+    // Spawn the opencode serve CLI process
+    const { spawn } = require("child_process");
+    const args = ["serve"];
+    
+    if (projectPath) {
+      args.push("--directory", projectPath);
+    }
+    
+    opencodeServerProcess = spawn("opencode", args, {
+      env,
+      cwd: projectPath || undefined,
+    });
+    
+    opencodeServerProcess.on("error", (err) => {
+      console.error("[main] Failed to spawn opencode serve:", err);
+      opencodeStatus = "error";
+      opencodeServerProcess = null;
+    });
+    
+    opencodeServerProcess.on("exit", (code, signal) => {
+      console.log("[main] OpenCode server process exited with code:", code, "signal:", signal);
+      opencodeStatus = "disconnected";
+      opencodeServerProcess = null;
+      if (opencodeInstance) {
+        opencodeInstance = null;
+      }
+    });
+    
+    // Wait a moment for server to start, then connect via SDK
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Dynamic import for ESM compatibility
+    const sdk = await import("@opencode-ai/sdk");
+    
+    // Connect to the running server with password if provided
+    const options = { hostname, port };
+    if (password) {
+      options.password = password;
+    }
+    
+    opencodeInstance = await sdk.createOpencode(options);
+    opencodeStatus = "connected";
+    console.log("[main] OpenCode SDK connected:", opencodeInstance.server.url, "project:", projectPath);
+    return { success: true, url: opencodeInstance.server.url };
+  } catch (error) {
+    opencodeStatus = "error";
+    console.error("[main] OpenCode SDK connection failed:", error);
+    // Clean up server process if it exists
+    if (opencodeServerProcess) {
+      opencodeServerProcess.kill();
+      opencodeServerProcess = null;
+    }
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle("opencode:stopServer", async () => {
+  try {
+    // Kill the spawned server process
+    if (opencodeServerProcess) {
+      opencodeServerProcess.kill();
+      opencodeServerProcess = null;
+    }
+    // Close SDK connection
+    if (opencodeInstance && opencodeInstance.server) {
+      opencodeInstance.server.close();
+    }
+    opencodeInstance = null;
+    opencodeStatus = "disconnected";
+    return { success: true };
+  } catch (error) {
+    console.error("[main] Failed to stop OpenCode server:", error);
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle("opencode:init", async (_e, { hostname = "127.0.0.1", port = 4096 } = {}) => {
+  try {
+    opencodeStatus = "connecting";
+    // Dynamic import for ESM compatibility
+    const sdk = await import("@opencode-ai/sdk");
+    opencodeInstance = await sdk.createOpencode({ hostname, port });
+    opencodeStatus = "connected";
+    console.log("[main] OpenCode SDK connected:", opencodeInstance.server.url);
+    return { success: true, url: opencodeInstance.server.url };
+  } catch (error) {
+    opencodeStatus = "error";
+    console.error("[main] OpenCode SDK connection failed:", error);
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle("opencode:chat", async (_e, { messages, tools = [] } = {}) => {
+  if (!opencodeInstance || opencodeStatus !== "connected" || !opencodeInstance.client) {
+    return { success: false, error: "OpenCode SDK not connected" };
+  }
+  try {
+    const response = await opencodeInstance.client.chat({ messages, tools });
+    return { success: true, response };
+  } catch (error) {
+    console.error("[main] OpenCode chat failed:", error);
+    return { success: false, error: error?.message || String(error) };
+  }
+});
+
+ipcMain.handle("opencode:status", async () => {
+  return { status: opencodeStatus };
+});
+
+ipcMain.handle("opencode:installCLI", async () => {
+  try {
+    const { exec } = require("child_process");
+    const util = require("util");
+    const execAsync = util.promisify(exec);
+    
+    console.log("[main] Installing @opencode-ai/cli globally...");
+    const { stdout, stderr } = await execAsync("npm install -g @opencode-ai/cli", {
+      timeout: 120000, // 2 minute timeout
+    });
+    
+    console.log("[main] CLI installation completed:", stdout);
+    return { success: true, output: stdout };
+  } catch (error) {
+    console.error("[main] CLI installation failed:", error);
+    return { success: false, error: error?.message || String(error) };
+  }
 });
 
 // ─── Pin config ────────────────────────────────────────────────────────────────
@@ -3120,6 +3269,7 @@ function buildMenu() {
         { type: "separator" },
         { label: "Reset Layout", accelerator: "CmdOrCtrl+Alt+R", click: () => sendToRenderer("menu:resetLayout", null) },
         { type: "separator" },
+        { label: "AI Assistant", click: () => sendToRenderer("menu:openAI", null) },
         { label: "Ports", click: () => sendToRenderer("menu:openPorts", null) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },

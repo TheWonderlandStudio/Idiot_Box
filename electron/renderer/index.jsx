@@ -697,6 +697,12 @@ const App = () => {
     });
     return unsub;
   }, []);
+  useEffect(() => {
+    const unsub = window.electronAPI.onMenuEvent("menu:openAI", () => {
+      window.dispatchEvent(new CustomEvent("add-ai-panel"));
+    });
+    return unsub;
+  }, []);
 
   // Open settings window when browser panel requests it
   useEffect(() => {

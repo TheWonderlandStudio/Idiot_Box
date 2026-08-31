@@ -229,4 +229,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Session ─────────────────────────────────────────────────────────────────
   saveSession:   (data) => ipcRenderer.invoke("session:save", data),
   loadSession:   ()     => ipcRenderer.invoke("session:load"),
+
+  // ── OpenCode AI SDK ─────────────────────────────────────────────────────────
+  opencodeInit: (config) => ipcRenderer.invoke("opencode:init", config),
+  opencodeChat: (payload) => ipcRenderer.invoke("opencode:chat", payload),
+  opencodeStatus: () => ipcRenderer.invoke("opencode:status"),
+  opencodeStartServer: (config) => ipcRenderer.invoke("opencode:startServer", config),
+  opencodeStopServer: () => ipcRenderer.invoke("opencode:stopServer"),
+  opencodeInstallCLI: () => ipcRenderer.invoke("opencode:installCLI"),
 });
