@@ -16,9 +16,16 @@ const FONT_OPTIONS = [
 const TAB_OPTIONS = [2, 4, 6, 8];
 
 const THEME_OPTIONS = [
-  { value: "dark",     label: "Dark (default)" },
-  { value: "darkPlus", label: "Dark+" },
-  { value: "light",    label: "Light" },
+  { value: "dark",       label: "Dark (Visual Studio Dark)" },
+  { value: "darkPlus",   label: "Dark+" },
+  { value: "darkModern", label: "Dark Modern" },
+  { value: "dark2026",   label: "Dark 2026" },
+  { value: "light",      label: "Light (Visual Studio Light)" },
+  { value: "lightPlus",  label: "Light+" },
+  { value: "lightModern",label: "Light Modern" },
+  { value: "light2026",  label: "Light 2026" },
+  { value: "hcDark",     label: "High Contrast Dark" },
+  { value: "hcLight",    label: "High Contrast Light" },
 ];
 
 const EditorPage = ({ settings, onSave }) => {

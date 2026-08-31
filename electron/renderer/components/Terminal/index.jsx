@@ -333,6 +333,41 @@ const TerminalPanel = ({ nodeId, config }) => {
     return () => window.removeEventListener("open-terminal", handler);
   }, [tabId, nodeId]);
 
+  // ── Focus/highlight terminal on Ctrl+` (target highlight, not new terminal) ─
+  useEffect(() => {
+    const onFocus = (e) => {
+      const tId = e.detail?.tabId;
+      // Only focus this instance if it matches the target tab or no specific target
+      if (tId && tId !== tabId && tId !== nodeId) return;
+      try { termRef.current?.focus(); } catch {}
+      // Visual highlight flash on the panel
+      try {
+        const el = elRef.current?.closest?.(".term-panel");
+        if (el) {
+          el.style.outline = "2px solid #007acc";
+          el.style.outlineOffset = "-2px";
+          setTimeout(() => { try { el.style.outline = ""; } catch {} }, 600);
+        }
+      } catch {}
+    };
+    const onHighlight = () => {
+      try {
+        const el = elRef.current?.closest?.(".term-panel");
+        if (el) {
+          el.style.outline = "2px solid #007acc";
+          el.style.outlineOffset = "-2px";
+          setTimeout(() => { try { el.style.outline = ""; } catch {} }, 600);
+        }
+      } catch {}
+    };
+    window.addEventListener("terminal:focus", onFocus);
+    window.addEventListener("terminal:highlight", onHighlight);
+    return () => {
+      window.removeEventListener("terminal:focus", onFocus);
+      window.removeEventListener("terminal:highlight", onHighlight);
+    };
+  }, [tabId, nodeId]);
+
   // ── Menu & Custom events (Open/Close Project) ──────────────────────────────
   // When project opens and terminal has no PTY yet, spawn one.
   useEffect(() => {

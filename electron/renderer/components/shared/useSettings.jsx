@@ -45,10 +45,22 @@ const useSettings = () => {
         }
       };
     } catch {}
+    // IPC fallback (BroadcastChannel doesn't work across file:// origins)
+    let unsubIpc = null;
+    try {
+      unsubIpc = window.electronAPI?.onSettingsUpdated?.((data) => {
+        if (data && typeof data === "object") {
+          const next = { ...settingsRef.current, ...data };
+          settingsRef.current = next;
+          setSettings(next);
+        }
+      });
+    } catch {}
     return () => {
       cancelled = true;
       try { bc?.close(); } catch {}
       try { bc2?.close(); } catch {}
+      try { unsubIpc?.(); } catch {}
     };
   }, []);
 

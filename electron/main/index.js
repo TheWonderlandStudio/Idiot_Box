@@ -271,7 +271,17 @@ const SETTINGS_FILE = path.join(app.getPath("userData"), "settings.json");
 const readSettings  = () => { try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8")); } catch { return {}; } };
 const writeSettings = (d) => { try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(d, null, 2)); return true; } catch { return false; } };
 ipcMain.handle("settings:read",  () => readSettings());
-ipcMain.handle("settings:write", (_e, data) => writeSettings(data));
+ipcMain.handle("settings:write", (_e, data) => {
+  const ok = writeSettings(data);
+  if (ok) {
+    // Broadcast to all windows — BroadcastChannel doesn't work across file:// origins in Electron,
+    // so we use ipc to notify every renderer (editor, settings, etc.)
+    for (const win of BrowserWindow.getAllWindows()) {
+      try { win.webContents.send("settings:updated", data); } catch {}
+    }
+  }
+  return ok;
+});
 
 // ─── Editors (open files externally) ──────────────────────────────────────────
 const KNOWN_EDITORS = [
@@ -2732,38 +2742,50 @@ function setupAutoUpdater(win) {
   try {
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
-    // Don't check in dev (unpackaged) unless forced
-    if (!app.isPackaged) {
-      console.log("[updater] Skipping check in dev mode (app not packaged)");
-      // Still allow manual check via ipc for testing: set env IBX_FORCE_UPDATE_CHECK=1
-      if (!process.env.IBX_FORCE_UPDATE_CHECK) return;
-    }
+    try { if (autoUpdater.logger && autoUpdater.logger.transports && autoUpdater.logger.transports.file) autoUpdater.logger.transports.file.level = "info"; } catch {}
+
+    // Always attach listeners so manual "Check for Updates" works even in dev
+    autoUpdater.removeAllListeners("checking-for-update");
+    autoUpdater.removeAllListeners("update-available");
+    autoUpdater.removeAllListeners("update-not-available");
+    autoUpdater.removeAllListeners("error");
+    autoUpdater.removeAllListeners("download-progress");
+    autoUpdater.removeAllListeners("update-downloaded");
 
     autoUpdater.on("checking-for-update", () => {
-      try { win.webContents.send("updater:checking"); } catch {}
+      console.log("[updater] checking-for-update");
+      try { if (!win.isDestroyed()) win.webContents.send("updater:checking"); } catch {}
     });
     autoUpdater.on("update-available", (info) => {
       console.log("[updater] update-available", info?.version);
-      try { win.webContents.send("updater:available", info); } catch {}
+      try { if (!win.isDestroyed()) win.webContents.send("updater:available", info); } catch {}
     });
     autoUpdater.on("update-not-available", (info) => {
-      try { win.webContents.send("updater:not-available", info); } catch {}
+      console.log("[updater] update-not-available", info?.version);
+      try { if (!win.isDestroyed()) win.webContents.send("updater:not-available", info); } catch {}
     });
     autoUpdater.on("error", (err) => {
       console.error("[updater] error", err?.message || err);
-      try { win.webContents.send("updater:error", String(err?.message || err)); } catch {}
+      try { if (!win.isDestroyed()) win.webContents.send("updater:error", String(err?.message || err)); } catch {}
     });
     autoUpdater.on("download-progress", (p) => {
-      try { win.webContents.send("updater:progress", p); } catch {}
+      try { if (!win.isDestroyed()) win.webContents.send("updater:progress", p); } catch {}
     });
     autoUpdater.on("update-downloaded", (info) => {
       console.log("[updater] update-downloaded", info?.version);
-      try { win.webContents.send("updater:downloaded", info); } catch {}
+      try { if (!win.isDestroyed()) win.webContents.send("updater:downloaded", info); } catch {}
     });
 
-    // Initial check after 4s, then every 6h
-    setTimeout(() => { try { autoUpdater.checkForUpdates().catch((e) => console.warn("[updater] check failed", e.message)); } catch {} }, 4000);
-    setInterval(() => { try { autoUpdater.checkForUpdates().catch(()=>{}); } catch {} }, 6 * 60 * 60 * 1000);
+    // Run detection on launch: if packaged, auto-check after 2s; in dev, log and skip auto-check
+    // but keep listeners so Help → Check for Updates still shows the banner when a new release exists
+    if (!app.isPackaged && !process.env.IBX_FORCE_UPDATE_CHECK) {
+      console.log("[updater] Skipping auto-check in dev mode (app not packaged) — use Help → Check for Updates or set IBX_FORCE_UPDATE_CHECK=1 to force");
+      return;
+    }
+
+    // Initial check after 2s, then every 6h
+    setTimeout(() => { try { console.log("[updater] initial check..."); autoUpdater.checkForUpdates().catch((e) => console.warn("[updater] check failed", e.message)); } catch {} }, 2000);
+    setInterval(() => { try { console.log("[updater] periodic check..."); autoUpdater.checkForUpdates().catch(()=>{}); } catch {} }, 6 * 60 * 60 * 1000);
   } catch (e) { console.warn("[updater] setup failed", e.message); }
 }
 

@@ -113,8 +113,13 @@ const ensureEditorReady = () => {
         for (let attempt = 0; attempt < 20; attempt++) {
           try {
             themeService.setTheme("Dark+");
-            const applied = themeService.getTheme();
-            if (applied && /dark/i.test(applied.id || "")) break;
+            let applied = null;
+            try {
+              if (typeof themeService.getTheme === "function") applied = themeService.getTheme();
+              else if (typeof themeService.getColorTheme === "function") applied = themeService.getColorTheme();
+            } catch {}
+            if (applied && /dark/i.test(applied.id || applied.label || "")) break;
+            if (!applied) break; // setTheme succeeded, no verification available
           } catch {}
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
@@ -383,6 +388,15 @@ try {
   const bc5 = new BroadcastChannel("canvas-settings");
   bc5.onmessage = _broadcastHandler;
 } catch {}
+// IPC fallback for settings sync across windows (file:// origins don't share BroadcastChannel)
+try {
+  window.electronAPI?.onSettingsUpdated?.((data) => {
+    if (data && typeof data === "object") {
+      _cachedEditorSettings = { ...(_cachedEditorSettings ?? {}), ...data };
+      settingsListeners.forEach((fn) => fn(data));
+    }
+  });
+} catch {}
 
 const EditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
@@ -477,7 +491,15 @@ const EditorPanel = ({ config, nodeId }) => {
       }
     };
     settingsListeners.add(handler);
-    return () => settingsListeners.delete(handler);
+    // Also listen via IPC (BroadcastChannel doesn't work across file:// origins)
+    let unsubIpc = null;
+    try { unsubIpc = window.electronAPI?.onSettingsUpdated?.((data) => {
+      if (data && typeof data === "object") {
+        _cachedEditorSettings = { ...(_cachedEditorSettings ?? {}), ...data };
+        handler(data);
+      }
+    }); } catch {}
+    return () => { settingsListeners.delete(handler); try { unsubIpc?.(); } catch {} };
   }, []);
 
   // ── Git diff gutter CSS ──────────────────────────────────────────────────
@@ -507,50 +529,58 @@ const EditorPanel = ({ config, nodeId }) => {
     if (!ready) return;
     let cancelled = false;
     (async () => {
-      try {
-        const ts = await getService(IThemeService);
+      const map = {
+        dark: "Visual Studio Dark",
+        darkPlus: "Dark+",
+        darkModern: "Dark Modern",
+        dark2026: "Dark 2026",
+        light: "Visual Studio Light",
+        lightPlus: "Light+",
+        lightModern: "Light Modern",
+        light2026: "Light 2026",
+        hcDark: "Default High Contrast",
+        hcLight: "Default High Contrast Light",
+        "Visual Studio Dark": "Visual Studio Dark",
+        "Visual Studio Light": "Visual Studio Light",
+        "Dark+": "Dark+",
+        "Dark Modern": "Dark Modern",
+        "Dark 2026": "Dark 2026",
+        "Light+": "Light+",
+        "Light Modern": "Light Modern",
+        "Light 2026": "Light 2026",
+      };
+      const target = map[editorTheme] || map.dark;
+      // Retry loop — theme service may need a tick after initialize
+      for (let attempt = 0; attempt < 8; attempt++) {
         if (cancelled) return;
-        // Exact IDs from theme-defaults extension package.json
-        const map = {
-          dark: "Visual Studio Dark",        // default dark
-          darkPlus: "Dark+",
-          darkModern: "Dark Modern",
-          dark2026: "Dark 2026",
-          light: "Visual Studio Light",
-          lightPlus: "Light+",
-          lightModern: "Light Modern",
-          light2026: "Light 2026",
-          hcDark: "Default High Contrast",
-          hcLight: "Default High Contrast Light",
-          // also accept exact IDs directly
-          "Visual Studio Dark": "Visual Studio Dark",
-          "Visual Studio Light": "Visual Studio Light",
-          "Dark+": "Dark+",
-          "Dark Modern": "Dark Modern",
-          "Dark 2026": "Dark 2026",
-          "Light+": "Light+",
-          "Light Modern": "Light Modern",
-          "Light 2026": "Light 2026",
-        };
-        const target = map[editorTheme] || map.dark;
         try {
+          const ts = await getService(IThemeService);
+          if (!ts) throw new Error("theme service not ready");
+          if (typeof ts.setTheme !== "function") throw new Error("setTheme not available");
           ts.setTheme(target);
-          // Verify – if theme not found, fallback to Dark+
-          const applied = ts.getTheme();
-          const id = applied?.id || applied?.label || "";
-          // If applied theme doesn't match requested, try fallback
-          if (!id || (target.toLowerCase() !== id.toLowerCase() && !id.toLowerCase().includes(target.toLowerCase().split(" ")[0]))) {
-            // still check if it's at least dark/light as requested; if not, fallback
-            if (!/visual studio dark|dark\+|dark modern|dark 2026/i.test(id) && /dark/i.test(target)) {
-              ts.setTheme("Visual Studio Dark");
-            } else if (!/visual studio light|light\+|light modern|light 2026/i.test(id) && /light/i.test(target)) {
-              ts.setTheme("Visual Studio Light");
-            }
+          await new Promise((r) => setTimeout(r, 80));
+          let applied = null;
+          try {
+            if (typeof ts.getTheme === "function") applied = ts.getTheme();
+            else if (typeof ts.getColorTheme === "function") applied = ts.getColorTheme();
+            else if (typeof ts.getThemeId === "function") applied = { id: ts.getThemeId() };
+          } catch {}
+          const id = applied?.id || applied?.label || target;
+          console.log(`[editor] theme ${editorTheme} -> ${target} applied: ${id} (attempt ${attempt+1})`);
+          if (id && target.toLowerCase() === id.toLowerCase()) break;
+          if (id && id.toLowerCase().includes(target.split(" ")[0].toLowerCase())) break;
+          if (applied && !/visual studio dark|dark\+|dark modern|dark 2026/i.test(id) && /dark/i.test(target)) {
+            try { ts.setTheme("Visual Studio Dark"); } catch {}
+          } else if (applied && !/visual studio light|light\+|light modern|light 2026/i.test(id) && /light/i.test(target)) {
+            try { ts.setTheme("Visual Studio Light"); } catch {}
           }
-        } catch {
-          try { ts.setTheme("Visual Studio Dark"); } catch {}
+          break;
+        } catch (e) {
+          console.warn(`[editor] theme set failed attempt ${attempt+1}:`, e.message);
+          await new Promise((r) => setTimeout(r, 150));
         }
-      } catch {}
+      }
+      // Note: monaco theme is managed via themeService, no direct monaco call needed
     })();
     return () => { cancelled = true; };
   }, [ready, editorTheme]);

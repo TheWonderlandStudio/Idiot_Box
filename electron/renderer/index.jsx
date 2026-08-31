@@ -494,7 +494,27 @@ const App = () => {
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
         else document.documentElement.requestFullscreen().catch(() => {});
       }),
-      window.electronAPI.onMenuEvent("menu:newTerminal", () => window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { location: "BOTTOM" } }))),
+      window.electronAPI.onMenuEvent("menu:newTerminal", () => {
+        const m = modelRef.current;
+        if (!m) return;
+        // Find any existing terminal tab — if found, just highlight/select it
+        const findTerminalTab = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "terminal") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findTerminalTab(c); if (r) return r; }
+          return null;
+        };
+        const existing = findTerminalTab(m.getRoot());
+        if (existing) {
+          try { m.doAction(Actions.selectTab(existing.getId())); } catch {}
+          // Focus the terminal's xterm as well
+          try { window.dispatchEvent(new CustomEvent("terminal:focus", { detail: { tabId: existing.getId() } })); } catch {}
+          // Visual highlight flash
+          try { window.dispatchEvent(new CustomEvent("terminal:highlight")); } catch {}
+        } else {
+          window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { location: "BOTTOM" } }));
+        }
+      }),
       window.electronAPI.onMenuEvent("menu:splitTerminalRight", () => window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { location: "RIGHT" } }))),
       window.electronAPI.onMenuEvent("menu:splitTerminalDown", () => window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { location: "BOTTOM" } }))),
       window.electronAPI.onMenuEvent("menu:clearTerminal", () => window.dispatchEvent(new CustomEvent("terminal:command", { detail: { cmd: "clear" } }))),

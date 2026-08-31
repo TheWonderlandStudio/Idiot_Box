@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   writeSettings: (data) => ipcRenderer.invoke("settings:write", data),
   listEditors:   ()     => ipcRenderer.invoke("editors:list"),
   openSettingsWindow: () => ipcRenderer.invoke("settings:openWindow"),
+  onSettingsUpdated: (cb) => { const h=(_e,data)=>cb(data); ipcRenderer.on("settings:updated", h); return ()=>ipcRenderer.removeListener("settings:updated", h); },
 
   // ── Browser context menus ──────────────────────────────────────────────────
   showBrowserTabContextMenu: ()            => ipcRenderer.invoke("browser:tabContextMenu"),
