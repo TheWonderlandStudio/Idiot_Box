@@ -568,7 +568,7 @@ const EditorPanel = ({ config, nodeId }) => {
         fontFamily: fontFamily,
         tabSize: tabSize,
         glyphMargin: false,
-        lineDecorationsWidth: 0,
+        lineDecorationsWidth: 12,
         lineNumbersMinChars: 4,
         folding: false,
         renderLineHighlight: "all",
@@ -641,7 +641,7 @@ const EditorPanel = ({ config, nodeId }) => {
           scrollBeyondLastLine: false,
           tabSize: tabSize,
           glyphMargin: false,
-          lineDecorationsWidth: 0,
+          lineDecorationsWidth: 12,
           lineNumbersMinChars: 4,
           folding: false,
         });
