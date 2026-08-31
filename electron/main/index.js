@@ -13,6 +13,8 @@ try { esbuild = require("esbuild"); } catch (e) { console.warn("[main] esbuild n
 let ElectronChromeExtensions = null;
 try { ({ ElectronChromeExtensions } = require("electron-chrome-extensions")); } catch (e) { console.warn("[main] electron-chrome-extensions not available:", e.message); }
 let opencodeSDK = null;
+let autoUpdater = null;
+try { ({ autoUpdater } = require("electron-updater")); } catch (e) { console.warn("[main] electron-updater not available:", e.message); }
 
 // ─── Global error handlers — prevent crash on missing optional deps ──────────
 process.on("uncaughtException", (err) => {
@@ -2722,6 +2724,72 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
   return { url: `http://127.0.0.1:${port}/${rel}`, port };
 });
 
+// ─── Auto Updater (electron-updater) ───────────────────────────────────────────
+let _updaterWindow = null;
+function setupAutoUpdater(win) {
+  if (!autoUpdater) { console.warn("[updater] electron-updater not installed"); return; }
+  _updaterWindow = win;
+  try {
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    // Don't check in dev (unpackaged) unless forced
+    if (!app.isPackaged) {
+      console.log("[updater] Skipping check in dev mode (app not packaged)");
+      // Still allow manual check via ipc for testing: set env IBX_FORCE_UPDATE_CHECK=1
+      if (!process.env.IBX_FORCE_UPDATE_CHECK) return;
+    }
+
+    autoUpdater.on("checking-for-update", () => {
+      try { win.webContents.send("updater:checking"); } catch {}
+    });
+    autoUpdater.on("update-available", (info) => {
+      console.log("[updater] update-available", info?.version);
+      try { win.webContents.send("updater:available", info); } catch {}
+    });
+    autoUpdater.on("update-not-available", (info) => {
+      try { win.webContents.send("updater:not-available", info); } catch {}
+    });
+    autoUpdater.on("error", (err) => {
+      console.error("[updater] error", err?.message || err);
+      try { win.webContents.send("updater:error", String(err?.message || err)); } catch {}
+    });
+    autoUpdater.on("download-progress", (p) => {
+      try { win.webContents.send("updater:progress", p); } catch {}
+    });
+    autoUpdater.on("update-downloaded", (info) => {
+      console.log("[updater] update-downloaded", info?.version);
+      try { win.webContents.send("updater:downloaded", info); } catch {}
+    });
+
+    // Initial check after 4s, then every 6h
+    setTimeout(() => { try { autoUpdater.checkForUpdates().catch((e) => console.warn("[updater] check failed", e.message)); } catch {} }, 4000);
+    setInterval(() => { try { autoUpdater.checkForUpdates().catch(()=>{}); } catch {} }, 6 * 60 * 60 * 1000);
+  } catch (e) { console.warn("[updater] setup failed", e.message); }
+}
+
+ipcMain.handle("updater:check", async () => {
+  if (!autoUpdater) return { error: "updater not available" };
+  try {
+    const res = await autoUpdater.checkForUpdates();
+    return { ok: true, info: res?.updateInfo || null };
+  } catch (e) { return { error: e?.message || String(e) }; }
+});
+ipcMain.handle("updater:download", async () => {
+  if (!autoUpdater) return { error: "updater not available" };
+  try {
+    await autoUpdater.downloadUpdate();
+    return { ok: true };
+  } catch (e) { return { error: e?.message || String(e) }; }
+});
+ipcMain.handle("updater:install", async () => {
+  if (!autoUpdater) return { error: "updater not available" };
+  try { autoUpdater.quitAndInstall(false, true); } catch (e) { return { error: e?.message || String(e) }; }
+  return { ok: true };
+});
+ipcMain.handle("updater:getVersion", async () => {
+  try { return { version: app.getVersion() }; } catch (e) { return { error: e.message }; }
+});
+
 // ─── Port Manager — detect listening ports & manage forwarding ────────────────
 const forwardedPorts = new Map(); // port(string) -> { label, createdAt }
 const autoDetectedPorts = new Map(); // port -> { lastSeen, source }
@@ -3502,13 +3570,27 @@ function buildMenu() {
     },
     {
       label: "Help", submenu: [
-        { label: "About Idiot Box", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) dialog.showMessageBox(win, { type: "info", title: "About Idiot Box", message: "Idiot Box v0.1.0", detail: "A VS Code-like editor built with Electron, React, and Monaco.\n\n© 2026 Idiot Box" }); } },
+        { label: "About Idiot Box", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) dialog.showMessageBox(win, { type: "info", title: "About Idiot Box", message: `Idiot Box v${app.getVersion()}`, detail: "A VS Code-like editor built with Electron, React, and Monaco.\n\n© 2026 Idiot Box" }); } },
+        { label: "Check for Updates…", click: async () => {
+            if (!autoUpdater) { dialog.showMessageBox({ type:"info", message:"Updater not available" }); return; }
+            try {
+              const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+              if (win) win.webContents.send("updater:checking");
+              const res = await autoUpdater.checkForUpdates();
+              // If already latest, notify renderer (which will show not-available briefly) and also dialog if needed
+              // The banner will handle available / downloaded states via events
+              if (!res || !res.updateInfo || res.updateInfo.version === app.getVersion()) {
+                // let renderer handle not-available, but also show dialog if no banner logic
+              }
+            } catch (e) { dialog.showMessageBox({ type:"error", message:"Update check failed", detail: String(e.message || e) }); }
+          }},
+        { label: "View Releases", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases") },
         { type: "separator" },
         { label: "Keyboard Shortcuts", accelerator: "CmdOrCtrl+K CmdOrCtrl+S", click: () => sendToRenderer("menu:commandPalette", null) },
         { label: "Toggle Developer Tools", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
         { type: "separator" },
-        { label: "Report Issue", click: () => shell.openExternal("https://github.com/anomalyco/opencode/issues") },
-        { label: "View on GitHub", click: () => shell.openExternal("https://github.com/anomalyco/opencode") },
+        { label: "Report Issue", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/issues") },
+        { label: "View on GitHub", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box") },
       ],
     },
   ];
@@ -3684,6 +3766,9 @@ function createWindow() {
       fs.writeFileSync(SESSION_FILE, JSON.stringify(data, null, 2));
     } catch {}
   });
+
+  // ── Auto Updater ───────────────────────────────────────────────────────
+  try { setupAutoUpdater(win); } catch (e) { console.warn("[updater] setup error", e.message); }
 }
 
 app.whenReady().then(async () => {

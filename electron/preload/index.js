@@ -149,6 +149,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Live Server ─────────────────────────────────────────────────────────────
   startLiveServer: (rootPath, filePath) => ipcRenderer.invoke("liveServer:start", { rootPath, filePath }),
 
+  // ── Auto Updater ────────────────────────────────────────────────────────────
+  updaterCheck: () => ipcRenderer.invoke("updater:check"),
+  updaterDownload: () => ipcRenderer.invoke("updater:download"),
+  updaterInstall: () => ipcRenderer.invoke("updater:install"),
+  updaterGetVersion: () => ipcRenderer.invoke("updater:getVersion"),
+  onUpdaterChecking: (cb) => { const h=(_e)=>cb(); ipcRenderer.on("updater:checking", h); return ()=>ipcRenderer.removeListener("updater:checking", h); },
+  onUpdaterAvailable: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:available", h); return ()=>ipcRenderer.removeListener("updater:available", h); },
+  onUpdaterNotAvailable: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:not-available", h); return ()=>ipcRenderer.removeListener("updater:not-available", h); },
+  onUpdaterError: (cb) => { const h=(_e,err)=>cb(err); ipcRenderer.on("updater:error", h); return ()=>ipcRenderer.removeListener("updater:error", h); },
+  onUpdaterProgress: (cb) => { const h=(_e,p)=>cb(p); ipcRenderer.on("updater:progress", h); return ()=>ipcRenderer.removeListener("updater:progress", h); },
+  onUpdaterDownloaded: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:downloaded", h); return ()=>ipcRenderer.removeListener("updater:downloaded", h); },
+
   // ── Port Manager ────────────────────────────────────────────────────────────
   getPorts:        () => ipcRenderer.invoke("ports:list"),
   checkPort:      (port) => ipcRenderer.invoke("ports:check", port),

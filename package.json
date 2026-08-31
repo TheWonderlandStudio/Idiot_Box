@@ -1,12 +1,16 @@
 {
   "name": "idiot-box",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
   "author": {
     "name": "TheWonderlandStudio",
     "email": "support@thewonderlandstudio.com",
     "url": "https://github.com/TheWonderlandStudio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TheWonderlandStudio/Idiot_Box.git"
   },
   "main": "electron/main/index.js",
   "scripts": {
@@ -57,6 +61,7 @@
     "@xterm/xterm": "^6.0.0",
     "chokidar": "^5.0.0",
     "electron-chrome-extensions": "^4.9.0",
+    "electron-updater": "^6.8.9",
     "esbuild": "^0.25.6",
     "flexlayout-react": "^0.8.19",
     "lucide-react": "^1.34.0",
@@ -128,6 +133,11 @@
       "installerHeaderIcon": "electron/renderer/assets/idot_box.png",
       "uninstallDisplayName": "Idiot Box"
     },
-    "publish": "github"
+    "publish": {
+      "provider": "github",
+      "owner": "TheWonderlandStudio",
+      "repo": "Idiot_Box",
+      "private": false
+    }
   }
 }

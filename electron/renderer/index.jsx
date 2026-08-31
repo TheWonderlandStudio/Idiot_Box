@@ -21,6 +21,7 @@ import ProblemsPanel from "./components/Problems/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
 import AIPanel from "./components/AIPanel/index.jsx";
+import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 
 const DEFAULT_JSON = {
   global: {
@@ -981,6 +982,7 @@ const App = () => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#0d0d0d" }}>
+      <UpdaterBanner />
       <div style={{ flex: 1, minHeight: 0 }}>
         <Layout
       model={modelRef.current}
