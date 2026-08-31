@@ -128,6 +128,6 @@
       "installerHeaderIcon": "electron/renderer/assets/idot_box.png",
       "uninstallDisplayName": "Idiot Box"
     },
-    "publish": null
+    "publish": "github"
   }
 }

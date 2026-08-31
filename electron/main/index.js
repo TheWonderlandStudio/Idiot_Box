@@ -2577,7 +2577,7 @@ const mime = {
   ".ttf":  "font/ttf",
   ".txt":  "text/plain; charset=utf-8",
 };
-const liveServers = new Map(); // rootPath -> { server, port }
+const liveServers = new Map(); // rootPath -> { server, port, clients, watcher }
 
 function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -2590,6 +2590,16 @@ function getFreePort() {
   });
 }
 
+const LIVE_RELOAD_SCRIPT = `<script>(function(){try{var es=new EventSource('/__live_reload');es.onmessage=function(e){if(e.data==='reload')location.reload();};es.onerror=function(){};console.log('[LiveServer] auto-reload enabled');}catch(e){}})();</script>`;
+
+function broadcastLiveReload(lsRoot) {
+  const entry = liveServers.get(lsRoot);
+  if (!entry || !entry.clients) return;
+  for (const res of [...entry.clients]) {
+    try { res.write('data: reload\n\n'); } catch { try { entry.clients.delete(res); } catch {} }
+  }
+}
+
 ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFile }) => {
   // Reuse an already-running server for this project root
   if (liveServers.has(lsRoot)) {
@@ -2599,10 +2609,55 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
   }
 
   const port = await getFreePort();
+  const clients = new Set();
+  let debounceTimer = null;
+  const scheduleReload = () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => broadcastLiveReload(lsRoot), 120);
+  };
+
+  // ── File watcher for live reload ───────────────────────────────
+  let watcher = null;
+  if (chokidar) {
+    try {
+      watcher = chokidar.watch(lsRoot, {
+        ignored: /[\\\/](node_modules|\.git|dist|\.next|out|build|__pycache__)[\\\/]/,
+        persistent: true,
+        ignoreInitial: true,
+        depth: 99,
+      });
+      watcher.on('all', (ev) => {
+        if (['change', 'add', 'unlink'].includes(ev)) scheduleReload();
+      });
+      watcher.on('error', (err) => console.warn('[LiveServer] watcher error', err?.message));
+    } catch (e) { console.warn('[LiveServer] watcher failed', e.message); }
+  } else {
+    // Fallback: fs.watch recursive (Windows)
+    try {
+      watcher = fs.watch(lsRoot, { recursive: true }, (ev) => {
+        if (['change', 'rename'].includes(ev)) scheduleReload();
+      });
+    } catch {}
+  }
 
   const server = http.createServer((req, res) => {
     try {
       let urlPath = decodeURIComponent(req.url.split("?")[0]);
+
+      // ── SSE endpoint for live reload ──────────────────────────
+      if (urlPath === "/__live_reload") {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.write("data: connected\n\n");
+        clients.add(res);
+        req.on("close", () => { try { clients.delete(res); } catch {} });
+        return;
+      }
+
       if (urlPath === "/" || urlPath === "") urlPath = "/index.html";
       const filePath = path.join(lsRoot, urlPath);
       // Security: prevent directory traversal outside root
@@ -2618,15 +2673,34 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
         }
         const ext = path.extname(resolved).toLowerCase();
         const ct  = mime[ext] || "application/octet-stream";
+        // Inject live-reload script into HTML files
+        if (ext === ".html" || ext === ".htm") {
+          try {
+            let html = data.toString("utf8");
+            if (!html.includes("__live_reload")) {
+              if (html.includes("</body>")) html = html.replace("</body>", LIVE_RELOAD_SCRIPT + "</body>");
+              else if (html.includes("</html>")) html = html.replace("</html>", LIVE_RELOAD_SCRIPT + "</html>");
+              else html += LIVE_RELOAD_SCRIPT;
+            }
+            const buf = Buffer.from(html, "utf8");
+            res.writeHead(200, {
+              "Content-Type": ct,
+              "Access-Control-Allow-Origin": "*",
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+            });
+            res.end(buf);
+            return;
+          } catch {}
+        }
         res.writeHead(200, {
           "Content-Type": ct,
           "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-cache",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
         });
         res.end(data);
       });
     } catch (e) {
-      res.writeHead(500); res.end(String(e));
+      try { res.writeHead(500); res.end(String(e)); } catch {}
     }
   });
 
@@ -2635,10 +2709,14 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
     server.once("error", reject);
   });
 
-  liveServers.set(lsRoot, { server, port });
+  liveServers.set(lsRoot, { server, port, clients, watcher });
 
-  // Clean up when the server's window closes
-  server.on("close", () => liveServers.delete(lsRoot));
+  // Clean up when the server closes
+  server.on("close", () => {
+    try { if (watcher) { watcher.close?.(); watcher.removeAllListeners?.(); } } catch {}
+    try { for (const c of clients) { try { c.end(); } catch {} } clients.clear(); } catch {}
+    liveServers.delete(lsRoot);
+  });
 
   const rel = path.relative(lsRoot, lsFile).replace(/\\/g, "/");
   return { url: `http://127.0.0.1:${port}/${rel}`, port };
