@@ -2736,6 +2736,64 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
 
 // ─── Auto Updater (electron-updater) ───────────────────────────────────────────
 let _updaterWindow = null;
+
+function isVersionNewer(latest, current) {
+  const a = String(latest).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const b = String(current).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const av = a[i] || 0, bv = b[i] || 0;
+    if (av > bv) return true;
+    if (av < bv) return false;
+  }
+  return false;
+}
+
+async function checkForUpdatesViaGitHub(win) {
+  try {
+    const current = app.getVersion();
+    if (win && !win.isDestroyed()) win.webContents.send("updater:checking");
+    // Use GitHub API directly — works in dev and packaged, no need for app-update.yml
+    const res = await fetch("https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest", {
+      headers: { "User-Agent": "IdiotBox-Updater", "Accept": "application/vnd.github.v3+json" },
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const data = await res.json();
+    const latestTag = data.tag_name || data.name || "";
+    const latestVersion = String(latestTag).replace(/^v/, "").trim();
+    console.log(`[updater] GitHub check current=${current} latest=${latestVersion}`);
+    if (!latestVersion) throw new Error("No version in GitHub response");
+    if (isVersionNewer(latestVersion, current)) {
+      const info = { version: latestVersion, releaseNotes: data.body || "", releaseUrl: data.html_url, tag: data.tag_name };
+      console.log("[updater] GitHub update-available", latestVersion);
+      if (win && !win.isDestroyed()) win.webContents.send("updater:available", info);
+      // Prime autoUpdater so subsequent downloadUpdate() knows what to fetch (only when packaged)
+      if (app.isPackaged && autoUpdater) {
+        try { autoUpdater.checkForUpdates().catch(() => {}); } catch {}
+      }
+      return info;
+    } else {
+      console.log("[updater] GitHub update-not-available");
+      if (win && !win.isDestroyed()) win.webContents.send("updater:not-available", { version: current });
+      return null;
+    }
+  } catch (e) {
+    console.warn("[updater] GitHub check failed:", e.message);
+    // Fallback to electron-updater's built-in check (needs latest.yml, only works when packaged)
+    if (autoUpdater && app.isPackaged) {
+      try {
+        const res = await autoUpdater.checkForUpdates();
+        return res?.updateInfo || null;
+      } catch (e2) {
+        console.warn("[updater] fallback check also failed:", e2.message);
+        if (win && !win.isDestroyed()) win.webContents.send("updater:error", String(e.message));
+      }
+    } else {
+      if (win && !win.isDestroyed()) win.webContents.send("updater:error", String(e.message));
+    }
+    return null;
+  }
+}
+
 function setupAutoUpdater(win) {
   if (!autoUpdater) { console.warn("[updater] electron-updater not installed"); return; }
   _updaterWindow = win;
@@ -2776,29 +2834,39 @@ function setupAutoUpdater(win) {
       try { if (!win.isDestroyed()) win.webContents.send("updater:downloaded", info); } catch {}
     });
 
-    // Run detection on launch: if packaged, auto-check after 2s; in dev, log and skip auto-check
-    // but keep listeners so Help → Check for Updates still shows the banner when a new release exists
+    // Run detection on launch — use GitHub API so banner shows even in dev.
+    // autoUpdater's own check needs latest.yml and only works when packaged, but our custom GitHub check works everywhere.
+    const runGitHubCheck = () => { try { checkForUpdatesViaGitHub(win); } catch (e) { console.warn("[updater] GitHub check error", e.message); } };
     if (!app.isPackaged && !process.env.IBX_FORCE_UPDATE_CHECK) {
-      console.log("[updater] Skipping auto-check in dev mode (app not packaged) — use Help → Check for Updates or set IBX_FORCE_UPDATE_CHECK=1 to force");
+      console.log("[updater] Dev mode: running GitHub API check after 2.5s (autoUpdater periodic check skipped)");
+      setTimeout(runGitHubCheck, 2500);
+      setInterval(runGitHubCheck, 6 * 60 * 60 * 1000);
       return;
     }
 
-    // Initial check after 2s, then every 6h
-    setTimeout(() => { try { console.log("[updater] initial check..."); autoUpdater.checkForUpdates().catch((e) => console.warn("[updater] check failed", e.message)); } catch {} }, 2000);
-    setInterval(() => { try { console.log("[updater] periodic check..."); autoUpdater.checkForUpdates().catch(()=>{}); } catch {} }, 6 * 60 * 60 * 1000);
+    // Packaged: run both GitHub API and autoUpdater checks for best coverage
+    setTimeout(() => { try { console.log("[updater] initial check (GitHub + autoUpdater)..."); runGitHubCheck(); autoUpdater.checkForUpdates().catch((e) => console.warn("[updater] autoUpdater check failed", e.message)); } catch {} }, 2000);
+    setInterval(() => { try { console.log("[updater] periodic check..."); runGitHubCheck(); autoUpdater.checkForUpdates().catch(()=>{}); } catch {} }, 6 * 60 * 60 * 1000);
   } catch (e) { console.warn("[updater] setup failed", e.message); }
 }
 
-ipcMain.handle("updater:check", async () => {
-  if (!autoUpdater) return { error: "updater not available" };
+ipcMain.handle("updater:check", async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender) || _updaterWindow;
   try {
-    const res = await autoUpdater.checkForUpdates();
-    return { ok: true, info: res?.updateInfo || null };
-  } catch (e) { return { error: e?.message || String(e) }; }
+    const info = await checkForUpdatesViaGitHub(win);
+    if (info) return { ok: true, info, available: true };
+    return { ok: true, info: null, available: false };
+  } catch (err) { return { error: err?.message || String(err) }; }
 });
 ipcMain.handle("updater:download", async () => {
+  if (!app.isPackaged) {
+    try { shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest"); } catch {}
+    return { ok: true, manual: true, message: "Opened releases page (not packaged — manual download)" };
+  }
   if (!autoUpdater) return { error: "updater not available" };
   try {
+    // Prime with latest info if not already checked
+    try { await autoUpdater.checkForUpdates(); } catch {}
     await autoUpdater.downloadUpdate();
     return { ok: true };
   } catch (e) { return { error: e?.message || String(e) }; }
@@ -3604,17 +3672,14 @@ function buildMenu() {
             }).then(({ response }) => { if (response === 1) shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box"); });
           } },
         { label: "Check for Updates…", click: async () => {
-            if (!autoUpdater) { dialog.showMessageBox({ type:"info", message:"Updater not available" }); return; }
+            const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+            if (!win) return;
             try {
-              const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-              if (win) win.webContents.send("updater:checking");
-              const res = await autoUpdater.checkForUpdates();
-              // If already latest, notify renderer (which will show not-available briefly) and also dialog if needed
-              // The banner will handle available / downloaded states via events
-              if (!res || !res.updateInfo || res.updateInfo.version === app.getVersion()) {
-                // let renderer handle not-available, but also show dialog if no banner logic
+              const info = await checkForUpdatesViaGitHub(win);
+              if (!info) {
+                dialog.showMessageBox(win, { type:"info", title:"No Updates", message:"You're up to date", detail:`Current version v${app.getVersion()} is the latest.` });
               }
-            } catch (e) { dialog.showMessageBox({ type:"error", message:"Update check failed", detail: String(e.message || e) }); }
+            } catch (e) { dialog.showMessageBox(win, { type:"error", title:"Update Check Failed", message:"Update check failed", detail: String(e.message || e) }); }
           }},
         { label: "View Releases", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases") },
         { type: "separator" },
