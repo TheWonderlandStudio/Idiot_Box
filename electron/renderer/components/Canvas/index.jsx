@@ -22,6 +22,23 @@ const MIN_GROUP_W = 80, MIN_GROUP_H = GROUP_HEADER + 10, MAX_GROUP = 4000;
 const DRAG_MOVE_THRESHOLD = 4;
 const DRAG_RESIZE_THRESHOLD = 2;
 
+// ── Canvas settings helpers ───────────────────────────────────────────────
+// Previously CanvasPage saved settings (autoLayout, showPreview, gridSnap, etc.)
+// but CanvasPanel never read them — dead settings. Now wired via getCanvasOpts
+// + live BroadcastChannel("canvas-settings") + IPC onSettingsUpdated fallback.
+const getCanvasOpts = (settings = {}) => {
+  const c = settings.canvas || {};
+  return {
+    autoLayout: c.autoLayout !== false && settings.canvasAutoLayout !== false,
+    showPreview: c.showPreview !== false && settings.canvasShowPreview !== false,
+    gridSnap: c.gridSnap === true || settings.canvasGridSnap === true,
+    showMinimap: c.showMinimap !== false && settings.canvasShowMinimap !== false,
+    maxCols: Number.isFinite(c.maxCols) ? c.maxCols : Number.isFinite(settings.canvasMaxCols) ? settings.canvasMaxCols : 4,
+    cardWidth: Number.isFinite(c.cardWidth) ? c.cardWidth : Number.isFinite(settings.canvasCardWidth) ? settings.canvasCardWidth : 280,
+    cardHeight: Number.isFinite(c.cardHeight) ? c.cardHeight : Number.isFinite(settings.canvasCardHeight) ? settings.canvasCardHeight : 200,
+  };
+};
+
 const FW_LABEL = { next: "Next.js", react: "React", vue: "Vue", svelte: "Svelte", solid: "SolidJS", preact: "Preact", angular: "Angular", unknown: "" };
 
 const KIND_META = {
@@ -76,17 +93,20 @@ function expandForChild(g, cx, cy, cw, ch, pad) {
 const CARD_PAD_X = 12;
 const CARD_PAD_Y = 42;
 
-function layoutGroup(node, originX, originY, out, parentRel, naturalSizes) {
+function layoutGroup(node, originX, originY, out, parentRel, naturalSizes, opts) {
+  const cardW = opts?.cardWidth ?? CARD_W;
+  const cardH = opts?.cardHeight ?? CARD_H;
+  const maxCols = opts?.maxCols ?? MAX_COLS;
   out.parent.set(node.relPath, parentRel);
   let y = originY + GROUP_HEADER + GROUP_PAD;
   const count = node.children.length;
-  const cols = count ? Math.min(MAX_COLS, Math.max(1, Math.ceil(Math.sqrt(count)))) : 1;
+  const cols = count ? Math.min(maxCols, Math.max(1, Math.ceil(Math.sqrt(count)))) : 1;
   let contentW = 240;
-  const gridW = count ? cols * CARD_W + (cols - 1) * CARD_GAP : 0;
+  const gridW = count ? cols * cardW + (cols - 1) * CARD_GAP : 0;
   contentW = Math.max(contentW, gridW);
   const cardSize = (c) => {
     const nat = naturalSizes?.[c.relPath];
-    return nat ? { w: nat.w + CARD_PAD_X, h: nat.h + CARD_PAD_Y } : { w: CARD_W, h: CARD_H };
+    return nat ? { w: nat.w + CARD_PAD_X, h: nat.h + CARD_PAD_Y } : { w: cardW, h: cardH };
   };
   // Flow cards row by row; each row advances by its tallest card so cards
   // never overlap when previews have different natural heights.
@@ -96,7 +116,7 @@ function layoutGroup(node, originX, originY, out, parentRel, naturalSizes) {
     const s = cardSize(c);
     rowH = Math.max(rowH, s.h);
     out.cards.set(c.relPath, {
-      x: originX + GROUP_PAD + (i % cols) * (CARD_W + CARD_GAP),
+      x: originX + GROUP_PAD + (i % cols) * (cardW + CARD_GAP),
       y: rowY,
       w: s.w, h: s.h,
       file: c, owner: node.relPath,
@@ -106,7 +126,7 @@ function layoutGroup(node, originX, originY, out, parentRel, naturalSizes) {
   for (const g of node.groups) {
     if (!g.children.length && !g.groups.length) continue;
     y += NESTED_GAP;
-    const child = layoutGroup(g, originX + GROUP_PAD, y, out, node.relPath, naturalSizes);
+    const child = layoutGroup(g, originX + GROUP_PAD, y, out, node.relPath, naturalSizes, opts);
     y += child.h;
     contentW = Math.max(contentW, child.w);
   }
@@ -116,11 +136,11 @@ function layoutGroup(node, originX, originY, out, parentRel, naturalSizes) {
   return { w, h };
 }
 
-function computeLayout(roots, manual, naturalSizes) {
+function computeLayout(roots, manual, naturalSizes, opts) {
   const out = { cards: new Map(), groups: new Map(), parent: new Map(), total: { w: 0, h: 0 } };
   let y = 0;
   for (const root of roots || []) {
-    const { w, h } = layoutGroup(root, 0, y, out, null, naturalSizes);
+    const { w, h } = layoutGroup(root, 0, y, out, null, naturalSizes, opts);
     y += h + GROUP_GAP;
     out.total.w = Math.max(out.total.w, w);
   }
@@ -138,8 +158,8 @@ function computeLayout(roots, manual, naturalSizes) {
   }
   for (const [rel, c] of out.cards) {
     const nat = naturalSizes?.[rel];
-    const natW = nat ? nat.w + CARD_PAD_X : CARD_W;
-    const natH = nat ? nat.h + CARD_PAD_Y : CARD_H;
+    const natW = nat ? nat.w + CARD_PAD_X : (opts?.cardWidth ?? CARD_W);
+    const natH = nat ? nat.h + CARD_PAD_Y : (opts?.cardHeight ?? CARD_H);
     const m = manual.cards?.[rel];
     if (m) {
       c.x = m.x ?? c.x; c.y = m.y ?? c.y;
@@ -261,7 +281,7 @@ const resolvePath = (baseFile, relativePath) => {
   return parts.join("/");
 };
 
-const CardPreview = React.memo(function CardPreview({ file, rel, liveSourcesRef, onLive, onNatural, canvasZoom }) {
+const CardPreview = React.memo(function CardPreview({ file, rel, liveSourcesRef, onLive, onNatural, canvasZoom, showPreview = true }) {
   const hostRef = useRef(null);
   const timerRef = useRef(null);
   const rootRef = useRef(null);
@@ -573,6 +593,13 @@ const CardPreview = React.memo(function CardPreview({ file, rel, liveSourcesRef,
     };
   }, [file.absPath, load, liveSourcesRef, onLive, rel]);
 
+  if (!showPreview) {
+    return (
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#141414", color: "#888", fontSize: 12, padding: 10, textAlign: "center", borderRadius: 2 }}>
+        <span style={{ wordBreak: "break-all" }}>{file.name}</span>
+      </div>
+    );
+  }
   const isError = status === "error" || !!error;
   return (
     <div style={{ width: "100%", height: "100%", background: "#141414", borderRadius: 2, overflow: "hidden", position: "relative" }}>
@@ -623,6 +650,7 @@ const CanvasPanel = ({ nodeId, config }) => {
   const [naturalSizes, setNaturalSizes] = useState({});
   const [menu, setMenu] = useState(null);
   const [scanError, setScanError] = useState(null);
+  const [canvasOpts, setCanvasOpts] = useState(() => getCanvasOpts({}));
 
   const viewportRef = useRef(null);
   const viewRef = useRef(view);
@@ -640,6 +668,24 @@ const CanvasPanel = ({ nodeId, config }) => {
   livePathsRef.current = livePaths;
 
   const rootPath = window.__currentProjectPath || null;
+
+  // ── Canvas settings live sync (was dead) ─────────────────────────────────
+  useEffect(() => {
+    window.electronAPI.readSettings().then((s) => setCanvasOpts(getCanvasOpts(s || {})));
+    const apply = (patch) => {
+      if (!patch || typeof patch !== "object") return;
+      const hasKey = ["autoLayout","showPreview","gridSnap","showMinimap","maxCols","cardWidth","cardHeight","canvas","canvasAutoLayout","canvasShowPreview","canvasGridSnap","canvasShowMinimap","canvasMaxCols","canvasCardWidth","canvasCardHeight"].some(k=> k in patch);
+      if (!hasKey) return;
+      window.electronAPI.readSettings().then((s) => setCanvasOpts(getCanvasOpts(s || {})));
+    };
+    let bc;
+    try { bc = new BroadcastChannel("canvas-settings"); bc.onmessage = (e)=> apply(e.data); } catch {}
+    let unsub;
+    try { unsub = window.electronAPI.onSettingsUpdated(apply); } catch {}
+    return () => { try{bc?.close()}catch{}; try{unsub?.()}catch{} };
+  }, []);
+
+  const snap = useCallback((v) => canvasOpts.gridSnap ? Math.round(v / 20) * 20 : Math.round(v), [canvasOpts.gridSnap]);
 
   const setLiveState = useCallback((relPath, on) => {
     setLivePaths((prev) => {
@@ -767,7 +813,7 @@ const CanvasPanel = ({ nodeId, config }) => {
 
   const layout = useMemo(() => {
     try {
-      return computeLayout(flatGroups, manual, naturalSizes);
+      return computeLayout(flatGroups, manual, naturalSizes, canvasOpts);
     } catch (e) {
       console.error("[Canvas] layout error:", e);
       return { cards: new Map(), groups: new Map(), parent: new Map(), total: { w: 800, h: 600 } };
@@ -1002,8 +1048,8 @@ const CanvasPanel = ({ nodeId, config }) => {
     const move = (ev) => {
       if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > DRAG_MOVE_THRESHOLD) moved = true;
       if (!moved) return;
-      last.dx = Math.round((ev.clientX - startX) / viewRef.current.z);
-      last.dy = Math.round((ev.clientY - startY) / viewRef.current.z);
+      last.dx = snap((ev.clientX - startX) / viewRef.current.z);
+      last.dy = snap((ev.clientY - startY) / viewRef.current.z);
       setDrag({ type: "groupMove", rel, dx: last.dx, dy: last.dy, group: groupSnap, subCards, subGroups });
     };
     const up = () => {
@@ -1033,7 +1079,7 @@ const CanvasPanel = ({ nodeId, config }) => {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
-  }, [layout, persistLayout, collectSubtree, commitManual]);
+  }, [layout, persistLayout, collectSubtree, commitManual, snap]);
 
   const startCardMove = useCallback((e, rel) => {
     const card = layout.cards.get(rel);
@@ -1057,8 +1103,8 @@ const CanvasPanel = ({ nodeId, config }) => {
       if (!moved) return;
       const dx = (ev.clientX - startX) / viewRef.current.z;
       const dy = (ev.clientY - startY) / viewRef.current.z;
-      last.x = Math.round(orig.x + dx);
-      last.y = Math.round(orig.y + dy);
+      last.x = snap(orig.x + dx);
+      last.y = snap(orig.y + dy);
       setDrag({ type: "cardMove", rel, owner: card.owner, x: last.x, y: last.y, w: orig.w, h: orig.h, group: groupSnap });
     };
     const up = () => {
@@ -1087,7 +1133,7 @@ const CanvasPanel = ({ nodeId, config }) => {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
-  }, [layout, persistLayout, startGroupMove, commitManual]);
+  }, [layout, persistLayout, startGroupMove, commitManual, snap]);
 
   const startCardResize = useCallback((e, rel) => {
     const card = layout.cards.get(rel);
@@ -1319,7 +1365,7 @@ const CanvasPanel = ({ nodeId, config }) => {
                   <span style={{ marginLeft: "auto", fontSize: 9.5, color: k.color, background: `${k.color}1a`, border: `1px solid ${k.color}33`, borderRadius: 3, padding: "0 6px", flexShrink: 0 }}>{k.label}</span>
                 </div>
                 <div style={{ flex: 1, minHeight: 0, padding: 6 }}>
-                  <CardPreview file={c.file} rel={rel} liveSourcesRef={liveSourcesRef} onLive={onCardLive} onNatural={onCardNatural} canvasZoom={view.z} />
+                  <CardPreview file={c.file} rel={rel} liveSourcesRef={liveSourcesRef} onLive={onCardLive} onNatural={onCardNatural} canvasZoom={view.z} showPreview={canvasOpts.showPreview} />
                 </div>
                 <div
                   onPointerDown={(e) => startCardResize(e, rel)}

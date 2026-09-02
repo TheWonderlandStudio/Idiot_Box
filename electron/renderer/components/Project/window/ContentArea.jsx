@@ -16,6 +16,17 @@ const IconBtn = ({ title, active, onClick, children }) => (
   <button className={`pw-bar-btn${active ? " pw-bar-btn--active" : ""}`} title={title} onClick={onClick}>{children}</button>
 );
 
+// ── Confirm helper — respects GeneralPage confirmDelete setting ─────────────
+// Previously delete always showed confirmDialog, ignoring settings.confirmDelete.
+// Now checks settings; if confirmDelete===false, skips dialog (like VS Code).
+const shouldConfirmDelete = async () => {
+  try { const s = await window.electronAPI.readSettings(); return s.confirmDelete !== false; } catch { return true; }
+};
+const confirmIfNeeded = async (msg) => {
+  if (!(await shouldConfirmDelete())) return true;
+  return window.electronAPI.confirmDialog(msg);
+};
+
 const PREVIEW_CACHE = new Map();
 
 const PreviewIcon = ({ entry, showPreview, size }) => {
@@ -333,7 +344,7 @@ const ContentArea = ({
         const label = targetPaths.length === 1
           ? `Move "${names[0]}" to Trash?`
           : `Move ${targetPaths.length} items to Trash?`;
-        const ok = await window.electronAPI.confirmDialog(label);
+        const ok = await confirmIfNeeded(label);
         if (!ok) return;
         const failed = [];
         const trashIds = [];
@@ -358,7 +369,7 @@ const ContentArea = ({
         const plabel = targetPaths.length === 1
           ? `Permanently delete "${pnames[0]}"?`
           : `Permanently delete ${targetPaths.length} items?`;
-        const pok = await window.electronAPI.confirmDialog(plabel);
+        const pok = await confirmIfNeeded(plabel);
         if (!pok) return;
         const pfailed = [];
         for (const p of targetPaths) {

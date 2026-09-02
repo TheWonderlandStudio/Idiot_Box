@@ -30,18 +30,48 @@ const ProjectWindow = () => {
   const draggingRef = useRef(false);
   const startXRef   = useRef(0);
   const startWRef   = useRef(SIDEBAR_DEFAULT);
+  const settingsRef = useRef({});
 
-  // ── Persist zoom to settings ─────────────────────────────────────────────
+  // ── Persist zoom & showHiddenFiles to settings + live sync ────────────────
+  // Previously zoom was read once and written via read→write (race), and
+  // showHidden was local-only (GeneralPage toggle did nothing). Now both are
+  // initialized from settings and stay in sync across windows via
+  // BroadcastChannel("app-settings") + IPC onSettingsUpdated (file:// fallback).
   useEffect(() => {
     window.electronAPI.readSettings().then((s) => {
-      if (s.zoom) setZoom(s.zoom);
+      const data = s || {};
+      settingsRef.current = data;
+      if (Number.isFinite(data.zoom)) setZoom(data.zoom);
+      if (typeof data.showHiddenFiles === "boolean") setShowHidden(!!data.showHiddenFiles);
     });
+    const apply = (patch) => {
+      if (!patch || typeof patch !== "object") return;
+      if ("zoom" in patch && Number.isFinite(patch.zoom)) setZoom(patch.zoom);
+      if ("showHiddenFiles" in patch) setShowHidden(!!patch.showHiddenFiles);
+      settingsRef.current = { ...settingsRef.current, ...patch };
+    };
+    let bc;
+    try { bc = new BroadcastChannel("app-settings"); bc.onmessage = (e) => apply(e.data); } catch {}
+    let unsub;
+    try { unsub = window.electronAPI.onSettingsUpdated(apply); } catch {}
+    return () => { try { bc?.close(); } catch {} try { unsub?.(); } catch {} };
   }, []);
 
   const handleZoom = useCallback((val) => {
-    setZoom(val);
-    window.electronAPI.readSettings().then((s) => {
-      window.electronAPI.writeSettings({ ...s, zoom: val });
+    const v = Math.min(200, Math.max(50, val));
+    setZoom(v);
+    const next = { ...settingsRef.current, zoom: v };
+    settingsRef.current = next;
+    window.electronAPI.writeSettings(next);
+  }, []);
+
+  const handleToggleHidden = useCallback(() => {
+    setShowHidden((prev) => {
+      const nextVal = !prev;
+      const next = { ...settingsRef.current, showHiddenFiles: nextVal };
+      settingsRef.current = next;
+      window.electronAPI.writeSettings(next);
+      return nextVal;
     });
   }, []);
 
@@ -431,7 +461,7 @@ const ProjectWindow = () => {
           zoom={zoom}
           onZoom={handleZoom}
           showHidden={showHidden}
-          onToggleHidden={() => setShowHidden((v) => !v)}
+          onToggleHidden={handleToggleHidden}
           showFolders={showFolders}
           onToggleFolders={() => setShowFolders((v) => !v)}
           showFiles={showFiles}

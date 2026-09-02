@@ -897,6 +897,16 @@ const EditorPanel = ({ config, nodeId }) => {
       try {
         const root = window.__currentProjectPath;
         if (!root) return;
+        // Respect Git → Show Git Gutter (was dead — always showed)
+        try {
+          const s = await window.electronAPI.readSettings().catch(()=> ({}));
+          const g = s.git || {};
+          const showGutter = g.showGutter !== false && s.gitShowGutter !== false && g.enableGutter !== false && s.gitEnableGutter !== false;
+          if (!showGutter) {
+            try { decorationIds = ed.deltaDecorations(decorationIds, []); } catch {}
+            return;
+          }
+        } catch {}
         const diff = await window.electronAPI.gitDiff(root, filePath);
         if (cancelled || !ed) return;
         const model = ed.getModel();
@@ -948,6 +958,11 @@ const EditorPanel = ({ config, nodeId }) => {
       } catch {}
     };
     updateDiff();
+    // Live gutter toggle
+    let bc;
+    try { bc = new BroadcastChannel("git-settings"); bc.onmessage = () => updateDiff(); } catch {}
+    let unsubSettings;
+    try { unsubSettings = window.electronAPI.onSettingsUpdated((patch)=>{ if(patch && (patch.git||"gitShowGutter" in patch||"gitEnableGutter" in patch||"showGutter" in patch||"enableGutter" in patch)) updateDiff(); }); } catch {}
     const iv = setInterval(() => { if (!document.hidden) updateDiff(); }, 10000);
     let fsDebounce = null;
     const onFs = () => {
@@ -960,6 +975,8 @@ const EditorPanel = ({ config, nodeId }) => {
     const unsub = window.electronAPI.onFsChange(onFs);
     return () => {
       cancelled = true;
+      try{ bc?.close(); }catch{}
+      try{ unsubSettings?.(); }catch{}
       clearInterval(iv);
       clearTimeout(fsDebounce);
       window.removeEventListener("project:opened", onFs);

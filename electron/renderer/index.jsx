@@ -168,6 +168,17 @@ const App = () => {
     return () => { try { bc?.close(); } catch {} try { bc2?.close(); } catch {} };
   }, []);
 
+  // Telemetry live (was dead — no consumer) — now at least wired
+  useEffect(() => {
+    window.electronAPI.readSettings().then((s)=> { window.__telemetryEnabled = s.telemetryEnabled === true; }).catch(()=>{});
+    const h = (patch)=>{ if(patch && "telemetryEnabled" in patch) window.__telemetryEnabled = !!patch.telemetryEnabled; };
+    let bc;
+    try{ bc=new BroadcastChannel("app-settings"); bc.onmessage=(e)=> h(e.data); }catch{}
+    let unsub;
+    try{ unsub=window.electronAPI.onSettingsUpdated(h); }catch{}
+    return ()=>{ try{bc?.close()}catch{}; try{unsub?.()}catch{} };
+  }, []);
+
   // Find the biggest tabset (largest area, fallback to most tabs) for fallback when no Browser yet
   const getBiggestTabsetId = useCallback((m) => {
     let biggest = null;
@@ -216,6 +227,11 @@ const App = () => {
   // ── Restore editor tabs from .project_config/tabs.json ───────────────────
   const restoreProjectTabs = async (rootPath) => {
     if (!rootPath) return;
+    // Respect General → Restore Previous Session (was dead — always restored)
+    try {
+      const s = await window.electronAPI.readSettings().catch(()=> ({}));
+      if (s.restoreTabs === false) return;
+    } catch {}
     let data = null;
     try { data = await window.electronAPI.readProjectTabs(rootPath); } catch {}
     const tabs = Array.isArray(data?.tabs) ? data.tabs.filter(Boolean) : [];
@@ -246,9 +262,15 @@ const App = () => {
     setTick((t) => t + 1);
   };
 
-  // Load session → create model → render
+  // Load session → create model → render (respects General → Restore Previous Session)
   useEffect(() => {
-    window.electronAPI.loadSession().then((session) => {
+    (async () => {
+      let session = null;
+      try { session = await window.electronAPI.loadSession(); } catch {}
+      try {
+        const s = await window.electronAPI.readSettings().catch(()=> ({}));
+        if (s.restoreTabs === false) session = null;
+      } catch {}
       const json = (session && session.layout) ? JSON.parse(JSON.stringify(session.layout)) : DEFAULT_JSON;
       // Migrate old component names
       if (session && session.layout) {
@@ -400,7 +422,7 @@ const App = () => {
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
       setTick((t) => t + 1);
-    });
+    })();
   }, []);
 
   // ── Project open / close → save & restore tabs ───────────────────────────

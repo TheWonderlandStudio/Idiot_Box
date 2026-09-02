@@ -6,6 +6,15 @@ import { ChevronRight, FilePlus, FolderPlus, RefreshCw, FoldVertical } from "luc
 
 const ArrowSvg = () => <ChevronRight size={10} style={{ display: "block" }} />;
 
+// Respect General → Confirm Before Delete
+const shouldConfirmDelete = async () => {
+  try { const s = await window.electronAPI.readSettings(); return s.confirmDelete !== false; } catch { return true; }
+};
+const confirmIfNeeded = async (msg) => {
+  if (!(await shouldConfirmDelete())) return true;
+  return window.electronAPI.confirmDialog(msg);
+};
+
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 const TreeRow = ({
   label, iconEl, depth, hasChildren, isOpen, isSelected, isDropTarget, isCut,
@@ -472,7 +481,7 @@ const SidebarTree = ({
       case "delete": {
         const name = folderPath.replace(/.*[\\/]/, "");
         if (shiftKey) {
-          const ok = await window.electronAPI.confirmDialog(`Permanently delete "${name}"?`);
+          const ok = await confirmIfNeeded(`Permanently delete "${name}"?`);
           if (ok) {
             try {
               await window.electronAPI.deleteItem(folderPath);
@@ -481,7 +490,7 @@ const SidebarTree = ({
             } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
           }
         } else {
-          const ok = await window.electronAPI.confirmDialog(`Move "${name}" to Trash?`);
+          const ok = await confirmIfNeeded(`Move "${name}" to Trash?`);
           if (ok) {
             try {
               const result = await window.electronAPI.trashItem(folderPath, findTrashRoot(folderPath));
@@ -657,7 +666,7 @@ const SidebarTree = ({
       case "delete": {
         const name = filePath.replace(/.*[\\/]/, "");
         if (shiftKey) {
-          const ok = await window.electronAPI.confirmDialog(`Permanently delete "${name}"?`);
+          const ok = await confirmIfNeeded(`Permanently delete "${name}"?`);
           if (ok) {
             try {
               await window.electronAPI.deleteItem(filePath);
@@ -666,7 +675,7 @@ const SidebarTree = ({
             } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
           }
         } else {
-          const ok = await window.electronAPI.confirmDialog(`Move "${name}" to Trash?`);
+          const ok = await confirmIfNeeded(`Move "${name}" to Trash?`);
           if (ok) {
             try {
               const result = await window.electronAPI.trashItem(filePath, findTrashRoot(filePath));
@@ -919,11 +928,11 @@ const SidebarTree = ({
       const name = selectedPath.replace(/.*[\\/]/, "");
       const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
       if (e.shiftKey) {
-        const ok = await window.electronAPI.confirmDialog(`Permanently delete "${name}"?`);
+        const ok = await confirmIfNeeded(`Permanently delete "${name}"?`);
         if (!ok) return;
         try { await window.electronAPI.deleteItem(selectedPath); invalidateCache(parentDir); setLocalRefresh((k)=>k+1); } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
       } else {
-        const ok = await window.electronAPI.confirmDialog(`Move "${name}" to Trash?`);
+        const ok = await confirmIfNeeded(`Move "${name}" to Trash?`);
         if (!ok) return;
         try {
           const result = await window.electronAPI.trashItem(selectedPath, findTrashRoot(selectedPath));
@@ -1092,7 +1101,7 @@ const SidebarTree = ({
                         }
                         case "delete": {
                           const dname = fullPath.replace(/.*[\\/]/, "");
-                          const ok = await window.electronAPI.confirmDialog(`Move "${dname}" to Trash?`);
+                          const ok = await confirmIfNeeded(`Move "${dname}" to Trash?`);
                           if (ok) {
                             try {
                               const result = await window.electronAPI.trashItem(fullPath, rootPath);

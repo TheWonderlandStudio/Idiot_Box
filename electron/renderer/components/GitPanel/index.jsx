@@ -35,6 +35,18 @@ function humanBranchError(m){
   return m.slice(0,260);
 }
 
+// ── Git settings helper (was dead) ───────────────────────────────────────
+const getGitOpts = (settings = {}) => {
+  const g = settings.git || {};
+  return {
+    autoFetch: g.autoFetch === true || settings.gitAutoFetch === true,
+    showGutter: g.showGutter !== false && settings.gitShowGutter !== false && g.enableGutter !== false && settings.gitEnableGutter !== false,
+    confirmCommit: g.confirmCommit !== false && settings.gitConfirmCommit !== false,
+    autoStash: g.autoStash === true || settings.gitAutoStash === true,
+    showInlineBlame: g.showInlineBlame === true || settings.gitShowInlineBlame === true,
+  };
+};
+
 // ── styles ───────────────────────────────────────────────────────────
 const s = {
   wrap:{ display:"flex", flexDirection:"column", height:"100%", background:"#1e1e1e", color:"#cccccc", overflow:"hidden", fontFamily:"'Segoe UI',system-ui,sans-serif" },
@@ -78,6 +90,7 @@ export default function GitPanel({ nodeId }){
   const [newBranchName,setNewBranchName]=useState("");
   const [focusIdx,setFocusIdx]=useState(-1);
   const [ctxMenu,setCtxMenu]=useState(null); // {x,y, rel}
+  const [gitOpts,setGitOpts]=useState(()=> getGitOpts({}));
   const refreshRef=useRef(0);
   const diffCacheRef=useRef(new Map());
   const listRef=useRef(null);
@@ -101,6 +114,22 @@ export default function GitPanel({ nodeId }){
     const onClick=()=> setCtxMenu(null);
     window.addEventListener("click", onClick);
     return ()=>{ window.removeEventListener("project:opened",onOpen); window.removeEventListener("project:closed",onClose); window.removeEventListener("git:refresh",onVis); document.removeEventListener("visibilitychange",onVis); window.removeEventListener("keydown",onEsc); window.removeEventListener("click",onClick); clearInterval(iv); clearTimeout(fsDebounce); try{unsubFs();}catch{} };
+  },[]);
+
+  // ── Git settings live sync (was dead) ────────────────────────────────
+  useEffect(()=>{
+    window.electronAPI.readSettings().then((s)=> setGitOpts(getGitOpts(s||{}))).catch(()=>{});
+    const apply=(patch)=>{
+      if(!patch||typeof patch!=="object") return;
+      const has = ["git","gitAutoFetch","gitShowGutter","gitEnableGutter","gitConfirmCommit","gitAutoStash","gitShowInlineBlame","autoFetch","showGutter","enableGutter","confirmCommit","autoStash","showInlineBlame"].some(k=>k in patch);
+      if(!has) return;
+      window.electronAPI.readSettings().then((s)=> setGitOpts(getGitOpts(s||{}))).catch(()=>{});
+    };
+    let bc;
+    try{ bc=new BroadcastChannel("git-settings"); bc.onmessage=(e)=> apply(e.data); }catch{}
+    let unsub;
+    try{ unsub=window.electronAPI.onSettingsUpdated(apply); }catch{}
+    return ()=>{ try{bc?.close();}catch{} try{unsub?.();}catch{} };
   },[]);
 
   const doRefresh=useCallback(async(force)=>{
@@ -136,6 +165,13 @@ export default function GitPanel({ nodeId }){
   },[projectPath]);
 
   useEffect(()=>{ doRefresh(); const iv=setInterval(()=>{ if(!document.hidden) doRefresh(); },15000); return ()=>clearInterval(iv); },[doRefresh]);
+
+  // autoFetch live — previously dead (no consumer)
+  useEffect(()=>{
+    if(!projectPath || !gitOpts.autoFetch) return;
+    const iv=setInterval(()=>{ if(document.hidden) return; window.electronAPI.gitFetch(projectPath).then(()=> doRefresh(true)).catch(()=>{}); }, 5*60*1000);
+    return ()=> clearInterval(iv);
+  },[projectPath, gitOpts.autoFetch, doRefresh]);
 
   // log filtering
   useEffect(()=>{

@@ -22,29 +22,28 @@ const useSettings = () => {
       setSettings(s);
       setLoading(false);
     });
-    // Live sync from other windows via BroadcastChannel
-    let bc;
-    try {
-      bc = new BroadcastChannel("app-settings");
-      bc.onmessage = (e) => {
-        if (e.data && typeof e.data === "object") {
-          const next = { ...settingsRef.current, ...e.data };
-          settingsRef.current = next;
-          setSettings(next);
-        }
-      };
-    } catch {}
-    let bc2;
-    try {
-      bc2 = new BroadcastChannel("editor-settings");
-      bc2.onmessage = (e) => {
-        if (e.data && typeof e.data === "object") {
-          const next = { ...settingsRef.current, ...e.data };
-          settingsRef.current = next;
-          setSettings(next);
-        }
-      };
-    } catch {}
+    // Live sync from other windows via BroadcastChannel + IPC fallback
+    // Previously only app/editor were listened, so terminal/canvas/git direct broadcasts
+    // never reached SettingsWindow state — and useSettings broadcast every patch to both
+    // app+editor (leak). Now listen to all domain channels and route broadcasts.
+    const makeBc = (name) => {
+      try {
+        const bc = new BroadcastChannel(name);
+        bc.onmessage = (e) => {
+          if (e.data && typeof e.data === "object") {
+            const next = { ...settingsRef.current, ...e.data };
+            settingsRef.current = next;
+            setSettings(next);
+          }
+        };
+        return bc;
+      } catch { return null; }
+    };
+    const bcApp = makeBc("app-settings");
+    const bcEditor = makeBc("editor-settings");
+    const bcTerminal = makeBc("terminal-settings");
+    const bcCanvas = makeBc("canvas-settings");
+    const bcGit = makeBc("git-settings");
     // IPC fallback (BroadcastChannel doesn't work across file:// origins)
     let unsubIpc = null;
     try {
@@ -58,8 +57,11 @@ const useSettings = () => {
     } catch {}
     return () => {
       cancelled = true;
-      try { bc?.close(); } catch {}
-      try { bc2?.close(); } catch {}
+      try { bcApp?.close(); } catch {}
+      try { bcEditor?.close(); } catch {}
+      try { bcTerminal?.close(); } catch {}
+      try { bcCanvas?.close(); } catch {}
+      try { bcGit?.close(); } catch {}
       try { unsubIpc?.(); } catch {}
     };
   }, []);
@@ -69,18 +71,21 @@ const useSettings = () => {
     settingsRef.current = next;
     setSettings(next);
     await window.electronAPI.writeSettings(next);
-    // Broadcast for live sync (editor-settings for editor fields, app-settings for general)
-    // Use both to ensure all listeners get it; editor already listens to multiple channels
-    try {
-      const bc = new BroadcastChannel("app-settings");
-      bc.postMessage(patch);
-      bc.close();
-    } catch {}
-    try {
-      const bc = new BroadcastChannel("editor-settings");
-      bc.postMessage(patch);
-      bc.close();
-    } catch {}
+    // Route broadcast only to relevant channels (was: always app+editor → leak)
+    const chans = new Set();
+    for (const k of Object.keys(patch)) {
+      if (k === "terminal" || k.startsWith("terminal")) chans.add("terminal-settings");
+      else if (k === "canvas" || k.startsWith("canvas")) chans.add("canvas-settings");
+      else if (k === "git" || k.startsWith("git")) chans.add("git-settings");
+      else if (["theme","zoom","showHiddenFiles","confirmDelete","restoreTabs","telemetryEnabled"].includes(k)) chans.add("app-settings");
+      else if (["minimap","wordWrap","lineNumbers","fontSize","fontFamily","tabSize","editorTheme","autoSave","defaultEditor"].includes(k)) chans.add("editor-settings");
+      else chans.add("app-settings");
+    }
+    // Ensure at least app-settings for unknown keys (fallback live sync for SettingsWindow)
+    if (chans.size === 0) chans.add("app-settings");
+    for (const name of chans) {
+      try { const bc = new BroadcastChannel(name); bc.postMessage(patch); bc.close(); } catch {}
+    }
     return next;
   }, []);
 

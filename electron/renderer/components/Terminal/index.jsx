@@ -143,6 +143,7 @@ const TerminalPanel = ({ nodeId, config }) => {
   // cwdRef keeps latest cwd accessible inside effects without re-triggering them
   const cwdRef = useRef(cwd);
   useEffect(() => { cwdRef.current = cwd; }, [cwd]);
+  const copyOnSelectRef = useRef(false);
 
   // ── Initialize xterm + PTY ────────────────────────────────────────────────
   // Depends ONLY on tabId — cwd change should NOT kill/restart the terminal.
@@ -231,6 +232,18 @@ const TerminalPanel = ({ nodeId, config }) => {
 
       termRef.current = term;
       fitRef.current = fit;
+      copyOnSelectRef.current = termOpts.copyOnSelect;
+      // copyOnSelect was dead — wire selection → clipboard
+      try {
+        term.onSelectionChange(() => {
+          if (!copyOnSelectRef.current) return;
+          const sel = term.getSelection();
+          if (sel) {
+            try { window.electronAPI.clipboardWrite(sel); } catch {}
+            try { navigator.clipboard.writeText(sel); } catch {}
+          }
+        });
+      } catch {}
 
       const safeFit = () => {
         if (!fit || !term || !el) return;
@@ -326,21 +339,23 @@ const TerminalPanel = ({ nodeId, config }) => {
     return () => { unsubData(); unsubExit(); };
   }, [tabId]);
 
-  // ── Live terminal settings (fontSize, fontFamily, cursor, scrollback) ───────
+  // ── Live terminal settings (fontSize, fontFamily, cursor, scrollback, copyOnSelect) ───────
+  // Previously only fontSize was partially wired and leaked to editor; now all terminal
+  // keys are isolated and live. copyOnSelect was dead — now wired via copyOnSelectRef.
   useEffect(() => {
     const applyPatch = (patch) => {
       const term = termRef.current;
       if (!term) return;
       // patch may be {fontSize} from terminal-settings channel OR {terminal:{...}, terminalFontSize} from IPC
       let opts = null;
-      if (patch && typeof patch === "object" && ("terminal" in patch || "terminalFontSize" in patch || "terminalFontFamily" in patch || "terminalCursorStyle" in patch)) {
+      if (patch && typeof patch === "object" && ("terminal" in patch || "terminalFontSize" in patch || "terminalFontFamily" in patch || "terminalCursorStyle" in patch || "terminalCursorBlink" in patch || "terminalScrollback" in patch || "terminalCopyOnSelect" in patch)) {
         // full settings object (from onSettingsUpdated) — re-derive
         try {
           const s = { ...(window.__termLastSettings || {}), ...patch };
           window.__termLastSettings = s;
           opts = getTerminalOpts(s);
         } catch {}
-      } else if (patch && typeof patch === "object" && ("fontSize" in patch || "fontFamily" in patch || "cursorStyle" in patch || "cursorBlink" in patch || "scrollback" in patch)) {
+      } else if (patch && typeof patch === "object" && ("fontSize" in patch || "fontFamily" in patch || "cursorStyle" in patch || "cursorBlink" in patch || "scrollback" in patch || "copyOnSelect" in patch)) {
         // direct terminal-settings patch like {fontSize: 16}
         try {
           const last = window.__termLastSettings || {};
@@ -353,6 +368,7 @@ const TerminalPanel = ({ nodeId, config }) => {
           if ("cursorStyle" in patch) s.terminalCursorStyle = patch.cursorStyle;
           if ("cursorBlink" in patch) s.terminalCursorBlink = patch.cursorBlink;
           if ("scrollback" in patch) s.terminalScrollback = patch.scrollback;
+          if ("copyOnSelect" in patch) s.terminalCopyOnSelect = patch.copyOnSelect;
           window.__termLastSettings = s;
           opts = getTerminalOpts(s);
         } catch {}
@@ -363,6 +379,7 @@ const TerminalPanel = ({ nodeId, config }) => {
       try { term.options.cursorStyle = opts.cursorStyle; } catch {}
       try { term.options.cursorBlink = opts.cursorBlink; } catch {}
       try { term.options.scrollback = opts.scrollback; } catch {}
+      copyOnSelectRef.current = !!opts.copyOnSelect;
       try { fitRef.current?.fit(); } catch {}
       try { window.electronAPI.resizeTerminal(tabId, term.cols, term.rows); } catch {}
     };
@@ -376,8 +393,8 @@ const TerminalPanel = ({ nodeId, config }) => {
     let unsubIpc = null;
     try {
       unsubIpc = window.electronAPI.onSettingsUpdated((data) => {
-        // only react if terminal keys changed
-        if (data && (data.terminal || "terminalFontSize" in data || "terminalFontFamily" in data || "terminalCursorStyle" in data)) {
+        // only react if terminal keys changed (was incomplete — missed blink/scrollback/copy)
+        if (data && (data.terminal || "terminalFontSize" in data || "terminalFontFamily" in data || "terminalCursorStyle" in data || "terminalCursorBlink" in data || "terminalScrollback" in data || "terminalCopyOnSelect" in data)) {
           applyPatch(data);
         }
       });
