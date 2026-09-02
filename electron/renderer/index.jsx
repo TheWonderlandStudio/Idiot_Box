@@ -91,6 +91,28 @@ const factory = (node) => {
   }
 };
 
+// ── Updater nav button — small persistent button in bottom bar when update available ──
+// Was only top banner (missed in exe); now also bottom bar so future versions always visible.
+const UpdaterNavButton = () => {
+  const [state, setState] = React.useState("idle");
+  const [info, setInfo] = React.useState(null);
+  React.useEffect(() => {
+    const unsubs = [];
+    if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i)=>{ setInfo(i); setState("available"); }));
+    if (window.electronAPI?.onUpdaterChecking) unsubs.push(window.electronAPI.onUpdaterChecking(()=> setState(prev=> prev==="available"||prev==="downloaded"||prev==="downloading"?prev:"checking")));
+    if (window.electronAPI?.onUpdaterNotAvailable) unsubs.push(window.electronAPI.onUpdaterNotAvailable(()=> setState(prev=> prev==="available"||prev==="downloading"||prev==="downloaded"?prev:"idle")));
+    if (window.electronAPI?.onUpdaterDownloaded) unsubs.push(window.electronAPI.onUpdaterDownloaded((i)=>{ setInfo(i); setState("downloaded"); }));
+    if (window.electronAPI?.onUpdaterProgress) unsubs.push(window.electronAPI.onUpdaterProgress(()=> setState("downloading")));
+    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError(()=> setState("idle")));
+    // also handle direct check result for dev
+    return ()=> unsubs.forEach(u=>{try{u()}catch{}});
+  }, []);
+  if (state === "downloading") return <span title="Downloading update…" style={{background:"rgba(78,201,176,0.18)", color:"#4ec9b0", border:"1px solid #4ec9b033", fontSize:10.5, padding:"2px 8px", borderRadius:3, display:"flex", alignItems:"center", gap:4}}>↻ Downloading…</span>;
+  if (state === "downloaded") return <button onClick={()=>{ try{window.electronAPI.updaterInstall()}catch{} }} title="Restart to install update" style={{background:"#4ec9b0", color:"#0d1117", fontWeight:700, border:"none", borderRadius:3, fontSize:10.5, padding:"2px 8px", cursor:"pointer"}}>↻ Restart</button>;
+  if (state !== "available") return null;
+  return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"#4ec9b0", color:"#0d1117", fontWeight:700, border:"none", borderRadius:3, fontSize:10.5, padding:"2px 8px", cursor:"pointer", display:"flex", alignItems:"center", gap:4, animation:"pulse 1.5s infinite"}}>⬇ Update v{info?.version||"new"}</button>;
+};
+
 // ── Helpers to walk the flex model tree ────────────────────────────────────
 const collectEditorTabs = (node, result = []) => {
   if (node.getType?.() === "tab" && node.getComponent?.() === "editor") {
@@ -1136,6 +1158,7 @@ const App = () => {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: 10 }} />
+          <UpdaterNavButton />
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-ports-panel"))}
             title="Open Ports — forwarded & running dev servers"

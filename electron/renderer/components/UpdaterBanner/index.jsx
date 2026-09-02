@@ -19,7 +19,14 @@ export default function UpdaterBanner() {
     const unsubs = [];
     if (window.electronAPI?.onUpdaterChecking) unsubs.push(window.electronAPI.onUpdaterChecking(() => { setState("checking"); setError(null); autoInstallRef.current = false; }));
     if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i) => { setInfo(i); setState("available"); setProgress(null); }));
-    if (window.electronAPI?.onUpdaterNotAvailable) unsubs.push(window.electronAPI.onUpdaterNotAvailable(() => { setState("not-available"); setTimeout(() => setState("idle"), 3000); }));
+    if (window.electronAPI?.onUpdaterNotAvailable) unsubs.push(window.electronAPI.onUpdaterNotAvailable(() => {
+      // Don't hide "available" with late "not-available" from autoUpdater race (packaged: GitHub + autoUpdater both fire)
+      setState(prev => {
+        if (prev === "available" || prev === "downloading" || prev === "downloaded") return prev;
+        setTimeout(() => setState(cur => cur === "not-available" ? "idle" : cur), 3000);
+        return "not-available";
+      });
+    }));
     if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError((e) => { setError(e); setState("error"); autoInstallRef.current = false; }));
     if (window.electronAPI?.onUpdaterProgress) unsubs.push(window.electronAPI.onUpdaterProgress((p) => { setProgress(p); setState("downloading"); }));
     if (window.electronAPI?.onUpdaterDownloaded) unsubs.push(window.electronAPI.onUpdaterDownloaded((i) => {
