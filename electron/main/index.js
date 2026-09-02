@@ -283,6 +283,76 @@ ipcMain.handle("settings:write", (_e, data) => {
   return ok;
 });
 
+// ─── UI Zoom (View → UI Size — Ctrl + + / Ctrl + -) ──────────────────────────
+// Whole-app zoom via Electron's webContents zoomFactor (0.25x to 3x).
+// Persisted to settings.json as uiZoomFactor so it restores on next launch.
+const ZOOM_MIN  = 0.25;
+const ZOOM_MAX  = 3.0;
+const ZOOM_STEP = 0.1;
+
+function getUiZoomFactor() {
+  try {
+    const s = readSettings();
+    const v = parseFloat(s.uiZoomFactor);
+    if (Number.isFinite(v) && v >= ZOOM_MIN && v <= ZOOM_MAX) return Math.round(v * 100) / 100;
+  } catch {}
+  return 1;
+}
+function saveUiZoomFactor(factor) {
+  try {
+    const s = readSettings();
+    s.uiZoomFactor = Math.round(factor * 100) / 100;
+    writeSettings(s);
+  } catch {}
+}
+function getFocusedWin() {
+  try { return BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || null; } catch { return null; }
+}
+let _lastZoomAt = 0;
+function applyUiZoom(win, factor) {
+  // win may be null when called from IPC without sender; fallback to first window
+  const targetWins = win && !win.isDestroyed() ? [win] : BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed());
+  // For global UI zoom, apply to all windows so Settings etc. stay in sync
+  const allWins = BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed());
+  const now = Date.now();
+  // Debounce rapid duplicate triggers (Menu accelerator + renderer fallback for same keypress)
+  if (now - _lastZoomAt < 90) return;
+  _lastZoomAt = now;
+  factor = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(factor * 100) / 100));
+  for (const w of (allWins.length ? allWins : targetWins)) {
+    try { w.webContents.setZoomFactor(factor); } catch {}
+  }
+  saveUiZoomFactor(factor);
+  try { Menu.setApplicationMenu(buildMenu()); } catch {}
+  for (const w of allWins) {
+    try { w.webContents.send("zoom:changed", factor); } catch {}
+  }
+}
+function zoomIn(win) {
+  const w = win || getFocusedWin();
+  if (!w) return;
+  const cur = w.webContents.getZoomFactor();
+  applyUiZoom(w, Math.min(ZOOM_MAX, +(cur + ZOOM_STEP).toFixed(2)));
+}
+function zoomOut(win) {
+  const w = win || getFocusedWin();
+  if (!w) return;
+  const cur = w.webContents.getZoomFactor();
+  applyUiZoom(w, Math.max(ZOOM_MIN, +(cur - ZOOM_STEP).toFixed(2)));
+}
+function zoomReset(win) {
+  const w = win || getFocusedWin();
+  if (!w) return;
+  applyUiZoom(w, 1);
+}
+
+// IPC for renderer-initiated zoom (Ctrl+wheel, key fallback, status bar etc.)
+ipcMain.handle("zoom:in",    (e) => { const w = BrowserWindow.fromWebContents(e.sender) || getFocusedWin(); zoomIn(w); return w ? w.webContents.getZoomFactor() : 1; });
+ipcMain.handle("zoom:out",   (e) => { const w = BrowserWindow.fromWebContents(e.sender) || getFocusedWin(); zoomOut(w); return w ? w.webContents.getZoomFactor() : 1; });
+ipcMain.handle("zoom:reset", (e) => { const w = BrowserWindow.fromWebContents(e.sender) || getFocusedWin(); zoomReset(w); return 1; });
+ipcMain.handle("zoom:get",   (e) => { try { const w = BrowserWindow.fromWebContents(e.sender) || getFocusedWin(); return w ? w.webContents.getZoomFactor() : getUiZoomFactor(); } catch { return getUiZoomFactor(); } });
+ipcMain.handle("zoom:set",   (e, factor) => { const w = BrowserWindow.fromWebContents(e.sender) || getFocusedWin(); if (w && Number.isFinite(factor)) applyUiZoom(w, factor); return w ? w.webContents.getZoomFactor() : getUiZoomFactor(); });
+
 // ─── Editors (open files externally) ──────────────────────────────────────────
 const KNOWN_EDITORS = [
   { id: "vscode",   label: "Visual Studio Code", commands: ["code"]               },
@@ -3402,6 +3472,11 @@ function openSettingsWindow() {
     webPreferences: { preload: path.join(__dirname, "../preload/index.js"), contextIsolation: true, nodeIntegration: false },
   });
   settingsWin.setMenuBarVisibility(false);
+  // Apply persisted UI zoom to settings window as well
+  try {
+    const iz = getUiZoomFactor();
+    if (iz !== 1) settingsWin.webContents.setZoomFactor(iz);
+  } catch {}
   settingsWin.loadFile(path.join(__dirname, "../renderer/settings.html"));
   settingsWin.once("ready-to-show", () => settingsWin.show());
   settingsWin.on("closed", () => { settingsWin = null; });
@@ -3498,10 +3573,38 @@ function buildMenu() {
         { type: "separator" },
         { label: "Toggle Full Screen", accelerator: "F11", click: () => sendToRenderer("menu:fullscreen", null) },
         { type: "separator" },
-        { label: "Zoom In", accelerator: "CmdOrCtrl+Plus", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) { const z = win.webContents.getZoomFactor(); win.webContents.setZoomFactor(Math.min(z + 0.1, 3)); } } },
-        { label: "Zoom In (Alt)", accelerator: "CmdOrCtrl+=", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) { const z = win.webContents.getZoomFactor(); win.webContents.setZoomFactor(Math.min(z + 0.1, 3)); } } },
-        { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) { const z = win.webContents.getZoomFactor(); win.webContents.setZoomFactor(Math.max(z - 0.1, 0.2)); } } },
-        { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.setZoomFactor(1); } },
+        // ── UI Size — requested Ctrl + + (Zoom In) / Ctrl + - (Zoom Out) ──
+        { label: "Zoom In — Increase UI Size", accelerator: "CmdOrCtrl+Plus", click: () => zoomIn() },
+        { label: "Zoom In — Increase UI Size (Ctrl+=)", accelerator: "CmdOrCtrl+=", click: () => zoomIn() },
+        { label: "Zoom Out — Decrease UI Size", accelerator: "CmdOrCtrl+-", click: () => zoomOut() },
+        { label: "Reset UI Size — Actual Size", accelerator: "CmdOrCtrl+0", click: () => zoomReset() },
+        { label: "Zoom In (Numpad +)", accelerator: "CmdOrCtrl+numadd", visible: false, click: () => zoomIn() },
+        { label: "Zoom Out (Numpad -)", accelerator: "CmdOrCtrl+numsub", visible: false, click: () => zoomOut() },
+        { label: "Reset UI Size (Numpad 0)", accelerator: "CmdOrCtrl+num0", visible: false, click: () => zoomReset() },
+        { label: `Zoom: ${Math.round(getUiZoomFactor() * 100)}%`, enabled: false },
+        {
+          label: "UI Size",
+          submenu: [
+            { label: "Increase UI Size (Zoom In)", accelerator: "CmdOrCtrl+Plus", click: () => zoomIn() },
+            { label: "Increase UI Size (Zoom In) — Ctrl+=", accelerator: "CmdOrCtrl+=", click: () => zoomIn() },
+            { label: "Decrease UI Size (Zoom Out)", accelerator: "CmdOrCtrl+-", click: () => zoomOut() },
+            { label: "Reset UI Size (100%)", accelerator: "CmdOrCtrl+0", click: () => zoomReset() },
+            { type: "separator" },
+            { label: `Current Zoom: ${Math.round(getUiZoomFactor() * 100)}%`, enabled: false },
+          ],
+        },
+        {
+          label: "Appearance",
+          submenu: [
+            { label: "Zoom In — Increase UI Size", accelerator: "CmdOrCtrl+Plus", click: () => zoomIn() },
+            { label: "Zoom Out — Decrease UI Size", accelerator: "CmdOrCtrl+-", click: () => zoomOut() },
+            { label: "Reset UI Size", accelerator: "CmdOrCtrl+0", click: () => zoomReset() },
+            { type: "separator" },
+            { label: `Zoom: ${Math.round(getUiZoomFactor() * 100)}%`, enabled: false },
+            { type: "separator" },
+            { label: "Toggle Full Screen", accelerator: "F11", click: () => sendToRenderer("menu:fullscreen", null) },
+          ],
+        },
         { type: "separator" },
         { label: "Reset Layout", accelerator: "CmdOrCtrl+Alt+R", click: () => sendToRenderer("menu:resetLayout", null) },
         { type: "separator" },
@@ -3770,15 +3873,35 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  // ── Apply persisted UI zoom (View → UI Size) ───────────────────────────
+  try {
+    const iz = getUiZoomFactor();
+    if (iz !== 1) win.webContents.setZoomFactor(iz);
+  } catch {}
+
   // ── Fix Ctrl+W: only close project, never close window/app ───
-  const handleCtrlW = (event, input) => {
-    if ((input.control || input.meta) && String(input.key || "").toLowerCase() === "w" && input.type === "keyDown" && !input.shift && !input.alt) {
-      try { event.preventDefault(); } catch {}
-      lastProjectPath = null;
-      sendToRenderer("menu:closeProject", null);
-    }
+  // ── + Global Zoom shortcuts: Ctrl + + / Ctrl + = / Ctrl + numadd  → Zoom In
+  // ──                        Ctrl + - / Ctrl + numsub → Zoom Out, Ctrl + 0 → Reset
+  const handleGlobalShortcuts = (event, input) => {
+    try {
+      const isCtrl = !!(input.control || input.meta);
+      const key = String(input.key || "").toLowerCase();
+      const typeDown = input.type === "keyDown";
+      // Ctrl+W — close project only (handle for both main and guest)
+      if (isCtrl && key === "w" && typeDown && !input.shift && !input.alt) {
+        try { event.preventDefault(); } catch {}
+        lastProjectPath = null;
+        sendToRenderer("menu:closeProject", null);
+        return;
+      }
+      // Zoom shortcuts are handled by Menu accelerators (View → UI Size) and
+      // renderer fallback (window keydown + Ctrl+Wheel) for Monaco/webview
+      // focus cases. No main-process before-input zoom handling needed here
+      // to avoid double-step and conflict with Browser webview's own Ctrl+Plus
+      // content-zoom. See View menu and renderer/index.jsx zoom overlay.
+    } catch {}
   };
-  win.webContents.on("before-input-event", handleCtrlW);
+  win.webContents.on("before-input-event", handleGlobalShortcuts);
 
   // Register every browser webview as a chrome.tabs tab
   win.webContents.on("did-attach-webview", (_e, wc) => {
@@ -3786,7 +3909,7 @@ function createWindow() {
     try { chromeExt?.addTab(wc, win); } catch {}
     wc.on("did-navigate", () => { try { chromeExt?.selectTab(wc); } catch {} });
     wc.on("focus",       () => { try { chromeExt?.selectTab(wc); } catch {} });
-    try { wc.on("before-input-event", handleCtrlW); } catch {}
+    try { wc.on("before-input-event", handleGlobalShortcuts); } catch {}
     const pending = pendingCreateTabs.shift();
     if (pending) pending.resolve([wc, win]);
   });

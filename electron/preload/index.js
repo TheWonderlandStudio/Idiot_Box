@@ -225,6 +225,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   revealAllStorages:     () => ipcRenderer.invoke("projectStorage:revealAll"),
   clearAllProjectsStorage:() => ipcRenderer.invoke("projectStorage:clearAllProjects"),
 
+  // ── UI Zoom (View → UI Size — Ctrl + + / Ctrl + -) ───────────────────────
+  zoomIn: () => ipcRenderer.invoke("zoom:in"),
+  zoomOut: () => ipcRenderer.invoke("zoom:out"),
+  zoomReset: () => ipcRenderer.invoke("zoom:reset"),
+  getZoom: () => ipcRenderer.invoke("zoom:get"),
+  setZoom: (factor) => ipcRenderer.invoke("zoom:set", factor),
+  onZoomChanged: (cb) => { const h=(_e,f)=>cb(f); ipcRenderer.on("zoom:changed", h); return ()=>ipcRenderer.removeListener("zoom:changed", h); },
+
   // ── Window state ────────────────────────────────────────────────────────────
   onWindowStateChanged: (callback) => {
     const handler = (_e, payload) => callback(payload);

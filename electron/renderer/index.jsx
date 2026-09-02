@@ -904,6 +904,92 @@ const App = () => {
     };
   }, []);
 
+  // ── UI Size — View → Ctrl + + / Ctrl + - / Ctrl + 0 fallback + overlay ──
+  // Main process handles accelerators + before-input-event, but Monaco/webview can
+  // swallow them. This renderer fallback ensures Ctrl+=/Plus/Minus/0 still zoom.
+  // Ctrl+Wheel also zooms UI (like browsers). Shows a transient overlay toast.
+  useEffect(() => {
+    let toastTimer = null;
+    let overlayEl = null;
+    const ensureOverlay = () => {
+      if (overlayEl && document.body.contains(overlayEl)) return overlayEl;
+      overlayEl = document.getElementById("zoom-overlay");
+      if (!overlayEl) {
+        overlayEl = document.createElement("div");
+        overlayEl.id = "zoom-overlay";
+        overlayEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,20,20,0.92);color:#e8e8e8;border:1px solid #3c3c3c;border-radius:8px;padding:10px 22px;font-family:system-ui,Segoe UI,sans-serif;font-size:22px;font-weight:600;letter-spacing:0.3px;z-index:99999;pointer-events:none;opacity:0;transition:opacity 0.18s ease;box-shadow:0 8px 28px rgba(0,0,0,0.45);";
+        document.body.appendChild(overlayEl);
+      }
+      return overlayEl;
+    };
+    const showToast = (factor) => {
+      try {
+        const el = ensureOverlay();
+        const pct = Math.round(factor * 100);
+        el.textContent = `${pct}%`;
+        el.style.opacity = "1";
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { try { el.style.opacity = "0"; } catch {} }, 1100);
+      } catch {}
+    };
+    // listen to main-process zoom changes (for toast + menu already rebuilt)
+    let unsubZoom = null;
+    try { unsubZoom = window.electronAPI?.onZoomChanged?.((factor) => showToast(factor)); } catch {}
+    // also handle initial zoom fetch for consistency
+    try { window.electronAPI?.getZoom?.().then(()=>{}).catch(()=>{}); } catch {}
+
+    const onKeyDown = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // ignore when typing in terminal xterm? let terminal handle itself, but still allow UI zoom
+      const k = String(e.key || "").toLowerCase();
+      const code = String(e.code || "").toLowerCase();
+      const isPlus = k === "+" || k === "=" || code === "equal" || code === "numpadadd" || code === "numpad_add" || code === "plus";
+      const isMinus = k === "-" || k === "_" || code === "minus" || code === "numpadsubtract" || code === "numpad_subtract" || k === "minus";
+      const isZero = k === "0" || code === "digit0" || code === "numpad0" || code === "numpad_0";
+      // For "=" we must allow Shift (Shift+= gives +)
+      // For "-" and "0" we require no Shift to avoid false positives
+      if (isPlus && !e.altKey) {
+        // avoid hijacking editor's Ctrl+Shift+=? still zoom
+        e.preventDefault(); e.stopPropagation(); try{ e.stopImmediatePropagation(); }catch{}
+        try { window.electronAPI?.zoomIn?.().then((f)=>{ if(f) showToast(f); }).catch(()=>{}); } catch {}
+        return false;
+      }
+      if (isMinus && !e.altKey) {
+        e.preventDefault(); e.stopPropagation(); try{ e.stopImmediatePropagation(); }catch{}
+        try { window.electronAPI?.zoomOut?.().then((f)=>{ if(f) showToast(f); }).catch(()=>{}); } catch {}
+        return false;
+      }
+      if (isZero && !e.altKey && !e.shiftKey) {
+        e.preventDefault(); e.stopPropagation(); try{ e.stopImmediatePropagation(); }catch{}
+        try { window.electronAPI?.zoomReset?.().then((f)=>{ showToast(1); }).catch(()=>{}); } catch {}
+        return false;
+      }
+    };
+    const onWheel = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // Don't hijack when scrolling inside editor with ctrl? UI zoom is desired per request
+      // But allow Canvas and Project's own Ctrl+Scroll to coexist — they handle wheel with ctrl as well.
+      // Here we only handle global window wheel when no other handler consumed.
+      // Use capture, preventDefault to trigger UI zoom.
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        try { window.electronAPI?.zoomIn?.().then((f)=>{ if(f) showToast(f); }).catch(()=>{}); } catch {}
+      } else if (e.deltaY > 0) {
+        try { window.electronAPI?.zoomOut?.().then((f)=>{ if(f) showToast(f); }).catch(()=>{}); } catch {}
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("wheel", onWheel, true);
+      try { unsubZoom?.(); } catch {}
+      clearTimeout(toastTimer);
+    };
+  }, []);
+
   // ── Open files in the Editor as flexlayout tabs ──────────────────────────
   useEffect(() => {
     const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".avif", ".tiff", ".tif", ".heic", ".mp4", ".webm", ".ogv", ".pdf", ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma", ".opus"];
