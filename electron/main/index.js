@@ -3675,11 +3675,14 @@ function buildMenu() {
             const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
             if (!win) return;
             try {
-              const info = await checkForUpdatesViaGitHub(win);
-              if (!info) {
-                dialog.showMessageBox(win, { type:"info", title:"No Updates", message:"You're up to date", detail:`Current version v${app.getVersion()} is the latest.` });
-              }
-            } catch (e) { dialog.showMessageBox(win, { type:"error", title:"Update Check Failed", message:"Update check failed", detail: String(e.message || e) }); }
+              // tell renderer this is a manual check so "You're up to date" shows in-app (not auto)
+              try { win.webContents.send("updater:manualCheck"); } catch {}
+              await checkForUpdatesViaGitHub(win);
+              // in-app popup via updater:* events (UpdaterBanner + nav button), no system dialog
+            } catch (e) {
+              console.warn("[updater] manual check failed", e.message);
+              try { win.webContents.send("updater:error", String(e.message || e)); } catch {}
+            }
           }},
         { label: "View Releases", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases") },
         { type: "separator" },

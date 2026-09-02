@@ -15,22 +15,31 @@ export default function UpdaterBanner() {
     }).catch(() => {});
   }, []);
 
+  const isManualRef = React.useRef(false);
   useEffect(() => {
     const unsubs = [];
+    if (window.electronAPI?.onUpdaterManualCheck) unsubs.push(window.electronAPI.onUpdaterManualCheck(() => { isManualRef.current = true; }));
     if (window.electronAPI?.onUpdaterChecking) unsubs.push(window.electronAPI.onUpdaterChecking(() => { setState("checking"); setError(null); autoInstallRef.current = false; }));
-    if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i) => { setInfo(i); setState("available"); setProgress(null); }));
-    if (window.electronAPI?.onUpdaterNotAvailable) unsubs.push(window.electronAPI.onUpdaterNotAvailable(() => {
-      // Don't hide "available" with late "not-available" from autoUpdater race (packaged: GitHub + autoUpdater both fire)
-      setState(prev => {
-        if (prev === "available" || prev === "downloading" || prev === "downloaded") return prev;
-        setTimeout(() => setState(cur => cur === "not-available" ? "idle" : cur), 3000);
-        return "not-available";
-      });
+    if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i) => { setInfo(i); setState("available"); setProgress(null); isManualRef.current = false; }));
+    if (window.electronAPI?.onUpdaterNotAvailable) unsubs.push(window.electronAPI.onUpdaterNotAvailable((info) => {
+      // In-app popup for manual check only (was system dialog); auto checks stay silent
+      if (isManualRef.current) {
+        setInfo(info); setState("not-available");
+        isManualRef.current = false;
+        setTimeout(() => setState(cur => cur === "not-available" ? "idle" : cur), 4000);
+      } else {
+        // Don't hide "available" with late "not-available" race
+        setState(prev => {
+          if (prev === "available" || prev === "downloading" || prev === "downloaded") return prev;
+          return "idle";
+        });
+      }
     }));
-    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError((e) => { setError(e); setState("error"); autoInstallRef.current = false; }));
+    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError((e) => { setError(e); setState("error"); autoInstallRef.current = false; isManualRef.current = false; }));
     if (window.electronAPI?.onUpdaterProgress) unsubs.push(window.electronAPI.onUpdaterProgress((p) => { setProgress(p); setState("downloading"); }));
     if (window.electronAPI?.onUpdaterDownloaded) unsubs.push(window.electronAPI.onUpdaterDownloaded((i) => {
       setInfo(i); setState("downloaded"); setProgress(null);
+      isManualRef.current = false;
       // If user clicked "Update & Restart", auto-restart after short delay
       if (autoInstallRef.current) {
         setTimeout(() => { try { window.electronAPI?.updaterInstall?.(); } catch {} }, 1200);
@@ -40,12 +49,13 @@ export default function UpdaterBanner() {
   }, []);
 
   const handleCheck = useCallback(async () => {
+    isManualRef.current = true;
     setState("checking");
     setError(null);
     try {
       const r = await window.electronAPI?.updaterCheck?.();
-      if (r?.error) { setError(r.error); setState("error"); }
-    } catch (e) { setError(e.message); setState("error"); }
+      if (r?.error) { setError(r.error); setState("error"); isManualRef.current = false; }
+    } catch (e) { setError(e.message); setState("error"); isManualRef.current = false; }
   }, []);
 
   const handleDownload = useCallback(async () => {
@@ -63,25 +73,29 @@ export default function UpdaterBanner() {
     try { await window.electronAPI?.updaterInstall?.(); } catch (e) { setError(e.message); }
   }, []);
 
-  // Don't show banner in idle/not-available unless user manually checks? But spec says show update button if new releases available -> so only show when available/downloading/downloaded/error
-  if (state === "idle" || state === "checking" || state === "not-available") {
-    // Show subtle checking indicator? For now hide unless error
-    if (state === "checking") {
-      return (
-        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", background:"#1a2a3a", borderBottom:"1px solid #2a4a6a", color:"#7eb8f7", fontSize:12, flexShrink:0 }}>
-          <RefreshCw size={14} style={{ animation:"spin 1s linear infinite" }} />
-          <span>Checking for updates...</span>
-          {currentVersion && <span style={{ marginLeft:"auto", opacity:0.6, fontSize:11 }}>v{currentVersion}</span>}
-        </div>
-      );
-    }
-    return null;
-  }
-
   const bannerStyle = {
     display:"flex", alignItems:"center", gap:10,
     padding:"8px 12px", fontSize:12, flexShrink:0, borderBottom:"1px solid #2d2d2d",
   };
+
+  if (state === "idle") return null;
+  if (state === "checking") {
+    return (
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", background:"#1a2a3a", borderBottom:"1px solid #2a4a6a", color:"#7eb8f7", fontSize:12, flexShrink:0 }}>
+        <RefreshCw size={14} style={{ animation:"spin 1s linear infinite" }} />
+        <span>Checking for updates...</span>
+        {currentVersion && <span style={{ marginLeft:"auto", opacity:0.6, fontSize:11 }}>v{currentVersion}</span>}
+      </div>
+    );
+  }
+  if (state === "not-available") {
+    return (
+      <div style={{ ...bannerStyle, background:"#1e2a1e", color:"#8fbf8f", borderBottomColor:"#2d4a2d", justifyContent:"space-between" }}>
+        <span>You're up to date — v{currentVersion} is the latest</span>
+        <button onClick={() => setState("idle")} title="Dismiss" style={{ ...btnStyle, background:"transparent", border:"1px solid #2d4a2d", color:"#8fbf8f", padding:"4px 8px" }}><X size={14} /></button>
+      </div>
+    );
+  }
 
   if (state === "error") {
     return (

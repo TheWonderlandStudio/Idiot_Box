@@ -161,6 +161,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onUpdaterError: (cb) => { const h=(_e,err)=>cb(err); ipcRenderer.on("updater:error", h); return ()=>ipcRenderer.removeListener("updater:error", h); },
   onUpdaterProgress: (cb) => { const h=(_e,p)=>cb(p); ipcRenderer.on("updater:progress", h); return ()=>ipcRenderer.removeListener("updater:progress", h); },
   onUpdaterDownloaded: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:downloaded", h); return ()=>ipcRenderer.removeListener("updater:downloaded", h); },
+  onUpdaterManualCheck: (cb) => { const h=(_e)=>cb(); ipcRenderer.on("updater:manualCheck", h); return ()=>ipcRenderer.removeListener("updater:manualCheck", h); },
 
   // ── Port Manager ────────────────────────────────────────────────────────────
   getPorts:        () => ipcRenderer.invoke("ports:list"),
