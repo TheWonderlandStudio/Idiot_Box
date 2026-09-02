@@ -376,18 +376,11 @@ try {
   const bc2 = new BroadcastChannel("app-settings");
   bc2.onmessage = _broadcastHandler;
 } catch { /* BroadcastChannel unavailable */ }
-try {
-  const bc3 = new BroadcastChannel("terminal-settings");
-  bc3.onmessage = _broadcastHandler;
-} catch {}
-try {
-  const bc4 = new BroadcastChannel("git-settings");
-  bc4.onmessage = _broadcastHandler;
-} catch {}
-try {
-  const bc5 = new BroadcastChannel("canvas-settings");
-  bc5.onmessage = _broadcastHandler;
-} catch {}
+// Note: DO NOT listen to terminal/git/canvas channels here.
+// Terminal fontSize patches use {fontSize} on "terminal-settings" — if editor
+// listened there it would incorrectly apply terminal size to the Monaco editor
+// (bug: settings menu terminal slider changed editor size). Editor only cares
+// about "editor-settings" / "app-settings".
 // IPC fallback for settings sync across windows (file:// origins don't share BroadcastChannel)
 try {
   window.electronAPI?.onSettingsUpdated?.((data) => {

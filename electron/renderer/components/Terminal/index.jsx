@@ -11,10 +11,13 @@ let nextTerminalId = 1;
 // IMPORTANT: the app's global `* { font-family: 'Fredoka' }` rule applies to
 // every element INCLUDING xterm's glyph spans (an explicit rule beats
 // inheritance), which breaks the monospace grid and produces negative
-// letter-spacing corrections in xterm's DOM renderer. Force the mono font on
-// .xterm and ALL descendants with !important.
+// letter-spacing corrections in xterm's DOM renderer.
+// NOTE: font-family is NOT forced here with !important — it is controlled via
+// term.options.fontFamily so Settings → Terminal → Font Family/Size works.
+// Previously this was `font-family: "Courier New"... !important` which blocked
+// dynamic updates and caused the Settings bug where terminal size changed editor size instead.
 const XTERM_CUSTOM_CSS = `
-.xterm, .xterm * { font-family: "Courier New", Courier, monospace !important; font-kerning: none; }
+.xterm, .xterm * { font-kerning: none; }
 .xterm { height: 100%; padding: 0 !important; background: #1e1e1e !important; }
 .xterm-viewport { scrollbar-width: thin; background: #1e1e1e !important; }
 .xterm-viewport::-webkit-scrollbar { width: 6px; }
@@ -46,6 +49,18 @@ const TERMINAL_PANEL_CSS = `
 `;
 
 const TerminalStyle = () => <style>{XTERM_CUSTOM_CSS}{TERMINAL_PANEL_CSS}</style>;
+
+// ─── Terminal settings helpers ────────────────────────────────────────────
+const getTerminalOpts = (settings = {}) => {
+  const t = settings.terminal || {};
+  const fontSize = Number.isFinite(t.fontSize) ? t.fontSize : Number.isFinite(settings.terminalFontSize) ? settings.terminalFontSize : 13;
+  const fontFamily = t.fontFamily || settings.terminalFontFamily || "Courier New, Courier, monospace";
+  const cursorStyle = t.cursorStyle || settings.terminalCursorStyle || "block";
+  const cursorBlink = t.cursorBlink !== undefined ? !!t.cursorBlink : settings.terminalCursorBlink !== undefined ? !!settings.terminalCursorBlink : true;
+  const scrollback = Number.isFinite(t.scrollback) ? t.scrollback : Number.isFinite(settings.terminalScrollback) ? settings.terminalScrollback : 1000;
+  const copyOnSelect = t.copyOnSelect === true || settings.terminalCopyOnSelect === true;
+  return { fontSize: Math.min(32, Math.max(8, fontSize)), fontFamily, cursorStyle, cursorBlink, scrollback, copyOnSelect };
+};
 
 const TerminalPanel = ({ nodeId, config }) => {
   const elRef = useRef(null);
@@ -148,11 +163,19 @@ const TerminalPanel = ({ nodeId, config }) => {
 
       setCwd(targetCwd);
 
+      // Load terminal settings (fontSize, fontFamily, cursor, scrollback) — previously hardcoded to 13px,
+      // so Settings → Terminal → Font Size never affected the terminal and instead leaked to editor.
+      let termOpts = getTerminalOpts({});
+      try {
+        const s = await window.electronAPI.readSettings();
+        if (s) termOpts = getTerminalOpts(s);
+      } catch {}
       term = new Terminal({
-        cursorBlink: true,
-        cursorStyle: "block",
-        fontFamily: "Courier New, Courier, monospace",
-        fontSize: 13,
+        cursorBlink: termOpts.cursorBlink,
+        cursorStyle: termOpts.cursorStyle,
+        fontFamily: termOpts.fontFamily,
+        fontSize: termOpts.fontSize,
+        scrollback: termOpts.scrollback,
         lineHeight: 1.15,
         letterSpacing: 0,
         allowTransparency: false,
@@ -301,6 +324,65 @@ const TerminalPanel = ({ nodeId, config }) => {
     });
 
     return () => { unsubData(); unsubExit(); };
+  }, [tabId]);
+
+  // ── Live terminal settings (fontSize, fontFamily, cursor, scrollback) ───────
+  useEffect(() => {
+    const applyPatch = (patch) => {
+      const term = termRef.current;
+      if (!term) return;
+      // patch may be {fontSize} from terminal-settings channel OR {terminal:{...}, terminalFontSize} from IPC
+      let opts = null;
+      if (patch && typeof patch === "object" && ("terminal" in patch || "terminalFontSize" in patch || "terminalFontFamily" in patch || "terminalCursorStyle" in patch)) {
+        // full settings object (from onSettingsUpdated) — re-derive
+        try {
+          const s = { ...(window.__termLastSettings || {}), ...patch };
+          window.__termLastSettings = s;
+          opts = getTerminalOpts(s);
+        } catch {}
+      } else if (patch && typeof patch === "object" && ("fontSize" in patch || "fontFamily" in patch || "cursorStyle" in patch || "cursorBlink" in patch || "scrollback" in patch)) {
+        // direct terminal-settings patch like {fontSize: 16}
+        try {
+          const last = window.__termLastSettings || {};
+          const t = last.terminal || {};
+          const nextT = { ...t, ...patch };
+          const s = { ...last, terminal: nextT };
+          // also handle flat aliases for consistency
+          if ("fontSize" in patch) s.terminalFontSize = patch.fontSize;
+          if ("fontFamily" in patch) s.terminalFontFamily = patch.fontFamily;
+          if ("cursorStyle" in patch) s.terminalCursorStyle = patch.cursorStyle;
+          if ("cursorBlink" in patch) s.terminalCursorBlink = patch.cursorBlink;
+          if ("scrollback" in patch) s.terminalScrollback = patch.scrollback;
+          window.__termLastSettings = s;
+          opts = getTerminalOpts(s);
+        } catch {}
+      }
+      if (!opts) return;
+      try { term.options.fontSize = opts.fontSize; } catch {}
+      try { term.options.fontFamily = opts.fontFamily; } catch {}
+      try { term.options.cursorStyle = opts.cursorStyle; } catch {}
+      try { term.options.cursorBlink = opts.cursorBlink; } catch {}
+      try { term.options.scrollback = opts.scrollback; } catch {}
+      try { fitRef.current?.fit(); } catch {}
+      try { window.electronAPI.resizeTerminal(tabId, term.cols, term.rows); } catch {}
+    };
+    // init cache
+    try { window.electronAPI.readSettings().then((s)=>{ if(s) window.__termLastSettings = s; }).catch(()=>{}); } catch {}
+    let bc;
+    try {
+      bc = new BroadcastChannel("terminal-settings");
+      bc.onmessage = (e) => applyPatch(e.data);
+    } catch {}
+    let unsubIpc = null;
+    try {
+      unsubIpc = window.electronAPI.onSettingsUpdated((data) => {
+        // only react if terminal keys changed
+        if (data && (data.terminal || "terminalFontSize" in data || "terminalFontFamily" in data || "terminalCursorStyle" in data)) {
+          applyPatch(data);
+        }
+      });
+    } catch {}
+    return () => { try { bc?.close(); } catch {} try { unsubIpc?.(); } catch {} };
   }, [tabId]);
 
   // ── Listen for "Open in Terminal" from file explorer ──────────────────────
