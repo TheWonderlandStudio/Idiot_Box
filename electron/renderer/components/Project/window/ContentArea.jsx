@@ -576,20 +576,8 @@ const ContentArea = ({
     }
   }, [renamingPath, execAction, onSetSelectedItems, onToggleHidden]);
 
-  // ── Ctrl+Scroll zoom ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    const handler = (e) => {
-      if (!e.ctrlKey && !e.metaKey) return;
-      e.preventDefault();
-      const step = e.deltaY > 0 ? -10 : 10;
-      const current = onZoomRef.current;
-      if (current) current(Math.max(30, Math.min(300, zoomRef.current + step)));
-    };
-    el.addEventListener("wheel", handler, { passive: false });
-    return () => el.removeEventListener("wheel", handler);
-  }, []);
+  // ── Ctrl+Scroll zoom disabled — Ctrl+Scroll scrolls normally.
+  // Icon size is changed via the zoom slider / +/- buttons instead.
 
   // ── Selection ─────────────────────────────────────────────────────────────
   const handleItemClick = useCallback((e, entry) => {

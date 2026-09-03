@@ -974,10 +974,10 @@ const CanvasPanel = ({ nodeId, config }) => {
     const el = viewportRef.current;
     if (!el) return;
     const onNativeWheel = (e) => {
+      // Ctrl+Scroll zoom disabled — treat Ctrl+wheel like a normal pan
+      // so Ctrl+Scroll never zooms (use toolbar +/- buttons instead).
       e.preventDefault();
-      if (e.ctrlKey || e.metaKey) {
-        zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016));
-      } else if (e.shiftKey) {
+      if (e.shiftKey) {
         setView((v) => ({ ...v, x: v.x - e.deltaY }));
       } else {
         setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
@@ -1456,7 +1456,7 @@ const CanvasPanel = ({ nodeId, config }) => {
       )}
 
       <div style={{ padding: "2px 10px", background: "#1c1c1c", borderTop: "1px solid #2a2a2a", color: "#666", fontSize: 10.5, flexShrink: 0 }}>
-        Scroll: pan · Shift+Scroll: pan horizontal · Ctrl+Scroll: zoom · Middle-drag/Shift+drag: pan · Drag card: move (push parent edge to expand) · Shift+drag card: move card+group · Drag group header: move · Drag group edge/corner: resize · Click card: open in editor · Right-click: context menu
+        Scroll: pan · Shift+Scroll: pan horizontal · Middle-drag/Shift+drag: pan · Drag card: move (push parent edge to expand) · Shift+drag card: move card+group · Drag group header: move · Drag group edge/corner: resize · Click card: open in editor · Right-click: context menu
       </div>
       </div>
     </PanelErrorBoundary>

@@ -917,7 +917,7 @@ const App = () => {
   // ── UI Size — View → Ctrl + + / Ctrl + - / Ctrl + 0 fallback + overlay ──
   // Main process handles accelerators + before-input-event, but Monaco/webview can
   // swallow them. This renderer fallback ensures Ctrl+=/Plus/Minus/0 still zoom.
-  // Ctrl+Wheel also zooms UI (like browsers). Shows a transient overlay toast.
+  // NOTE: Ctrl+Scroll zoom is intentionally disabled — only Ctrl +/-/0 keys zoom UI.
   useEffect(() => {
     let toastTimer = null;
     let overlayEl = null;
@@ -975,26 +975,13 @@ const App = () => {
         return false;
       }
     };
-    const onWheel = (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      // Don't hijack when scrolling inside editor with ctrl? UI zoom is desired per request
-      // But allow Canvas and Project's own Ctrl+Scroll to coexist — they handle wheel with ctrl as well.
-      // Here we only handle global window wheel when no other handler consumed.
-      // Use capture, preventDefault to trigger UI zoom.
-      e.preventDefault();
-      if (e.deltaY < 0) {
-        try { window.electronAPI?.zoomIn?.().then((f)=>{ if(f) showToast(f); }).catch(()=>{}); } catch {}
-      } else if (e.deltaY > 0) {
-        try { window.electronAPI?.zoomOut?.().then((f)=>{ if(f) showToast(f); }).catch(()=>{}); } catch {}
-      }
-    };
+    // Ctrl+Scroll zoom disabled — do nothing on wheel, even with Ctrl held.
+    // (Previously this zoomed the whole UI and fought Canvas/Explorer/Media zoom.)
     window.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("wheel", onWheel, { passive: false, capture: true });
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("wheel", onWheel, true);
       try { unsubZoom?.(); } catch {}
       clearTimeout(toastTimer);
     };

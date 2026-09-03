@@ -16,15 +16,43 @@ let opencodeSDK = null;
 let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch (e) { console.warn("[main] electron-updater not available:", e.message); }
 
+// ─── Guard stdio EPIPE — prevent crash when parent closes pipes ──────────────
+// Matches fix for https://github.com/anomalyco/opencode/issues/25927 and
+// https://github.com/anomalyco/opencode/pull/41968: when stdout/stderr is a
+// pipe whose reader has gone away, writes throw EPIPE and must not crash the
+// service. This is especially important for the packaged Electron main process
+// and for opencode `serve` child processes piped by the desktop supervisor.
+try {
+  process.stdout.on("error", (err) => {
+    if (err && err.code === "EPIPE") return;
+    try { console.error("[stdout error]", err); } catch {}
+  });
+  process.stderr.on("error", (err) => {
+    if (err && err.code === "EPIPE") return;
+    try { console.error("[stderr error]", err); } catch {}
+  });
+} catch {}
+
 // ─── Global error handlers — prevent crash on missing optional deps ──────────
 process.on("uncaughtException", (err) => {
-  console.error("[uncaughtException]", err);
+  // Broken pipe from a closed stdio, socket, or pty is not fatal — swallow
+  // to keep the app alive (service's log consumer may legitimately disappear)
+  if (err && (err.code === "EPIPE" || String(err?.message || "").includes("EPIPE") || String(err).includes("write EPIPE") || String(err).includes("The service is no longer running"))) {
+    try { console.error("[uncaughtException:EPIPE suppressed]", err?.message || err); } catch {}
+    return;
+  }
+  try { console.error("[uncaughtException]", err); } catch {}
   try {
     dialog.showErrorBox("Idiot Box — Error", String(err?.message || err));
   } catch {}
 });
 process.on("unhandledRejection", (reason) => {
-  console.error("[unhandledRejection]", reason);
+  const msg = String(reason?.message || reason || "");
+  if (reason && (reason.code === "EPIPE" || msg.includes("EPIPE") || msg.includes("The service is no longer running") || msg.includes("The service was stopped"))) {
+    try { console.error("[unhandledRejection:EPIPE suppressed]", msg); } catch {}
+    return;
+  }
+  try { console.error("[unhandledRejection]", reason); } catch {}
 });
 
 // ─── Custom scheme: extension-host file access ───────────────────────────────
@@ -113,15 +141,37 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
       }
       return esbuild.build(opts);
     };
+    const isEpipe = (err) => {
+      const m = String(err?.message || err || "");
+      return m.includes("EPIPE") || m.includes("The service is no longer running") || m.includes("The service was stopped") || m.includes("write EPIPE");
+    };
+    const buildWithRecovery = async (useAlias) => {
+      try {
+        return await tryBuild(useAlias);
+      } catch (err) {
+        if (isEpipe(err)) {
+          // esbuild service died (antivirus, closed pipe, OOM). Restart service and retry once.
+          try { if (esbuild && typeof esbuild.stop === "function") esbuild.stop(); } catch {}
+          try { await new Promise((r) => setTimeout(r, 200)); } catch {}
+          // one retry
+          return await tryBuild(useAlias);
+        }
+        throw err;
+      }
+    };
     try {
       let result;
       try {
-        result = await tryBuild(true);
+        result = await buildWithRecovery(true);
       } catch (aliasErr) {
+        if (isEpipe(aliasErr)) {
+          // Already retried inside buildWithRecovery; surface friendly message
+          throw aliasErr;
+        }
         // retry without alias - alias often fails if src not found
         const msg = aliasErr?.errors?.[0]?.text || aliasErr?.message || "";
         if (msg.includes("@") || msg.includes("src")) {
-          result = await tryBuild(false);
+          result = await buildWithRecovery(false);
         } else {
           throw aliasErr;
         }
@@ -135,8 +185,11 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
       const detail = e?.text || err?.message || String(err);
       // Provide more helpful hint for common failures
       let hint = "";
-      if (detail.includes("Could not resolve")) hint = "\nHint: check import path / missing node_modules. Run `npm install` in project.";
-      if (detail.includes("Unexpected")) hint = "\nHint: JSX syntax error — check component file.";
+      if (isEpipe(err)) {
+        hint = "\nHint: esbuild service crashed (write EPIPE) — often caused by antivirus blocking the esbuild binary, a closed stdio pipe, or the service being killed. Try disabling antivirus temporarily, running `npm ci`, or restarting Idiot Box. The app has already retried once automatically.";
+      } else if (detail.includes("Could not resolve")) hint = "\nHint: check import path / missing node_modules. Run `npm install` in project.";
+      else if (detail.includes("Unexpected")) hint = "\nHint: JSX syntax error — check component file.";
+      try { console.error("[component:bundle] failed:", detail); } catch {}
       return { ok: false, error: `${detail}${where}${hint}` };
     }
   });
@@ -1318,106 +1371,284 @@ let opencodeInstance = null;
 let opencodeStatus = "disconnected";
 let opencodeServerProcess = null;
 
+// Helpers for authenticated opencode server (handles EPIPE/password correctly)
+function getOpencodeAuthHeader(explicitPassword) {
+  const pwd = explicitPassword != null && String(explicitPassword).trim() !== "" ? String(explicitPassword) : process.env.OPENCODE_SERVER_PASSWORD || null;
+  if (!pwd) return null;
+  const user = process.env.OPENCODE_SERVER_USERNAME || "opencode";
+  try { return `Basic ${Buffer.from(`${user}:${pwd}`).toString("base64")}`; } catch { return null; }
+}
+function getOpencodeBaseUrl(hostname, port) {
+  return `http://${hostname}:${port}`;
+}
+function isEpipeError(err) {
+  if (!err) return false;
+  if (err.code === "EPIPE") return true;
+  const m = String(err.message || err || "");
+  return m.includes("EPIPE") || m.includes("The service is no longer running") || m.includes("The service was stopped") || m.includes("write EPIPE");
+}
+
 ipcMain.handle("opencode:startServer", async (_e, { hostname = "127.0.0.1", port = 4096, projectPath, password } = {}) => {
   try {
-    if (opencodeServerProcess) {
-      return { success: false, error: "Server already running" };
+    if (opencodeServerProcess || opencodeInstance) {
+      return { success: false, error: "Server already running — stop it first" };
     }
-    
     opencodeStatus = "starting";
-    
-    // Set environment variable for password if provided
-    const env = { ...process.env };
-    if (password) {
-      env.OPENCODE_SERVER_PASSWORD = password;
-    }
-    
-    // Spawn the opencode serve CLI process
-    const { spawn } = require("child_process");
-    const args = ["serve"];
-    
+    const explicitPassword = password && String(password).trim() ? String(password).trim() : null;
+    const effectivePassword = explicitPassword || process.env.OPENCODE_SERVER_PASSWORD || null;
+    const authHeader = getOpencodeAuthHeader(explicitPassword);
+    const baseUrl = getOpencodeBaseUrl(hostname, port);
+
+    // If projectPath is given we must ensure server cwd is that folder.
+    // The SDK's createOpencodeServer doesn't support custom cwd/directory, so we
+    // do a manual spawn with correct hostname/port and EPIPE-guarded stdio,
+    // then create a client that points at that server with auth if needed.
     if (projectPath) {
-      args.push("--directory", projectPath);
-    }
-    
-    opencodeServerProcess = spawn("opencode", args, {
-      env,
-      cwd: projectPath || undefined,
-    });
-    
-    opencodeServerProcess.on("error", (err) => {
-      console.error("[main] Failed to spawn opencode serve:", err);
-      opencodeStatus = "error";
-      opencodeServerProcess = null;
-    });
-    
-    opencodeServerProcess.on("exit", (code, signal) => {
-      console.log("[main] OpenCode server process exited with code:", code, "signal:", signal);
-      opencodeStatus = "disconnected";
-      opencodeServerProcess = null;
-      if (opencodeInstance) {
-        opencodeInstance = null;
+      const env = { ...process.env };
+      if (explicitPassword) env.OPENCODE_SERVER_PASSWORD = explicitPassword;
+      const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
+      // opencode serve --directory is not a standard flag in all versions; cwd is the reliable way
+      opencodeServerProcess = spawn("opencode", args, {
+        env,
+        cwd: projectPath,
+        stdio: "pipe",
+        windowsHide: true,
+      });
+      // Guard stdio pipes against EPIPE (parent closing reader) — matches fix in opencode #41968
+      try { opencodeServerProcess.stdout?.on("error", (err) => { if (!isEpipeError(err)) console.error("[opencode stdout error]", err); }); } catch {}
+      try { opencodeServerProcess.stderr?.on("error", (err) => { if (!isEpipeError(err)) console.error("[opencode stderr error]", err); }); } catch {}
+      let output = "";
+      try {
+        opencodeServerProcess.stdout?.on("data", (c) => { output += c.toString(); if (output.length > 8000) output = output.slice(-8000); });
+        opencodeServerProcess.stderr?.on("data", (c) => { output += c.toString(); if (output.length > 8000) output = output.slice(-8000); });
+      } catch {}
+      opencodeServerProcess.on("error", (err) => {
+        if (isEpipeError(err)) { try { console.error("[opencode spawn EPIPE suppressed]", err.message); } catch {} return; }
+        console.error("[main] Failed to spawn opencode serve:", err);
+        opencodeStatus = "error";
+        opencodeServerProcess = null;
+      });
+      opencodeServerProcess.on("exit", (code, signal) => {
+        // EPIPE during log write is not fatal — but if server exits we mark disconnected
+        if (code !== 0 && output.includes("EPIPE")) {
+          console.warn("[main] OpenCode server exited after EPIPE (log pipe closed), treating as non-fatal");
+        }
+        console.log("[main] OpenCode server process exited with code:", code, "signal:", signal, "output:", output.slice(0, 400));
+        opencodeStatus = "disconnected";
+        opencodeServerProcess = null;
+        if (opencodeInstance) opencodeInstance = null;
+      });
+
+      // Wait for server to start listening (poll health endpoint)
+      const maxWait = 8000;
+      const start = Date.now();
+      let connected = false;
+      let lastErr = null;
+      while (Date.now() - start < maxWait) {
+        if (!opencodeServerProcess || opencodeServerProcess.exitCode !== null) {
+          lastErr = output.slice(0, 600) || "process exited";
+          break;
+        }
+        try {
+          const headers = authHeader ? { Authorization: authHeader } : {};
+          const res = await fetch(`${baseUrl}/doc`, { headers }).catch(() => null);
+          // 200, 404, or 401 with correct auth all indicate server is up; 401 without auth means password required but server is up
+          if (res && (res.ok || res.status === 404 || res.status === 401)) {
+            if (res.status === 401 && !authHeader) {
+              lastErr = "Server requires password (401 Unauthorized) — provide password and retry";
+              break;
+            }
+            connected = true;
+            break;
+          }
+        } catch (e) { lastErr = e?.message || String(e); }
+        await new Promise((r) => setTimeout(r, 300));
       }
-    });
-    
-    // Wait a moment for server to start, then connect via SDK
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Dynamic import for ESM compatibility
-    const sdk = await import("@opencode-ai/sdk");
-    
-    // Connect to the running server with password if provided
-    const options = { hostname, port };
-    if (password) {
-      options.password = password;
+      if (!connected) {
+        try { opencodeServerProcess?.kill(); } catch {}
+        opencodeServerProcess = null;
+        opencodeStatus = "error";
+        return { success: false, error: lastErr || `Server failed to start on ${baseUrl} within ${maxWait}ms. Output: ${output.slice(0,500)}` };
+      }
+
+      // Create SDK client pointing at the manually spawned server with auth header
+      try {
+        const sdk = await import("@opencode-ai/sdk");
+        const createClient = sdk.createOpencodeClient || (await import("@opencode-ai/sdk/client").then((m) => m.createOpencodeClient).catch(() => null));
+        if (createClient) {
+          const headers = authHeader ? { Authorization: authHeader } : {};
+          const client = createClient({ baseUrl, headers });
+          opencodeInstance = { server: { url: baseUrl, close() { try { opencodeServerProcess?.kill(); } catch {} try { opencodeServerProcess = null; } catch {} } }, client };
+        } else {
+          // fallback: use SDK's createOpencode which would spawn again — avoid, just use fetch-based client
+          opencodeInstance = { server: { url: baseUrl, close() { try { opencodeServerProcess?.kill(); } catch {} } }, client: null };
+          return { success: false, error: "SDK client factory not available — install @opencode-ai/sdk" };
+        }
+      } catch (e) {
+        return { success: false, error: `Server started at ${baseUrl} but SDK client creation failed: ${e?.message || String(e)}` };
+      }
+      opencodeStatus = "connected";
+      console.log("[main] OpenCode SDK connected (manual spawn):", baseUrl, "project:", projectPath);
+      return { success: true, url: baseUrl };
     }
-    
-    opencodeInstance = await sdk.createOpencode(options);
-    opencodeStatus = "connected";
-    console.log("[main] OpenCode SDK connected:", opencodeInstance.server.url, "project:", projectPath);
-    return { success: true, url: opencodeInstance.server.url };
+
+    // ── No projectPath: use SDK's built-in spawn (handles stdio/EPIPE correctly) ──
+    // Temporarily set password env for child if explicit password given (SDK's server inherits process.env)
+    const prevPwd = process.env.OPENCODE_SERVER_PASSWORD;
+    const prevUser = process.env.OPENCODE_SERVER_USERNAME;
+    let restoreEnv = null;
+    if (explicitPassword) {
+      process.env.OPENCODE_SERVER_PASSWORD = explicitPassword;
+      restoreEnv = () => {
+        if (prevPwd === undefined) delete process.env.OPENCODE_SERVER_PASSWORD;
+        else process.env.OPENCODE_SERVER_PASSWORD = prevPwd;
+      };
+    }
+    try {
+      const sdk = await import("@opencode-ai/sdk");
+      // SDK's createOpencode spawns server and parses stdout for listening URL.
+      // It already has guards for EPIPE in newer CLI, but we add extra catch for classic EPIPE.
+      try {
+        opencodeInstance = await sdk.createOpencode({ hostname, port });
+      } catch (err) {
+        if (isEpipeError(err)) {
+          opencodeStatus = "error";
+          console.warn("[main] SDK server spawn hit EPIPE (closed pipe), retrying once...");
+          try { await new Promise((r) => setTimeout(r, 300)); } catch {}
+          opencodeInstance = await sdk.createOpencode({ hostname, port });
+        } else {
+          throw err;
+        }
+      }
+      // Patch client with Authorization header if server requires password
+      if (authHeader && opencodeInstance?.client) {
+        try {
+          // Generated client exposes .client with setConfig
+          const c = opencodeInstance.client;
+          if (c?.client?.setConfig) {
+            c.client.setConfig({ headers: { Authorization: authHeader } });
+          } else if (c?.setConfig) {
+            c.setConfig({ headers: { Authorization: authHeader } });
+          }
+        } catch {}
+        // Also wrap fetch to ensure header on every request
+        try {
+          const origClient = opencodeInstance.client;
+          if (origClient?.client?.interceptors?.request) {
+            origClient.client.interceptors.request.use((req) => {
+              try { if (authHeader && !req.headers.get("Authorization")) req.headers.set("Authorization", authHeader); } catch {}
+              return req;
+            });
+          }
+        } catch {}
+      }
+      opencodeStatus = "connected";
+      console.log("[main] OpenCode SDK connected (SDK spawn):", opencodeInstance.server.url, "project:", projectPath);
+      return { success: true, url: opencodeInstance.server.url };
+    } catch (error) {
+      opencodeStatus = "error";
+      const msg = error?.message || String(error);
+      if (isEpipeError(error)) {
+        console.warn("[main] OpenCode SDK EPIPE suppressed, will report as error to UI:", msg);
+      } else {
+        console.error("[main] OpenCode SDK connection failed:", error);
+      }
+      if (opencodeServerProcess) { try { opencodeServerProcess.kill(); } catch {} opencodeServerProcess = null; }
+      // Provide helpful hint for 401/password case
+      if (String(msg).includes("401") || String(msg).toLowerCase().includes("unauthorized")) {
+        return { success: false, error: `${msg} (server requires password — set it in the AI panel and retry)` };
+      }
+      return { success: false, error: msg };
+    } finally {
+      try { restoreEnv?.(); } catch {}
+    }
   } catch (error) {
     opencodeStatus = "error";
-    console.error("[main] OpenCode SDK connection failed:", error);
-    // Clean up server process if it exists
-    if (opencodeServerProcess) {
-      opencodeServerProcess.kill();
-      opencodeServerProcess = null;
-    }
+    console.error("[main] OpenCode startServer outer failure:", error);
+    if (opencodeServerProcess) { try { opencodeServerProcess.kill(); } catch {} opencodeServerProcess = null; }
     return { success: false, error: error?.message || String(error) };
   }
 });
 
 ipcMain.handle("opencode:stopServer", async () => {
   try {
-    // Kill the spawned server process
     if (opencodeServerProcess) {
-      opencodeServerProcess.kill();
+      try {
+        if (process.platform === "win32" && opencodeServerProcess.pid) {
+          try { require("child_process").spawnSync("taskkill", ["/pid", String(opencodeServerProcess.pid), "/T", "/F"], { windowsHide: true }); } catch {}
+        }
+        opencodeServerProcess.kill();
+      } catch (e) {
+        if (!isEpipeError(e)) console.error("[main] kill opencodeServerProcess failed:", e);
+      }
       opencodeServerProcess = null;
     }
-    // Close SDK connection
     if (opencodeInstance && opencodeInstance.server) {
-      opencodeInstance.server.close();
+      try { opencodeInstance.server.close(); } catch (e) { if (!isEpipeError(e)) console.error("[main] close opencodeInstance failed:", e); }
     }
     opencodeInstance = null;
     opencodeStatus = "disconnected";
     return { success: true };
   } catch (error) {
+    if (isEpipeError(error)) return { success: true };
     console.error("[main] Failed to stop OpenCode server:", error);
     return { success: false, error: error?.message || String(error) };
   }
 });
 
-ipcMain.handle("opencode:init", async (_e, { hostname = "127.0.0.1", port = 4096 } = {}) => {
+ipcMain.handle("opencode:init", async (_e, { hostname = "127.0.0.1", port = 4096, password } = {}) => {
   try {
     opencodeStatus = "connecting";
-    // Dynamic import for ESM compatibility
+    const authHeader = getOpencodeAuthHeader(password);
+    const baseUrl = getOpencodeBaseUrl(hostname, port);
+    // Try to connect to an already-running server first (health check via /doc)
+    // This avoids spawning a second server when one is already listening on the port.
+    try {
+      const headers = authHeader ? { Authorization: authHeader } : {};
+      const res = await fetch(`${baseUrl}/doc`, { headers, signal: AbortSignal.timeout(2000) }).catch(() => null);
+      if (res && (res.ok || res.status === 404)) {
+        // Server is up — create a client that points at it with auth
+        const sdk = await import("@opencode-ai/sdk");
+        const createClient = sdk.createOpencodeClient || (await import("@opencode-ai/sdk/client").then((m) => m.createOpencodeClient).catch(() => null));
+        if (createClient) {
+          const headers2 = authHeader ? { Authorization: authHeader } : {};
+          const client = createClient({ baseUrl, headers: headers2 });
+          opencodeInstance = { server: { url: baseUrl, close() {} }, client };
+          opencodeStatus = "connected";
+          console.log("[main] OpenCode SDK connected (existing server):", baseUrl);
+          return { success: true, url: baseUrl };
+        }
+      } else if (res && res.status === 401) {
+        return { success: false, error: "Unauthorized (401) — server requires password. Provide password and call opencode:startServer." };
+      }
+    } catch {}
+    // No existing server — spawn a new one via SDK (handles stdio/EPIPE)
     const sdk = await import("@opencode-ai/sdk");
-    opencodeInstance = await sdk.createOpencode({ hostname, port });
-    opencodeStatus = "connected";
-    console.log("[main] OpenCode SDK connected:", opencodeInstance.server.url);
-    return { success: true, url: opencodeInstance.server.url };
+    const prevPwd = process.env.OPENCODE_SERVER_PASSWORD;
+    let restore = null;
+    if (password && String(password).trim()) {
+      process.env.OPENCODE_SERVER_PASSWORD = String(password).trim();
+      restore = () => { if (prevPwd === undefined) delete process.env.OPENCODE_SERVER_PASSWORD; else process.env.OPENCODE_SERVER_PASSWORD = prevPwd; };
+    }
+    try {
+      opencodeInstance = await sdk.createOpencode({ hostname, port });
+      if (authHeader && opencodeInstance?.client) {
+        try {
+          const c = opencodeInstance.client;
+          if (c?.client?.setConfig) c.client.setConfig({ headers: { Authorization: authHeader } });
+          else if (c?.setConfig) c.setConfig({ headers: { Authorization: authHeader } });
+        } catch {}
+      }
+      opencodeStatus = "connected";
+      console.log("[main] OpenCode SDK connected (new server):", opencodeInstance.server.url);
+      return { success: true, url: opencodeInstance.server.url };
+    } finally { try { restore?.(); } catch {} }
   } catch (error) {
+    if (isEpipeError(error)) {
+      opencodeStatus = "error";
+      try { console.warn("[main] opencode:init EPIPE suppressed:", error.message); } catch {}
+      return { success: false, error: `Service pipe closed (EPIPE) — server may have exited. Retry starting the server. Details: ${error.message}` };
+    }
     opencodeStatus = "error";
     console.error("[main] OpenCode SDK connection failed:", error);
     return { success: false, error: error?.message || String(error) };
@@ -1426,14 +1657,45 @@ ipcMain.handle("opencode:init", async (_e, { hostname = "127.0.0.1", port = 4096
 
 ipcMain.handle("opencode:chat", async (_e, { messages, tools = [] } = {}) => {
   if (!opencodeInstance || opencodeStatus !== "connected" || !opencodeInstance.client) {
-    return { success: false, error: "OpenCode SDK not connected" };
+    return { success: false, error: "OpenCode SDK not connected — start the server first" };
+  }
+  // Guard: SDK's generated client may not have .chat (older/newer SDK uses session.prompt)
+  const client = opencodeInstance.client;
+  const hasChat = typeof client.chat === "function";
+  const hasSessionPrompt = client.session && typeof client.session.prompt === "function";
+  if (!hasChat && !hasSessionPrompt) {
+    return { success: false, error: "OpenCode client has no chat/session method — SDK version mismatch. Try reinstalling @opencode-ai/sdk and restarting." };
   }
   try {
-    const response = await opencodeInstance.client.chat({ messages, tools });
+    let response;
+    if (hasChat) {
+      response = await client.chat({ messages, tools });
+    } else {
+      // Fallback: use session flow (create session then prompt)
+      // This is best-effort for SDK versions that dropped .chat
+      try {
+        const sessRes = await client.session.create({ body: { title: "idiot-box chat" } });
+        const sessId = sessRes?.data?.id || sessRes?.id || sessRes?.data?.session?.id;
+        if (!sessId) throw new Error("Failed to create session");
+        const promptRes = await client.session.prompt({ path: { id: sessId }, body: { prompt: messages[messages.length - 1]?.content || "", tools } });
+        response = promptRes?.data || promptRes;
+      } catch (sessErr) {
+        throw new Error(`chat fallback failed: ${sessErr?.message || String(sessErr)}`);
+      }
+    }
     return { success: true, response };
   } catch (error) {
+    if (isEpipeError(error)) {
+      console.warn("[main] OpenCode chat EPIPE suppressed:", error.message);
+      opencodeStatus = "error";
+      return { success: false, error: `The service is no longer running: write EPIPE (server pipe closed — restart the OpenCode server)` };
+    }
+    const msg = error?.message || String(error);
+    if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+      return { success: false, error: `${msg} (check server password)` };
+    }
     console.error("[main] OpenCode chat failed:", error);
-    return { success: false, error: error?.message || String(error) };
+    return { success: false, error: msg };
   }
 });
 
@@ -1455,6 +1717,7 @@ ipcMain.handle("opencode:installCLI", async () => {
     console.log("[main] CLI installation completed:", stdout);
     return { success: true, output: stdout };
   } catch (error) {
+    if (isEpipeError(error)) return { success: false, error: `Install pipe closed (EPIPE): ${error.message}` };
     console.error("[main] CLI installation failed:", error);
     return { success: false, error: error?.message || String(error) };
   }
@@ -2563,18 +2826,46 @@ ipcMain.handle("terminal:open", async (event, { tabId, cwd, forceRestart }) => {
 
 ipcMain.handle("terminal:write", async (event, { tabId, data }) => {
   const p = termProcesses.get(termKey(event.sender, tabId));
-  if (p) p.write(data);
+  if (!p) return { ok: false, error: "no pty" };
+  try {
+    p.write(data);
+    return { ok: true };
+  } catch (err) {
+    // EPIPE: pty already exited — clean up entry and surface friendly error
+    if (err && (err.code === "EPIPE" || String(err.message || "").includes("EPIPE"))) {
+      try { termProcesses.delete(termKey(event.sender, tabId)); } catch {}
+      try { event.sender.send("terminal:data", { tabId, data: "\r\n\x1b[33m[terminal closed — write failed: EPIPE]\x1b[0m\r\n" }); } catch {}
+      return { ok: false, error: "EPIPE" };
+    }
+    try { console.error("[terminal:write] failed:", err?.message || err); } catch {}
+    return { ok: false, error: err?.message || String(err) };
+  }
 });
 
 ipcMain.handle("terminal:resize", async (event, { tabId, cols, rows }) => {
   const p = termProcesses.get(termKey(event.sender, tabId));
-  if (p && cols > 0 && rows > 0) p.resize(cols, rows);
+  if (!p || cols <= 0 || rows <= 0) return { ok: false };
+  try {
+    p.resize(cols, rows);
+    return { ok: true };
+  } catch (err) {
+    if (err && (err.code === "EPIPE" || String(err.message || "").includes("EPIPE"))) return { ok: false, error: "EPIPE" };
+    return { ok: false, error: err?.message || String(err) };
+  }
 });
 
 ipcMain.handle("terminal:close", async (event, { tabId }) => {
   const key = termKey(event.sender, tabId);
   const p = termProcesses.get(key);
-  if (p) { p.kill(); termProcesses.delete(key); }
+  if (p) {
+    try { p.kill(); } catch (err) {
+      if (!err || (err.code !== "EPIPE" && !String(err.message || "").includes("EPIPE"))) {
+        try { console.error("[terminal:close] kill failed:", err); } catch {}
+      }
+    }
+    termProcesses.delete(key);
+  }
+  return { ok: true };
 });
 
 ipcMain.handle("terminal:contextMenu", (event, { hasSelection }) => {
