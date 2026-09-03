@@ -1,6 +1,6 @@
 {
   "name": "idiot-box",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
   "author": {
@@ -104,7 +104,8 @@
     "asar": true,
     "asarUnpack": [
       "**/node-pty/**",
-      "**/esbuild/**"
+      "**/esbuild/**",
+      "**/@esbuild/**"
     ],
     "win": {
       "target": [

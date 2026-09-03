@@ -8,6 +8,33 @@ let chokidar = null;
 try { chokidar = require("chokidar"); } catch (e) { console.warn("[main] chokidar not available:", e.message); }
 let pty = null;
 try { pty = require("node-pty"); } catch (e) { console.warn("[main] node-pty not available:", e.message); }
+// ─── esbuild binary path in packaged app (asar ENOENT fix) ─────────────────
+// esbuild resolves its service binary via __dirname → app.asar/node_modules/…
+// but child_process.spawn bypasses Electron's asar shim, so the spawn fails
+// with "The service was stopped: spawn …app.asar…esbuild.exe ENOENT" even
+// though the binary IS unpacked (asarUnpack) at app.asar.unpacked/….
+// Fix: point esbuild at the unpacked exe via ESBUILD_BINARY_PATH (honored by
+// esbuild's lib/main.js). Must run BEFORE require("esbuild") reads the env.
+try {
+  if (!process.env.ESBUILD_BINARY_PATH) {
+    let resourcesPath = null;
+    try { resourcesPath = process.resourcesPath || null; } catch {}
+    if (!resourcesPath) {
+      try { if (app.isPackaged) resourcesPath = path.join(path.dirname(app.getPath("exe")), "resources"); } catch {}
+    }
+    if (resourcesPath) {
+      const exeName = process.platform === "win32" ? "esbuild.exe" : "esbuild";
+      const plat = process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : "linux";
+      const arch = process.arch === "arm64" ? "arm64" : process.arch === "ia32" ? "ia32" : "x64";
+      const unpackedExe = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "@esbuild", `${plat}-${arch}`, exeName);
+      try {
+        if (fs.existsSync(unpackedExe)) {
+          process.env.ESBUILD_BINARY_PATH = unpackedExe;
+        }
+      } catch {}
+    }
+  }
+} catch {}
 let esbuild = null;
 try { esbuild = require("esbuild"); } catch (e) { console.warn("[main] esbuild not available:", e.message); }
 let ElectronChromeExtensions = null;
@@ -145,10 +172,15 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
       const m = String(err?.message || err || "");
       return m.includes("EPIPE") || m.includes("The service is no longer running") || m.includes("The service was stopped") || m.includes("write EPIPE");
     };
+    const isEnoent = (err) => {
+      const m = String(err?.message || err || "");
+      return err?.code === "ENOENT" || err?.errno === -4058 || m.includes("ENOENT") || (m.includes("spawn") && m.includes("esbuild"));
+    };
     const buildWithRecovery = async (useAlias) => {
       try {
         return await tryBuild(useAlias);
       } catch (err) {
+        if (isEnoent(err)) throw err; // binary missing — retry is pointless
         if (isEpipe(err)) {
           // esbuild service died (antivirus, closed pipe, OOM). Restart service and retry once.
           try { if (esbuild && typeof esbuild.stop === "function") esbuild.stop(); } catch {}
@@ -185,7 +217,9 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
       const detail = e?.text || err?.message || String(err);
       // Provide more helpful hint for common failures
       let hint = "";
-      if (isEpipe(err)) {
+      if (isEnoent(err)) {
+        hint = "\nHint: esbuild binary not found (ENOENT). In the installed app this means the update didn't unpack the binary — reinstall Idiot Box from the latest release. In dev, run `npm ci` to restore node_modules/@esbuild.";
+      } else if (isEpipe(err)) {
         hint = "\nHint: esbuild service crashed (write EPIPE) — often caused by antivirus blocking the esbuild binary, a closed stdio pipe, or the service being killed. Try disabling antivirus temporarily, running `npm ci`, or restarting Idiot Box. The app has already retried once automatically.";
       } else if (detail.includes("Could not resolve")) hint = "\nHint: check import path / missing node_modules. Run `npm install` in project.";
       else if (detail.includes("Unexpected")) hint = "\nHint: JSX syntax error — check component file.";
