@@ -91,26 +91,36 @@ const factory = (node) => {
   }
 };
 
-// ── Updater nav button — small persistent button in bottom bar when update available ──
-// Was only top banner (missed in exe); now also bottom bar so future versions always visible.
+// ── Updater nav button — bottom bar with proper cycle & progress bar ──
 const UpdaterNavButton = () => {
   const [state, setState] = React.useState("idle");
   const [info, setInfo] = React.useState(null);
+  const [progress, setProgress] = React.useState(null);
   React.useEffect(() => {
     const unsubs = [];
-    if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i)=>{ setInfo(i); setState("available"); }));
+    if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i)=>{ setInfo(i); setState("available"); setProgress(null); }));
     if (window.electronAPI?.onUpdaterChecking) unsubs.push(window.electronAPI.onUpdaterChecking(()=> setState(prev=> prev==="available"||prev==="downloaded"||prev==="downloading"?prev:"checking")));
     if (window.electronAPI?.onUpdaterNotAvailable) unsubs.push(window.electronAPI.onUpdaterNotAvailable(()=> setState(prev=> prev==="available"||prev==="downloading"||prev==="downloaded"?prev:"idle")));
-    if (window.electronAPI?.onUpdaterDownloaded) unsubs.push(window.electronAPI.onUpdaterDownloaded((i)=>{ setInfo(i); setState("downloaded"); }));
-    if (window.electronAPI?.onUpdaterProgress) unsubs.push(window.electronAPI.onUpdaterProgress(()=> setState("downloading")));
-    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError(()=> setState("idle")));
-    // also handle direct check result for dev
+    if (window.electronAPI?.onUpdaterDownloaded) unsubs.push(window.electronAPI.onUpdaterDownloaded((i)=>{ setInfo(i); setState("downloaded"); setProgress(null); }));
+    if (window.electronAPI?.onUpdaterProgress) unsubs.push(window.electronAPI.onUpdaterProgress((p)=>{ setProgress(p); setState("downloading"); }));
+    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError(()=> { setState("idle"); setProgress(null); }));
     return ()=> unsubs.forEach(u=>{try{u()}catch{}});
   }, []);
-  if (state === "downloading") return <span title="Downloading update…" style={{background:"rgba(78,201,176,0.18)", color:"#4ec9b0", border:"1px solid #4ec9b033", fontSize:10.5, padding:"2px 8px", borderRadius:3, display:"flex", alignItems:"center", gap:4}}>↻ Downloading…</span>;
-  if (state === "downloaded") return <button onClick={()=>{ try{window.electronAPI.updaterInstall()}catch{} }} title="Restart to install update" style={{background:"#4ec9b0", color:"#0d1117", fontWeight:700, border:"none", borderRadius:3, fontSize:10.5, padding:"2px 8px", cursor:"pointer"}}>↻ Restart</button>;
+  if (state === "checking") return <span title="Checking for updates…" style={{background:"rgba(126,184,247,0.12)", color:"#7eb8f7", border:"1px solid rgba(126,184,247,0.18)", fontSize:10.5, padding:"2px 8px", borderRadius:3, display:"flex", alignItems:"center", gap:4}}>↻ Checking…</span>;
+  if (state === "downloading") {
+    const pct = Math.round(progress?.percent || 0);
+    const mb = progress?.transferred ? `${(progress.transferred/1024/1024).toFixed(1)} MB` : "";
+    return (
+      <span title={`Downloading v${info?.version||""} ${pct}% ${mb} • ${progress?.bytesPerSecond ? (progress.bytesPerSecond/1024/1024).toFixed(1)+' MB/s' : ''}`} style={{background:"linear-gradient(90deg, rgba(78,201,176,0.18) 0%, rgba(78,201,176,0.28) 100%)", color:"#4ec9b0", border:"1px solid #4ec9b033", fontSize:10.5, padding:"3px 8px", borderRadius:4, display:"flex", alignItems:"center", gap:6, minWidth:120, position:"relative", overflow:"hidden"}}>
+        <span style={{position:"absolute", left:0, top:0, bottom:0, width:`${pct}%`, background:"rgba(78,201,176,0.22)", transition:"width 0.3s", borderRadius:3}} />
+        <span style={{position:"relative", display:"flex", alignItems:"center", gap:4, fontWeight:700}}><span style={{display:"inline-block", width:8, height:8, border:"1.5px solid #4ec9b0", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.9s linear infinite"}} /> {pct}%</span>
+        <span style={{position:"relative", opacity:0.8, fontSize:10}}>{mb}</span>
+      </span>
+    );
+  }
+  if (state === "downloaded") return <button onClick={()=>{ try{window.electronAPI.updaterInstall()}catch{} }} title="Restart to install update" style={{background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, border:"none", borderRadius:4, fontSize:10.5, padding:"3px 10px", cursor:"pointer", boxShadow:"0 2px 8px rgba(78,201,176,0.3)"}}>↻ Restart v{info?.version||""}</button>;
   if (state !== "available") return null;
-  return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"#4ec9b0", color:"#0d1117", fontWeight:700, border:"none", borderRadius:3, fontSize:10.5, padding:"2px 8px", cursor:"pointer", display:"flex", alignItems:"center", gap:4, animation:"pulse 1.5s infinite"}}>⬇ Update v{info?.version||"new"}</button>;
+  return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, border:"none", borderRadius:4, fontSize:10.5, padding:"3px 10px", cursor:"pointer", display:"flex", alignItems:"center", gap:4, animation:"pulse 1.5s infinite", boxShadow:"0 2px 8px rgba(78,201,176,0.32)"}}>⬇ Update v{info?.version||"new"}</button>;
 };
 
 // ── Helpers to walk the flex model tree ────────────────────────────────────

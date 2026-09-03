@@ -1,6 +1,6 @@
 {
   "name": "idiot-box",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
   "author": {

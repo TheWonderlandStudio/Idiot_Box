@@ -2804,8 +2804,15 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
   return { url: `http://127.0.0.1:${port}/${rel}`, port };
 });
 
-// ─── Auto Updater (electron-updater) ───────────────────────────────────────────
+// ─── Auto Updater (electron-updater) — Proper Update Cycle with Progress Bar ───
+// Cycle: idle → checking → available → downloading (progress: percent, transferred, total, bytesPerSecond, ETA) → downloaded → installing → idle
+//         ↘ not-available / error → idle
+// Manual check shows center modal; auto checks only banner when available. Periodic check every 6h + 2s launch.
 let _updaterWindow = null;
+let _updaterState = "idle"; // idle | checking | available | downloading | downloaded | error
+let _latestUpdateInfo = null;
+let _downloadProgress = null;
+let _isDownloading = false;
 
 function isVersionNewer(latest, current) {
   const a = String(latest).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
@@ -2818,10 +2825,27 @@ function isVersionNewer(latest, current) {
   return false;
 }
 
+function broadcastUpdater(channel, data) {
+  for (const w of BrowserWindow.getAllWindows()) {
+    try { if (!w.isDestroyed()) w.webContents.send(channel, data); } catch {}
+  }
+}
+function setUpdaterState(s, data) {
+  _updaterState = s;
+  // also broadcast a generic state event if needed
+  try { broadcastUpdater("updater:state", { state: s, info: _latestUpdateInfo, progress: _downloadProgress }); } catch {}
+}
+
 async function checkForUpdatesViaGitHub(win) {
+  const targetWins = win && !win.isDestroyed() ? [win] : BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed());
+  const primaryWin = targetWins[0] || null;
   try {
     const current = app.getVersion();
-    if (win && !win.isDestroyed()) win.webContents.send("updater:checking");
+    setUpdaterState("checking");
+    _latestUpdateInfo = null;
+    _downloadProgress = null;
+    broadcastUpdater("updater:checking", { version: current });
+    console.log(`[updater] cycle: checking current=${current}`);
     // Use GitHub API directly — works in dev and packaged, no need for app-update.yml
     const res = await fetch("https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest", {
       headers: { "User-Agent": "IdiotBox-Updater", "Accept": "application/vnd.github.v3+json" },
@@ -2833,17 +2857,27 @@ async function checkForUpdatesViaGitHub(win) {
     console.log(`[updater] GitHub check current=${current} latest=${latestVersion}`);
     if (!latestVersion) throw new Error("No version in GitHub response");
     if (isVersionNewer(latestVersion, current)) {
-      const info = { version: latestVersion, releaseNotes: data.body || "", releaseUrl: data.html_url, tag: data.tag_name };
-      console.log("[updater] GitHub update-available", latestVersion);
-      if (win && !win.isDestroyed()) win.webContents.send("updater:available", info);
+      const info = {
+        version: latestVersion,
+        releaseNotes: data.body || "",
+        releaseUrl: data.html_url,
+        tag: data.tag_name,
+        publishedAt: data.published_at,
+        assets: data.assets || [],
+      };
+      _latestUpdateInfo = info;
+      setUpdaterState("available");
+      console.log("[updater] cycle: available", latestVersion);
+      broadcastUpdater("updater:available", info);
       // Prime autoUpdater so subsequent downloadUpdate() knows what to fetch (only when packaged)
       if (app.isPackaged && autoUpdater) {
         try { autoUpdater.checkForUpdates().catch(() => {}); } catch {}
       }
       return info;
     } else {
-      console.log("[updater] GitHub update-not-available");
-      if (win && !win.isDestroyed()) win.webContents.send("updater:not-available", { version: current });
+      console.log("[updater] cycle: not-available");
+      setUpdaterState("idle");
+      broadcastUpdater("updater:not-available", { version: current });
       return null;
     }
   } catch (e) {
@@ -2852,13 +2886,25 @@ async function checkForUpdatesViaGitHub(win) {
     if (autoUpdater && app.isPackaged) {
       try {
         const res = await autoUpdater.checkForUpdates();
-        return res?.updateInfo || null;
+        const info = res?.updateInfo || null;
+        if (info && isVersionNewer(info.version, app.getVersion())) {
+          _latestUpdateInfo = info;
+          setUpdaterState("available");
+          broadcastUpdater("updater:available", info);
+          return info;
+        } else {
+          setUpdaterState("idle");
+          if (primaryWin) broadcastUpdater("updater:not-available", { version: app.getVersion() });
+          return null;
+        }
       } catch (e2) {
         console.warn("[updater] fallback check also failed:", e2.message);
-        if (win && !win.isDestroyed()) win.webContents.send("updater:error", String(e.message));
+        setUpdaterState("error");
+        broadcastUpdater("updater:error", String(e.message || e2.message));
       }
     } else {
-      if (win && !win.isDestroyed()) win.webContents.send("updater:error", String(e.message));
+      setUpdaterState("error");
+      broadcastUpdater("updater:error", String(e.message));
     }
     return null;
   }
@@ -2870,6 +2916,8 @@ function setupAutoUpdater(win) {
   try {
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.allowDowngrade = false;
+    autoUpdater.allowPrerelease = false;
     try { if (autoUpdater.logger && autoUpdater.logger.transports && autoUpdater.logger.transports.file) autoUpdater.logger.transports.file.level = "info"; } catch {}
 
     // Always attach listeners so manual "Check for Updates" works even in dev
@@ -2881,31 +2929,50 @@ function setupAutoUpdater(win) {
     autoUpdater.removeAllListeners("update-downloaded");
 
     autoUpdater.on("checking-for-update", () => {
-      console.log("[updater] checking-for-update");
-      try { if (!win.isDestroyed()) win.webContents.send("updater:checking"); } catch {}
+      console.log("[updater] cycle: checking-for-update (autoUpdater)");
+      setUpdaterState("checking");
+      broadcastUpdater("updater:checking", { version: app.getVersion() });
     });
     autoUpdater.on("update-available", (info) => {
-      console.log("[updater] update-available", info?.version);
-      try { if (!win.isDestroyed()) win.webContents.send("updater:available", info); } catch {}
+      console.log("[updater] cycle: update-available (autoUpdater)", info?.version);
+      _latestUpdateInfo = info;
+      setUpdaterState("available");
+      broadcastUpdater("updater:available", info);
     });
     autoUpdater.on("update-not-available", (info) => {
-      console.log("[updater] update-not-available", info?.version);
-      try { if (!win.isDestroyed()) win.webContents.send("updater:not-available", info); } catch {}
+      console.log("[updater] cycle: update-not-available (autoUpdater)", info?.version);
+      // Don't override available/downloading/downloaded with idle race
+      if (_updaterState === "available" || _updaterState === "downloading" || _updaterState === "downloaded") return;
+      setUpdaterState("idle");
+      broadcastUpdater("updater:not-available", info);
     });
     autoUpdater.on("error", (err) => {
-      console.error("[updater] error", err?.message || err);
-      try { if (!win.isDestroyed()) win.webContents.send("updater:error", String(err?.message || err)); } catch {}
+      console.error("[updater] cycle: error", err?.message || err);
+      _isDownloading = false;
+      _downloadProgress = null;
+      setUpdaterState("error");
+      broadcastUpdater("updater:error", String(err?.message || err));
     });
     autoUpdater.on("download-progress", (p) => {
-      try { if (!win.isDestroyed()) win.webContents.send("updater:progress", p); } catch {}
+      // p: { percent, transferred, total, bytesPerSecond, delta, total, ... }
+      _isDownloading = true;
+      _downloadProgress = p;
+      setUpdaterState("downloading");
+      // Ensure percent is 0-100
+      const pct = Math.min(100, Math.max(0, Math.round(p.percent || 0)));
+      console.log(`[updater] cycle: downloading ${pct}% ${((p.transferred||0)/1024/1024).toFixed(1)}MB / ${((p.total||0)/1024/1024).toFixed(1)}MB @ ${((p.bytesPerSecond||0)/1024/1024).toFixed(2)} MB/s`);
+      broadcastUpdater("updater:progress", p);
     });
     autoUpdater.on("update-downloaded", (info) => {
-      console.log("[updater] update-downloaded", info?.version);
-      try { if (!win.isDestroyed()) win.webContents.send("updater:downloaded", info); } catch {}
+      console.log("[updater] cycle: downloaded", info?.version);
+      _isDownloading = false;
+      _downloadProgress = null;
+      _latestUpdateInfo = info || _latestUpdateInfo;
+      setUpdaterState("downloaded");
+      broadcastUpdater("updater:downloaded", info || _latestUpdateInfo);
     });
 
     // Run detection on launch — use GitHub API so banner shows even in dev.
-    // autoUpdater's own check needs latest.yml and only works when packaged, but our custom GitHub check works everywhere.
     const runGitHubCheck = () => { try { checkForUpdatesViaGitHub(win); } catch (e) { console.warn("[updater] GitHub check error", e.message); } };
     if (!app.isPackaged && !process.env.IBX_FORCE_UPDATE_CHECK) {
       console.log("[updater] Dev mode: running GitHub API check after 2.5s (autoUpdater periodic check skipped)");
@@ -2923,31 +2990,58 @@ function setupAutoUpdater(win) {
 ipcMain.handle("updater:check", async (e) => {
   const win = BrowserWindow.fromWebContents(e.sender) || _updaterWindow;
   try {
+    // Reset state to checking for proper cycle
+    setUpdaterState("checking");
+    broadcastUpdater("updater:checking", { version: app.getVersion() });
     const info = await checkForUpdatesViaGitHub(win);
-    if (info) return { ok: true, info, available: true };
-    return { ok: true, info: null, available: false };
-  } catch (err) { return { error: err?.message || String(err) }; }
+    if (info) return { ok: true, info, available: true, state: _updaterState };
+    return { ok: true, info: null, available: false, state: _updaterState };
+  } catch (err) {
+    setUpdaterState("error");
+    return { error: err?.message || String(err), state: _updaterState };
+  }
 });
-ipcMain.handle("updater:download", async () => {
+ipcMain.handle("updater:download", async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender) || _updaterWindow;
   if (!app.isPackaged) {
     try { shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest"); } catch {}
     return { ok: true, manual: true, message: "Opened releases page (not packaged — manual download)" };
   }
   if (!autoUpdater) return { error: "updater not available" };
+  if (_isDownloading) return { ok: false, error: "Already downloading" };
+  if (_updaterState === "downloaded" && _latestUpdateInfo) return { ok: true, alreadyDownloaded: true, info: _latestUpdateInfo };
   try {
+    _isDownloading = true;
+    setUpdaterState("downloading");
+    if (win && !win.isDestroyed()) win.webContents.send("updater:progress", { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 });
+    else broadcastUpdater("updater:progress", { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 });
     // Prime with latest info if not already checked
-    try { await autoUpdater.checkForUpdates(); } catch {}
+    if (!_latestUpdateInfo) {
+      try { await autoUpdater.checkForUpdates(); } catch {}
+    }
     await autoUpdater.downloadUpdate();
+    // progress will be emitted via download-progress, downloaded via update-downloaded
     return { ok: true };
-  } catch (e) { return { error: e?.message || String(e) }; }
+  } catch (e) {
+    _isDownloading = false;
+    setUpdaterState("error");
+    broadcastUpdater("updater:error", String(e?.message || e));
+    return { error: e?.message || String(e) };
+  }
 });
 ipcMain.handle("updater:install", async () => {
   if (!autoUpdater) return { error: "updater not available" };
-  try { autoUpdater.quitAndInstall(false, true); } catch (e) { return { error: e?.message || String(e) }; }
+  try {
+    setUpdaterState("installing");
+    autoUpdater.quitAndInstall(false, true);
+  } catch (e) { setUpdaterState("error"); return { error: e?.message || String(e) }; }
   return { ok: true };
 });
 ipcMain.handle("updater:getVersion", async () => {
-  try { return { version: app.getVersion() }; } catch (e) { return { error: e.message }; }
+  try { return { version: app.getVersion(), state: _updaterState, info: _latestUpdateInfo }; } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle("updater:getState", async () => {
+  return { state: _updaterState, info: _latestUpdateInfo, progress: _downloadProgress, version: app.getVersion() };
 });
 
 // ─── Port Manager — detect listening ports & manage forwarding ────────────────

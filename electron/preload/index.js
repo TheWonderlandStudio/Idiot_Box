@@ -150,11 +150,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Live Server ─────────────────────────────────────────────────────────────
   startLiveServer: (rootPath, filePath) => ipcRenderer.invoke("liveServer:start", { rootPath, filePath }),
 
-  // ── Auto Updater ────────────────────────────────────────────────────────────
+  // ── Auto Updater — Proper Cycle with Progress Bar ───────────────────────
   updaterCheck: () => ipcRenderer.invoke("updater:check"),
   updaterDownload: () => ipcRenderer.invoke("updater:download"),
   updaterInstall: () => ipcRenderer.invoke("updater:install"),
   updaterGetVersion: () => ipcRenderer.invoke("updater:getVersion"),
+  updaterGetState: () => ipcRenderer.invoke("updater:getState"),
   onUpdaterChecking: (cb) => { const h=(_e)=>cb(); ipcRenderer.on("updater:checking", h); return ()=>ipcRenderer.removeListener("updater:checking", h); },
   onUpdaterAvailable: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:available", h); return ()=>ipcRenderer.removeListener("updater:available", h); },
   onUpdaterNotAvailable: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:not-available", h); return ()=>ipcRenderer.removeListener("updater:not-available", h); },
@@ -162,6 +163,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onUpdaterProgress: (cb) => { const h=(_e,p)=>cb(p); ipcRenderer.on("updater:progress", h); return ()=>ipcRenderer.removeListener("updater:progress", h); },
   onUpdaterDownloaded: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:downloaded", h); return ()=>ipcRenderer.removeListener("updater:downloaded", h); },
   onUpdaterManualCheck: (cb) => { const h=(_e)=>cb(); ipcRenderer.on("updater:manualCheck", h); return ()=>ipcRenderer.removeListener("updater:manualCheck", h); },
+  onUpdaterState: (cb) => { const h=(_e,s)=>cb(s); ipcRenderer.on("updater:state", h); return ()=>ipcRenderer.removeListener("updater:state", h); },
 
   // ── Port Manager ────────────────────────────────────────────────────────────
   getPorts:        () => ipcRenderer.invoke("ports:list"),
