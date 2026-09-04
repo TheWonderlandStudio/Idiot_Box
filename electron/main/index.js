@@ -788,6 +788,21 @@ ipcMain.handle("dialog:confirm", async (event, message) => {
   return response === 1;
 });
 
+// 3-way unsaved-changes guard for editor tab close (Save / Don't Save / Cancel)
+ipcMain.handle("dialog:confirmSave", async (event, fileName) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const name = String(fileName || "Untitled").split(/[\\/]/).pop() || "Untitled";
+  const { response } = await dialog.showMessageBox(win, {
+    type: "question",
+    buttons: ["Save", "Don't Save", "Cancel"],
+    defaultId: 0,
+    cancelId: 2,
+    message: `"${name}" has unsaved changes.`,
+    detail: "Do you want to save your changes before closing?",
+  });
+  return ["save", "dontSave", "cancel"][response] || "cancel";
+});
+
 ipcMain.handle("dialog:alert", async (event, message) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   await dialog.showMessageBox(win, {
@@ -3881,8 +3896,14 @@ ipcMain.handle("chrome:removeExtension", (_e, id) => {
 
 // ─── Settings window ──────────────────────────────────────────────────────────
 let settingsWin = null;
-function openSettingsWindow() {
-  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
+function openSettingsWindow(initialPage) {
+  const page = typeof initialPage === "string" && initialPage ? initialPage : null;
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.focus();
+    // Already open — navigate to requested page (e.g. extensions)
+    if (page) { try { settingsWin.webContents.send("settings:navigate", page); } catch {} }
+    return;
+  }
   settingsWin = new BrowserWindow({
     width: 780, height: 520, minWidth: 600, minHeight: 400,
     title: "Settings", backgroundColor: "#1a1a1a",
@@ -3896,12 +3917,12 @@ function openSettingsWindow() {
     const iz = getUiZoomFactor();
     if (iz !== 1) settingsWin.webContents.setZoomFactor(iz);
   } catch {}
-  settingsWin.loadFile(path.join(__dirname, "../renderer/settings.html"));
+  settingsWin.loadFile(path.join(__dirname, "../renderer/settings.html"), page ? { query: { page } } : undefined);
   settingsWin.once("ready-to-show", () => settingsWin.show());
   settingsWin.on("closed", () => { settingsWin = null; });
 }
 
-ipcMain.handle("settings:openWindow", () => openSettingsWindow());
+ipcMain.handle("settings:openWindow", (_e, initialPage) => openSettingsWindow(initialPage));
 
 // ─── App menu ─────────────────────────────────────────────────────────────────
 let autoSaveEnabled = false;
@@ -3983,6 +4004,19 @@ function buildMenu() {
         { label: "Find Next", accelerator: "F3", click: () => sendToRenderer("menu:findNext", null) },
         { label: "Find Previous", accelerator: "Shift+F3", click: () => sendToRenderer("menu:findPrevious", null) },
         { label: "Replace",   accelerator: "CmdOrCtrl+H", click: () => sendToRenderer("menu:replace", null) },
+        { type: "separator" },
+        // NOTE: no accelerators here on purpose — these keys are already bound
+        // inside Monaco (Ctrl+/, Shift+Alt+Down, Shift+Alt+F, Ctrl+G,
+        // Ctrl+Shift+O). A native accelerator would fire AND Monaco would fire
+        // (double toggle). Menu = discoverability + mouse access.
+        { label: "Toggle Line Comment", click: () => sendToRenderer("menu:commentLine", null) },
+        { label: "Duplicate Line Down", click: () => sendToRenderer("menu:copyLineDown", null) },
+        { label: "Move Line Up", click: () => sendToRenderer("menu:moveLineUp", null) },
+        { label: "Move Line Down", click: () => sendToRenderer("menu:moveLineDown", null) },
+        { label: "Format Document", click: () => sendToRenderer("menu:formatDocument", null) },
+        { type: "separator" },
+        { label: "Go to Line…", click: () => sendToRenderer("menu:gotoLine", null) },
+        { label: "Go to Symbol…", click: () => sendToRenderer("menu:gotoSymbol", null) },
       ],
     },
     {
@@ -4026,6 +4060,7 @@ function buildMenu() {
         },
         { type: "separator" },
         { label: "Reset Layout", accelerator: "CmdOrCtrl+Alt+R", click: () => sendToRenderer("menu:resetLayout", null) },
+        { label: "Split Editor Right", accelerator: "CmdOrCtrl+\\", click: () => sendToRenderer("menu:splitEditorRight", null) },
         { type: "separator" },
         { label: "AI Assistant", click: () => sendToRenderer("menu:openAI", null) },
         { label: "Ports", click: () => sendToRenderer("menu:openPorts", null) },

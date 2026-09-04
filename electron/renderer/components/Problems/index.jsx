@@ -24,19 +24,29 @@ const ProblemsPanel = () => {
       } catch {}
     };
 
+    const subscribe = () => {
+      try { dispose?.dispose?.(); } catch {}
+      dispose = null;
+      try {
+        const monaco = window.monaco;
+        if (monaco && monaco.editor && monaco.editor.onDidChangeMarkers) {
+          dispose = monaco.editor.onDidChangeMarkers(() => { if (!document.hidden) pollMarkers(); });
+        }
+      } catch {}
+    };
+
     // lightweight: event-driven, fallback poll only when visible
     pollMarkers();
+    subscribe();
     interval = setInterval(() => { if (!document.hidden) pollMarkers(); }, 5000);
-    try {
-      const monaco = window.monaco;
-      if (monaco && monaco.editor && monaco.editor.onDidChangeMarkers) {
-        dispose = monaco.editor.onDidChangeMarkers(() => { if (!document.hidden) pollMarkers(); });
-      }
-    } catch {}
+    // Editor exposes window.monaco asynchronously — (re)subscribe when ready.
+    const onMonacoReady = () => { pollMarkers(); subscribe(); };
+    window.addEventListener("monaco:ready", onMonacoReady);
 
     return () => {
       if (interval) clearInterval(interval);
-      if (dispose) try { dispose.dispose(); } catch {}
+      try { dispose?.dispose?.(); } catch {}
+      window.removeEventListener("monaco:ready", onMonacoReady);
     };
   }, []);
 

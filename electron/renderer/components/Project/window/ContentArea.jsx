@@ -3,6 +3,7 @@ import React, {
 } from "react";
 import VscodeIcon  from "../../shared/VscodeIcon.jsx";
 import useSettings from "../../shared/useSettings.jsx";
+import { isMediaFile, shouldAutoOpenMediaViewerSync } from "../../MediaViewer/mediaTypes.js";
 import { Folder, File, Eye, EyeOff, Image as ImageIcon, Search, Video } from "lucide-react";
 
 // ── SVG icons (lucide) ─────────────────────────────────────────────────────────
@@ -244,7 +245,13 @@ const ContentArea = ({
       case "open": {
         for (const p of targetPaths) {
           const s = await window.electronAPI.stat(p);
-          if (s.isDir) onNavigate(p); else await window.electronAPI.openFile(p, settingsRef.current.defaultEditor ?? "system");
+          if (s.isDir) { onNavigate(p); continue; }
+          // Media files → Media Viewer when auto-open is enabled (default ON).
+          if (isMediaFile(p) && shouldAutoOpenMediaViewerSync(settingsRef.current)) {
+            window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: p } }));
+            continue;
+          }
+          await window.electronAPI.openFile(p, settingsRef.current.defaultEditor ?? "system");
         }
         return;
       }
@@ -596,6 +603,8 @@ const ContentArea = ({
       anchorRef.current = entry.path;
       onSetSelectedItems(new Set([entry.path]));
       if (!entry.isDir) {
+        // Central router (index.jsx) sends media files to Media Viewer
+        // when Settings → Auto Open Media Viewer is ON (default).
         window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: entry.path } }));
       }
     }
@@ -992,8 +1001,13 @@ const ContentArea = ({
                   onClick={(e) => handleItemClick(e, entry)}
                   onDoubleClick={() => {
                     if (isRenaming) return;
-                    if (entry.isDir) onNavigate(entry.path);
-                    else window.electronAPI.openFile(entry.path, settingsRef.current.defaultEditor ?? "system");
+                    if (entry.isDir) { onNavigate(entry.path); return; }
+                    // Media files → Media Viewer when auto-open is enabled (default ON).
+                    if (isMediaFile(entry.path) && shouldAutoOpenMediaViewerSync(settingsRef.current)) {
+                      window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: entry.path } }));
+                      return;
+                    }
+                    window.electronAPI.openFile(entry.path, settingsRef.current.defaultEditor ?? "system");
                   }}
                   onContextMenu={(e) => handleContextMenu(e, entry)}
                   style={!isListView ? { width: `${itemW}px` } : undefined}

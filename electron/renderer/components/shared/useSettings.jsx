@@ -77,8 +77,8 @@ const useSettings = () => {
       if (k === "terminal" || k.startsWith("terminal")) chans.add("terminal-settings");
       else if (k === "canvas" || k.startsWith("canvas")) chans.add("canvas-settings");
       else if (k === "git" || k.startsWith("git")) chans.add("git-settings");
-      else if (["theme","zoom","showHiddenFiles","confirmDelete","restoreTabs","telemetryEnabled"].includes(k)) chans.add("app-settings");
-      else if (["minimap","wordWrap","lineNumbers","fontSize","fontFamily","tabSize","editorTheme","autoSave","defaultEditor"].includes(k)) chans.add("editor-settings");
+      else if (["theme","zoom","showHiddenFiles","confirmDelete","restoreTabs","telemetryEnabled","autoOpenMediaViewer"].includes(k)) chans.add("app-settings");
+      else if (["minimap","wordWrap","lineNumbers","fontSize","fontFamily","tabSize","editorTheme","autoSave","defaultEditor","formatOnSave"].includes(k)) chans.add("editor-settings");
       else chans.add("app-settings");
     }
     // Ensure at least app-settings for unknown keys (fallback live sync for SettingsWindow)

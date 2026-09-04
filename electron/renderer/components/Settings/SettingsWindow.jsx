@@ -27,8 +27,23 @@ const NAV = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SettingsWindow = () => {
-  const [activePage, setActivePage] = useState("general");
+  const [activePage, setActivePage] = useState(() => {
+    // Deep-link: settings.html?page=extensions → open directly on that page
+    try {
+      const p = new URLSearchParams(window.location.search).get("page");
+      if (p && NAV.some((n) => n.id === p)) return p;
+    } catch {}
+    return "general";
+  });
   const [settings, updateSettings, loading] = useSettings();
+
+  // Main window se navigate request (e.g. Browser ⋮ → Manage extensions)
+  useEffect(() => {
+    const unsub = window.electronAPI?.onSettingsNavigate?.((page) => {
+      if (page && NAV.some((n) => n.id === page)) setActivePage(page);
+    });
+    return () => { try { unsub?.(); } catch {} };
+  }, []);
 
   // Apply theme to settings window itself (default dark)
   useEffect(() => {

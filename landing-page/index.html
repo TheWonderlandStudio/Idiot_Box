@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wonderland</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="page-transition.css" />
+</head>
+
+<body class="is-entering">
+  <div class="wipe has-intro-video" aria-hidden="true">
+    <video class="wipe-video" src="https://files.catbox.moe/hkyqoi.mp4" autoplay muted loop playsinline preload="auto"></video>
+    <span>Idiot Box</span>
+  </div>
+  <canvas id="noise-overlay" aria-hidden="true"></canvas>
+  <div class="background">
+    <div class="bg-video-wrap" aria-hidden="true">
+      <video class="bg-video" src="https://video-public.canva.com/VAGnKsw1EGM/v/dada75ea42.mp4" autoplay muted loop playsinline preload="auto"></video>
+    </div>
+    <h1 class="center-title" aria-hidden="true">Idiot Box</h1>
+    <div class="card" data-delay="3000">
+      <div class="title">
+        <div class="main2"></div>
+        <div class="text">The Wonderland Studio</div>
+      </div>
+    </div>
+    <nav class="nav-card">
+      <div class="nav-links">
+        <a href="chatlog.html">Chatlog</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" id="download-btn" data-download-latest>Download</a>
+      </div>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </nav>
+    <div class="menu-panel" id="menu-panel">
+      <a href="chatlog.html">Chatlog</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+    </div>
+    <a class="side-tab" href="features.html">Features</a>
+    <section class="hero">
+      <p class="hero-kicker">Idiot Box · <span data-release-version>v0.1.13</span> · Free &amp; open source <span class="new-pill" hidden>New</span></p>
+      <h1 class="hero-title">Your whole project, in one window</h1>
+      <p class="hero-sub">Map your project, write code, run the terminal. Everything you need in one calm window that stays out of your way, so you can just build.</p>
+      <div class="hero-cta">
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" class="btn-primary" data-download-latest>Download for Windows</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener" class="btn-ghost">View on GitHub</a>
+      </div>
+    </section>
+  </div>
+  <script>
+    (function () {
+      const bg = document.querySelector('.background');
+      const text = document.querySelector('.text');
+
+      function showHero() {
+        if (bg.classList.contains('hero-in')) return;
+        bg.classList.add('hero-in');
+      }
+
+      function showVideo() {
+        if (bg.classList.contains('video-in')) return;
+        bg.classList.add('video-in');
+        const v = document.querySelector('.bg-video');
+        if (v) { v.play().catch(() => {}); }
+        // video fade (1.2s) ke baad hero neeche se upar aayega
+        setTimeout(showHero, 800);
+      }
+
+      function showNav() {
+        if (bg.classList.contains('nav-in')) return;
+        bg.classList.add('nav-in');
+        // nav ka 0.8s drop khatam hone ke baad video fade-in
+        setTimeout(showVideo, 900);
+      }
+
+      function moveToCorner() {
+        if (bg.classList.contains('moved')) return;
+        // animation ke sath move — direct jump nahi, CSS transition handle karega
+        bg.classList.add('moved');
+        // card ka 1s corner move khatam hone ke baad nav top se bottom aayega
+        setTimeout(showNav, 1100);
+      }
+
+      // typing animation (last one, ends ~3.9s) ke end ka wait karo,
+      // phir thoda hold karke corner me le jao
+      text.addEventListener('animationend', (e) => {
+        if (e.animationName === 'typing') {
+          setTimeout(moveToCorner, 400);
+        }
+      });
+
+      // fallback — agar animationend miss ho jaye to bhi sequence chale
+      setTimeout(moveToCorner, 5500);
+      setTimeout(showNav, 7500);
+      setTimeout(showVideo, 8600);
+      setTimeout(showHero, 9800);
+
+      // Hamburger menu (mobile)
+      (function () {
+        const btn = document.querySelector('.hamburger');
+        const panel = document.getElementById('menu-panel');
+        if (!btn || !panel) return;
+
+        function setOpen(open) {
+          bg.classList.toggle('menu-open', open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          setOpen(!bg.classList.contains('menu-open'));
+        });
+
+        panel.addEventListener('click', function (e) {
+          if (e.target.closest('a')) setOpen(false);
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!e.target.closest('.menu-panel') && !e.target.closest('.hamburger')) setOpen(false);
+        });
+
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') setOpen(false);
+        });
+      })();
+
+      // Release tracker — naya release aate hi UI + download auto-update
+      (function () {
+        const API = 'https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest';
+        const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+        const POLL_MS = 10 * 60 * 1000;
+        let currentTag = null;
+        let cachedUrl = null;
+
+        async function checkRelease() {
+          const res = await fetch(API);
+          if (!res.ok) throw new Error('release api failed');
+          const data = await res.json();
+          const exe = (data.assets || []).find((a) => /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name));
+          if (!exe) throw new Error('no exe found');
+          if (currentTag && data.tag_name !== currentTag) {
+            // naya release mila — badge dikhao
+            document.querySelectorAll('.new-pill').forEach((el) => { el.hidden = false; });
+          }
+          currentTag = data.tag_name;
+          cachedUrl = exe.browser_download_url;
+          document.querySelectorAll('[data-release-version]').forEach((el) => {
+            el.textContent = data.tag_name;
+          });
+          return cachedUrl;
+        }
+
+        async function resolveExeUrl() {
+          if (cachedUrl) return cachedUrl;
+          return checkRelease();
+        }
+
+        document.querySelectorAll('[data-download-latest]').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const original = btn.textContent;
+            btn.textContent = 'Locating…';
+            try {
+              const url = await resolveExeUrl();
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = '';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch {
+              window.open(FALLBACK, '_blank', 'noopener');
+            } finally {
+              btn.textContent = original;
+            }
+          });
+        });
+
+        // load par prefetch, har 10 min me fresh check, tab wapas khulne par bhi
+        checkRelease().catch(() => {});
+        setInterval(() => checkRelease().catch(() => {}), POLL_MS);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) checkRelease().catch(() => {});
+        });
+      })();
+    })();
+  </script>
+  <script src="page-transition.js"></script>
+  <script>
+    (function () {
+      const canvas = document.getElementById('noise-overlay');
+      const ctx = canvas.getContext('2d');
+      const TILE = 256;
+      canvas.width = TILE;
+      canvas.height = TILE;
+
+      function drawNoise() {
+        const img = ctx.createImageData(TILE, TILE);
+        const d = img.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const v = (Math.random() * 255) | 0;
+          d[i] = v;
+          d[i + 1] = v;
+          d[i + 2] = v;
+          d[i + 3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+      }
+
+      drawNoise();
+      // ~8fps random flicker — cheap, no layout cost
+      setInterval(drawNoise, 120);
+    })();
+  </script>
+</body>
+
+</html>

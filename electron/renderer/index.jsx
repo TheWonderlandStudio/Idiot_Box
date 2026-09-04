@@ -7,6 +7,7 @@ import "./layout.css";
 import "./responsive.css";
 
 import MediaViewer from "./components/MediaViewer/index.jsx";
+import { isMediaFile } from "./components/MediaViewer/mediaTypes.js";
 import BrowserPanel from "./components/Browser/index.jsx";
 import ProjectPanel from "./components/Project/index.jsx";
 import EditorPanel from "./components/Editor/index.jsx";
@@ -541,6 +542,13 @@ const App = () => {
       window.electronAPI.onMenuEvent("menu:paste", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "paste" } }))),
       window.electronAPI.onMenuEvent("menu:selectAll", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "selectAll" } }))),
       window.electronAPI.onMenuEvent("menu:find", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "find" } }))),
+      window.electronAPI.onMenuEvent("menu:formatDocument", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "format" } }))),
+      window.electronAPI.onMenuEvent("menu:commentLine", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "commentLine" } }))),
+      window.electronAPI.onMenuEvent("menu:copyLineDown", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "copyLineDown" } }))),
+      window.electronAPI.onMenuEvent("menu:moveLineUp", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "moveLineUp" } }))),
+      window.electronAPI.onMenuEvent("menu:moveLineDown", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "moveLineDown" } }))),
+      window.electronAPI.onMenuEvent("menu:gotoLine", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "gotoLine" } }))),
+      window.electronAPI.onMenuEvent("menu:gotoSymbol", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "gotoSymbol" } }))),
       window.electronAPI.onMenuEvent("menu:findNext", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "findNext" } }))),
       window.electronAPI.onMenuEvent("menu:findPrevious", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "findPrevious" } }))),
       window.electronAPI.onMenuEvent("menu:replace", () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "replace" } }))),
@@ -766,6 +774,34 @@ const App = () => {
     });
     return unsub;
   }, []);
+  // ── Split Editor Right — clone the active editor tab to the right ────────
+  // Both tabs share the same file:// Monaco model, so edits sync live.
+  useEffect(() => {
+    const unsub = window.electronAPI.onMenuEvent("menu:splitEditorRight", () => {
+      const m = modelRef.current;
+      if (!m) return;
+      let src = null;
+      try {
+        const tabset = m.getActiveTabset();
+        const sel = tabset?.getSelectedNode?.();
+        if (sel?.getType() === "tab" && sel.getComponent() === "editor") src = sel;
+      } catch {}
+      if (!src) return;
+      const filePath = src.getConfig?.()?.filePath;
+      if (!filePath) return;
+      let parentId = null;
+      try { parentId = src.getParent?.()?.getId(); } catch {}
+      if (!parentId) return;
+      let name = filePath;
+      try { name = src.getName?.() || filePath.replace(/.*[\\/]/, ""); } catch {}
+      m.doAction(Actions.addNode({
+        type: "tab", component: "editor", name, enableClose: true,
+        id: "editor-tab-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+        config: { filePath },
+      }, parentId, DockLocation.RIGHT, -1, true));
+    });
+    return unsub;
+  }, []);
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:openGit", () => {
       window.dispatchEvent(new CustomEvent("add-git-panel"));
@@ -781,9 +817,9 @@ const App = () => {
 
   // Open settings window when browser panel requests it
   useEffect(() => {
-    const handler = () => {
+    const handler = (e) => {
       try {
-        window.electronAPI.openSettingsWindow?.();
+        window.electronAPI.openSettingsWindow?.(e.detail?.page);
       } catch {}
     };
     window.addEventListener("browser:openSettings", handler);
@@ -989,7 +1025,48 @@ const App = () => {
 
   // ── Open files in the Editor as flexlayout tabs ──────────────────────────
   useEffect(() => {
-    const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".avif", ".tiff", ".tif", ".heic", ".mp4", ".webm", ".ogv", ".pdf", ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma", ".opus"];
+    // Settings cache for Media Viewer auto-open (General → Auto Open Media Viewer, default true).
+    // openFileInEditor is sync, so we keep a live cache instead of awaiting readSettings per click.
+    const mediaSettingsRef = { autoOpen: true };
+    try {
+      window.electronAPI.readSettings().then((s) => {
+        if (s && typeof s === "object" && "autoOpenMediaViewer" in s) {
+          mediaSettingsRef.autoOpen = s.autoOpenMediaViewer !== false;
+        }
+        try { window.__autoOpenMediaViewer = mediaSettingsRef.autoOpen; } catch {}
+      }).catch(() => {});
+    } catch {}
+    const applyMediaPatch = (patch) => {
+      if (patch && typeof patch === "object" && "autoOpenMediaViewer" in patch) {
+        mediaSettingsRef.autoOpen = patch.autoOpenMediaViewer !== false;
+        try { window.__autoOpenMediaViewer = mediaSettingsRef.autoOpen; } catch {}
+      }
+    };
+    let bcMedia = null;
+    try { bcMedia = new BroadcastChannel("app-settings"); bcMedia.onmessage = (e) => applyMediaPatch(e.data); } catch {}
+    let unsubMedia = null;
+    try { unsubMedia = window.electronAPI?.onSettingsUpdated?.(applyMediaPatch); } catch {}
+
+    // Bring the Media Viewer tab to front so auto-opened files are actually visible.
+    const focusMediaViewerTab = () => {
+      const m = modelRef.current;
+      if (!m) return;
+      try {
+        const findMedia = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "mediaViewer") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findMedia(c); if (r) return r; }
+          return null;
+        };
+        const tab = findMedia(m.getRoot());
+        if (tab) { try { m.doAction(Actions.selectTab(tab.getId())); } catch {} forceLayoutRedraw(m); }
+      } catch {}
+    };
+
+    const openInMediaViewer = (filePath) => {
+      focusMediaViewerTab();
+      window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
+    };
 
     // Find the currently active/selected editor tab node
     const findActiveEditorTab = (m) => {
@@ -1019,9 +1096,9 @@ const App = () => {
     const openFileInEditor = (filePath) => {
       const m = modelRef.current;
       if (!m || !filePath) return;
-      const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
-      if (IMAGE_VIDEO_EXTS.includes(ext)) {
-        window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
+      // Project-panel click on a media file → auto-open in Media Viewer (if enabled).
+      if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
+        openInMediaViewer(filePath);
         return;
       }
 
@@ -1066,9 +1143,8 @@ const App = () => {
     const openFileInNewTab = (filePath) => {
       const m = modelRef.current;
       if (!m || !filePath) return;
-      const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
-      if (IMAGE_VIDEO_EXTS.includes(ext)) {
-        window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
+      if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
+        openInMediaViewer(filePath);
         return;
       }
 
@@ -1087,13 +1163,19 @@ const App = () => {
     const onIpc    = window.electronAPI.onOpenFileInEditor?.(({ filePath }) => openFileInEditor(filePath));
     const onCustom = (e) => { const p = e.detail?.path ?? e.detail?.filePath; if (p) openFileInEditor(p); };
     const onNewTab = (e) => { const p = e.detail?.path ?? e.detail?.filePath; if (p) openFileInNewTab(p); };
+    // Any direct "media-viewer:open" (context menu, drag-drop, AI panel) should also front the tab.
+    const onMediaOpen = () => focusMediaViewerTab();
 
     window.addEventListener("open-file-in-editor",         onCustom);
     window.addEventListener("open-file-in-new-editor-tab", onNewTab);
+    window.addEventListener("media-viewer:open",           onMediaOpen);
     return () => {
       onIpc?.();
       window.removeEventListener("open-file-in-editor",         onCustom);
       window.removeEventListener("open-file-in-new-editor-tab", onNewTab);
+      window.removeEventListener("media-viewer:open",           onMediaOpen);
+      try { bcMedia?.close(); } catch {}
+      try { unsubMedia?.(); } catch {}
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1127,6 +1209,56 @@ const App = () => {
 
   if (!readyRef.current) return null;
 
+  // ── Guard: veto closing dirty editor tabs (Save / Don't Save / Cancel) ───
+  // Returning undefined from onAction cancels the close; after the async
+  // dialog resolves we re-issue the close directly on the model (which
+  // bypasses onAction, so no loop).
+  const handleLayoutAction = (action) => {
+    try {
+      if (action && action.type === Actions.DELETE_TAB) {
+        const nodeId = action.data?.node;
+        const m = modelRef.current;
+        let node = null;
+        try { node = nodeId && m ? m.getNodeById(nodeId) : null; } catch {}
+        if (node && node.getType() === "tab" && node.getComponent() === "editor") {
+          const fp = node.getConfig?.()?.filePath;
+          if (fp && window.__ibxIsDirty?.(fp)) {
+            (async () => {
+              const base = String(fp).split(/[\\/]/).pop() || fp;
+              let choice = "cancel";
+              try {
+                if (window.electronAPI?.confirmSaveDialog) {
+                  choice = await window.electronAPI.confirmSaveDialog(base);
+                } else {
+                  choice = (await window.electronAPI.confirmDialog(`"${base}" has unsaved changes.\nClose without saving?`)) ? "dontSave" : "cancel";
+                }
+              } catch { choice = "cancel"; }
+              const mm = modelRef.current;
+              if (!mm) return;
+              if (choice === "save") {
+                window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "save", path: fp } }));
+                // Close once the save lands and the dirty flag clears.
+                setTimeout(() => {
+                  try {
+                    if (!window.__ibxIsDirty?.(fp)) {
+                      window.__ibxForgetDirty?.(fp);
+                      mm.doAction(Actions.deleteTab(nodeId));
+                    }
+                  } catch {}
+                }, 500);
+              } else if (choice === "dontSave") {
+                try { window.__ibxForgetDirty?.(fp); } catch {}
+                try { mm.doAction(Actions.deleteTab(nodeId)); } catch {}
+              }
+            })();
+            return undefined; // veto — async dialog decides
+          }
+        }
+      }
+    } catch {}
+    return action;
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#0d0d0d" }}>
       <UpdaterBanner />
@@ -1134,6 +1266,7 @@ const App = () => {
         <Layout
       model={modelRef.current}
       factory={factory}
+      onAction={handleLayoutAction}
       onDrop={(node, e) => {
         // Intercept file drops from the Project Panel onto any tabset.
         // window.__ibxDragPaths is set by ContentArea/SidebarTree dragStart.
@@ -1141,7 +1274,6 @@ const App = () => {
         if (!paths?.length) return;
         window.__ibxDragPaths = null;
 
-        const IMAGE_VIDEO_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".avif", ".tiff", ".tif", ".heic", ".mp4", ".webm", ".ogv", ".pdf", ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma", ".opus"];
         const m = modelRef.current;
         if (!m) return;
 
@@ -1156,8 +1288,10 @@ const App = () => {
 
         for (const filePath of paths) {
           if (!filePath) continue;
-          const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
-          if (IMAGE_VIDEO_EXTS.includes(ext)) {
+          // Drag-drop respects the same flag (default ON). When OFF, drop falls through to editor.
+          let autoOpen = true;
+          try { if (typeof window.__autoOpenMediaViewer === "boolean") autoOpen = window.__autoOpenMediaViewer; } catch {}
+          if (autoOpen && isMediaFile(filePath)) {
             window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
             continue;
           }

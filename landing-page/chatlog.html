@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatlog — Idiot Box</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="chatlog.css" />
+  <link rel="stylesheet" href="page-transition.css" />
+</head>
+
+<body class="is-entering">
+  <div class="wipe" aria-hidden="true"><span>Idiot Box</span></div>
+
+  <div class="background">
+    <div class="bg-video-wrap" aria-hidden="true">
+      <video id="chatlog-bg" src="https://files.catbox.moe/7tjhav.mp4" muted autoplay loop playsinline preload="auto"></video>
+    </div>
+    <a class="card" href="index.html">Chatlog</a>
+    <nav class="nav-card">
+      <div class="nav-links">
+        <a href="chatlog.html">Chatlog</a>
+        <a href="features.html">Features</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+      </div>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </nav>
+    <div class="menu-panel" id="menu-panel">
+      <a href="chatlog.html">Chatlog</a>
+      <a href="features.html">Features</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+    </div>
+    <main class="feed" id="feed">
+      <div class="log-card loading">Loading the log…</div>
+    </main>
+  </div>
+
+  <script src="vendor/marked.min.js"></script>
+  <script src="page-transition.js"></script>
+  <script>
+    (function () {
+      // mp4 background — src tag me set hai, bas play karo
+      const video = document.getElementById('chatlog-bg');
+      video.play().catch(function () {});
+      video.addEventListener('canplay', function () { video.play().catch(function () {}); });
+
+      // Release feed — live from GitHub
+      const feed = document.getElementById('feed');
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+      function renderBody(md) {
+        if (!md) return '';
+        if (window.marked) return marked.parse(md);
+        return esc(md);
+      }
+      fetch('https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases?per_page=10')
+        .then(function (res) { if (!res.ok) throw new Error('api failed'); return res.json(); })
+        .then(function (releases) {
+          if (!Array.isArray(releases) || !releases.length) throw new Error('empty');
+          feed.innerHTML = '';
+          releases.forEach(function (r) {
+            const exe = (r.assets || []).find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
+            const card = document.createElement('article');
+            card.className = 'log-card';
+            card.innerHTML =
+              '<div class="log-meta"><span class="tag-pill">' + esc(r.tag_name) + '</span>' +
+              '<span class="log-date">' + esc((r.published_at || '').slice(0, 10)) + '</span></div>' +
+              '<h2 class="log-title">' + esc(r.name || r.tag_name) + '</h2>' +
+              (r.body ? '<div class="log-body">' + renderBody(r.body) + '</div>' : '') +
+              (exe ? '<a class="log-dl" href="' + exe.browser_download_url + '">Download .exe</a>' : '');
+            feed.appendChild(card);
+          });
+        })
+        .catch(function () {
+          feed.innerHTML = '<div class="log-card">Couldn\'t load the log. ' +
+            '<a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">Open releases on GitHub</a></div>';
+        });
+
+      // Nav download — hamesha latest release ka exe
+      const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+      let cachedUrl = null;
+      function resolveExeUrl() {
+        if (cachedUrl) return Promise.resolve(cachedUrl);
+        return fetch('https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest')
+          .then(function (res) { if (!res.ok) throw new Error('api failed'); return res.json(); })
+          .then(function (data) {
+            const exe = (data.assets || []).find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
+            if (!exe) throw new Error('no exe');
+            cachedUrl = exe.browser_download_url;
+            return cachedUrl;
+          });
+      }
+      document.querySelectorAll('[data-download-latest]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          const original = btn.textContent;
+          btn.textContent = 'Locating…';
+          resolveExeUrl().then(function (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }).catch(function () {
+            window.open(FALLBACK, '_blank', 'noopener');
+          }).finally(function () {
+            btn.textContent = original;
+          });
+        });
+      });
+      resolveExeUrl().catch(function () {});
+
+      // Hamburger menu (mobile) — size card jitni
+      (function () {
+        const bg = document.querySelector('.background');
+        const btn = document.querySelector('.hamburger');
+        const panel = document.getElementById('menu-panel');
+        if (!btn || !panel) return;
+
+        function setOpen(open) {
+          bg.classList.toggle('menu-open', open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          setOpen(!bg.classList.contains('menu-open'));
+        });
+
+        panel.addEventListener('click', function (e) {
+          if (e.target.closest('a')) setOpen(false);
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!e.target.closest('.menu-panel') && !e.target.closest('.hamburger')) setOpen(false);
+        });
+
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') setOpen(false);
+        });
+      })();
+    })();
+  </script>
+</body>
+
+</html>

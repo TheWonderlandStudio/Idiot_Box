@@ -1,0 +1,379 @@
+/* Chatlog — index jesi style: same container, same cards, same nav */
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body{
+  height: 100dvh;
+  background: black;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.background{
+  width: 97%;
+  height: 96%;
+  border-radius: 8px;
+  background: white;
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+
+/* HLS video — container ka background */
+.bg-video-wrap{
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+#chatlog-bg{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: black;
+}
+
+/* top-left title card — index ke logo card jesa, click par wapas index */
+.card{
+  font-family: Arial Black;
+  font-size: 25px;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  background: black;
+  padding: 4px 60px 0px 10px;
+  position: absolute;
+  left: 24px;
+  top: 24px;
+  z-index: 2;
+}
+
+/* top-right nav — index jesa, yahan direct visible (intro nahi hai) */
+.nav-card{
+  font-family: Arial Black;
+  font-size: 25px;
+  border-radius: 4px;
+  background: black;
+  color: white;
+  padding: 12px 20px;
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  z-index: 2;
+}
+
+.nav-card a{
+  color: white;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* desktop — links seedha flex me, hamburger/panel chhupa */
+.nav-links{
+  display: contents;
+}
+
+.hamburger{
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.hamburger span{
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: white;
+  border-radius: 2px;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.menu-panel{
+  display: none;
+}
+
+/* feed — center me, top bar ke neeche scrollable, video background me */
+.feed{
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  top: 100px;
+  bottom: 24px;
+  width: min(900px, calc(100% - 48px));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+}
+
+.feed::-webkit-scrollbar{
+  width: 6px;
+}
+
+.feed::-webkit-scrollbar-thumb{
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 3px;
+}
+
+.log-card{
+  background: transparent;
+  border-radius: 4px;
+  padding: 20px 22px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+}
+
+.log-card.loading{
+  font-family: Arial Black;
+  font-size: 16px;
+}
+
+.log-meta{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.tag-pill{
+  font-size: 12px;
+  font-weight: 700;
+  background: white;
+  color: black;
+  border-radius: 20px;
+  padding: 3px 12px;
+}
+
+.log-date{
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  opacity: 0.6;
+}
+
+.log-title{
+  font-family: Arial Black;
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.log-body{
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.85;
+  overflow-wrap: break-word;
+  margin-bottom: 16px;
+}
+
+.log-body h1,
+.log-body h2,
+.log-body h3{
+  font-family: Arial Black;
+  line-height: 1.2;
+  margin: 14px 0 8px;
+}
+
+.log-body h1{ font-size: 18px; }
+.log-body h2{ font-size: 16px; }
+.log-body h3{ font-size: 14px; }
+
+.log-body p{
+  margin-bottom: 10px;
+}
+
+.log-body ul,
+.log-body ol{
+  margin: 0 0 10px 20px;
+}
+
+.log-body li{
+  margin-bottom: 4px;
+}
+
+.log-body a{
+  color: white;
+  text-decoration: underline;
+}
+
+.log-body code{
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.log-body pre{
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+}
+
+.log-body pre code{
+  background: none;
+  padding: 0;
+}
+
+.log-dl{
+  display: inline-block;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: black;
+  background: white;
+  text-decoration: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 768px){
+  .card{
+    font-size: 20px;
+    padding: 4px 36px 0px 10px;
+    left: 16px;
+    top: 16px;
+  }
+
+  .nav-card{
+    font-size: 20px;
+    gap: 16px;
+    padding: 10px 16px;
+    top: 16px;
+    right: 16px;
+  }
+
+  /* hamburger mode — links panel me, size card jitni */
+  .nav-links{
+    display: none;
+  }
+
+  .hamburger{
+    display: flex;
+  }
+
+  .menu-panel{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: absolute;
+    top: 64px;
+    right: 16px;
+    z-index: 3;
+    background: black;
+    border-radius: 4px;
+    padding: 8px;
+    min-width: 180px;
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+
+  .background.menu-open .menu-panel{
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .menu-panel a{
+    font-family: Arial Black;
+    font-size: 20px;
+    color: white;
+    text-decoration: none;
+    padding: 10px 14px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .menu-panel a:hover{
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  /* hamburger se X */
+  .background.menu-open .hamburger span:nth-child(1){
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .background.menu-open .hamburger span:nth-child(2){
+    opacity: 0;
+  }
+
+  .background.menu-open .hamburger span:nth-child(3){
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  .feed{
+    top: 92px;
+    bottom: 16px;
+    width: min(640px, calc(100% - 32px));
+  }
+}
+
+@media (max-width: 480px){
+  .card{
+    font-size: 15px;
+    padding: 4px 18px 0px 8px;
+    left: 12px;
+    top: 12px;
+  }
+
+  .nav-card{
+    font-size: 15px;
+    gap: 10px;
+    padding: 5px 12px;
+    top: 12px;
+    right: 12px;
+    left: auto;
+  }
+
+  .menu-panel{
+    top: 56px;
+    right: 12px;
+  }
+
+  .menu-panel a{
+    font-size: 15px;
+  }
+
+  .feed{
+    top: 84px;
+    bottom: 12px;
+    width: calc(100% - 24px);
+    padding-right: 4px;
+  }
+
+  .log-card{
+    padding: 16px;
+  }
+
+  .log-title{
+    font-size: 18px;
+  }
+
+  .log-body{
+    font-size: 13px;
+  }
+}

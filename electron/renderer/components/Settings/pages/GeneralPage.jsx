@@ -16,6 +16,7 @@ const GeneralPage = ({ settings, onSave }) => {
   const restoreTabs      = settings.restoreTabs !== false; // default true
   const confirmDelete    = settings.confirmDelete !== false; // default true
   const showHiddenFiles  = settings.showHiddenFiles === true; // default false
+  const autoOpenMediaViewer = settings.autoOpenMediaViewer !== false; // default true
   const telemetryEnabled = settings.telemetryEnabled === true; // default false
 
   const update = async (patch) => {
@@ -117,6 +118,26 @@ const GeneralPage = ({ settings, onSave }) => {
             aria-checked={showHiddenFiles}
             role="switch"
             aria-label="Toggle show hidden files"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+
+      {/* ── Auto Open Media Viewer ─────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Auto Open Media Viewer</span>
+        <span className="sw-row__desc">
+          Automatically open images, videos, PDFs and audio in the Media Viewer when clicked in the Project explorer.
+        </span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{autoOpenMediaViewer ? "Enabled" : "Disabled"}</span>
+          <button
+            className={`sw-toggle-btn${autoOpenMediaViewer ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => toggle("autoOpenMediaViewer", autoOpenMediaViewer)}
+            aria-checked={autoOpenMediaViewer}
+            role="switch"
+            aria-label="Toggle auto open media viewer"
           >
             <span className="sw-toggle-thumb" />
           </button>

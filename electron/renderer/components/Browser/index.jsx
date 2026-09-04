@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
-import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
 const LOCK_ICON   = "M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4zm-2 6V5a2 2 0 1 1 4 0v2H6z";
@@ -24,15 +24,19 @@ const BrowserPanel = (props) => {
   const [focused,      setFocused]      = useState(false);
   const [lockOpen,     setLockOpen]     = useState(false);
   const [barHidden,    setBarHidden]    = useState(false);
+  const [moreOpen,     setMoreOpen]     = useState(false);
   const [popupStyle,   setPopupStyle]   = useState({});
   const [editMode,     setEditMode]     = useState(false);
   const [toast,        setToast]        = useState(null);
+  const [hasProject,   setHasProject]   = useState(() => { try { return !!window.__currentProjectPath; } catch { return false; } });
   const editModeRef  = useRef(false);
   const toastTimerRef = useRef(null);
 
   const webviewRef   = useRef(null);
   const attachedRef  = useRef(false);
   const lockRef      = useRef(null);
+  const moreWrapRef  = useRef(null);
+  const moreBtnRef   = useRef(null);
   const nodeIdRef    = useRef(nodeId);
   const goToUrlRef   = useRef(null);
   const actionListRef = useRef(null);
@@ -51,21 +55,52 @@ const BrowserPanel = (props) => {
   useEffect(() => { nodeIdRef.current = nodeId; }, [nodeId]);
   useEffect(() => { editModeRef.current = editMode; }, [editMode]);
 
+  // Track project open/close so banner can show VISUAL ONLY when unsavable
+  useEffect(() => {
+    const sync = () => { try { setHasProject(!!window.__currentProjectPath); } catch {} };
+    const onOpen = (e) => { try { setHasProject(!!(e?.detail?.path || window.__currentProjectPath)); } catch { sync(); } };
+    const onClose = () => setHasProject(false);
+    sync();
+    window.addEventListener("project:opened", onOpen);
+    window.addEventListener("project:closed", onClose);
+    const iv = setInterval(sync, 3000);
+    return () => { window.removeEventListener("project:opened", onOpen); window.removeEventListener("project:closed", onClose); clearInterval(iv); };
+  }, []);
+
   const showToast = useCallback((msg, type="info") => {
     setToast({ msg, type });
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(()=> setToast(null), 2800);
   }, []);
 
+  const revertActiveInGuest = useCallback(async () => {
+    try { await webviewRef.current?.executeJavaScript(`(() => { try{ if(window.__ibxRevertActive) return window.__ibxRevertActive(); if(window.__ibxCancelEdit) return window.__ibxCancelEdit(); }catch{} return false; })()`); } catch {}
+  }, []);
+
+  const isSavableUrl = useCallback((u) => {
+    try {
+      const s = String(u || "");
+      return s.startsWith("ibx-file://") || s.startsWith("file://");
+    } catch { return false; }
+  }, []);
+
   const handleLiveEdit = useCallback(async (data) => {
     const oldText = String(data?.oldText || "").trim();
     const newText = String(data?.newText || "").trim();
-    if (!oldText || !newText || oldText === newText) { showToast("No change", "info"); return; }
-    if (!newText) { showToast("Empty text not allowed", "error"); return; }
+    if (!oldText || !newText || oldText === newText) { await revertActiveInGuest(); showToast("No change — reverted", "info"); return; }
+    if (!newText) { await revertActiveInGuest(); showToast("Empty text not allowed — reverted", "error"); return; }
+    if (newText.length > 2000) { await revertActiveInGuest(); showToast("Text too long (2000 max) — reverted", "error"); return; }
     try {
-      showToast("Updating source…", "info");
       const projectRoot = window.__currentProjectPath || null;
       const url = data?.url || webviewRef.current?.getURL?.() || displayUrl;
+      // Visual-only when there is nowhere to save: no project + not a local file URL.
+      // Revert immediately so the page never stays in a broken/flattened state.
+      if (!projectRoot && !isSavableUrl(url)) {
+        await revertActiveInGuest();
+        showToast("Visual only — open a project or local file to save (reverted)", "error");
+        return;
+      }
+      showToast("Updating source…", "info");
       const res = await window.electronAPI.liveEditApply({
         projectRoot,
         url,
@@ -88,14 +123,15 @@ const BrowserPanel = (props) => {
         // also trigger fs watcher friendly toast for Monaco
         try { window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: res.filePath, code: await window.electronAPI.readTextFile(res.filePath) } })); } catch {}
       } else {
-        showToast(res?.error || "Update failed", "error");
-        // revert visually by reloading if possible? Keep DOM as is but notify
-        try { webviewRef.current?.executeJavaScript(`(() => { try{ document.title="__IBX_EDIT_REVERT__"; }catch{} return true; })()`); } catch {}
+        // Revert DOM so a failed save never leaves the page broken.
+        await revertActiveInGuest();
+        showToast(`${res?.error || "Update failed"} — reverted`, "error");
       }
     } catch (e) {
-      showToast(e?.message || String(e), "error");
+      try { await revertActiveInGuest(); } catch {}
+      showToast(`${e?.message || String(e)} — reverted`, "error");
     }
-  }, [displayUrl, showToast]);
+  }, [displayUrl, showToast, revertActiveInGuest, isSavableUrl]);
 
   // Track last Browser group — so links from terminal/port/preview open in same group
   useEffect(() => {
@@ -240,7 +276,9 @@ const BrowserPanel = (props) => {
         return true;
       } catch(e){ return true; }
     })()`;
-    // ── Live Edit helper: text-only inline editing with auto detection ──
+    // ── Live Edit helper: leaf-only, non-destructive inline editing ──
+    // Do NOT insert badge nodes into the page and do NOT touch position styles.
+    // Snapshot original outerHTML so cancel / failed save can fully restore markup.
     const EDIT_HELPER_SCRIPT = `(() => {
       try {
         if (window.__ibxEditHelpersInstalled) return true;
@@ -250,14 +288,14 @@ const BrowserPanel = (props) => {
         let activeEl = null;
         let styleEl = null;
         let prevTitle = document.title;
+        let committing = false;
         function ensureStyle(){
           if (styleEl) return;
           styleEl = document.createElement('style');
           styleEl.id = '__ibx-edit-style';
           styleEl.textContent = \`
-            .__ibx-edit-hover { outline: 2px dashed #4ec9b0 !important; outline-offset: 2px !important; cursor: text !important; background: rgba(78,201,176,0.08) !important; box-shadow: 0 0 0 1px rgba(78,201,176,0.15) inset !important; }
-            .__ibx-edit-active { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; background: rgba(78,201,176,0.14) !important; box-shadow: 0 0 0 1px rgba(78,201,176,0.25) inset !important; }
-            .__ibx-edit-badge { position: absolute; top: -18px; left: 0; background: #4ec9b0; color: #0d0d0d; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; pointer-events: none; font-family: sans-serif; letter-spacing: 0.3px; z-index: 99999; }
+            .__ibx-edit-hover { outline: 2px dashed #4ec9b0 !important; outline-offset: 2px !important; cursor: text !important; background: rgba(78,201,176,0.08) !important; }
+            .__ibx-edit-active { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; background: rgba(78,201,176,0.14) !important; }
           \`;
           (document.head||document.documentElement).appendChild(styleEl);
         }
@@ -272,104 +310,163 @@ const BrowserPanel = (props) => {
             const txt=(el.innerText||'').trim();
             if(!txt) return false;
             if(txt.length>600) return false;
-            // ignore hidden
             const st=window.getComputedStyle(el);
             if(st && (st.display==='none' || st.visibility==='hidden' || parseFloat(st.opacity)===0)) return false;
             return true;
           }catch{ return false; }
         }
+        function isLeafEditable(el){
+          if(!el || el.nodeType!==1 || !el.tagName) return false;
+          const t=el.tagName.toLowerCase();
+          const allowed=['p','h1','h2','h3','h4','h5','h6','span','a','li','td','th','label','strong','em','b','i','u','small','code','pre','blockquote','div','dt','dd','caption','figcaption'];
+          if(allowed.indexOf(t)===-1) return false;
+          if(isSkippedTag(el)) return false;
+          if(!hasVisibleText(el)) return false;
+          try{
+            const kids=el.children||[];
+            if(kids.length===0) return true;
+            if(kids.length===1 && kids[0].tagName && String(kids[0].tagName).toLowerCase()==='br') return true;
+            return false;
+          }catch{ return false; }
+        }
         function findEditableTarget(start){
           let el=start;
+          if(el && el.nodeType===3) el=el.parentElement;
           let depth=0;
-          while(el && el!==document.body && el!==document.documentElement && depth<7){
-            if(!isSkippedTag(el) && hasVisibleText(el)) return el;
+          while(el && el!==document.body && el!==document.documentElement && depth<4){
+            if(el.nodeType===1 && isLeafEditable(el)) return el;
             el=el.parentElement; depth++;
           }
           return null;
         }
-        function clearHover(){ try{ if(hoverEl){ hoverEl.classList.remove('__ibx-edit-hover'); const b=hoverEl.querySelector && hoverEl.querySelector('.__ibx-edit-badge'); if(b) b.remove(); } }catch{} hoverEl=null; }
+        function clearHover(){ try{ if(hoverEl) hoverEl.classList.remove('__ibx-edit-hover'); }catch{} hoverEl=null; }
         function onMouseOver(e){
           if(!window.__ibxEditEnabled || activeEl) return;
-          const t=findEditableTarget(e.target);
+          let t=null; try{ t=findEditableTarget(e.target); }catch{}
           if(t===hoverEl) return;
           clearHover();
-          if(t){ hoverEl=t; try{ hoverEl.classList.add('__ibx-edit-hover'); if(!hoverEl.querySelector('.__ibx-edit-badge')){ const badge=document.createElement('span'); badge.className='__ibx-edit-badge'; badge.textContent='✎ edit'; hoverEl.style.position = hoverEl.style.position || 'relative'; if(window.getComputedStyle(hoverEl).position==='static') hoverEl.style.position='relative'; hoverEl.appendChild(badge); } }catch{} }
+          if(t){ hoverEl=t; try{ hoverEl.classList.add('__ibx-edit-hover'); }catch{} }
         }
         function onMouseOut(e){
           if(!window.__ibxEditEnabled || activeEl) return;
           try{ const rel=e.relatedTarget; if(hoverEl && rel && hoverEl.contains(rel)) return; }catch{}
           clearHover();
         }
+        function snapshot(el){
+          try{
+            if(el.__ibxOrigHTML==null) el.__ibxOrigHTML=String(el.outerHTML||'');
+            if(el.__ibxOldText==null) el.__ibxOldText=(el.innerText||'').trim();
+          }catch{}
+        }
+        function detachActiveListeners(el){
+          try{ el.removeEventListener('keydown', onEditKey); }catch{}
+          try{ el.removeEventListener('blur', onEditBlur); }catch{}
+        }
+        function restoreOriginal(el){
+          try{
+            const html=el.__ibxOrigHTML;
+            if(html!=null){ el.outerHTML=html; return true; }
+          }catch{}
+          return false;
+        }
         function cleanupActive(cancel){
           if(!activeEl) return;
           const el=activeEl;
+          activeEl=null; committing=false;
+          detachActiveListeners(el);
           try{
-            el.removeEventListener('keydown', onEditKey);
-            el.removeEventListener('blur', onEditBlur);
-            el.removeEventListener('input', onEditInput);
             if(cancel){
-              if(el.__ibxOldText!=null) el.innerText = el.__ibxOldText;
+              restoreOriginal(el);
+            } else {
+              el.removeAttribute('contenteditable');
+              el.classList.remove('__ibx-edit-active');
+              el.style.outline='';
             }
-            el.removeAttribute('contenteditable');
-            el.classList.remove('__ibx-edit-active');
-            const b=el.querySelector && el.querySelector('.__ibx-edit-badge');
-            if(b) b.remove();
-            el.style.outline='';
           }catch{}
-          activeEl=null;
         }
         function commitEdit(){
-          if(!activeEl) return;
+          if(!activeEl || committing) return;
+          committing=true;
           const el=activeEl;
-          const oldText=el.__ibxOldText||'';
+          const oldText=String(el.__ibxOldText||'');
           let newText='';
-          try{ newText=(el.innerText||el.textContent||'').trim(); }catch{}
-          // capture outer before cleanup
+          try{ newText=String(el.innerText||el.textContent||'').trim(); }catch{}
+          // Use ORIGINAL outerHTML for file matching (not the edited DOM)
           let outerSnippet='';
-          try{ outerSnippet=String(el.outerHTML||'').slice(0,300); }catch{ outerSnippet=''; }
+          try{ outerSnippet=String(el.__ibxOrigHTML||el.outerHTML||'').slice(0,300); }catch{ outerSnippet=''; }
           const tagName=String(el.tagName||'');
-          cleanupActive(false);
-          clearHover();
-          if(!newText || newText===oldText.trim()){ try{ el.innerText=oldText.trim(); }catch{} return; }
+          if(!newText || newText===oldText.trim()){
+            // No change: restore original markup to undo any contenteditable damage
+            const r=el; activeEl=null; committing=false;
+            detachActiveListeners(r);
+            restoreOriginal(r);
+            clearHover();
+            return;
+          }
           const payload={ oldText: String(oldText).trim(), newText: String(newText).trim(), outerSnippet: outerSnippet, tagName: tagName, url: location.href };
+          // Leave edited DOM in place; host reverts on failure via __ibxRevertActive.
+          // Detach without restoring so text stays visible while saving.
+          try{
+            detachActiveListeners(el);
+            el.removeAttribute('contenteditable');
+            el.classList.remove('__ibx-edit-active');
+            el.style.outline='';
+          }catch{}
+          activeEl=null; committing=false;
+          clearHover();
           const prev=prevTitle;
-          try{ prevTitle=document.title; document.title="__IBX_EDIT__"+JSON.stringify(payload); setTimeout(()=>{ try{ if(String(document.title).startsWith("__IBX_EDIT__")) document.title=prev; }catch{} }, 900); }catch{}
+          try{ prevTitle=document.title; document.title="__IBX_EDIT__"+JSON.stringify(payload); setTimeout(()=>{ try{ if(String(document.title).startsWith("__IBX_EDIT__")) document.title=prevTitle; }catch{} }, 900); }catch{}
+          void prev;
         }
         window.__ibxCommitPendingEdit = function(){
-          try{ if(activeEl) commitEdit(); return true; }catch(e){ return false; }
+          try{ if(activeEl && !committing) commitEdit(); return true; }catch(e){ return false; }
         };
+        window.__ibxRevertActive = function(){
+          try{
+            if(!activeEl) return true;
+            const el=activeEl; activeEl=null; committing=false;
+            detachActiveListeners(el);
+            restoreOriginal(el);
+            clearHover();
+            return true;
+          }catch(e){ return false; }
+        };
+        window.__ibxCancelEdit = function(){
+          try{
+            if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); restoreOriginal(el); }
+            clearHover();
+            return true;
+          }catch(e){ return false; }
+        };
+        window.__ibxIsEditing = function(){ try{ return !!activeEl; }catch{ return false; } };
         function onEditKey(e){
-          if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); cleanupActive(true); clearHover(); }
-          else if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); try{ activeEl && activeEl.blur(); }catch{} }
+          if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{} cleanupActive(true); clearHover(); }
+          else if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{} try{ activeEl && activeEl.blur(); }catch{} }
         }
-        function onEditBlur(){ setTimeout(()=>{ if(activeEl) commitEdit(); }, 80); }
-        function onEditInput(){}
+        function onEditBlur(){ setTimeout(()=>{ try{ if(activeEl && !committing) commitEdit(); }catch{} }, 80); }
         function onClick(e){
           if(!window.__ibxEditEnabled) return;
           const t=findEditableTarget(e.target);
           if(!t) return;
-          // allow clicks inside already active editor
           if(activeEl && activeEl.contains(e.target)) return;
           e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{}
           clearHover();
           if(activeEl) cleanupActive(true);
           activeEl=t;
           try{
-            activeEl.__ibxOldText = (activeEl.innerText||'').trim();
+            snapshot(activeEl);
             activeEl.classList.add('__ibx-edit-active');
-            const b=activeEl.querySelector && activeEl.querySelector('.__ibx-edit-badge');
-            if(b) b.remove();
             activeEl.setAttribute('contenteditable','true');
+            try{ activeEl.setAttribute('spellcheck','false'); }catch{}
             activeEl.focus();
-            // select all
             try{
               const range=document.createRange(); range.selectNodeContents(activeEl); const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
             }catch{}
             activeEl.addEventListener('keydown', onEditKey);
             activeEl.addEventListener('blur', onEditBlur);
-            activeEl.addEventListener('input', onEditInput);
           }catch{}
         }
+        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} }
         window.__ibxSetEditMode = function(enabled){
           window.__ibxEditEnabled = !!enabled;
           if(window.__ibxEditEnabled){
@@ -377,28 +474,23 @@ const BrowserPanel = (props) => {
             try{ document.addEventListener('mouseover', onMouseOver, true); }catch{}
             try{ document.addEventListener('mouseout', onMouseOut, true); }catch{}
             try{ document.addEventListener('click', onClick, true); }catch{}
-            try{ document.body.style.cursor='text'; }catch{}
-            prevTitle=document.title;
+            try{ window.addEventListener('pagehide', onPageHide); }catch{}
+            try{ if(document.body) document.body.style.cursor='text'; }catch{}
+            try{ prevTitle=document.title; }catch{}
           } else {
             try{ document.removeEventListener('mouseover', onMouseOver, true); }catch{}
             try{ document.removeEventListener('mouseout', onMouseOut, true); }catch{}
             try{ document.removeEventListener('click', onClick, true); }catch{}
-            // Done pe pending edit ko commit karo, cancel nahi — taaki file me update ho
-            try{
-              if(activeEl){
-                const old=(activeEl.__ibxOldText||'').trim();
-                let cur='';
-                try{ cur=(activeEl.innerText||'').trim(); }catch{}
-                if(cur && cur!==old){ commitEdit(); } else { cleanupActive(true); }
-              }
-            }catch{ try{ if(activeEl) cleanupActive(true);}catch{} }
+            try{ window.removeEventListener('pagehide', onPageHide); }catch{}
+            // Host already commits via __ibxCommitPendingEdit before disabling.
+            // Any leftover active edit here is stale — restore to avoid broken UI.
+            try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); restoreOriginal(el); } }catch{}
             clearHover();
             removeStyle();
-            try{ document.body.style.cursor=''; }catch{}
+            try{ if(document.body) document.body.style.cursor=''; }catch{}
           }
           return true;
         };
-        // honor pending state if set before install
         if(window.__ibxPendingEditMode) window.__ibxSetEditMode(true);
         return true;
       } catch(e){ return false; }
@@ -680,9 +772,17 @@ const BrowserPanel = (props) => {
       // also store pending flag for next navigation if helpers not yet installed
       try { wv.executeJavaScript(`window.__ibxPendingEditMode=${editMode?"true":"false"}`).catch(()=>{}); } catch {}
     }
-    if (editMode) showToast("Edit mode ON — click any text to edit (Enter to save, Esc to cancel)", "info");
+    if (editMode) showToast("Edit mode ON — click a single line of text (Enter to save, Esc to cancel)", "info");
     else if (attachedRef.current) showToast("Edit mode OFF", "info");
   }, [editMode, showToast]);
+
+  const isVisualOnlyUrl = (() => {
+    try {
+      const s = String(displayUrl || "");
+      if (s.startsWith("ibx-file://") || s.startsWith("file://")) return false;
+      return !hasProject;
+    } catch { return false; }
+  })();
 
   // ── Listen for liveEdit file changes from main to show in UI (optional) ────
   useEffect(()=>{
@@ -735,8 +835,8 @@ const BrowserPanel = (props) => {
         try { inputRef.current?.focus(); inputRef.current?.select(); } catch {}
         return;
       }
-      // Escape → stop loading
-      if (e.key === "Escape" && isLoading) {
+      // Escape → stop loading (skip while edit mode is on so guest Esc-cancel wins)
+      if (e.key === "Escape" && isLoading && !editModeRef.current) {
         e.preventDefault();
         try { wv.stop(); } catch {}
         return;
@@ -773,6 +873,67 @@ const BrowserPanel = (props) => {
       setPopupStyle({ left: Math.min(Math.max(8, r.left - 10), maxLeft), top: r.bottom + 6 });
     }
   }, [lockOpen]);
+
+  // ── ⋮ More menu — custom dropdown UI ─────────────────────────────────────
+  // Search bar ke baaju wale options grouped, extensions alag
+  // Outside click / Escape se band karo
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDown = (e) => {
+      try {
+        if (moreWrapRef.current && !moreWrapRef.current.contains(e.target)) setMoreOpen(false);
+      } catch {}
+    };
+    const onKey = (e) => { if (e.key === "Escape") setMoreOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
+
+  const handleToggleEditMode = useCallback(async () => {
+    if (editMode) {
+      try { await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); } catch {}
+      // Give page-title-updated a beat to deliver the payload before helpers detach
+      setTimeout(()=> setEditMode(false), 350);
+    } else {
+      setEditMode(true);
+    }
+    setMoreOpen(false);
+  }, [editMode]);
+
+  const handleCancelEditMode = useCallback(async () => {
+    try { await webviewRef.current?.executeJavaScript('window.__ibxCancelEdit && window.__ibxCancelEdit()'); } catch {}
+    setEditMode(false);
+    setMoreOpen(false);
+  }, []);
+
+  const handleToggleDevTools = useCallback(() => {
+    if (webviewRef.current) {
+      try {
+        if (webviewRef.current.isDevToolsOpened()) webviewRef.current.closeDevTools();
+        else webviewRef.current.openDevTools();
+      } catch {}
+    }
+    setMoreOpen(false);
+  }, []);
+
+  const handleHideBar = useCallback(() => {
+    setMoreOpen(false);
+    setBarHidden(true);
+  }, []);
+
+  const handleManageExtensions = useCallback(() => {
+    setMoreOpen(false);
+    try {
+      if (window.electronAPI?.openSettingsWindow) window.electronAPI.openSettingsWindow("extensions");
+      else window.dispatchEvent(new CustomEvent("browser:openSettings", { detail: { page: "extensions" } }));
+    } catch {
+      try { window.dispatchEvent(new CustomEvent("browser:openSettings", { detail: { page: "extensions" } })); } catch {}
+    }
+  }, []);
 
   // ── Tab right-click ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -848,47 +1009,47 @@ const BrowserPanel = (props) => {
             />
           </div>
 
-          {/* Edit Mode Toggle — text-only live editing, auto detection html/js/jsx/ts/tsx */}
-          <button
-            className={`browser__btn${editMode ? " browser__btn--active" : ""}`}
-            onClick={async () => {
-              if (editMode) {
-                try { await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); } catch {}
-                setTimeout(()=> setEditMode(false), 220);
-              } else {
-                setEditMode(true);
-              }
-            }}
-            title={editMode ? "Done — save pending edit & exit" : "Edit Mode — click any text to edit (live updates source: html/js/jsx/ts/tsx auto)"}
-            style={editMode ? { background: "rgba(78,201,176,0.18)", color: "#4ec9b0", border: "1px solid rgba(78,201,176,0.35)" } : undefined}
-          >
-            {editMode ? <PencilOff size={14} /> : <Pencil size={14} />}
-          </button>
+          {/* ⋮ More options — custom dropdown (Edit mode / Inspect / Extensions / Hide toolbar). Extensions actions alag. */}
+          <div ref={moreWrapRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
+            <button
+              ref={moreBtnRef}
+              className={`browser__btn${moreOpen || editMode ? " browser__btn--active" : ""}`}
+              onClick={(e) => { e.stopPropagation(); setMoreOpen((v) => !v); }}
+              title="More options"
+              style={editMode && !moreOpen ? { background: "rgba(78,201,176,0.18)", color: "#4ec9b0", border: "1px solid rgba(78,201,176,0.35)" } : undefined}
+            >
+              <MoreVertical size={15} />
+              {editMode && (
+                <span style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: "50%", background: "#4ec9b0", pointerEvents: "none" }} />
+              )}
+            </button>
+            {moreOpen && (
+              <div className="browser__more-menu" onClick={(e) => e.stopPropagation()}>
+                <button className="browser__more-item" onClick={handleToggleEditMode} title={editMode ? "Done — save pending edit & exit" : "Edit Mode — click any text to edit"}>
+                  <span className="browser__more-icon" style={editMode ? { color: "#4ec9b0" } : undefined}>
+                    {editMode ? <PencilOff size={14} /> : <Pencil size={14} />}
+                  </span>
+                  <span className="browser__more-label">{editMode ? "Done — exit edit mode" : "Edit mode"}</span>
+                  {editMode && <span className="browser__more-badge">ON</span>}
+                </button>
+                <button className="browser__more-item" onClick={handleToggleDevTools} title="Inspect Element / DevTools">
+                  <span className="browser__more-icon"><Search size={14} /></span>
+                  <span className="browser__more-label">Inspect element</span>
+                </button>
+                <button className="browser__more-item" onClick={handleManageExtensions} title="Manage extensions">
+                  <span className="browser__more-icon"><Puzzle size={14} /></span>
+                  <span className="browser__more-label">Manage extensions</span>
+                </button>
+                <div className="browser__more-sep" />
+                <button className="browser__more-item" onClick={handleHideBar} title="Hide toolbar">
+                  <span className="browser__more-icon"><ChevronUp size={14} /></span>
+                  <span className="browser__more-label">Hide toolbar</span>
+                </button>
+              </div>
+            )}
+          </div>
 
-          {/* Inspect Element button */}
-          <button
-            className="browser__btn"
-            onClick={() => {
-              if (webviewRef.current) {
-                try {
-                  if (webviewRef.current.isDevToolsOpened()) {
-                    webviewRef.current.closeDevTools();
-                  } else {
-                    webviewRef.current.openDevTools();
-                  }
-                } catch {}
-              }
-            }}
-            title="Inspect Element / DevTools"
-          >
-            <Search size={14} />
-          </button>
-
-          <button className="browser__btn" onClick={() => setBarHidden(true)} title="Hide toolbar">
-            <ChevronUp size={14} />
-          </button>
-
-          {/* Extension actions (browser-action-list) */}
+          {/* Extension actions (browser-action-list) — alag rakha hai, ⋮ me nahi */}
           <browser-action-list
             ref={actionListRef}
             style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}
@@ -900,18 +1061,29 @@ const BrowserPanel = (props) => {
       {editMode && !barHidden && (
         <div style={{
           display:"flex", alignItems:"center", gap:8,
-          padding:"3px 10px", background:"rgba(78,201,176,0.12)", borderBottom:"1px solid rgba(78,201,176,0.25)",
-          color:"#4ec9b0", fontSize:11, fontWeight:600, flexShrink:0, letterSpacing:0.2,
+          padding:"3px 10px",
+          background: isVisualOnlyUrl ? "rgba(230,162,60,0.12)" : "rgba(78,201,176,0.12)",
+          borderBottom: isVisualOnlyUrl ? "1px solid rgba(230,162,60,0.30)" : "1px solid rgba(78,201,176,0.25)",
+          color: isVisualOnlyUrl ? "#e6a23c" : "#4ec9b0", fontSize:11, fontWeight:600, flexShrink:0, letterSpacing:0.2,
         }}>
           <Type size={12} />
-          <span>EDIT MODE ON — Click any text to edit • Enter to save • Esc to cancel • Auto saves to html/js/jsx/ts/tsx</span>
-          <span style={{ marginLeft:"auto", background:"rgba(78,201,176,0.22)", padding:"1px 6px", borderRadius:3, fontSize:10, color:"#0d1117", fontWeight:700 }}>LIVE</span>
+          <span>{isVisualOnlyUrl
+            ? "EDIT MODE — VISUAL ONLY (no project open, saves revert) • Click a single line • Enter applies visually • Esc cancels"
+            : "EDIT MODE ON — Click a single line of text • Enter to save • Esc to cancel • Saves to html/js/jsx/ts/tsx"}</span>
+          <span style={{ marginLeft:"auto", background: isVisualOnlyUrl ? "rgba(230,162,60,0.25)" : "rgba(78,201,176,0.22)", padding:"1px 6px", borderRadius:3, fontSize:10, color:"#0d1117", fontWeight:700 }}>{isVisualOnlyUrl ? "VISUAL" : "LIVE"}</span>
+          <button
+            onClick={handleCancelEditMode}
+            title="Cancel edit and revert"
+            style={{ marginLeft:4, background:"transparent", color: isVisualOnlyUrl ? "#e6a23c" : "#4ec9b0", border:`1px solid ${isVisualOnlyUrl ? "rgba(230,162,60,0.5)" : "rgba(78,201,176,0.5)"}`, borderRadius:3, padding:"2px 8px", fontSize:11, fontWeight:700, cursor:"pointer" }}
+          >
+            Cancel
+          </button>
           <button
             onClick={async ()=>{
               try{ await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); }catch{}
-              setTimeout(()=> setEditMode(false), 220);
+              setTimeout(()=> setEditMode(false), 350);
             }}
-            style={{ marginLeft:4, background:"#4ec9b0", color:"#0d1117", border:"none", borderRadius:3, padding:"2px 8px", fontSize:11, fontWeight:700, cursor:"pointer" }}
+            style={{ marginLeft:4, background: isVisualOnlyUrl ? "#e6a23c" : "#4ec9b0", color:"#0d1117", border:"none", borderRadius:3, padding:"2px 8px", fontSize:11, fontWeight:700, cursor:"pointer" }}
           >
             Done
           </button>

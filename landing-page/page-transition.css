@@ -1,0 +1,67 @@
+/* Shared page-shift transition — black curtain falls from top, lifts to top */
+.wipe{
+  position: fixed;
+  inset: 0;
+  background: black;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-101%);
+  transition: transform 0.8s cubic-bezier(0.76, 0, 0.24, 1);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.is-entering .wipe,
+body.is-leaving .wipe{
+  transform: translateY(0);
+}
+
+/* entering page starts covered instantly, no slide-down flash */
+body.is-entering .wipe{
+  transition: none;
+}
+
+body.is-leaving .wipe{
+  pointer-events: auto;
+}
+
+.wipe span{
+  position: relative;
+  z-index: 1;
+  font-family: Arial Black;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  font-size: clamp(40px, 8vw, 120px);
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transition: opacity 0.3s ease 0.25s;
+  white-space: nowrap;
+  user-select: none;
+  text-shadow: 0 4px 40px rgba(0, 0, 0, 0.6);
+}
+
+body.is-leaving .wipe span{
+  opacity: 1;
+}
+
+/* starting animation — intro video inside wipe (1st loading) */
+.wipe-video{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.wipe.has-intro-video .wipe-video{
+  display: block;
+}
+
+/* intro video playing — show title over video */
+.wipe.has-intro-video span{
+  opacity: 1;
+}

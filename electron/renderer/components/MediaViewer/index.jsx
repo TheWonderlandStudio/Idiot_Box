@@ -1,11 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { IMAGE_EXTS, VIDEO_EXTS_SUPPORTED, PDF_EXTS, AUDIO_EXTS } from "./mediaTypes.js";
 
 const TEXT_EXTS  = [".txt", ".md", ".json", ".js", ".jsx", ".ts", ".tsx", ".html", ".htm", ".css", ".scss", ".less", ".py", ".xml", ".yaml", ".yml", ".ini", ".cfg", ".conf", ".env", ".log", ".sh", ".bash", ".bat", ".ps1", ".sql", ".rb", ".php", ".c", ".cpp", ".h", ".hpp", ".java", ".rs", ".go", ".toml", ".csv", ".tsv", ".properties", ".gradle", ".gitignore", ".dockerfile", ".makefile"];
-const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".avif", ".tiff", ".tif", ".heic", ".heif"];
-const VIDEO_EXTS_SUPPORTED   = [".mp4", ".webm", ".ogv"];
 const VIDEO_EXTS_UNSUPPORTED = [".avi", ".mov", ".mkv", ".wmv", ".flv", ".m4v", ".3gp"];
-const PDF_EXTS  = [".pdf"];
-const AUDIO_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma", ".opus", ".aiff", ".mid", ".midi"];
 
 const ext = (p) => {
   try {

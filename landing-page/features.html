@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Features — Idiot Box</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="features.css" />
+  <link rel="stylesheet" href="vendor/monaco.bundle.css" />
+  <link rel="stylesheet" href="vendor/xterm.css" />
+  <link rel="stylesheet" href="page-transition.css" />
+</head>
+
+<body class="is-entering">
+  <div class="wipe" aria-hidden="true"><span>Idiot Box</span></div>
+
+  <div class="background">
+    <div class="bg-video-wrap" aria-hidden="true">
+      <video id="features-bg" src="https://files.catbox.moe/uoawmd.mp4" muted autoplay loop playsinline preload="auto"></video>
+    </div>
+    <a class="card" href="index.html">Features</a>
+    <nav class="nav-card">
+      <div class="nav-links">
+        <a href="chatlog.html">Chatlog</a>
+        <a href="features.html">Features</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+      </div>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </nav>
+    <div class="menu-panel" id="menu-panel">
+      <a href="chatlog.html">Chatlog</a>
+      <a href="features.html">Features</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+    </div>
+    <main class="showcase">
+      <section class="row">
+        <div class="desc">
+          <h2>One window, whole workflow</h2>
+          <p>Map, code, preview and ship without juggling five tools. Everything lives side by side and stays in sync.</p>
+        </div>
+        <figure class="shot"><img src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box app overview" loading="lazy" /></figure>
+      </section>
+      <section class="row flip">
+        <div class="desc">
+          <h2>Code Editor</h2>
+          <p>A VS Code grade editor. 50 plus languages, minimap, autosave, and files that refresh live when something else changes them. Type below. This is the real editor.</p>
+        </div>
+        <figure class="demo">
+          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> welcome.js</div>
+          <div id="demo-editor"><pre class="editor-fallback">// welcome to Idiot Box
+function buildSomething(great) {
+  const app = { canvas: true, editor: 'monaco', flow: 100 };
+  return [app, great].filter(Boolean).join(' + ');
+}
+buildSomething('your idea');</pre></div>
+        </figure>
+      </section>
+      <section class="row">
+        <div class="desc">
+          <h2>Browser Panel</h2>
+          <p>Your dev servers in tabs. Open localhost previews with automatic port detection, right next to your code. Try the address bar.</p>
+        </div>
+        <figure class="demo">
+          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Browser</div>
+          <div class="addr-bar"><input id="demo-url" value="my-portfolio.local" spellcheck="false" /><button id="demo-go" type="button">Go</button></div>
+          <iframe id="demo-frame" title="browser preview" srcdoc="<html><body style='margin:0;background:#0b0b0e;color:#fff;font-family:sans-serif'><nav style='display:flex;gap:18px;padding:18px 24px;border-bottom:1px solid #222'><b>S.</b><a href='#work' style='color:#fff;text-decoration:none'>Work</a><a href='#about' style='color:#fff;text-decoration:none'>About</a><a href='#contact' style='color:#fff;text-decoration:none'>Contact</a></nav><section id='work' style='padding:48px 24px'><h1 style='font-size:40px;margin:0 0 12px'>Design-minded.<br>Engineering-first.</h1><p style='opacity:.7'>Selected work below.</p></section><section id='about' style='padding:48px 24px;border-top:1px solid #222'><h2>About</h2><p style='opacity:.7'>Interfaces that feel fast, not just look fast.</p></section><section id='contact' style='padding:48px 24px;border-top:1px solid #222'><h2>Contact</h2><p style='opacity:.7'>Say hello. This page runs entirely inside the demo.</p></section></body></html>"></iframe>
+        </figure>
+      </section>
+      <section class="row flip">
+        <div class="desc">
+          <h2>Project Panel</h2>
+          <p>Files without friction. Drag and drop, multi select, clipboard, undo and redo, all in a tree that keeps up with you. This is the real repo structure. Click around.</p>
+        </div>
+        <figure class="demo">
+          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Project — Idiot_Box</div>
+          <div class="tree-body">
+            <div class="tree" id="demo-tree"></div>
+            <div class="tree-preview" id="tree-preview">Select a file to preview its path.</div>
+          </div>
+        </figure>
+      </section>
+      <section class="row flip">
+        <div class="desc">
+          <h2>Terminal</h2>
+          <p>A full terminal with splits and new panels, opened right where your project lives. Type help and press enter.</p>
+        </div>
+        <figure class="demo">
+          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Terminal</div>
+          <div id="demo-term"></div>
+        </figure>
+      </section>
+      <section class="row">
+        <div class="desc">
+          <h2>Media Viewer</h2>
+          <p>Media stays in flow. Zoom, rotate, flip and pan images and video without ever leaving the app. Try the buttons.</p>
+        </div>
+        <figure class="demo">
+          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Media Viewer</div>
+          <div class="media-stage"><img id="media-img" src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box media viewer demo" loading="lazy" /></div>
+          <div class="media-tools">
+            <button type="button" data-zoom="in">Zoom +</button>
+            <button type="button" data-zoom="out">Zoom -</button>
+            <button type="button" data-rotate="left">Rotate left</button>
+            <button type="button" data-rotate="right">Rotate right</button>
+            <button type="button" data-flip="h">Flip</button>
+            <button type="button" data-reset="1">Reset</button>
+          </div>
+        </figure>
+      </section>
+      <section class="cta-row">
+        <h2>Ready to build?</h2>
+        <p>Free and open source. Grab the latest Windows build.</p>
+        <a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download .exe</a>
+      </section>
+    </main>
+  </div>
+
+  <script src="page-transition.js"></script>
+  <script>
+    (function () {
+      // mp4 background
+      const video = document.getElementById('features-bg');
+      video.play().catch(function () {});
+      video.addEventListener('canplay', function () { video.play().catch(function () {}); });
+
+      // Nav download — hamesha latest release ka exe
+      const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+      let cachedUrl = null;
+      function resolveExeUrl() {
+        if (cachedUrl) return Promise.resolve(cachedUrl);
+        return fetch('https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest')
+          .then(function (res) { if (!res.ok) throw new Error('api failed'); return res.json(); })
+          .then(function (data) {
+            const exe = (data.assets || []).find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
+            if (!exe) throw new Error('no exe');
+            cachedUrl = exe.browser_download_url;
+            return cachedUrl;
+          });
+      }
+      document.querySelectorAll('[data-download-latest]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          const original = btn.textContent;
+          btn.textContent = 'Locating…';
+          resolveExeUrl().then(function (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }).catch(function () {
+            window.open(FALLBACK, '_blank', 'noopener');
+          }).finally(function () {
+            btn.textContent = original;
+          });
+        });
+      });
+      resolveExeUrl().catch(function () {});
+
+      // ---- real component demos (heavy libs lazy-load on scroll) ----
+      function loadScript(src) {
+        return new Promise(function (res, rej) {
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = res;
+          s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+
+      // Editor: real Monaco (workers off for static demo)
+      function initEditor() {
+        const el = document.getElementById('demo-editor');
+        if (!el || !window.monaco || el.dataset.live) return;
+        try {
+          window.MonacoEnvironment = {
+            getWorker: function () {
+              const src = 'self.onmessage = function () {};';
+              return new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+            }
+          };
+          const code = el.innerText;
+          el.innerHTML = '';
+          window.monaco.editor.create(el, {
+            value: code,
+            language: 'javascript',
+            theme: 'vs-dark',
+            fontSize: 13,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            padding: { top: 12 }
+          });
+          el.dataset.live = '1';
+        } catch (e) { /* fallback pre stays */ }
+      }
+
+      // Browser demo: address bar drives the frame
+      (function () {
+        const input = document.getElementById('demo-url');
+        const go = document.getElementById('demo-go');
+        const frame = document.getElementById('demo-frame');
+        if (!input || !go || !frame) return;
+        function navigate() {
+          let url = input.value.trim();
+          if (!url) return;
+          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+          frame.removeAttribute('srcdoc');
+          frame.src = url;
+        }
+        go.addEventListener('click', navigate);
+        input.addEventListener('keydown', function (e) { if (e.key === 'Enter') navigate(); });
+      })();
+
+      // Project tree: real repo snapshot, expandable
+      (function () {
+        const tree = document.getElementById('demo-tree');
+        const preview = document.getElementById('tree-preview');
+        if (!tree) return;
+        const data = { name: 'Idiot_Box', open: true, kids: [
+          { name: 'electron', kids: [
+            { name: 'main' }, { name: 'preload' },
+            { name: 'renderer', kids: [
+              { name: 'components', kids: ['AIPanel','Blank','Browser','Canvas','CommandPalette','ComponentPreview','Editor','GitPanel','MediaViewer','Ports','Problems','Project','QuickOpen','SearchPanel','Settings','Terminal','UpdaterBanner','shared'].map(function (n) { return { name: n }; }) },
+              { name: 'workers' }, { name: 'extensions' },
+              { name: 'index.jsx' }, { name: 'index.html' }
+            ] }
+          ] },
+          { name: 'landing-page', kids: [
+            { name: 'index.html' }, { name: 'chatlog.html' }, { name: 'features.html' },
+            { name: 'style.css' }, { name: 'vendor' }
+          ] },
+          { name: 'build' }, { name: 'dist' },
+          { name: 'README.md' }, { name: 'package.json' }
+        ] };
+        function dot(n) { return (n.kids ? '&#128193; ' : '&#128196; '); }
+        function build(node, path, container, depth) {
+          const ul = document.createElement('ul');
+          (node.kids || []).forEach(function (kid) {
+            const name = typeof kid === 'string' ? kid : kid.name;
+            const full = path + '/' + name;
+            const li = document.createElement('li');
+            const row = document.createElement('div');
+            row.className = 'tree-item';
+            row.innerHTML = dot(kid) + name;
+            li.appendChild(row);
+            if (kid.kids) {
+              const sub = document.createElement('div');
+              sub.className = 'tree-kids' + (depth > 0 ? ' hidden' : '');
+              row.innerHTML = (depth > 0 ? '&#9654; ' : '&#9660; ') + dot(kid) + name;
+              build(kid, full, sub, depth + 1);
+              li.appendChild(sub);
+              row.addEventListener('click', function () {
+                const hidden = sub.classList.toggle('hidden');
+                row.innerHTML = (hidden ? '&#9654; ' : '&#9660; ') + dot(kid) + name;
+              });
+            } else {
+              row.addEventListener('click', function () {
+                tree.querySelectorAll('.tree-item').forEach(function (x) { x.classList.remove('active'); });
+                row.classList.add('active');
+                if (preview) preview.textContent = full + ' — opened in editor (demo).';
+              });
+            }
+            ul.appendChild(li);
+          });
+          container.appendChild(ul);
+        }
+        build(data, 'Idiot_Box', tree, 0);
+      })();
+
+      // Terminal: real xterm with a tiny shell
+      function initTerm() {
+        const el = document.getElementById('demo-term');
+        if (!el || el.dataset.live) return;
+        if (!window.Terminal) {
+          el.innerHTML = '<div style="padding:12px;font:13px monospace;color:#d4d4d4">idiot-box $ type help and press enter</div>';
+          return;
+        }
+        const term = new window.Terminal({ fontSize: 13, theme: { background: '#1e1e1e' }, cols: 80, rows: 12 });
+        term.open(el);
+        el.dataset.live = '1';
+        const PROMPT = 'idiot-box $ ';
+        let buf = '';
+        term.writeln('Welcome to Idiot Box. Type help.');
+        term.write(PROMPT);
+        term.onData(function (ch) {
+          if (ch === '\r') {
+            term.writeln('');
+            run(buf.trim());
+            buf = '';
+            term.write(PROMPT);
+          } else if (ch === '\u007f') {
+            if (buf.length) { buf = buf.slice(0, -1); term.write('\b \b'); }
+          } else if (ch >= ' ') {
+            buf += ch;
+            term.write(ch);
+          }
+        });
+        function run(cmd) {
+          const parts = cmd.split(/\s+/);
+          const c = parts[0];
+          if (!c) return;
+          if (c === 'help') term.writeln('commands: help, ls, echo, whoami, date, clear');
+          else if (c === 'ls') term.writeln('electron  landing-page  build  dist  README.md  package.json');
+          else if (c === 'echo') term.writeln(parts.slice(1).join(' '));
+          else if (c === 'whoami') term.writeln('builder');
+          else if (c === 'date') term.writeln(new Date().toString());
+          else if (c === 'clear') term.clear();
+          else term.writeln('unknown command: ' + c + ' (try help)');
+        }
+      }
+
+      // heavy libs load hote hi jab demo dikhne lage
+      (function () {
+        let editorRequested = false, termRequested = false;
+        function watch(id, load, init) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          const go = function () { load().then(init).catch(init); };
+          if (!('IntersectionObserver' in window)) { go(); return; }
+          const io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) {
+              if (en.isIntersecting) { io.disconnect(); go(); }
+            });
+          }, { rootMargin: '500px' });
+          io.observe(el);
+        }
+        watch('demo-editor', function () {
+          if (editorRequested || window.monaco) return Promise.resolve();
+          editorRequested = true;
+          return loadScript('vendor/monaco.bundle.js');
+        }, initEditor);
+        watch('demo-term', function () {
+          if (termRequested || window.Terminal) return Promise.resolve();
+          termRequested = true;
+          return loadScript('vendor/xterm.js');
+        }, initTerm);
+      })();
+
+      // Media viewer: zoom, rotate, flip, reset
+      (function () {
+        const img = document.getElementById('media-img');
+        if (!img) return;
+        let z = 1, r = 0, flip = 1;
+        function apply() { img.style.transform = 'scale(' + z + ') rotate(' + r + 'deg) scaleX(' + flip + ')'; }
+        document.querySelectorAll('.media-tools button').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (btn.dataset.zoom === 'in') z = Math.min(3, z + 0.25);
+            else if (btn.dataset.zoom === 'out') z = Math.max(0.5, z - 0.25);
+            else if (btn.dataset.rotate === 'left') r -= 90;
+            else if (btn.dataset.rotate === 'right') r += 90;
+            else if (btn.dataset.flip) flip *= -1;
+            else if (btn.dataset.reset) { z = 1; r = 0; flip = 1; }
+            apply();
+          });
+        });
+      })();
+
+      // Hamburger menu (mobile) — size card jitni
+      (function () {
+        const bg = document.querySelector('.background');
+        const btn = document.querySelector('.hamburger');
+        const panel = document.getElementById('menu-panel');
+        if (!btn || !panel) return;
+
+        function setOpen(open) {
+          bg.classList.toggle('menu-open', open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          setOpen(!bg.classList.contains('menu-open'));
+        });
+
+        panel.addEventListener('click', function (e) {
+          if (e.target.closest('a')) setOpen(false);
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!e.target.closest('.menu-panel') && !e.target.closest('.hamburger')) setOpen(false);
+        });
+
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') setOpen(false);
+        });
+      })();
+    })();
+  </script>
+</body>
+
+</html>

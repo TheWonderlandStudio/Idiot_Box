@@ -33,6 +33,7 @@ const EditorPage = ({ settings, onSave }) => {
   const wordWrap    = settings.wordWrap !== false; // default true ("on")
   const lineNumbers = settings.lineNumbers !== false; // default true (on)
   const autoSave    = settings.autoSave === true || settings.autoSave === "afterDelay"; // default false
+  const formatOnSave = settings.formatOnSave === true; // default false
   const fontSize    = Number.isFinite(settings.fontSize) ? settings.fontSize : 13;
   const fontFamily  = settings.fontFamily || "Consolas";
   const tabSize     = Number.isFinite(settings.tabSize) ? settings.tabSize : 2;
@@ -153,6 +154,26 @@ const EditorPage = ({ settings, onSave }) => {
             aria-checked={autoSave}
             role="switch"
             aria-label="Toggle auto save"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+
+      {/* ── Format On Save ───────────────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Format On Save</span>
+        <span className="sw-row__desc">
+          Run the language formatter (Format Document) automatically before every save. Does nothing when the language has no formatter.
+        </span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{formatOnSave ? "Enabled" : "Disabled"}</span>
+          <button
+            className={`sw-toggle-btn${formatOnSave ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => toggle("formatOnSave", formatOnSave)}
+            aria-checked={formatOnSave}
+            role="switch"
+            aria-label="Toggle format on save"
           >
             <span className="sw-toggle-thumb" />
           </button>

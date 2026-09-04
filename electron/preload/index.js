@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Confirm dialog (native OS message box) ────────────────────────────────
   confirmDialog: (message) => ipcRenderer.invoke("dialog:confirm", message),
+  // 3-way save guard: resolves to "save" | "dontSave" | "cancel"
+  confirmSaveDialog: (fileName) => ipcRenderer.invoke("dialog:confirmSave", fileName),
   showAlert:     (message) => ipcRenderer.invoke("dialog:alert",   message),
 
   // ── Context menu ──────────────────────────────────────────────────────────
@@ -66,7 +68,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readSettings:  ()     => ipcRenderer.invoke("settings:read"),
   writeSettings: (data) => ipcRenderer.invoke("settings:write", data),
   listEditors:   ()     => ipcRenderer.invoke("editors:list"),
-  openSettingsWindow: () => ipcRenderer.invoke("settings:openWindow"),
+  openSettingsWindow: (page) => ipcRenderer.invoke("settings:openWindow", page),
+  onSettingsNavigate: (cb) => { const h=(_e,page)=>cb(page); ipcRenderer.on("settings:navigate", h); return ()=>ipcRenderer.removeListener("settings:navigate", h); },
   onSettingsUpdated: (cb) => { const h=(_e,data)=>cb(data); ipcRenderer.on("settings:updated", h); return ()=>ipcRenderer.removeListener("settings:updated", h); },
 
   // ── Browser context menus ──────────────────────────────────────────────────
@@ -91,10 +94,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:commandPalette","menu:loadExtension",
       "menu:undo","menu:redo","menu:cut","menu:copy","menu:paste","menu:selectAll",
       "menu:find","menu:findNext","menu:findPrevious","menu:replace",
+      "menu:formatDocument","menu:commentLine","menu:copyLineDown",
+      "menu:moveLineUp","menu:moveLineDown","menu:gotoLine","menu:gotoSymbol",
+      "menu:splitEditorRight",
       "menu:fullscreen",
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
       "menu:clearTerminal","menu:killTerminal",
-      "menu:openPorts"
+      "menu:openPorts","menu:openGit","menu:openAI"
     ];
     if (!valid.includes(channel)) return () => {};
     const handler = (_e, payload) => callback(payload);

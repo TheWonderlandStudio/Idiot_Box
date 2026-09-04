@@ -34,11 +34,44 @@ import "@codingame/monaco-vscode-sql-default-extension";
 import "@codingame/monaco-vscode-bat-default-extension";
 import "@codingame/monaco-vscode-powershell-default-extension";
 import "@codingame/monaco-vscode-shellscript-default-extension";
+import "@codingame/monaco-vscode-scss-default-extension";
+import "@codingame/monaco-vscode-less-default-extension";
+import "@codingame/monaco-vscode-ini-default-extension";
+import "@codingame/monaco-vscode-coffeescript-default-extension";
+import "@codingame/monaco-vscode-dart-default-extension";
+import "@codingame/monaco-vscode-fsharp-default-extension";
+import "@codingame/monaco-vscode-groovy-default-extension";
+import "@codingame/monaco-vscode-handlebars-default-extension";
+import "@codingame/monaco-vscode-julia-default-extension";
+import "@codingame/monaco-vscode-lua-default-extension";
+import "@codingame/monaco-vscode-objective-c-default-extension";
+import "@codingame/monaco-vscode-perl-default-extension";
+import "@codingame/monaco-vscode-r-default-extension";
+import "@codingame/monaco-vscode-razor-default-extension";
+import "@codingame/monaco-vscode-swift-default-extension";
+import "@codingame/monaco-vscode-vb-default-extension";
+import "@codingame/monaco-vscode-clojure-default-extension";
+import "@codingame/monaco-vscode-pug-default-extension";
+import "@codingame/monaco-vscode-diff-default-extension";
+import "@codingame/monaco-vscode-shaderlab-default-extension";
+import "@codingame/monaco-vscode-markdown-math-default-extension";
+import "@codingame/monaco-vscode-docker-default-extension";
+import "@codingame/monaco-vscode-make-default-extension";
+import "@codingame/monaco-vscode-log-default-extension";
+import "@codingame/monaco-vscode-restructuredtext-default-extension";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Actions } from "flexlayout-react";
 import { initialize, getService, IThemeService, ILanguageService, ICommandService, IExtensionService } from "@codingame/monaco-vscode-api";
 import { createConfiguredEditor } from "@codingame/monaco-vscode-api/monaco";
+// NOTE: "@codingame/monaco-vscode-api/monaco" does NOT export `Uri` or `editor`
+// (verified: it only exports createConfiguredEditor/createModelReference/etc).
+// The previous code did `import * as monaco ...` then used monaco.Uri /
+// monaco.editor — both undefined — while creating the editor with value:"",
+// so the file:// model swap was silently skipped and the editor stayed EMPTY
+// (data load nahi ho raha). We share models via the editor instance itself
+// (same vscode instance, no Uri lookup needed) and always create with
+// value:text so content loads even if sharing fails.
 import getTextMateServiceOverride from "@codingame/monaco-vscode-textmate-service-override";
 import getThemeServiceOverride from "@codingame/monaco-vscode-theme-service-override";
 import getLanguagesServiceOverride from "@codingame/monaco-vscode-languages-service-override";
@@ -134,6 +167,10 @@ const ensureEditorReady = () => {
 
 const ext = (p) => { try { return p.slice(p.lastIndexOf(".")).toLowerCase(); } catch { return ""; } };
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
+
+// Language ids + content-based auto-detection live in languageDetect.mjs
+// (pure ESM, unit-tested via languageDetect.test.mjs).
+import { LANG_OPTIONS, detectLanguageFromContent, sniffCHeader } from "./languageDetect.mjs";
 
 window.__ibxProbes = [];
 window.addEventListener("message", (e) => {
@@ -276,7 +313,7 @@ const getLanguageService = async () => {
   return _languageService;
 };
 
-const getMonacoLanguage = async (filePath) => {
+const getMonacoLanguage = async (filePath, text) => {
   const e = ext(filePath);
   const base = fileName(filePath);
   try {
@@ -289,6 +326,13 @@ const getMonacoLanguage = async (filePath) => {
       }
     }
   } catch { /* service unavailable — fall back */ }
+  // Extension-less well-known filenames (Dockerfile, Makefile, Jenkinsfile…).
+  const lowerBase = (base || "").toLowerCase();
+  if (lowerBase === "dockerfile" || lowerBase.startsWith("dockerfile.")) return "dockerfile";
+  if (lowerBase === "containerfile" || lowerBase.startsWith("containerfile.")) return "dockerfile";
+  if (lowerBase === "makefile" || lowerBase === "gnumakefile") return "makefile";
+  if (lowerBase === "jenkinsfile") return "groovy";
+  if (lowerBase === "vagrantfile" || lowerBase === "gemfile" || lowerBase === "rakefile" || lowerBase === "brewfile") return "ruby";
   switch (e) {
     case ".js": case ".mjs": case ".cjs": return "javascript";
     case ".jsx": return "javascriptreact";
@@ -297,19 +341,44 @@ const getMonacoLanguage = async (filePath) => {
     case ".html": case ".htm": return "html";
     case ".vue": case ".svelte": return "html";
     case ".css": return "css";
-    case ".scss": return "scss";
+    case ".scss": case ".sass": return "scss";
     case ".less": return "less";
     case ".json": case ".jsonc": return "json";
+    case ".md": case ".markdown": case ".mdown": return "markdown";
+    case ".rst": return "restructuredtext";
+    case ".log": return "log";
+    case ".diff": case ".patch": case ".rej": return "diff";
     case ".py": return "python";
     case ".rs": return "rust";
     case ".go": return "go";
-    case ".c": case ".h": return "c";
+    case ".c": return "c";
+    case ".h": return sniffCHeader(text);
     case ".cpp": case ".hpp": case ".cc": return "cpp";
     case ".cs": return "csharp";
     case ".java": return "java";
-    case ".md": return "markdown";
     case ".sql": return "sql";
     case ".sh": case ".bash": return "shellscript";
+    case ".dockerfile": case ".containerfile": return "dockerfile";
+    case ".mk": case ".mak": return "makefile";
+    case ".coffee": case ".cson": case ".iced": return "coffeescript";
+    case ".dart": return "dart";
+    case ".fs": case ".fsi": case ".fsx": return "fsharp";
+    case ".groovy": case ".gvy": case ".gradle": return "groovy";
+    case ".hbs": case ".handlebars": return "handlebars";
+    case ".jl": return "julia";
+    case ".jmd": return "juliamarkdown";
+    case ".lua": return "lua";
+    case ".m": return "objective-c";
+    case ".mm": return "objective-cpp";
+    case ".pl": case ".pm": case ".pod": case ".t": return "perl";
+    case ".raku": case ".p6": case ".pm6": return "raku";
+    case ".r": return "r";
+    case ".cshtml": case ".razor": return "razor";
+    case ".swift": return "swift";
+    case ".vb": case ".vbs": case ".bas": return "vb";
+    case ".clj": case ".cljs": case ".cljc": case ".edn": return "clojure";
+    case ".pug": case ".jade": return "jade";
+    case ".shader": return "shaderlab";
     case ".yaml": case ".yml": return "yaml";
     case ".xml": case ".xsl": return "xml";
     case ".php": return "php";
@@ -317,6 +386,8 @@ const getMonacoLanguage = async (filePath) => {
     case ".bat": case ".cmd": return "bat";
     case ".ps1": return "powershell";
     case ".ini": case ".cfg": case ".toml": return "ini";
+    case ".properties": return "properties";
+    case ".conf": case ".editorconfig": case ".gitattributes": case ".gitconfig": case ".gitmodules": return "ini";
     default: return "plaintext";
   }
 };
@@ -326,6 +397,14 @@ let activeEditorPath = null;
 let autoSaveEnabled  = false;
 const baseNames  = new Map();   // filePath -> tab base name
 const dirtyFlags = new Map();   // filePath -> dirty boolean
+// Shared Monaco models (same vscode instance, no Uri lookup): filePath -> { model, refcount }.
+// Lets split-tabs / duplicate tabs edit the SAME text live. Falls back to
+// per-tab models if sharing fails — content still loads either way.
+const sharedModels = new Map();
+
+// Exposed for the layout close-guard (index.jsx onAction): veto closing dirty tabs.
+window.__ibxIsDirty = (p) => { try { return !!dirtyFlags.get(p); } catch { return false; } };
+window.__ibxForgetDirty = (p) => { try { dirtyFlags.delete(p); baseNames.delete(p); } catch {} };
 
 const updateTabName = (nodeId, path) => {
   const m = window.__flexModel?.current;
@@ -427,12 +506,17 @@ const EditorPanel = ({ config, nodeId }) => {
   const [tabSize,         setTabSize]         = useState(2);
   const [editorTheme,     setEditorTheme]     = useState("dark"); // default dark
   const [autoSave,        setAutoSave]        = useState(false);
+  const [showLangMenu,    setShowLangMenu]    = useState(false);
+  const [langQuery,       setLangQuery]       = useState("");
+  const [detected,        setDetected]        = useState(null);  // { id, confidence, reason } from content sniffing
+  const [langAuto,        setLangAuto]        = useState(false); // true while the active mode came from auto-detection
 
   const editorRef   = useRef(null);
   const hostRef     = useRef(null);
   const pathRef     = useRef(filePath);
   const originalRef = useRef("");
   const loadedRef   = useRef(false);
+  const largeFileRef = useRef(false);
   const saveTimer   = useRef(null);
   const lastSelfSaveRef = useRef(0);
 
@@ -442,6 +526,47 @@ const EditorPanel = ({ config, nodeId }) => {
     setStatusMsg(msg);
     setTimeout(() => { setStatusMsg(null); }, 3000);
   };
+
+  // ── Status-bar language switcher ─────────────────────────────────────────
+  const setEditorLanguage = useCallback((id, isAuto = false) => {
+    setShowLangMenu(false);
+    setLangQuery("");
+    if (!id) return;
+    setLanguage(id);
+    setLangAuto(!!isAuto);
+    try {
+      const model = editorRef.current?.getModel?.();
+      if (!model) return;
+      // Preferred: global monaco API (if a compatible instance is exposed).
+      if (window.monaco?.editor?.setModelLanguage) {
+        window.monaco.editor.setModelLanguage(model, id);
+        return;
+      }
+      // Fallback: vscode ITextModel exposes setLanguage directly.
+      if (typeof model.setLanguage === "function") {
+        model.setLanguage(id);
+        return;
+      }
+    } catch {}
+  }, []);
+
+  // ── Re-run content detection on the live buffer (picker "Auto-detect") ───
+  // Useful after pasting a shebang / converting a plaintext scratch buffer.
+  const runAutoDetect = useCallback(() => {
+    try {
+      const v = editorRef.current?.getValue?.() ?? "";
+      const hit = detectLanguageFromContent(v);
+      if (hit && hit.id && hit.id !== "plaintext") {
+        setDetected(hit);
+        setEditorLanguage(hit.id, true);
+        flashStatus(`Auto-detected language: ${hit.id} (${hit.reason})`);
+      } else {
+        flashStatus("No language detected — pick one below");
+      }
+    } catch {
+      flashStatus("Detection failed — pick a language below");
+    }
+  }, [setEditorLanguage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load editor settings on mount ────────────────────────────────────────
   useEffect(() => {
@@ -513,7 +638,18 @@ const EditorPanel = ({ config, nodeId }) => {
   // ── Bootstrap VS Code services once ──────────────────────────────────────
   useEffect(() => {
     ensureEditorReady()
-      .then(() => setReady(true))
+      .then(() => {
+        setReady(true);
+        // Notify Problems panel etc. that the editor stack is ready.
+        // NOTE: we deliberately do NOT set window.monaco to the
+        // "@codingame/monaco-vscode-api/monaco" wrapper — it has no
+        // `editor`/`Uri` namespace, and assigning it broke setModelLanguage
+        // / getModelMarkers consumers. Problems stays event-driven and will
+        // use whatever compatible monaco instance is available, if any.
+        try {
+          window.dispatchEvent(new CustomEvent("monaco:ready"));
+        } catch {}
+      })
       .catch((err) => setInitError(err?.message || String(err)));
   }, []);
 
@@ -584,16 +720,31 @@ const EditorPanel = ({ config, nodeId }) => {
     if (!ed) return;
     try {
       ed.updateOptions({
-        minimap: { enabled: minimap },
-        wordWrap: wordWrap,
+        minimap: { enabled: minimap && !largeFileRef.current },
+        wordWrap: largeFileRef.current ? "off" : wordWrap,
         lineNumbers: lineNumbers,
         fontSize: fontSize,
         fontFamily: fontFamily,
         tabSize: tabSize,
+        detectIndentation: true,
         glyphMargin: false,
         lineDecorationsWidth: 12,
         lineNumbersMinChars: 4,
-        folding: false,
+        folding: true,
+        foldingHighlight: true,
+        showFoldingControls: "mouseover",
+        stickyScroll: { enabled: !largeFileRef.current },
+        bracketPairColorization: { enabled: true },
+        guides: {
+          bracketPairs: true,
+          bracketPairsHorizontal: true,
+          highlightActiveBracketPair: true,
+          highlightActiveIndentation: true,
+        },
+        mouseWheelZoom: true,
+        renderWhitespace: "selection",
+        padding: { top: 8 },
+        cursorSmoothCaretAnimation: "on",
         renderLineHighlight: "all",
       });
     } catch {}
@@ -603,8 +754,10 @@ const EditorPanel = ({ config, nodeId }) => {
   useEffect(() => {
     if (!ready || !filePath || !hostRef.current) return;
     loadedRef.current = false;
+    largeFileRef.current = false;
     let cancelled = false;
     let disposed = false;
+    const fp = filePath;
     let cleanup = () => {
       if (disposed) return;
       disposed = true;
@@ -614,8 +767,27 @@ const EditorPanel = ({ config, nodeId }) => {
       contentSub?.dispose();
       cursorSub?.dispose();
       focusSub?.dispose();
-      editor?.dispose();
+      try { editor?.dispose(); } catch {}
       if (editorRef.current === editor) editorRef.current = null;
+      // Release the shared model when the last tab for this file closes
+      // (otherwise models leak forever). Shared models all come from the
+      // same vscode instance via editor.getModel(), so plain dispose is enough.
+      try {
+        const entry = sharedModels.get(fp);
+        if (entry) {
+          entry.refcount -= 1;
+          if (entry.refcount <= 0) {
+            sharedModels.delete(fp);
+            // If this editor still holds the shared model, editor.dispose()
+            // above already detached it; dispose the model itself now — but
+            // only if no other live editor is still using it.
+            try {
+              const stillUsed = entry.model && editorRef.current?.getModel?.() === entry.model;
+              if (!stillUsed) entry.model?.dispose?.();
+            } catch {}
+          }
+        }
+      } catch {}
     };
     let editor = null, ro = null, contentSub = null, cursorSub = null, focusSub = null, onWinResize = null;
 
@@ -635,14 +807,31 @@ const EditorPanel = ({ config, nodeId }) => {
 
       loadedRef.current = true;
       baseNames.set(filePath, fileName(filePath));
-      dirtyFlags.set(filePath, false);
-      updateTabName(nodeId, filePath);
 
-      const lang = await getMonacoLanguage(filePath);
-      setContent(text);
-      setOriginalContent(text);
-      originalRef.current = text;
-      setLanguage(lang);
+      const lang = await getMonacoLanguage(filePath, text);
+      // ── Content-based auto-detection ───────────────────────────────────
+      // Filename said "plaintext" (unknown/missing extension) → sniff the text
+      // for shebangs, modelines and syntax fingerprints instead of leaving
+      // the file unhighlighted.
+      let finalLang = lang;
+      let detectedInfo = null;
+      if (lang === "plaintext") {
+        try {
+          const hit = detectLanguageFromContent(text);
+          if (hit && hit.id && hit.id !== "plaintext") {
+            finalLang = hit.id;
+            detectedInfo = hit;
+          }
+        } catch { /* detection never breaks file open */ }
+      }
+      // ── Large-file guard: >1MB → minimap/wordWrap/sticky off (perf) ──────
+      const isLargeFile = text.length > 1024 * 1024;
+      largeFileRef.current = isLargeFile;
+      if (isLargeFile) {
+        flashStatus(`Large file (${(text.length / 1048576).toFixed(1)} MB) — minimap & word wrap off for performance`);
+      } else if (detectedInfo) {
+        flashStatus(`Auto-detected language: ${detectedInfo.id} (${detectedInfo.reason})`);
+      }
       setCursorPos({ line: 1, col: 1, totalLines: text.split("\n").length });
 
       const host = hostRef.current;
@@ -651,28 +840,75 @@ const EditorPanel = ({ config, nodeId }) => {
       try {
         editor = createConfiguredEditor(host, {
           value: text,
-          language: lang,
+          language: finalLang,
           automaticLayout: true,
-          minimap: { enabled: minimap },
-          wordWrap: wordWrap,
+          minimap: { enabled: minimap && !isLargeFile },
+          wordWrap: isLargeFile ? "off" : wordWrap,
           lineNumbers: lineNumbers,
           fontSize: fontSize,
           fontFamily: fontFamily,
           smoothScrolling: true,
           cursorBlink: "smooth",
+          cursorSmoothCaretAnimation: "on",
           renderLineHighlight: "all",
           scrollBeyondLastLine: false,
           tabSize: tabSize,
+          detectIndentation: true,
           glyphMargin: false,
           lineDecorationsWidth: 12,
           lineNumbersMinChars: 4,
-          folding: false,
+          folding: true,
+          foldingHighlight: true,
+          showFoldingControls: "mouseover",
+          stickyScroll: { enabled: !isLargeFile },
+          bracketPairColorization: { enabled: true },
+          guides: {
+            bracketPairs: true,
+            bracketPairsHorizontal: true,
+            highlightActiveBracketPair: true,
+            highlightActiveIndentation: true,
+          },
+          mouseWheelZoom: true,
+          renderWhitespace: "selection",
+          padding: { top: 8 },
         });
       } catch (err) {
         setInitError(err?.message || String(err));
         return;
       }
-      if (cancelled || disposed) { editor.dispose(); return; }
+      if (cancelled || disposed) { try { editor.dispose(); } catch {} return; }
+
+      // ── Share one Monaco model across tabs of the same file ──────────────
+      // Same vscode instance via editor.getModel()/setModel() — no Uri lookup
+      // needed (the old monaco.Uri/monaco.editor path was undefined and left
+      // the editor empty). Another tab may hold unsaved edits — adopt those.
+      let finalValue = text;
+      try {
+        const freshModel = editor.getModel?.() || null;
+        const existing = sharedModels.get(filePath);
+        const existingAlive = existing?.model && (typeof existing.model.isDisposed !== "function" || !existing.model.isDisposed());
+        if (existingAlive) {
+          try { finalValue = existing.model.getValue(); } catch { finalValue = text; }
+          if (freshModel && freshModel !== existing.model) {
+            try { editor.setModel(existing.model); } catch {}
+            try { freshModel.dispose?.(); } catch {}
+          }
+          existing.refcount += 1;
+        } else if (freshModel) {
+          if (existing) sharedModels.delete(filePath);
+          sharedModels.set(filePath, { model: freshModel, refcount: 1 });
+        }
+      } catch { /* keep per-tab model with text — content still loads */ }
+
+      setContent(finalValue);
+      setOriginalContent(text);
+      setLanguage(finalLang);
+      setDetected(detectedInfo);
+      setLangAuto(!!detectedInfo);
+      originalRef.current = text;
+      const isDirty = finalValue !== text;
+      dirtyFlags.set(filePath, isDirty);
+      updateTabName(nodeId, filePath);
 
       editorRef.current = editor;
       activeEditorPath = filePath;
@@ -996,6 +1232,14 @@ const EditorPanel = ({ config, nodeId }) => {
     const p = pathRef.current;
     if (!p) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
+    // Format on Save (Settings → Editor → Format On Save, default off).
+    // No-op when the language has no formatter registered.
+    try {
+      const s = _cachedEditorSettings ?? await getEditorSettings().catch(() => ({}));
+      if (s?.formatOnSave === true && editorRef.current) {
+        try { await editorRef.current.getAction("editor.action.formatDocument")?.run(); } catch {}
+      }
+    } catch {}
     const text = editorRef.current?.getValue() ?? content;
     const result = await window.electronAPI.writeFileText(p, text);
     if (result?.success) {
@@ -1033,7 +1277,7 @@ const EditorPanel = ({ config, nodeId }) => {
 
   // ── File & Edit menu commands ────────────────────────────────────────────
   useEffect(() => {
-    const onCmd = (e) => {
+    const onCmd = async (e) => {
       const cmd = e.detail?.cmd;
       if (!cmd) return;
 
@@ -1064,6 +1308,14 @@ const EditorPanel = ({ config, nodeId }) => {
           case "findNext":     ed.trigger("menu", "editor.action.nextMatchFindAction",     {}); break;
           case "findPrevious": ed.trigger("menu", "editor.action.previousMatchFindAction", {}); break;
           case "replace":      ed.trigger("menu", "editor.action.startFindReplaceAction", {}); break;
+          case "format":       try { await ed.getAction("editor.action.formatDocument")?.run(); } catch {} break;
+          case "gotoLine":     try { await ed.getAction("editor.action.gotoLine")?.run(); } catch {} break;
+          case "gotoSymbol":   try { await ed.getAction("editor.action.quickOutline")?.run(); } catch {} break;
+          case "commentLine":  try { await ed.getAction("editor.action.commentLine")?.run(); } catch {} break;
+          case "copyLineDown": try { await ed.getAction("editor.action.copyLinesDownAction")?.run(); } catch {} break;
+          case "copyLineUp":   try { await ed.getAction("editor.action.copyLinesUpAction")?.run(); } catch {} break;
+          case "moveLineUp":   try { await ed.getAction("editor.action.moveLinesUpAction")?.run(); } catch {} break;
+          case "moveLineDown": try { await ed.getAction("editor.action.moveLinesDownAction")?.run(); } catch {} break;
           default: break;
         }
       } catch { /* ignore if editor not ready */ }
@@ -1185,9 +1437,88 @@ const EditorPanel = ({ config, nodeId }) => {
                 {(autoSave || autoSaveEnabled) && <span>AutoSave: On</span>}
                 <span>Spaces: {tabSize}</span>
                 <span>UTF-8</span>
-                <span style={{ textTransform: "uppercase", fontWeight: 600 }}>{language}</span>
+                <span
+                  onClick={() => { setShowLangMenu((v) => !v); setLangQuery(""); }}
+                  title={detected && langAuto ? `Auto-detected: ${detected.reason} — click to change` : "Change language mode"}
+                  style={{
+                    textTransform: "uppercase", fontWeight: 600, cursor: "pointer",
+                    padding: "0 5px", borderRadius: 2,
+                    background: showLangMenu ? "rgba(255,255,255,0.25)" : "transparent",
+                  }}
+                >
+                  {langAuto ? "✨ " : ""}{language}
+                </span>
               </div>
             </div>
+          )}
+
+          {/* ── Language picker popup ────────────────────────────────────────── */}
+          {showLangMenu && filePath && (
+            <>
+              <div
+                onClick={() => setShowLangMenu(false)}
+                style={{ position: "absolute", inset: 0, zIndex: 40 }}
+              />
+              <div
+                style={{
+                  position: "absolute", right: 8, bottom: 26, zIndex: 41,
+                  background: "#252526", border: "1px solid #3c3c3c", borderRadius: 4,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                  maxHeight: 300, overflowY: "auto", minWidth: 220, padding: 4,
+                }}
+              >
+                <div style={{ fontSize: 10, color: "#888", padding: "4px 8px", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Language mode
+                </div>
+                <input
+                  autoFocus
+                  value={langQuery}
+                  onChange={(e) => setLangQuery(e.target.value)}
+                  placeholder="Search languages…"
+                  style={{
+                    width: "100%", boxSizing: "border-box", margin: "0 0 4px",
+                    background: "#1e1e1e", border: "1px solid #3c3c3c", borderRadius: 3,
+                    color: "#ddd", fontSize: 12, padding: "5px 8px", outline: "none",
+                  }}
+                />
+                {detected && detected.id !== language && (
+                  <div
+                    onClick={() => setEditorLanguage(detected.id, true)}
+                    title={`Detected from content: ${detected.reason}`}
+                    style={{
+                      fontSize: 12, padding: "5px 8px", borderRadius: 3, cursor: "pointer",
+                      color: "#4ec9b0", background: "rgba(78,201,176,0.12)",
+                      border: "1px solid rgba(78,201,176,0.35)", marginBottom: 4,
+                    }}
+                  >
+                    ✨ Suggested: {detected.id}
+                    <span style={{ color: "#888", fontSize: 11 }}> — {detected.reason}</span>
+                  </div>
+                )}
+                <div
+                  onClick={runAutoDetect}
+                  style={{
+                    fontSize: 12, padding: "5px 8px", borderRadius: 3, cursor: "pointer",
+                    color: "#9cdcfe", marginBottom: 4,
+                  }}
+                >
+                  ↻ Auto-detect from content
+                </div>
+                {LANG_OPTIONS.filter((id) => id.toLowerCase().includes(langQuery.trim().toLowerCase())).map((id) => (
+                  <div
+                    key={id}
+                    onClick={() => setEditorLanguage(id)}
+                    style={{
+                      fontSize: 12, padding: "3px 8px", borderRadius: 3, cursor: "pointer",
+                      color: id === language ? "#ffffff" : "#cccccc",
+                      background: id === language ? "#094771" : "transparent",
+                    }}
+                  >
+                    {id}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </>
       )}

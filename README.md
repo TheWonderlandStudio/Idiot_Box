@@ -6,7 +6,7 @@ A desktop IDE built on Electron + React + Monaco. Visual project map (Canvas), V
 ## Features
 
 - **Canvas — Visual Project Map** — every page & component of your project as live preview cards, grouped by folder on an infinite pan/zoom canvas. Drag cards (push the parent edge to expand), shift+drag to move card+group together, resize groups from all 8 sides, search, fit view, and persist your layout per project (`.canvas/layout.json`).
-- **Code Editor** — Monaco with syntax highlighting for 20+ languages, minimap, word wrap, autosave, Save As, dirty-tab markers, and **live reload**: if an external app (or git/build tool) changes a file on disk, the editor updates automatically.
+- **Code Editor** — Monaco with syntax highlighting for 50+ languages, automatic language detection (shebang, modelines, content sniffing) with suggestions, minimap, word wrap, autosave, Save As, dirty-tab markers, and **live reload**: if an external app (or git/build tool) changes a file on disk, the editor updates automatically.
 - **Extension Host** — runs VS Code extensions in a worker (local web worker extension host via `@codingame/monaco-vscode-api`). Ships with a demo extension proving the pipeline.
 - **Live Component Preview** — shadow-DOM previews of components that sync instantly with the editor (no save needed).
 - **Terminal** — xterm.js + node-pty with split/new panel actions and working-directory-aware launch.

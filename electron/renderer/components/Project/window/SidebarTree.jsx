@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import VscodeIcon from "../../shared/VscodeIcon.jsx";
 import { useInputDialog } from "../../shared/InputDialog.jsx";
 import { PreviewIcon } from "./ContentArea.jsx";
+import { isMediaFile, shouldAutoOpenMediaViewer } from "../../MediaViewer/mediaTypes.js";
 import { ChevronRight, FilePlus, FolderPlus, RefreshCw, FoldVertical } from "lucide-react";
 
 const ArrowSvg = () => <ChevronRight size={10} style={{ display: "block" }} />;
@@ -563,12 +564,19 @@ const SidebarTree = ({
   }, [selectedPath, onSelect, clipboard, invalidateCache, handlePinToggle, onClipboardChange, ask, pushUndo, rootPath, findTrashRoot]);
 
   // ── File handlers ────────────────────────────────────────────────────────
+  // Single click → "open-file-in-editor" (central router in index.jsx sends
+  // media files to Media Viewer when Settings → Auto Open Media Viewer is ON).
   const handleFileClick = useCallback((filePath) => {
     onFileSelect?.(filePath);
     window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: filePath } }));
   }, [onFileSelect]);
 
+  // Double click → media files go to Media Viewer (if enabled), else system default.
   const handleFileDoubleClick = useCallback(async (filePath) => {
+    if (isMediaFile(filePath) && await shouldAutoOpenMediaViewer()) {
+      window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
+      return;
+    }
     await window.electronAPI.openFile(filePath, "system");
   }, []);
 

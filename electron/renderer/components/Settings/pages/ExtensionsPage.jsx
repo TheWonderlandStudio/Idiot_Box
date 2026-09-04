@@ -4,6 +4,8 @@ import React, { useEffect, useState, useCallback } from "react";
 // Manage loaded Chrome extensions: list, enable/disable, remove, load new.
 // ─────────────────────────────────────────────────────────────────────────────
 
+const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/";
+
 const ExtensionsPage = () => {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,16 @@ const ExtensionsPage = () => {
     const res = await window.electronAPI.loadChromeExtension();
     if (res?.error) setError(res.error);
     else refresh();
+  };
+
+  const openStore = async () => {
+    setError("");
+    try {
+      if (window.electronAPI?.openUrl) await window.electronAPI.openUrl(CHROME_WEB_STORE_URL);
+      else window.open(CHROME_WEB_STORE_URL, "_blank", "noopener");
+    } catch (e) {
+      try { window.open(CHROME_WEB_STORE_URL, "_blank", "noopener"); } catch { setError(String(e)); }
+    }
   };
 
   const toggleEnabled = async (ext) => {
@@ -54,6 +66,21 @@ const ExtensionsPage = () => {
         </span>
         <button className="sw-btn" onClick={loadNew} style={{ marginLeft: 12, flexShrink: 0 }}>
           + Load Extension
+        </button>
+      </div>
+
+      <div
+        className="sw-row"
+        style={{ alignItems: "center", border: "1px solid #2d4a43", background: "rgba(78,201,176,0.06)", marginBottom: 12 }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span className="sw-row__label" style={{ marginBottom: 2 }}>Get more extensions</span>
+          <div className="sw-row__desc" style={{ margin: 0 }}>
+            Download extensions from the Chrome Web Store, extract them to a folder, then click &ldquo;Load Extension&rdquo; and pick the unpacked folder (the one with manifest.json).
+          </div>
+        </div>
+        <button className="sw-btn" onClick={openStore} style={{ flexShrink: 0, marginLeft: 8 }}>
+          Open Chrome Web Store
         </button>
       </div>
 

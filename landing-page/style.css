@@ -1,0 +1,525 @@
+*{
+  margin:0;
+  padding:0;
+}
+body{
+  height: 100dvh;
+  background: black;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.background{
+  width: 97%;
+  height: 96%;
+  border-radius: 10px;
+  background: white;
+  animation: backgroundAnimation 2s;
+  position: relative;
+  display: block;
+}
+
+@keyframes backgroundAnimation {
+  0% {
+    width: 100%;
+    height: 100%;
+    border-radius: 0px;
+  }
+  100% {
+    width: 97%;
+    height: 96%;
+    border-radius: 10px;
+  }
+}
+
+
+/* background video — saari animations ke baad fade-in hoga */
+.bg-video-wrap{
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.bg-video{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.background.video-in .bg-video{
+  opacity: 1;
+}
+
+/* center title — video ke upar bada IDIOT BOX */
+.center-title{
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  translate: -50% -50%;
+  z-index: 1;
+  margin: 0;
+  font-family: Arial Black;
+  font-size: clamp(56px, 11vw, 170px);
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: white;
+  text-shadow: 0 4px 40px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.background.hero-in .center-title{
+  opacity: 1;
+}
+
+
+.card{
+  font-family: Arial Black;
+  z-index: 2;
+  width: auto;
+  height: auto;
+  font-size: 25px;
+  border-radius: 4px;
+  background: black;
+  padding: 4px 60px 0px 10px;
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: cardAnimation 0.8s ease forwards 3s;
+  /* center stage — translate is separate from transform so scaleX won't fight it */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  transition: left 1s cubic-bezier(0.22, 1, 0.36, 1), top 1s cubic-bezier(0.22, 1, 0.36, 1), translate 1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* final stage — left top, reached via transition (no direct jump) */
+.background.moved .card{
+  left: 24px;
+  top: 24px;
+  translate: 0 0;
+}
+
+/* right side nav — same card look, top se bottom aayega (saari animations ke baad) */
+.nav-card{
+  font-family: Arial Black;
+  font-size: 25px;
+  border-radius: 4px;
+  background: black;
+  color: white;
+  padding: 12px 20px;
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  /* hidden stage — upar */
+  opacity: 0;
+  transform: translateY(-180%);
+  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* show stage — JS .nav-in lagane par neeche slide */
+.background.nav-in .nav-card{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.nav-card a{
+  color: white;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* right side center — vertical Features tab, hero ke sath aayega */
+.side-tab{
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(30px);
+  z-index: 2;
+  font-family: Arial Black;
+  font-size: 25px;
+  color: white;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  writing-mode: vertical-rl;
+  background: black;
+  border-radius: 4px 0 0 4px;
+  padding: 20px 10px;
+  opacity: 0;
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.background.hero-in .side-tab{
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+
+/* desktop — links seedha flex me, hamburger/panel chhupa */
+.nav-links{
+  display: contents;
+}
+
+.hamburger{
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.hamburger span{
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: white;
+  border-radius: 2px;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.menu-panel{
+  display: none;
+}
+
+/* hero — bottom-left taaki video ka center content clear rahe */
+.hero{
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 2;
+  max-width: 560px;
+  background: black;
+  color: white;
+  border-radius: 4px;
+  padding: 24px 28px;
+  /* hidden stage — video ke baad upar slide hoga */
+  opacity: 0;
+  transform: translateY(40px);
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.7s ease;
+  pointer-events: none;
+}
+
+.background.hero-in .hero{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.hero-kicker{
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 10px;
+}
+
+/* naya release aane par dikhne wala badge */
+.new-pill{
+  display: inline-block;
+  background: white;
+  color: black;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.new-pill[hidden]{
+  display: none;
+}
+
+.hero-title{
+  font-family: Arial Black;
+  font-size: clamp(30px, 4.5vw, 56px);
+  line-height: 1.02;
+  margin-bottom: 12px;
+}
+
+.hero-sub{
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  opacity: 0.8;
+  margin-bottom: 20px;
+  max-width: 44ch;
+}
+
+.hero-cta{
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-primary{
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  background: white;
+  color: black;
+  text-decoration: none;
+  padding: 12px 22px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.btn-ghost{
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  text-decoration: none;
+  padding: 12px 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+}
+
+
+
+.text {
+  display: inline-block;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: fadeIn 0.3s ease forwards 3.9s, typing 1s steps(30, end) forwards 3.9s;
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: #fff; }
+}
+
+@keyframes textReveal { /* retained for compatibility */
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+
+@keyframes cardAnimation {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+#noise-overlay{
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.07;
+  image-rendering: pixelated;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 768px){
+  .card{
+    font-size: 20px;
+    padding: 4px 36px 0px 10px;
+  }
+
+  .background.moved .card{
+    left: 16px;
+    top: 16px;
+  }
+
+  .nav-card{
+    font-size: 14px;
+    gap: 16px;
+    padding: 10px 16px;
+    top: 16px;
+    right: 16px;
+  }
+
+  /* hamburger mode — links panel me */
+  .nav-links{
+    display: none;
+  }
+
+  .hamburger{
+    display: flex;
+  }
+
+  .menu-panel{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: absolute;
+    top: 64px;
+    right: 16px;
+    z-index: 3;
+    background: black;
+    border-radius: 4px;
+    padding: 8px;
+    min-width: 180px;
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+
+  .background.menu-open .menu-panel{
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .menu-panel a{
+    font-family: Arial Black;
+    font-size: 20px;
+    color: white;
+    text-decoration: none;
+    padding: 10px 14px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .menu-panel a:hover{
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  /* hamburger se X */
+  .background.menu-open .hamburger span:nth-child(1){
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .background.menu-open .hamburger span:nth-child(2){
+    opacity: 0;
+  }
+
+  .background.menu-open .hamburger span:nth-child(3){
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  .hero{
+    left: 16px;
+    bottom: 16px;
+    max-width: min(560px, calc(100% - 32px));
+    padding: 20px 22px;
+  }
+}
+
+@media (max-width: 480px){
+  .card{
+    font-size: 15px;
+    padding: 4px 18px 0px 8px;
+  }
+
+  .background.moved .card{
+    left: 12px;
+    top: 12px;
+  }
+
+  .nav-card{
+    font-size: 15px;
+    gap: 10px;
+    padding: 5px 12px;
+    top: 12px;
+    right: 12px;
+  }
+
+  .menu-panel a{
+    font-size: 15px;
+  }
+
+  .center-title{
+    font-size: 15vw;
+    white-space: normal;
+    text-align: center;
+    line-height: 0.95;
+    max-width: 92%;
+  }
+
+  .hero{
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+    padding: 18px;
+  }
+
+  .hero-title{
+    font-size: clamp(24px, 7vw, 30px);
+  }
+
+  .hero-sub{
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .hero-kicker{
+    font-size: 10px;
+    letter-spacing: 1.5px;
+  }
+
+  .btn-primary,
+  .btn-ghost{
+    font-size: 13px;
+    padding: 11px 18px;
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .side-tab{
+    font-size: 15px;
+    letter-spacing: 2px;
+    padding: 14px 8px;
+    right: 0;
+  }
+}

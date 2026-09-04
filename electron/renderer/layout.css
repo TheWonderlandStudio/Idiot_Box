@@ -187,6 +187,62 @@ body,
   color: var(--text-bright);
 }
 
+/* ── ⋮ More menu (browser toolbar grouped options) ─────────────────────────── */
+.browser__more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1001;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--bg-raised);
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--overlay);
+  display: flex;
+  flex-direction: column;
+}
+.browser__more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-bright);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.browser__more-item:hover { background: var(--bg-hover); }
+.browser__more-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.browser__more-item:hover .browser__more-icon { color: var(--text-hover); }
+.browser__more-label { flex: 1; white-space: nowrap; }
+.browser__more-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  background: rgba(78,201,176,0.22);
+  color: #4ec9b0;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.browser__more-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
 /* ── Show toolbar button (when hidden) ─────────────── */
 .browser__show-btn {
   position: absolute;
