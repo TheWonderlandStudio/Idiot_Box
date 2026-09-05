@@ -1,0 +1,80 @@
+name: Release (Windows + Linux)
+
+# Cut a release by pushing a tag like v0.1.14 (must match package.json "version").
+# Builds the Windows NSIS installer on windows-latest and AppImage + deb on
+# ubuntu-latest, then attaches everything to one GitHub Release.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            builder-args: --win nsis
+            artifact-glob: "dist/Idiot-Box-Setup-*.exe"
+          - os: ubuntu-latest
+            builder-args: --linux
+            artifact-glob: |
+              dist/*.AppImage
+              dist/*.deb
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and package
+        run: npm run build && npx electron-builder ${{ matrix.builder-args }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: ${{ matrix.artifact-glob }}
+          if-no-files-found: error
+
+      - name: Upload update metadata (for in-app auto-updater)
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-meta-${{ matrix.os }}
+          path: |
+            dist/latest*.yml
+            dist/*.blockmap
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    # Only cut the GitHub Release for tag pushes, not manual dispatch runs.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
