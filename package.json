@@ -113,7 +113,6 @@
     "files": [
       "electron/**/*",
       "package.json",
-      "node_modules/**/*",
       "!node_modules/.cache/**/*",
       "!**/*.map",
       "!**/*.ts",
