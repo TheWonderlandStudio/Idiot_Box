@@ -38,6 +38,8 @@
     e.preventDefault();
     if (document.body.classList.contains('is-leaving')) return;
     document.body.classList.add('is-leaving');
+    // music duck + swoosh, phir smooth navigate
+    try { if (window.__pageLeave) window.__pageLeave(); } catch (err) {}
     setTimeout(function () { location.href = a.href; }, 850);
   });
 })();
