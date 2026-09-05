@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getProjectPath:  ()                          => ipcRenderer.invoke("terminal:getProjectPath"),
   openTerminal:    (tabId, cwd, forceRestart)  => ipcRenderer.invoke("terminal:open",  { tabId, cwd, forceRestart: !!forceRestart }),
   writeToTerminal: (tabId, data)   => ipcRenderer.invoke("terminal:write", { tabId, data }),
+  cdTerminal: (tabId, cwd) => ipcRenderer.invoke("terminal:chdir", { tabId, cwd }),
   resizeTerminal:  (tabId, cols, rows) => ipcRenderer.invoke("terminal:resize", { tabId, cols, rows }),
   closeTerminal:   (tabId)         => ipcRenderer.invoke("terminal:close", { tabId }),
   onTerminalData:  (callback) => {

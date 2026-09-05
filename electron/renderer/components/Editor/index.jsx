@@ -11,6 +11,14 @@
 // Pin the NLS language to the default so localization is skipped entirely.
 globalThis._VSCODE_NLS_LANGUAGE = "en";
 
+// Single-name font picks (e.g. "Consolas") get a monospace tail so a missing
+// font on stock Linux can't silently switch Monaco to a proportional grid.
+const withMonoFallback = (f) => {
+  const s = String(f || "").trim();
+  if (!s) return s;
+  return /monospace/i.test(s) ? s : `${s}, monospace`;
+};
+
 // ── Side-effect imports: default VSCode extensions (grammars + themes) MUST be
 //    loaded before `initialize()` is called ─────────────────────────────────────
 import "@codingame/monaco-vscode-theme-defaults-default-extension";
@@ -575,7 +583,9 @@ const EditorPanel = ({ config, nodeId }) => {
       setWordWrap(s.wordWrap !== false ? "on" : "off");
       setLineNumbers(s.lineNumbers !== false ? "on" : "off");
       if (Number.isFinite(s.fontSize)) setFontSize(Math.min(32, Math.max(8, s.fontSize)));
-      if (s.fontFamily) setFontFamily(s.fontFamily);
+      // single-name picks (e.g. "Consolas") get a monospace tail so a missing
+      // font (stock Linux) can't switch Monaco to a proportional grid
+      if (s.fontFamily) setFontFamily(withMonoFallback(s.fontFamily));
       if (Number.isFinite(s.tabSize)) setTabSize(s.tabSize);
       const th = s.editorTheme || s.theme || "dark";
       setEditorTheme(th);
@@ -595,7 +605,7 @@ const EditorPanel = ({ config, nodeId }) => {
       if ("wordWrap" in patch) setWordWrap(patch.wordWrap !== false ? "on" : "off");
       if ("lineNumbers" in patch) setLineNumbers(patch.lineNumbers !== false ? "on" : "off");
       if ("fontSize" in patch && Number.isFinite(patch.fontSize)) setFontSize(Math.min(32, Math.max(8, patch.fontSize)));
-      if ("fontFamily" in patch && patch.fontFamily) setFontFamily(patch.fontFamily);
+      if ("fontFamily" in patch && patch.fontFamily) setFontFamily(withMonoFallback(patch.fontFamily));
       if ("tabSize" in patch && Number.isFinite(patch.tabSize)) setTabSize(patch.tabSize);
       if ("editorTheme" in patch || "theme" in patch) {
         const th = patch.editorTheme || patch.theme;

@@ -479,7 +479,12 @@ ipcMain.handle("fs:openFile", async (event, { filePath, editorId }) => {
   }
   const editor = KNOWN_EDITORS.find((e) => e.id === editorId);
   if (!editor || editor.id === "system" || !editor.commands.length) { await shell.openPath(filePath); return; }
-  try { spawn(editor.commands[0], [filePath], { detached: true, stdio: "ignore" }).unref(); }
+  try {
+    // Windows editors are .cmd shims (code.cmd etc.) — spawn needs a shell to resolve them
+    const child = spawn(editor.commands[0], [filePath], { detached: true, stdio: "ignore", shell: process.platform === "win32" });
+    child.on("error", () => { shell.openPath(filePath).catch(() => {}); });
+    child.unref();
+  }
   catch { await shell.openPath(filePath); }
 });
 
@@ -929,7 +934,7 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
       const results = [];
       for (const line of out.split("\n")) {
         if (!line.trim()) continue;
-        const m = line.match(/^([^:]+):(\d+):(.*)$/);
+        const m = line.match(/^((?:[A-Za-z]:)?[^:]+):(\d+):(.*)$/);
         if (m) {
           const file = m[1];
           const rel = path.relative(rootPath, file).replace(/\\/g, "/");
@@ -1462,6 +1467,8 @@ ipcMain.handle("opencode:startServer", async (_e, { hostname = "127.0.0.1", port
         cwd: projectPath,
         stdio: "pipe",
         windowsHide: true,
+        // npm global shims are opencode.cmd on Windows — needs a shell to resolve
+        shell: process.platform === "win32",
       });
       // Guard stdio pipes against EPIPE (parent closing reader) — matches fix in opencode #41968
       try { opencodeServerProcess.stdout?.on("error", (err) => { if (!isEpipeError(err)) console.error("[opencode stdout error]", err); }); } catch {}
@@ -2825,6 +2832,20 @@ function getShell() {
   return cachedShell;
 }
 
+// Probe for a shell binary that actually exists — minimal Linux containers
+// may lack $SHELL or even /bin/bash, which would make pty.spawn throw ENOENT.
+function pickShell() {
+  if (process.platform === "win32") return getShell();
+  const cands = [process.env.SHELL, "/bin/bash", "/bin/sh"].filter(Boolean);
+  for (const c of cands) {
+    try {
+      if (c.includes("/")) fs.accessSync(c, fs.constants.X_OK);
+      return c;
+    } catch { /* try next */ }
+  }
+  return "/bin/sh";
+}
+
 function getShellArgs(shell) {
   if (shell === "pwsh.exe" || shell === "powershell.exe") return ["-NoLogo"];
   return [];
@@ -2848,15 +2869,22 @@ ipcMain.handle("terminal:open", async (event, { tabId, cwd, forceRestart }) => {
     termProcesses.delete(key);
   }
 
-  const shell = getShell();
+  const shell = pickShell();
   const shellArgs = getShellArgs(shell);
-  const p = pty.spawn(shell, shellArgs, {
-    name: "xterm-256color",
-    cols: 80,
-    rows: 24,
-    cwd: cwd || process.cwd(),
-    env: { ...process.env },
-  });
+  let p;
+  try {
+    p = pty.spawn(shell, shellArgs, {
+      name: "xterm-256color",
+      cols: 80,
+      rows: 24,
+      cwd: cwd || process.cwd(),
+      env: { ...process.env },
+    });
+  } catch (err) {
+    console.error("[terminal:open] failed to spawn shell:", shell, err?.message || err);
+    try { event.sender.send("terminal:data", { tabId, data: `\r\n\x1b[31mcould not start shell (${shell})\x1b[0m\r\n` }); } catch {}
+    return false;
+  }
 
   termProcesses.set(key, p);
 
@@ -2887,6 +2915,22 @@ ipcMain.handle("terminal:write", async (event, { tabId, data }) => {
       return { ok: false, error: "EPIPE" };
     }
     try { console.error("[terminal:write] failed:", err?.message || err); } catch {}
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
+// Shell-aware chdir: cmd.exe needs `cd /d` to switch drives, pwsh/bash work with plain `cd`
+ipcMain.handle("terminal:chdir", async (event, { tabId, cwd }) => {
+  try {
+    if (!tabId || !cwd) return { ok: false };
+    const p = termProcesses.get(termKey(event.sender, tabId));
+    if (!p) return { ok: false, error: "no pty" };
+    const shell = getShell();
+    const q = String(cwd).replace(/"/g, '\\"');
+    const cmd = /cmd\.exe$/i.test(shell || "") ? `cd /d "${q}"\r` : `cd "${q}"\r`;
+    p.write(cmd);
+    return { ok: true };
+  } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }
 });
@@ -3053,13 +3097,15 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
       });
       watcher.on('error', (err) => console.warn('[LiveServer] watcher error', err?.message));
     } catch (e) { console.warn('[LiveServer] watcher failed', e.message); }
-  } else {
-    // Fallback: fs.watch recursive (Windows)
+  } else if (process.platform === "win32" || process.platform === "darwin") {
+    // Fallback: fs.watch recursive (Windows/macOS only — unsupported on Linux)
     try {
       watcher = fs.watch(lsRoot, { recursive: true }, (ev) => {
         if (['change', 'rename'].includes(ev)) scheduleReload();
       });
     } catch {}
+  } else {
+    console.warn("[LiveServer] chokidar not available — live reload disabled on Linux (run `npm install`)");
   }
 
   const server = http.createServer((req, res) => {

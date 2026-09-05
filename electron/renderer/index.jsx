@@ -135,8 +135,11 @@ const collectEditorTabs = (node, result = []) => {
 };
 
 const findTabByFilePath = (node, filePath) => {
+  // separator-insensitive: Windows tabs store `\` paths, Linux `/`, GitPanel sends `/`
+  const norm = (p) => { try { return String(p || "").replace(/\\/g, "/"); } catch { return p; } };
+  const want = norm(filePath);
   if (node.getType?.() === "tab" && node.getComponent?.() === "editor") {
-    if (node.getConfig?.()?.filePath === filePath) return node;
+    if (norm(node.getConfig?.()?.filePath) === want) return node;
   }
   const children = node.getChildren?.();
   if (children) for (const c of children) { const r = findTabByFilePath(c, filePath); if (r) return r; }

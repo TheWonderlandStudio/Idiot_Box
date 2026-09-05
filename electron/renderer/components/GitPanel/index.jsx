@@ -223,9 +223,9 @@ export default function GitPanel({ nodeId }){
   },[groups]);
 
   const openFile=(rel)=>{
+    // forward-slash form works on both OSes (tab matching is separator-insensitive)
     const full= projectPath ? `${projectPath}/${rel}`.replace(/\\/g,"/").replace(/\/\//g,"/") : rel;
-    const normalized=full.replace(/\//g,"\\");
-    window.dispatchEvent(new CustomEvent("open-file-in-editor",{ detail:{ path: normalized }}));
+    window.dispatchEvent(new CustomEvent("open-file-in-editor",{ detail:{ path: full }}));
   };
   const copyText=async(t)=>{
     try{ if(window.electronAPI?.clipboardWrite) await window.electronAPI.clipboardWrite(t); else await navigator.clipboard.writeText(t); showToast("Copied"); }catch{ showToast("Copy failed",true); }
@@ -641,7 +641,7 @@ export default function GitPanel({ nodeId }){
                     <div style={{display:"flex",gap:6,padding:"6px 8px",borderTop:"1px solid #232323",background:"#1a1a1a"}}>
                       <button onClick={()=>openFile(it.rel)} style={s.btnGhost}>Open File</button>
                       <button onClick={()=>copyText(it.rel)} style={s.btnGhost}>Copy Path</button>
-                      <button onClick={()=> window.electronAPI?.revealInExplorer?.(projectPath+"\\"+it.rel.replace(/\//g,"\\"))} style={s.btnGhost}>Reveal</button>
+                      <button onClick={()=> window.electronAPI?.revealInExplorer?.(`${projectPath}/${it.rel}`)} style={s.btnGhost}>Reveal</button>
                     </div>
                   </div>
                 )}
@@ -782,7 +782,7 @@ export default function GitPanel({ nodeId }){
           <button onClick={()=>{ const r=ctxMenu.rel; setCtxMenu(null); doDiscard(r); }} style={{display:"block",width:"100%",textAlign:"left",padding:"8px 12px",background:"transparent",border:"none",color:"#ff9b9b",cursor:"pointer"}}>Discard Changes</button>
           <div style={{height:1,background:"#2d2d2d"}}/>
           <button onClick={()=>{ copyText(ctxMenu.rel); setCtxMenu(null); }} style={{display:"block",width:"100%",textAlign:"left",padding:"8px 12px",background:"transparent",border:"none",color:"#ccc",cursor:"pointer"}}>Copy Relative Path</button>
-          <button onClick={()=>{ window.electronAPI?.revealInExplorer?.(projectPath+"\\"+ctxMenu.rel.replace(/\//g,"\\")); setCtxMenu(null); }} style={{display:"block",width:"100%",textAlign:"left",padding:"8px 12px",background:"transparent",border:"none",color:"#ccc",cursor:"pointer"}}>Reveal in Explorer</button>
+          <button onClick={()=>{ window.electronAPI?.revealInExplorer?.(`${projectPath}/${ctxMenu.rel}`); setCtxMenu(null); }} style={{display:"block",width:"100%",textAlign:"left",padding:"8px 12px",background:"transparent",border:"none",color:"#ccc",cursor:"pointer"}}>Reveal in Explorer</button>
         </div>
       )}
 

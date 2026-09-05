@@ -151,16 +151,27 @@ buildSomething('your idea');</pre></div>
       video.play().catch(function () {});
       video.addEventListener('canplay', function () { video.play().catch(function () {}); });
 
-      // Nav download — hamesha latest release ka exe
+      // Nav download — hamesha latest release ka installer (OS ke hisaab se: Linux → AppImage/deb, else Windows exe)
       const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
       let cachedUrl = null;
+      const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+      function pickReleaseAsset(assets) {
+        const list = assets || [];
+        if (IS_LINUX) {
+          return list.find(function (a) { return /\.AppImage$/i.test(a.name); }) || list.find(function (a) { return /\.deb$/i.test(a.name); });
+        }
+        return list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
+      }
+      if (IS_LINUX) {
+        document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download .AppImage'; });
+      }
       function resolveExeUrl() {
         if (cachedUrl) return Promise.resolve(cachedUrl);
         return fetch('https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest')
           .then(function (res) { if (!res.ok) throw new Error('api failed'); return res.json(); })
           .then(function (data) {
-            const exe = (data.assets || []).find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
-            if (!exe) throw new Error('no exe');
+            const exe = pickReleaseAsset(data.assets);
+            if (!exe) throw new Error('no installer');
             cachedUrl = exe.browser_download_url;
             return cachedUrl;
           });

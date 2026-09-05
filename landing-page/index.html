@@ -35,7 +35,7 @@
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "url": "https://thewonderlandstudio.github.io/Idiot_Box/",
     "downloadUrl": "https://github.com/TheWonderlandStudio/Idiot_Box/releases",
-    "softwareVersion": "0.1.13",
+    "softwareVersion": "0.1.14",
     "author": { "@type": "Organization", "name": "The Wonderland Studio", "url": "https://github.com/TheWonderlandStudio" },
     "description": "Free, open-source desktop IDE for Windows with a Monaco code editor, integrated terminal, browser panel, visual project map and file manager in one window."
   }
@@ -81,7 +81,7 @@
     </div>
     <a class="side-tab" href="features.html">Features</a>
     <section class="hero">
-      <p class="hero-kicker">Idiot Box · <span data-release-version>v0.1.13</span> · Free &amp; open source <span class="new-pill" hidden>New</span></p>
+      <p class="hero-kicker">Idiot Box · <span data-release-version>v0.1.14</span> · Free &amp; open source <span class="new-pill" hidden>New</span></p>
       <h1 class="hero-title">Your whole project, in one window</h1>
       <p class="hero-sub">Map your project, write code, run the terminal. Everything you need in one calm window that stays out of your way, so you can just build.</p>
       <div class="hero-cta">
@@ -175,12 +175,26 @@
         let currentTag = null;
         let cachedUrl = null;
 
+        // OS-aware asset picker — Linux visitors get AppImage (else deb), others get the Windows exe
+        const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+        function pickReleaseAsset(assets) {
+          const list = assets || [];
+          if (IS_LINUX) {
+            return list.find((a) => /\.AppImage$/i.test(a.name)) || list.find((a) => /\.deb$/i.test(a.name));
+          }
+          return list.find((a) => /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name));
+        }
+        // Linux visitors see a Linux download label (handler below preserves it via original text)
+        if (IS_LINUX) {
+          document.querySelectorAll('.btn-primary[data-download-latest]').forEach((b) => { b.textContent = 'Download for Linux'; });
+        }
+
         async function checkRelease() {
           const res = await fetch(API);
           if (!res.ok) throw new Error('release api failed');
           const data = await res.json();
-          const exe = (data.assets || []).find((a) => /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name));
-          if (!exe) throw new Error('no exe found');
+          const exe = pickReleaseAsset(data.assets);
+          if (!exe) throw new Error('no installer found');
           if (currentTag && data.tag_name !== currentTag) {
             // naya release mila — badge dikhao
             document.querySelectorAll('.new-pill').forEach((el) => { el.hidden = false; });

@@ -611,7 +611,7 @@ const SidebarTree = ({
       case "openInExternalBrowser": {
         try { await window.electronAPI.openFile(filePath, "system"); }
         catch {
-          const fileUrl = "file:///" + filePath.replace(/\\/g, "/");
+          const fileUrl = "file:///" + filePath.replace(/\\/g, "/").replace(/^\//, "");
           try { await window.electronAPI.openUrl(fileUrl); } catch {}
         }
         break;

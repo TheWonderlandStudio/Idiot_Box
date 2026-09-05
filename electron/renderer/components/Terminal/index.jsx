@@ -63,10 +63,17 @@ const TERMINAL_PANEL_CSS = `
 const TerminalStyle = () => <style>{XTERM_CUSTOM_CSS}{TERMINAL_PANEL_CSS}</style>;
 
 // ─── Terminal settings helpers ────────────────────────────────────────────
+// withMonoFallback: single-name picks (e.g. "Consolas") get a monospace tail
+// so a missing font can't silently switch the xterm cell grid to proportional.
+const withMonoFallback = (f) => {
+  const s = String(f || "").trim();
+  if (!s) return s;
+  return /monospace/i.test(s) ? s : `${s}, monospace`;
+};
 const getTerminalOpts = (settings = {}) => {
   const t = settings.terminal || {};
   const fontSize = Number.isFinite(t.fontSize) ? t.fontSize : Number.isFinite(settings.terminalFontSize) ? settings.terminalFontSize : 13;
-  const fontFamily = t.fontFamily || settings.terminalFontFamily || "Courier New, Courier, monospace";
+  const fontFamily = withMonoFallback(t.fontFamily || settings.terminalFontFamily || "Courier New, Courier, monospace");
   const cursorStyle = t.cursorStyle || settings.terminalCursorStyle || "block";
   const cursorBlink = t.cursorBlink !== undefined ? !!t.cursorBlink : settings.terminalCursorBlink !== undefined ? !!settings.terminalCursorBlink : true;
   const scrollback = Number.isFinite(t.scrollback) ? t.scrollback : Number.isFinite(settings.terminalScrollback) ? settings.terminalScrollback : 1000;
@@ -150,6 +157,16 @@ const TerminalPanel = ({ nodeId, config }) => {
     if (termRef.current) {
       try { termRef.current.focus(); } catch {}
     }
+  }, []);
+
+  // Shell-aware chdir via main (cmd.exe needs `cd /d` for drive switches).
+  // Falls back to a raw `cd` write when the new IPC is unavailable or reports no PTY.
+  const chdirTerminal = useCallback((id, dir) => {
+    const raw = () => { try { window.electronAPI.writeToTerminal(id, `cd "${String(dir).replace(/"/g, '\\"')}"\r`); } catch {} };
+    try {
+      if (!window.electronAPI.cdTerminal) { raw(); return; }
+      Promise.resolve(window.electronAPI.cdTerminal(id, dir)).then((r) => { if (!r || r.ok === false) raw(); }).catch(raw);
+    } catch { raw(); }
   }, []);
 
   // cwdRef keeps latest cwd accessible inside effects without re-triggering them
@@ -422,9 +439,8 @@ const TerminalPanel = ({ nodeId, config }) => {
       setCwd(dir);
       const ensureTerminal = () => {
         if (termRef.current) {
-          const cdCmd = `cd "${dir.replace(/"/g, '\\"')}"\r`;
           try {
-            window.electronAPI.writeToTerminal(tabId, cdCmd);
+            chdirTerminal(tabId, dir);
             try { termRef.current.focus(); } catch {}
             try { window.dispatchEvent(new CustomEvent("focus-terminal-tab")); } catch {}
           } catch {}
@@ -489,8 +505,7 @@ const TerminalPanel = ({ nodeId, config }) => {
         // PTY may have been killed by project close — openTerminal reuses the
         // live one or spawns a fresh shell in the main process, then cd in.
         window.electronAPI.openTerminal(tabId, p);
-        const cdCmd = `cd "${p}"\r`;
-        window.electronAPI.writeToTerminal(tabId, cdCmd);
+        chdirTerminal(tabId, p);
       } else if (initTerminalRef.current) {
         // No PTY yet — spawn one now that we have a project path (creates
         // the xterm UI too; before this fix only the PTY was spawned, leaving

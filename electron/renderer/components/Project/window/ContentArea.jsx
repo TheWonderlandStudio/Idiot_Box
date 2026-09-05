@@ -282,7 +282,7 @@ const ContentArea = ({
           try { await window.electronAPI.openFile(p, "system"); }
           catch {
             // fallback to file:// url via shell
-            const fileUrl = "file:///" + p.replace(/\\/g, "/");
+            const fileUrl = "file:///" + p.replace(/\\/g, "/").replace(/^\//, "");
             try { await window.electronAPI.openUrl(fileUrl); } catch {}
           }
         }
@@ -668,7 +668,7 @@ const ContentArea = ({
     const sel    = selectedItemsRef.current;
     const toDrag = sel.size > 0 && sel.has(entry.path) ? [...sel] : [entry.path];
     window.__ibxDragPaths = toDrag;
-    const uris = toDrag.map((p) => `file:///${p.replace(/\\/g, "/")}`).join("\n");
+    const uris = toDrag.map((p) => `file:///${p.replace(/\\/g, "/").replace(/^\//, "")}`).join("\n");
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("application/ibx-paths", JSON.stringify(toDrag));
     e.dataTransfer.setData("text/uri-list", uris);

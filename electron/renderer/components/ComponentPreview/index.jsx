@@ -562,7 +562,7 @@ const ComponentPreview = ({ nodeId, config }) => {
       source = await window.electronAPI.readTextFile(path);
     }
     if (source === null) {
-      setTranspileError(`Could not read file: ${path.split(/[\/]/).pop()}`);
+      setTranspileError(`Could not read file: ${path.split(/[\\/]/).pop()}`);
       setPreviewCode(null);
       setComponentToRender(null);
       return;

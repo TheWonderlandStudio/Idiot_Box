@@ -1,6 +1,6 @@
 {
   "name": "idiot-box",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
   "author": {
@@ -27,6 +27,8 @@
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win nsis",
     "dist:win:dir": "npm run build && electron-builder --win nsis --dir",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:linux:dir": "npm run build && electron-builder --linux --dir",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -159,6 +161,31 @@
       "displayLanguageSelector": false,
       "installerHeaderIcon": "electron/renderer/assets/idot_box.png",
       "uninstallDisplayName": "Idiot Box"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/renderer/assets/idot_box.png",
+      "category": "Development",
+      "maintainer": "TheWonderlandStudio <support@thewonderlandstudio.com>",
+      "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
+      "desktop": {
+        "Name": "Idiot Box",
+        "Comment": "Free open-source desktop IDE: code editor, terminal, browser and project map in one window",
+        "StartupWMClass": "Idiot Box"
+      }
     },
     "publish": {
       "provider": "github",
