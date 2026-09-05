@@ -18,6 +18,18 @@ let nextTerminalId = 1;
 // dynamic updates and caused the Settings bug where terminal size changed editor size instead.
 const XTERM_CUSTOM_CSS = `
 .xterm, .xterm * { font-kerning: none; }
+/* Fix character/cell sizing: the app's global '* { font-family: Fredoka }'
+   rule matches xterm's inner spans directly, which beats inheritance from
+   xterm's own font settings (rows container + measure container). That made
+   glyphs render/measure in a proportional font while xterm's grid assumed
+   monospace metrics, producing a bogus letter-spacing correction and wide
+   gaps (e.g. 'PS D:\\idiot>'). Force inner spans to inherit so they use the
+   monospace font xterm sets from term.options.fontFamily (keeps Settings →
+   Terminal → Font Family dynamic — no hardcoded font here). */
+.xterm-rows span,
+.xterm-char-measure-element,
+.xterm-width-cache-measure-container,
+.xterm-width-cache-measure-container span { font-family: inherit; }
 .xterm { height: 100%; padding: 0 !important; background: #1e1e1e !important; }
 .xterm-viewport { scrollbar-width: thin; background: #1e1e1e !important; }
 .xterm-viewport::-webkit-scrollbar { width: 6px; }
