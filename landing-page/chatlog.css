@@ -248,6 +248,11 @@ body{
   padding: 10px 20px;
 }
 
+/* spacing between side-by-side installer buttons (Windows + Linux) */
+.log-dl + .log-dl{
+  margin-left: 8px;
+}
+
 /* screen-reader only — SEO heading, zero visual change */
 .sr-only{
   position: absolute;

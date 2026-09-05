@@ -91,9 +91,21 @@
         return list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
       }
       function assetLabel(url) {
-        if (/\.AppImage$/i.test(url || '')) return 'Download .AppImage';
-        if (/\.deb$/i.test(url || '')) return 'Download .deb';
-        return 'Download .exe';
+        if (/\.AppImage$/i.test(url || '')) return 'Download .AppImage (Linux)';
+        if (/\.deb$/i.test(url || '')) return 'Download .deb (Linux)';
+        return 'Download .exe (Windows)';
+      }
+      // All installer options for a release — Windows exe + Linux AppImage/deb side by side
+      function installerLinks(assets) {
+        const list = assets || [];
+        const exe = list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
+        const appImage = list.find(function (a) { return /\.AppImage$/i.test(a.name); });
+        const deb = list.find(function (a) { return /\.deb$/i.test(a.name); });
+        const out = [];
+        if (exe) out.push('<a class="log-dl" href="' + exe.browser_download_url + '">' + assetLabel(exe.browser_download_url) + '</a>');
+        if (appImage) out.push('<a class="log-dl" href="' + appImage.browser_download_url + '">' + assetLabel(appImage.browser_download_url) + '</a>');
+        if (deb && !appImage) out.push('<a class="log-dl" href="' + deb.browser_download_url + '">' + assetLabel(deb.browser_download_url) + '</a>');
+        return out.join(' ');
       }
       function esc(s) {
         return String(s == null ? '' : s)
@@ -112,7 +124,7 @@
           if (!Array.isArray(releases) || !releases.length) throw new Error('empty');
           feed.innerHTML = '';
           releases.forEach(function (r) {
-            const exe = pickReleaseAsset(r.assets);
+            const links = installerLinks(r.assets);
             const card = document.createElement('article');
             card.className = 'log-card';
             card.innerHTML =
@@ -120,7 +132,7 @@
               '<span class="log-date">' + esc((r.published_at || '').slice(0, 10)) + '</span></div>' +
               '<h2 class="log-title">' + esc(r.name || r.tag_name) + '</h2>' +
               (r.body ? '<div class="log-body">' + renderBody(r.body) + '</div>' : '') +
-              (exe ? '<a class="log-dl" href="' + exe.browser_download_url + '">' + assetLabel(exe.browser_download_url) + '</a>' : '');
+              (links ? links : '');
             feed.appendChild(card);
           });
         })
