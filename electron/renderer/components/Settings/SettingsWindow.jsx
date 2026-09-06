@@ -5,6 +5,7 @@ import EditorPage      from "./pages/EditorPage.jsx";
 import TerminalPage    from "./pages/TerminalPage.jsx";
 import GitPage         from "./pages/GitPage.jsx";
 import CanvasPage      from "./pages/CanvasPage.jsx";
+import AIPage          from "./pages/AIPage.jsx";
 import KeybindingsPage from "./pages/KeybindingsPage.jsx";
 import ExtensionsPage  from "./pages/ExtensionsPage.jsx";
 import "../../variables.css";
@@ -17,6 +18,7 @@ const NAV = [
   { id: "terminal",    label: "Terminal" },
   { id: "git",         label: "Git" },
   { id: "canvas",      label: "Canvas" },
+  { id: "ai",          label: "AI" },
   { id: "keybindings", label: "Keybindings" },
   { id: "extensions",  label: "Extensions" },
 ];
@@ -86,6 +88,7 @@ const SettingsWindow = () => {
       case "terminal":    return <TerminalPage settings={settings} onSave={updateSettings} />;
       case "git":         return <GitPage settings={settings} onSave={updateSettings} />;
       case "canvas":      return <CanvasPage settings={settings} onSave={updateSettings} />;
+      case "ai":          return <AIPage settings={settings} onSave={updateSettings} />;
       case "keybindings": return <KeybindingsPage />;
       case "extensions":  return <ExtensionsPage />;
       default:            return null;

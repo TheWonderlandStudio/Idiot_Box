@@ -100,7 +100,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:fullscreen",
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
       "menu:clearTerminal","menu:killTerminal",
-      "menu:openPorts","menu:openGit","menu:openAI"
+      "menu:openPorts","menu:openGit","menu:openAI","menu:openAndroid"
     ];
     if (!valid.includes(channel)) return () => {};
     const handler = (_e, payload) => callback(payload);
@@ -215,10 +215,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   gitPull:    (rootPath)             => ipcRenderer.invoke("git:pull", rootPath),
   gitFetch:   (rootPath)             => ipcRenderer.invoke("git:fetch", rootPath),
 
-  // ── Canvas (Visual Project Map) ────────────────────────────────────────────
+  // ── Canvas (Excalidraw drawing surface) ────────────────────────────────────
   scanCanvas:        (rootPath) => ipcRenderer.invoke("canvas:scan",        rootPath),
   saveCanvasLayout:  (rootPath, data) => ipcRenderer.invoke("canvas:saveLayout", rootPath, data),
   loadCanvasLayout:  (rootPath) => ipcRenderer.invoke("canvas:loadLayout",  rootPath),
+  // JSON / .excalidraw drawings — per-project scratch file in app storage.
+  // File-backed drawings (*.excalidraw in the project) use readTextFile/writeFileText.
+  saveDrawing: (rootPath, data) => ipcRenderer.invoke("canvas:saveDrawing", rootPath, data),
+  loadDrawing: (rootPath) => ipcRenderer.invoke("canvas:loadDrawing", rootPath),
 
   // ── Project storage (app memory — not in project folder) ──────────────────
   getProjectStorageInfo: (rootPath) => ipcRenderer.invoke("projectStorage:getInfo", rootPath),
@@ -257,15 +261,45 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("liveEdit:fileChanged", handler);
   },
 
+  // ── Android Emulator (SDK rooted at <userData>/.appdata/android) ─────────
+  androidGetState:      () => ipcRenderer.invoke("android:getState"),
+  androidSetupSdk:      () => ipcRenderer.invoke("android:setupSdk"),
+  androidListAvds:      () => ipcRenderer.invoke("android:listAvds"),
+  androidCreateAvd:     (payload) => ipcRenderer.invoke("android:createAvd", payload),
+  androidDeleteAvd:     (name) => ipcRenderer.invoke("android:deleteAvd", { name }),
+  androidStartAvd:      (name, args) => ipcRenderer.invoke("android:startAvd", { name, args }),
+  androidStopAvd:       (name) => ipcRenderer.invoke("android:stopAvd", { name }),
+  androidInstallPackage:(packageId) => ipcRenderer.invoke("android:installPackage", { packageId }),
+  androidRevealFolder:  () => ipcRenderer.invoke("android:revealFolder"),
+  onAndroidProgress: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("android:progress", handler);
+    return () => ipcRenderer.removeListener("android:progress", handler);
+  },
+
   // ── Session ─────────────────────────────────────────────────────────────────
   saveSession:   (data) => ipcRenderer.invoke("session:save", data),
   loadSession:   ()     => ipcRenderer.invoke("session:load"),
 
-  // ── OpenCode AI SDK ─────────────────────────────────────────────────────────
-  opencodeInit: (config) => ipcRenderer.invoke("opencode:init", config),
-  opencodeChat: (payload) => ipcRenderer.invoke("opencode:chat", payload),
-  opencodeStatus: () => ipcRenderer.invoke("opencode:status"),
-  opencodeStartServer: (config) => ipcRenderer.invoke("opencode:startServer", config),
-  opencodeStopServer: () => ipcRenderer.invoke("opencode:stopServer"),
-  opencodeInstallCLI: () => ipcRenderer.invoke("opencode:installCLI"),
+  // ── AI Panel — Vercel AI SDK streaming via main (https://ai-sdk.dev) ─────
+  // invoke aiChat -> { ok, requestId?, error? }; stream arrives on ai:stream,
+  // completion on ai:done, failures on ai:error (all carry requestId).
+  aiChat:     (payload) => ipcRenderer.invoke("ai:chat", payload),
+  aiAbort:    (requestId) => ipcRenderer.invoke("ai:abort", requestId),
+  aiValidate: (config) => ipcRenderer.invoke("ai:validate", config || {}),
+  onAiStream: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("ai:stream", handler);
+    return () => ipcRenderer.removeListener("ai:stream", handler);
+  },
+  onAiDone: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("ai:done", handler);
+    return () => ipcRenderer.removeListener("ai:done", handler);
+  },
+  onAiError: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("ai:error", handler);
+    return () => ipcRenderer.removeListener("ai:error", handler);
+  },
 });

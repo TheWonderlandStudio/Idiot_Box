@@ -7,6 +7,7 @@ build/build.log
 .canvas/
 .project_config/
 .trash/
+.appdata/
 
 # generated renderer bundles (rebuild with npm run build)
 electron/renderer/bundle.js
@@ -15,6 +16,10 @@ electron/renderer/settings-bundle.js
 electron/renderer/settings-bundle.css
 electron/renderer/*.worker.js
 electron/renderer/worker/*
+
+# generated AI panel stylesheet (rebuild with npm run build:ai-css)
+electron/renderer/components/AIPanel/ai-tw.css
+electron/renderer/components/AIPanel/ai-tw-css.js
 
 # generated preload bundle
 electron/preload/preload-bundle.cjs

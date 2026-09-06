@@ -21,6 +21,7 @@ import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
+import AndroidEmulatorPanel from "./components/AndroidEmulator/index.jsx";
 import AIPanel from "./components/AIPanel/index.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 
@@ -67,7 +68,10 @@ const DEFAULT_JSON = {
       },
       {
         type: "tabset", weight: 25, id: "editor-tabset",
-        children: [{ type: "tab", name: "Editor", component: "editor" }],
+        children: [
+          { type: "tab", name: "Editor", component: "editor" },
+          { type: "tab", name: "AI", component: "aiPanel" },
+        ],
       },
       
     ],
@@ -87,6 +91,7 @@ const factory = (node) => {
   case "problems":          return <ProblemsPanel />;
   case "gitPanel":          return <GitPanel nodeId={node.getId()} />;
   case "ports":             return <PortsPanel />;
+  case "androidEmulator":   return <AndroidEmulatorPanel />;
   case "aiPanel":           return <AIPanel nodeId={node.getId()} />;
   default:                  return null;
   }
@@ -128,7 +133,8 @@ const UpdaterNavButton = () => {
 const collectEditorTabs = (node, result = []) => {
   if (node.getType?.() === "tab" && node.getComponent?.() === "editor") {
     const fp = node.getConfig?.()?.filePath;
-    if (fp) result.push(fp);
+    // .excalidraw drawings live in Canvas tabs now — never persist as editor tabs.
+    if (fp && !/\.excalidraw(\.json)?$/i.test(fp)) result.push(fp);
   }
   node.getChildren?.()?.forEach((c) => collectEditorTabs(c, result));
   return result;
@@ -277,6 +283,13 @@ const App = () => {
     if (!m) return;
 
     for (const filePath of tabs) {
+      // .excalidraw drawings now live in the Canvas panel, not the editor.
+      if (typeof filePath === "string" && /\.excalidraw(\.json)?$/i.test(filePath)) {
+        try {
+          window.dispatchEvent(new CustomEvent("add-canvas-panel", { detail: { filePath } }));
+        } catch {}
+        continue;
+      }
       if (findTabByFilePath(m.getRoot(), filePath)) continue; // already open
 
       const name = filePath.replace(/.*[\\/]/, "") || filePath;
@@ -317,7 +330,7 @@ const App = () => {
             if (node.component === "panel5") node.component = "editor";
             if (node.name === "panel5") node.name = "Editor";
             // Migrate any removed/unknown components to blank (keep builder/docs for cleanup below)
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","terminal","blank","componentPreview","canvas","problems","gitPanel","ports","builder","docs"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","terminal","blank","componentPreview","canvas","problems","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
@@ -453,6 +466,33 @@ const App = () => {
             node.children = node.children.filter((ch) => !(ch.type === "row" && (!ch.children || ch.children.length === 0)));
           };
           cleanEmpty2(json.layout);
+        } catch {}
+      })();
+      // ── Auto-inject AI panel for sessions that predate it ──────────────
+      (() => {
+        try {
+          let hasAI = false;
+          const walk = (node) => {
+            if (node.type === "tab" && node.component === "aiPanel") hasAI = true;
+            if (node.children) node.children.forEach(walk);
+          };
+          walk(json.layout || json);
+          if (hasAI) return;
+          // Prefer the editor tabset (shares the right column with Editor)
+          let target = null;
+          const findTarget = (node) => {
+            if (node.type === "tabset" && node.children && node.children.some((c) => c.component === "editor")) {
+              target = node; return true;
+            }
+            if (node.children) for (const ch of node.children) if (findTarget(ch)) return true;
+            return false;
+          };
+          findTarget(json.layout || json);
+          if (target) {
+            target.children.push({ type: "tab", name: "AI", component: "aiPanel" });
+          } else if (json.layout && Array.isArray(json.layout.children)) {
+            json.layout.children.push({ type: "tabset", weight: 20, children: [{ type: "tab", name: "AI", component: "aiPanel" }] });
+          }
         } catch {}
       })();
       modelRef.current = Model.fromJson(json);
@@ -681,7 +721,32 @@ const App = () => {
     };
     const onBrowser = (e) => addPanel("panel3", "Browser", e.detail?.config || { type: "browser", title: "Browser", url: e.detail?.url || "https://www.google.com" });
     const onPreview = () => addPanel("componentPreview", "Component Preview", {});
-    const onCanvas = () => addPanel("canvas", "Canvas", {});
+    // Canvas (Excalidraw): optional detail { filePath } opens a file-backed
+    // drawing; otherwise opens the per-project scratch drawing. Reuses an
+    // existing canvas tab for the same file instead of duplicating it.
+    const onCanvas = (e) => {
+      const filePath = e?.detail?.filePath || e?.detail?.path || null;
+      const m = modelRef.current;
+      if (filePath && m) {
+        try {
+          const norm = (p) => String(p || "").replace(/\\/g, "/");
+          const want = norm(filePath);
+          const findCanvas = (node) => {
+            if (node.getType?.() === "tab" && node.getComponent?.() === "canvas") {
+              const cfg = node.getConfig?.() || {};
+              if (norm(cfg.filePath) === want) return node;
+            }
+            const ch = node.getChildren?.();
+            if (ch) for (const c of ch) { const r = findCanvas(c); if (r) return r; }
+            return null;
+          };
+          const existing = findCanvas(m.getRoot());
+          if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+        } catch {}
+      }
+      const name = filePath ? String(filePath).replace(/.*[\\/]/, "") : "Canvas";
+      addPanel("canvas", name, filePath ? { filePath } : {});
+    };
     const onPorts = () => {
       const m = modelRef.current;
       if (m) {
@@ -722,7 +787,21 @@ const App = () => {
         const existing = findAI(m.getRoot());
         if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
       }
-      addPanel("aiPanel", "AI Assistant", {});
+      addPanel("aiPanel", "AI", {});
+    };
+    const onAndroid = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findAndroid = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "androidEmulator") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findAndroid(c); if (r) return r; }
+          return null;
+        };
+        const existing = findAndroid(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("androidEmulator", "Android Emulator", {});
     };
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-component-preview-panel", onPreview);
@@ -730,6 +809,7 @@ const App = () => {
     window.addEventListener("add-ports-panel", onPorts);
     window.addEventListener("add-git-panel", onGit);
     window.addEventListener("add-ai-panel", onAI);
+    window.addEventListener("add-android-panel", onAndroid);
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
       window.removeEventListener("add-component-preview-panel", onPreview);
@@ -737,6 +817,7 @@ const App = () => {
       window.removeEventListener("add-ports-panel", onPorts);
       window.removeEventListener("add-git-panel", onGit);
       window.removeEventListener("add-ai-panel", onAI);
+      window.removeEventListener("add-android-panel", onAndroid);
     };
   }, []);
 
@@ -777,6 +858,12 @@ const App = () => {
     });
     return unsub;
   }, []);
+  useEffect(() => {
+    const unsub = window.electronAPI.onMenuEvent("menu:openAndroid", () => {
+      window.dispatchEvent(new CustomEvent("add-android-panel"));
+    });
+    return unsub;
+  }, []);
   // ── Split Editor Right — clone the active editor tab to the right ────────
   // Both tabs share the same file:// Monaco model, so edits sync live.
   useEffect(() => {
@@ -811,11 +898,29 @@ const App = () => {
     });
     return unsub;
   }, []);
+  // ── AI panel: View → AI Panel (Ctrl+Shift+A) + renderer fallback ──────
+  // Monaco can swallow the native accelerator, so also listen here (capture).
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:openAI", () => {
       window.dispatchEvent(new CustomEvent("add-ai-panel"));
     });
-    return unsub;
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey &&
+          String(e.key || "").toLowerCase() === "a") {
+        e.preventDefault();
+        e.stopPropagation();
+        try { e.stopImmediatePropagation(); } catch {}
+        window.dispatchEvent(new CustomEvent("add-ai-panel"));
+        return false;
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      try { unsub(); } catch {}
+      window.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
   }, []);
 
   // Open settings window when browser panel requests it
@@ -1093,6 +1198,12 @@ const App = () => {
       return findSelected(m.getRoot());
     };
 
+    // .excalidraw drawings open in the Canvas panel, not the text editor.
+    const isExcalidrawFile = (p) => typeof p === "string" && /\.excalidraw(\.json)?$/i.test(p);
+    const openInCanvas = (filePath) => {
+      window.dispatchEvent(new CustomEvent("add-canvas-panel", { detail: { filePath } }));
+    };
+
     // Single-click: replace the active editor tab (VS Code preview-mode style).
     // If the file is already open somewhere, switch to it.
     // If no editor tab exists yet, create one.
@@ -1102,6 +1213,11 @@ const App = () => {
       // Project-panel click on a media file → auto-open in Media Viewer (if enabled).
       if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
         openInMediaViewer(filePath);
+        return;
+      }
+      // .excalidraw / .excalidraw.json → Canvas (Excalidraw drawing surface).
+      if (isExcalidrawFile(filePath)) {
+        openInCanvas(filePath);
         return;
       }
 
@@ -1148,6 +1264,10 @@ const App = () => {
       if (!m || !filePath) return;
       if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
         openInMediaViewer(filePath);
+        return;
+      }
+      if (isExcalidrawFile(filePath)) {
+        openInCanvas(filePath);
         return;
       }
 
@@ -1380,6 +1500,16 @@ const App = () => {
           <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: 10 }} />
           <UpdaterNavButton />
           <button
+            onClick={() => window.dispatchEvent(new CustomEvent("add-ai-panel"))}
+            title="Open AI Panel (Ctrl+Shift+A) — chat assistant powered by the Vercel AI SDK"
+            style={{
+              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
+              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+            }}
+          >
+            AI
+          </button>
+          <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-ports-panel"))}
             title="Open Ports — forwarded & running dev servers"
             style={{
@@ -1388,6 +1518,16 @@ const App = () => {
             }}
           >
             Ports
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("add-android-panel"))}
+            title="Open Android Emulator — SDK in .appdata/android"
+            style={{
+              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
+              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+            }}
+          >
+            Emulator
           </button>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-canvas-panel"))}

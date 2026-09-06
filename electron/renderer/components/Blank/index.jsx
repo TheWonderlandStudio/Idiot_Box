@@ -145,7 +145,7 @@ const PANEL_TYPES = [
     id: "ai",
     name: "AI Assistant",
     component: "aiPanel",
-    description: "OpenCode AI — full app control, file ops, git, terminal, search",
+    description: "Chat assistant (Vercel AI SDK) — ask about your code, attach files, read the project",
     icon: (
       <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="2" width="12" height="12" rx="2" stroke="#4ec9b0" strokeWidth="1.5" />
