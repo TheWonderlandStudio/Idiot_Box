@@ -2705,6 +2705,416 @@ ipcMain.handle("terminal:tabContextMenu", (event) => {
   });
 });
 
+// ─── Notebook (Jupyter-like cell execution, no jupyter dependency) ──────────
+// Persistent per-file Python process running a small runner loop on stdin.
+// Protocol (utf-8, byte-counted):
+//   main  -> kernel: "__IBX_RUN__ <id> <byteLen>\n" + <code bytes> + "\n"
+//   kernel -> main : "__IBX_OUT__ <id> <jsonLen>\n" + <json bytes> + "\n__IBX_END__ <id>\n"
+// JSON payload: { status, stdout, stderr, result, displays[], error }
+// State (variables, imports, functions) persists across cells until restart.
+const notebookSessions = new Map(); // normFilePath -> { proc, buf, pending, execCounter, cwd, python, version, starting }
+let _notebookPythonCache = null;
+
+const notebookNorm = (p) => { try { return String(p || "").replace(/\\/g, "/"); } catch { return String(p); } };
+
+function notebookDetectPython() {
+  return new Promise((resolve) => {
+    if (_notebookPythonCache) return resolve(_notebookPythonCache);
+    const candidates = process.platform === "win32"
+      ? [["python", []], ["python3", []], ["py", ["-3"]]]
+      : [["python3", []], ["python", []]];
+    let i = 0;
+    const tryNext = () => {
+      if (i >= candidates.length) {
+        _notebookPythonCache = { ok: false, error: "Python not found. Install Python 3 and ensure `python` / `python3` is on PATH." };
+        return resolve(_notebookPythonCache);
+      }
+      const [cmd, extra] = candidates[i++];
+      let child = null;
+      try {
+        child = spawn(cmd, [...extra, "--version"], { windowsHide: true, timeout: 8000 });
+      } catch (e) { tryNext(); return; }
+      let out = "";
+      try {
+        child.stdout?.on("data", (d) => { out += String(d); });
+        child.stderr?.on("data", (d) => { out += String(d); });
+      } catch {}
+      const done = (ok) => {
+        try { child.kill(); } catch {}
+        if (ok) {
+          const m = String(out).match(/Python\s+([\d.]+)/i);
+          _notebookPythonCache = { ok: true, python: cmd, args: extra, version: m ? m[1] : String(out).trim().slice(0, 32) };
+          return resolve(_notebookPythonCache);
+        }
+        tryNext();
+      };
+      child.on("error", () => done(false));
+      child.on("exit", (code) => done(code === 0 || /python/i.test(out)));
+      setTimeout(() => { try { child.kill(); } catch {} done(/python/i.test(out)); }, 8000);
+    };
+    tryNext();
+  });
+}
+
+// Runner loop: stateful globals + stdout/stderr capture + last-expr display +
+// display() collector + matplotlib inline figures. input() is stubbed — the
+// kernel's stdin carries the run protocol, so interactive input can't work.
+const NOTEBOOK_RUNNER_CODE = `
+import sys, io, json, ast, traceback, base64
+user_ns = {"__name__": "__main__"}
+exec_count = 0
+_real_stdout = sys.__stdout__
+_real_stderr = sys.__stderr__
+_pending_displays = []
+def display(*objs, **kwargs):
+    for o in objs:
+        try:
+            d = {}
+            if hasattr(o, "_repr_png_"):
+                try:
+                    v = o._repr_png_()
+                    if v:
+                        import base64 as _b
+                        d["image/png"] = _b.b64encode(v if isinstance(v, (bytes, bytearray)) else str(v).encode()).decode()
+                except Exception: pass
+            if hasattr(o, "_repr_html_"):
+                try:
+                    v = o._repr_html_()
+                    if v: d["text/html"] = str(v)
+                except Exception: pass
+            if hasattr(o, "_repr_svg_"):
+                try:
+                    v = o._repr_svg_()
+                    if v: d["image/svg+xml"] = str(v)
+                except Exception: pass
+            if not d:
+                try: d["text/plain"] = repr(o)
+                except Exception: d["text/plain"] = str(o)
+            _pending_displays.append(d)
+        except Exception: pass
+user_ns["display"] = display
+try:
+    import builtins as _bi
+    _orig_input = _bi.input
+    def _no_input(*a, **k):
+        raise EOFError("input() is not supported in Idiot Box notebooks — run interactive prompts in the Terminal instead.")
+    _bi.input = _no_input
+except Exception: pass
+def _emit(exec_id, payload):
+    # NOTE: framing goes through the BINARY buffer only. Text-mode stdout
+    # on Windows rewrites newlines, which would corrupt byte counts.
+    try:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        _outbuf = _real_stdout.buffer
+        _outbuf.write(("__IBX_OUT__ %s %d\\n" % (exec_id, len(data))).encode("utf-8"))
+        _outbuf.write(data)
+        _outbuf.write(b"\\n__IBX_END__ " + str(exec_id).encode() + b"\\n")
+        _outbuf.flush()
+    except Exception:
+        try:
+            _outbuf = _real_stdout.buffer
+            _outbuf.write(("__IBX_OUT__ %s 0\\n\\n__IBX_END__ %s\\n" % (exec_id, exec_id)).encode("utf-8"))
+            _outbuf.flush()
+        except Exception: pass
+def _capture_matplotlib():
+    figs = []
+    try:
+        import matplotlib
+        try: matplotlib.use("Agg")
+        except Exception: pass
+        import matplotlib.pyplot as plt
+        try: nums = plt.get_fignums()
+        except Exception: nums = []
+        for n in nums:
+            try:
+                fig = plt.figure(n)
+                buf = io.BytesIO()
+                fig.savefig(buf, format="png", bbox_inches="tight")
+                figs.append({"image/png": base64.b64encode(buf.getvalue()).decode()})
+            except Exception: pass
+        try: plt.close("all")
+        except Exception: pass
+    except Exception: pass
+    return figs
+_stdin_buf = sys.stdin.buffer
+def _readline():
+    line = _stdin_buf.readline()
+    if not line: return None
+    return line.decode("utf-8", "replace")
+_real_stdout.buffer.write(b"__IBX_READY__\\n"); _real_stdout.buffer.flush()
+while True:
+    try:
+        header = _readline()
+        if header is None: break
+        header = header.strip()
+        if not header: continue
+        if header == "__IBX_EXIT__":
+            break
+        parts = header.split()
+        if len(parts) != 3 or parts[0] != "__IBX_RUN__":
+            continue
+        _, exec_id, nstr = parts
+        try: n = int(nstr)
+        except Exception: continue
+        raw = b""
+        while len(raw) < n:
+            chunk = _stdin_buf.read(n - len(raw))
+            if not chunk: break
+            raw += chunk
+        try: _stdin_buf.readline()
+        except Exception: pass
+        try: code = raw.decode("utf-8", "replace")
+        except Exception: code = ""
+        exec_count += 1
+        _pending_displays = []
+        stdout_buf = io.StringIO(); stderr_buf = io.StringIO()
+        _old_out, _old_err = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = stdout_buf, stderr_buf
+        status = "ok"; result = None; err = None
+        try:
+            try: tree = ast.parse(code)
+            except SyntaxError:
+                raise
+            last_val = None; has_expr = False
+            if tree.body and isinstance(tree.body[-1], ast.Expr):
+                has_expr = True
+                mod = ast.Module(body=tree.body[:-1], type_ignores=[])
+                try: ast.fix_missing_locations(mod)
+                except Exception: pass
+                exec(compile(mod, "<cell>", "exec"), user_ns)
+                try:
+                    expr = ast.Expression(body=tree.body[-1].value)
+                    try: ast.fix_missing_locations(expr)
+                    except Exception: pass
+                    last_val = eval(compile(expr, "<cell>", "eval"), user_ns)
+                except Exception:
+                    raise
+                if last_val is not None:
+                    try: result = repr(last_val)
+                    except Exception:
+                        try: result = str(last_val)
+                        except Exception: result = None
+            else:
+                exec(compile(tree, "<cell>", "exec"), user_ns)
+        except Exception as e:
+            status = "error"
+            try:
+                tb = traceback.format_exception(type(e), e, e.__traceback__)
+                # Drop the runner's own <string> frame — only <cell> matters.
+                tb = [ln for ln in tb if "<string>" not in ln]
+                err = {"ename": type(e).__name__, "evalue": str(e), "traceback": tb}
+            except Exception:
+                err = {"ename": "Error", "evalue": str(e), "traceback": [str(e)]}
+        finally:
+            sys.stdout, sys.stderr = _old_out, _old_err
+        figs = _capture_matplotlib()
+        displays = list(_pending_displays) + list(figs)
+        _emit(exec_id, {"status": status, "stdout": stdout_buf.getvalue(), "stderr": stderr_buf.getvalue(), "result": result, "displays": displays, "error": err, "execution_count": exec_count})
+    except Exception as e:
+        try: _emit("unknown", {"status": "error", "stdout": "", "stderr": "", "result": None, "displays": [], "error": {"ename": "KernelError", "evalue": str(e), "traceback": []}, "execution_count": exec_count})
+        except Exception: pass
+`;
+
+function notebookPump(session) {
+  // Parse buffered kernel stdout into completed executions.
+  try {
+    let str = session.buf.toString("utf8");
+    for (;;) {
+      // Tolerate \r\n (Windows pipe translation from older kernels) as well
+      // as pure \n framing.
+      const hm = str.match(/__IBX_OUT__[ \t]+(\S+)[ \t]+(\d+)\r?\n/);
+      if (!hm) break;
+      const execId = hm[1];
+      const jsonLen = parseInt(hm[2], 10);
+      const headerStart = hm.index;
+      if (!Number.isFinite(jsonLen) || jsonLen < 0 || jsonLen > 64 * 1024 * 1024) {
+        // Poisoned header — skip past it to resync rather than wedge the kernel.
+        const skip = Buffer.byteLength(str.slice(0, headerStart + hm[0].length), "utf8");
+        session.buf = session.buf.slice(skip);
+        str = session.buf.toString("utf8");
+        continue;
+      }
+      // Headers are ASCII so char offset == byte offset up to headerStart.
+      const headerByteStart = Buffer.byteLength(str.slice(0, headerStart), "utf8");
+      const headerByteLen = Buffer.byteLength(hm[0], "utf8");
+      const jsonByteStart = headerByteStart + headerByteLen;
+      const marker = Buffer.from("__IBX_END__ " + execId, "utf8");
+      const mIdx = session.buf.indexOf(marker, jsonByteStart + jsonLen);
+      if (mIdx < 0 || mIdx > jsonByteStart + jsonLen + 4) break; // wait for more data
+      let lineEnd = session.buf.indexOf(0x0a, mIdx); // '\n'
+      if (lineEnd < 0) break; // wait for more data
+      lineEnd += 1;
+      let payload = null;
+      try {
+        const jsonBytes = session.buf.slice(jsonByteStart, jsonByteStart + jsonLen);
+        payload = JSON.parse(jsonBytes.toString("utf8"));
+      } catch (e) {
+        payload = { status: "error", stdout: "", stderr: "", result: null, displays: [], error: { ename: "KernelError", evalue: "Bad kernel response: " + (e?.message || e), traceback: [] } };
+      }
+      // Consume through end of the marker line
+      session.buf = session.buf.slice(lineEnd);
+      str = session.buf.toString("utf8");
+      const pend = session.pending.get(execId);
+      if (pend) {
+        session.pending.delete(execId);
+        try { clearTimeout(pend.timer); } catch {}
+        try { pend.resolve({ ok: true, python: session.python, ...payload }); } catch {}
+      }
+    }
+  } catch (e) {
+    try { console.error("[notebook] pump failed:", e?.message || e); } catch {}
+  }
+}
+
+function notebookEnsureSession(filePath, cwd) {
+  return new Promise(async (resolve) => {
+    const key = notebookNorm(filePath || cwd || "global");
+    const existing = notebookSessions.get(key);
+    if (existing && existing.proc && !existing.proc.killed && existing.proc.exitCode === null) {
+      return resolve({ ok: true, session: existing });
+    }
+    if (existing) { try { existing.proc?.kill(); } catch {} notebookSessions.delete(key); }
+    const det = await notebookDetectPython();
+    if (!det.ok) return resolve({ ok: false, error: det.error });
+    const workDir = cwd || (() => { try { return path.dirname(String(filePath)); } catch { return process.cwd(); } })();
+    let proc = null;
+    try {
+      const pyArgs = [...(det.args || []), "-u", "-c", NOTEBOOK_RUNNER_CODE];
+      proc = spawn(det.python, pyArgs, { cwd: workDir, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8", MPLBACKEND: "Agg" } });
+    } catch (e) {
+      return resolve({ ok: false, error: "Could not start Python: " + (e?.message || e) });
+    }
+    const session = { proc, buf: Buffer.alloc(0), pending: new Map(), execCounter: 0, cwd: workDir, python: det.python, version: det.version, key, ready: false, readyWaiters: [] };
+    notebookSessions.set(key, session);
+    const onData = (d) => {
+      try {
+        // Swallow the ready banner — it is not part of any execution.
+        let s = String(d);
+        if (!session.ready && s.includes("__IBX_READY__")) {
+          session.ready = true;
+          s = s.replace("__IBX_READY__\n", "").replace("__IBX_READY__", "");
+          try { session.readyWaiters.forEach((w) => w()); session.readyWaiters = []; } catch {}
+          if (!s) return;
+          d = Buffer.from(s, "utf8");
+        }
+        session.buf = Buffer.concat([session.buf, Buffer.isBuffer(d) ? d : Buffer.from(String(d), "utf8")]);
+        if (session.buf.length > 32 * 1024 * 1024) {
+          // Safety: drop oldest bytes rather than ballooning forever.
+          session.buf = session.buf.slice(session.buf.length - 32 * 1024 * 1024);
+        }
+        notebookPump(session);
+      } catch (e) { try { console.error("[notebook] onData failed:", e?.message || e); } catch {} }
+    };
+    try {
+      proc.stdout?.on("data", onData);
+      proc.stderr?.on("data", (d) => {
+        // Kernel-level stderr (outside cell capture) — surface only when no
+        // pending execution can own it, to avoid confusing cell outputs.
+        try {
+          const msg = String(d);
+          if (!msg.trim()) return;
+          if (session.pending.size === 0) console.error("[notebook:kernel-stderr]", msg.slice(0, 2000));
+        } catch {}
+      });
+    } catch {}
+    const failAll = (msg) => {
+      try {
+        for (const [, pend] of session.pending) {
+          try { clearTimeout(pend.timer); } catch {}
+          try { pend.resolve({ ok: false, error: msg }); } catch {}
+        }
+        session.pending.clear();
+      } catch {}
+      try { session.readyWaiters.forEach((w) => w()); session.readyWaiters = []; } catch {}
+    };
+    proc.on("error", (e) => {
+      try { console.error("[notebook] kernel spawn error:", e?.message || e); } catch {}
+      notebookSessions.delete(key);
+      failAll("Python kernel failed to start: " + (e?.message || e));
+    });
+    proc.on("exit", (code) => {
+      if (notebookSessions.get(key) === session) notebookSessions.delete(key);
+      failAll("Python kernel exited (code " + code + "). Restart the kernel and run again.");
+    });
+    // Wait for ready banner (max 15s), then resolve.
+    const t0 = Date.now();
+    const waitReady = () => {
+      if (session.ready) return resolve({ ok: true, session });
+      if (Date.now() - t0 > 15000) {
+        try { proc.kill(); } catch {}
+        notebookSessions.delete(key);
+        return resolve({ ok: false, error: "Python kernel did not start in time (" + det.python + " " + (det.version || "") + ")." });
+      }
+      setTimeout(waitReady, 60);
+    };
+    waitReady();
+  });
+}
+
+ipcMain.handle("notebook:checkPython", async () => {
+  try { return await notebookDetectPython(); } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+
+ipcMain.handle("notebook:execute", async (_e, { filePath, code, cwd, timeoutMs } = {}) => {
+  const src = String(code ?? "");
+  if (!src.trim()) return { ok: true, status: "ok", stdout: "", stderr: "", result: null, displays: [], error: null };
+  if (src.length > 2 * 1024 * 1024) return { ok: false, error: "Cell too large (>2MB) — split it into smaller cells." };
+  const ensured = await notebookEnsureSession(filePath, cwd);
+  if (!ensured.ok) return ensured;
+  const session = ensured.session;
+  const execId = "e" + (++session.execCounter) + "_" + Date.now().toString(36);
+  const timeout = Math.min(Math.max(Number(timeoutMs) || 60000, 5000), 600000);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      try { session.pending.delete(execId); } catch {}
+      // A hung cell (infinite loop) would wedge the kernel for every later
+      // cell — kill it so the next run starts fresh instead of hanging too.
+      try { session.proc?.kill(); } catch {}
+      try { notebookSessions.delete(session.key); } catch {}
+      resolve({ ok: false, error: "Timed out after " + Math.round(timeout / 1000) + "s — kernel restarted. Check for infinite loops or blocking input()." });
+    }, timeout);
+    session.pending.set(execId, { resolve, timer });
+    try {
+      const bytes = Buffer.from(src, "utf8");
+      session.proc.stdin.write("__IBX_RUN__ " + execId + " " + bytes.length + "\n", "utf8");
+      session.proc.stdin.write(bytes);
+      session.proc.stdin.write("\n", "utf8");
+    } catch (e) {
+      try { clearTimeout(timer); } catch {}
+      try { session.pending.delete(execId); } catch {}
+      resolve({ ok: false, error: "Kernel write failed: " + (e?.message || e) });
+    }
+  });
+});
+
+ipcMain.handle("notebook:restart", async (_e, { filePath, cwd } = {}) => {
+  try {
+    const key = notebookNorm(filePath || cwd || "global");
+    const s = notebookSessions.get(key);
+    if (s) {
+      try { s.proc?.stdin?.write("__IBX_EXIT__\n"); } catch {}
+      try { s.proc?.kill(); } catch {}
+      try {
+        for (const [, pend] of s.pending) {
+          try { clearTimeout(pend.timer); } catch {}
+          try { pend.resolve({ ok: false, error: "Kernel restarted." }); } catch {}
+        }
+      } catch {}
+      notebookSessions.delete(key);
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+
+try {
+  app.on("before-quit", () => {
+    try {
+      for (const [, s] of notebookSessions) { try { s.proc?.kill(); } catch {} }
+      notebookSessions.clear();
+    } catch {}
+  });
+} catch {}
+
 ipcMain.handle("panel:addMenu", async (event) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });

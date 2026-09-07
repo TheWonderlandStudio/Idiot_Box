@@ -11,6 +11,7 @@ import { isMediaFile } from "./components/MediaViewer/mediaTypes.js";
 import BrowserPanel from "./components/Browser/index.jsx";
 import ProjectPanel from "./components/Project/index.jsx";
 import EditorPanel from "./components/Editor/index.jsx";
+import NotebookPanel from "./components/Notebook/index.jsx";
 import TerminalPanel from "./components/Terminal/index.jsx";
 import BlankPanel from "./components/Blank/index.jsx";
 import ComponentPreview from "./components/ComponentPreview/index.jsx";
@@ -84,6 +85,7 @@ const factory = (node) => {
     case "panel3":            return <BrowserPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "projectPanel":      return <ProjectPanel />;
     case "editor":            return <EditorPanel config={node.getConfig()} nodeId={node.getId()} />;
+    case "notebook":          return <NotebookPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "terminal":          return <TerminalPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "blank":             return <BlankPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
@@ -130,8 +132,11 @@ const UpdaterNavButton = () => {
 };
 
 // ── Helpers to walk the flex model tree ────────────────────────────────────
+// NOTE: no isNotebookPath helper here on purpose — .ipynb files open as
+// plain editor tabs (EditorPanel embeds the notebook cell UI itself), so all
+// tab helpers treat them exactly like normal files.
 const collectEditorTabs = (node, result = []) => {
-  if (node.getType?.() === "tab" && node.getComponent?.() === "editor") {
+  if (node.getType?.() === "tab" && (node.getComponent?.() === "editor" || node.getComponent?.() === "notebook")) {
     const fp = node.getConfig?.()?.filePath;
     // .excalidraw drawings live in Canvas tabs now — never persist as editor tabs.
     if (fp && !/\.excalidraw(\.json)?$/i.test(fp)) result.push(fp);
@@ -142,9 +147,12 @@ const collectEditorTabs = (node, result = []) => {
 
 const findTabByFilePath = (node, filePath) => {
   // separator-insensitive: Windows tabs store `\` paths, Linux `/`, GitPanel sends `/`
+  // Matches editor tabs (which host .ipynb notebooks too) plus legacy
+  // standalone "notebook" tabs from interim builds, so an already-open file
+  // is activated instead of opened twice.
   const norm = (p) => { try { return String(p || "").replace(/\\/g, "/"); } catch { return p; } };
   const want = norm(filePath);
-  if (node.getType?.() === "tab" && node.getComponent?.() === "editor") {
+  if (node.getType?.() === "tab" && (node.getComponent?.() === "editor" || node.getComponent?.() === "notebook")) {
     if (norm(node.getConfig?.()?.filePath) === want) return node;
   }
   const children = node.getChildren?.();
@@ -162,7 +170,7 @@ const findEmptyEditorTab = (node) => {
 const findEditorTabset = (node) => {
   if (node.getType?.() === "tabset") {
     const children = node.getChildren?.();
-    if (children && children.some((c) => c.getType() === "tab" && c.getComponent() === "editor")) return node;
+    if (children && children.some((c) => c.getType() === "tab" && (c.getComponent() === "editor" || c.getComponent() === "notebook"))) return node;
   }
   const children = node.getChildren?.();
   if (children) for (const c of children) { const r = findEditorTabset(c); if (r) return r; }
@@ -290,6 +298,8 @@ const App = () => {
         } catch {}
         continue;
       }
+      // NOTE: .ipynb notebooks render INSIDE editor tabs (EditorPanel embeds
+      // the cell UI), so no special-casing here — plain editor flow below.
       if (findTabByFilePath(m.getRoot(), filePath)) continue; // already open
 
       const name = filePath.replace(/.*[\\/]/, "") || filePath;
@@ -329,11 +339,16 @@ const App = () => {
             if (node.name === "panel1") node.name = "Media Viewer";
             if (node.component === "panel5") node.component = "editor";
             if (node.name === "panel5") node.name = "Editor";
-            // Migrate any removed/unknown components to blank (keep builder/docs for cleanup below)
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","terminal","blank","componentPreview","canvas","problems","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
+            // Migrate any removed/unknown components to blank (keep builder/docs for cleanup below).
+            // "notebook" stays allowed as a compat shim (interim builds saved
+            // such tabs); they render the same cell UI. .ipynb files always
+            // open as plain editor tabs now (cell UI embedded in EditorPanel).
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","canvas","problems","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
+            } else if (node.component === "notebook") {
+              node.component = "editor";
             }
           }
           if (node.children) node.children.forEach(migrate);
@@ -803,6 +818,23 @@ const App = () => {
       }
       addPanel("androidEmulator", "Android Emulator", {});
     };
+    // Emulator log: a Terminal tab in mirror mode (no PTY — shows emulator stdout).
+    // Tab id must match EMULATOR_LOG_TAB in electron/main/android.js.
+    const onEmulatorLog = () => {
+      const mirrorId = "android-emulator-log";
+      const m = modelRef.current;
+      if (m) {
+        const findLog = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "terminal" && node.getConfig?.()?.mirrorTabId === mirrorId) return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findLog(c); if (r) return r; }
+          return null;
+        };
+        const existing = findLog(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("terminal", "Emulator", { mirrorTabId: mirrorId });
+    };
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-component-preview-panel", onPreview);
     window.addEventListener("add-canvas-panel", onCanvas);
@@ -877,7 +909,8 @@ const App = () => {
         if (sel?.getType() === "tab" && sel.getComponent() === "editor") src = sel;
       } catch {}
       if (!src) return;
-      const filePath = src.getConfig?.()?.filePath;
+      const srcCfg = src.getConfig?.() || {};
+      const filePath = srcCfg.filePath;
       if (!filePath) return;
       let parentId = null;
       try { parentId = src.getParent?.()?.getId(); } catch {}
@@ -887,7 +920,7 @@ const App = () => {
       m.doAction(Actions.addNode({
         type: "tab", component: "editor", name, enableClose: true,
         id: "editor-tab-" + Date.now() + "-" + Math.random().toString(36).slice(2),
-        config: { filePath },
+        config: srcCfg.forceText ? { filePath, forceText: true } : { filePath },
       }, parentId, DockLocation.RIGHT, -1, true));
     });
     return unsub;
@@ -1207,6 +1240,7 @@ const App = () => {
     // Single-click: replace the active editor tab (VS Code preview-mode style).
     // If the file is already open somewhere, switch to it.
     // If no editor tab exists yet, create one.
+    // (.ipynb included — EditorPanel embeds the notebook cell UI itself.)
     const openFileInEditor = (filePath) => {
       const m = modelRef.current;
       if (!m || !filePath) return;
@@ -1258,8 +1292,10 @@ const App = () => {
       scheduleSaveProjectTabs();
     };
 
-    // Force new tab — always adds alongside existing tabs (right-click / drag-drop)
-    const openFileInNewTab = (filePath) => {
+    // Force new tab — always adds alongside existing tabs (right-click / drag-drop).
+    // opts.forceText bypasses the already-open check so the same file can be
+    // opened a second time as raw text (used for .ipynb "Open as JSON").
+    const openFileInNewTab = (filePath, opts) => {
       const m = modelRef.current;
       if (!m || !filePath) return;
       if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
@@ -1274,10 +1310,15 @@ const App = () => {
       const name = filePath.replace(/.*[\\/]/, "") || filePath;
       const tabset = findEditorTabset(m.getRoot());
       const parentId = tabset ? tabset.getId() : m.getRoot().getId();
+      const forceText = !!(opts && opts.forceText);
+      if (!forceText) {
+        const existing = findTabByFilePath(m.getRoot(), filePath);
+        if (existing) { m.doAction(Actions.selectTab(existing.getId())); return; }
+      }
       m.doAction(Actions.addNode({
         type: "tab", component: "editor", name, enableClose: true,
         id: "editor-tab-" + Date.now(),
-        config: { filePath },
+        config: forceText ? { filePath, forceText: true } : { filePath },
       }, parentId, DockLocation.CENTER, -1, true));
       forceLayoutRedraw(m);
       scheduleSaveProjectTabs();
@@ -1285,7 +1326,7 @@ const App = () => {
 
     const onIpc    = window.electronAPI.onOpenFileInEditor?.(({ filePath }) => openFileInEditor(filePath));
     const onCustom = (e) => { const p = e.detail?.path ?? e.detail?.filePath; if (p) openFileInEditor(p); };
-    const onNewTab = (e) => { const p = e.detail?.path ?? e.detail?.filePath; if (p) openFileInNewTab(p); };
+    const onNewTab = (e) => { const p = e.detail?.path ?? e.detail?.filePath; if (p) openFileInNewTab(p, { forceText: e.detail?.forceText === true }); };
     // Any direct "media-viewer:open" (context menu, drag-drop, AI panel) should also front the tab.
     const onMediaOpen = () => focusMediaViewerTab();
 
@@ -1303,6 +1344,7 @@ const App = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── File menu → editor commands (Save / Save As / AutoSave) ──────────────
+  // Notebook tabs share the same Save pipeline via `editor:command`.
   useEffect(() => {
     const activeEditorPath = () => {
       const m = modelRef.current;
@@ -1310,7 +1352,7 @@ const App = () => {
       try {
         const tabset = m.getActiveTabset();
         const node = tabset?.getSelectedNode?.();
-        if (node?.getType() === "tab" && node.getComponent() === "editor") {
+        if (node?.getType() === "tab" && (node.getComponent() === "editor" || node.getComponent() === "notebook")) {
           return node.getConfig()?.filePath || null;
         }
       } catch { /* ignore */ }
@@ -1332,7 +1374,7 @@ const App = () => {
 
   if (!readyRef.current) return null;
 
-  // ── Guard: veto closing dirty editor tabs (Save / Don't Save / Cancel) ───
+  // ── Guard: veto closing dirty editor/notebook tabs (Save / Don't Save / Cancel)
   // Returning undefined from onAction cancels the close; after the async
   // dialog resolves we re-issue the close directly on the model (which
   // bypasses onAction, so no loop).
@@ -1343,9 +1385,12 @@ const App = () => {
         const m = modelRef.current;
         let node = null;
         try { node = nodeId && m ? m.getNodeById(nodeId) : null; } catch {}
-        if (node && node.getType() === "tab" && node.getComponent() === "editor") {
+        if (node && node.getType() === "tab" && (node.getComponent() === "editor" || node.getComponent() === "notebook")) {
           const fp = node.getConfig?.()?.filePath;
-          if (fp && window.__ibxIsDirty?.(fp)) {
+          // Editor tabs may host an embedded notebook (.ipynb renders its cell
+          // UI inside EditorPanel), so check BOTH dirty maps.
+          const isDirty = window.__ibxIsDirty?.(fp) || window.__ibxIsNotebookDirty?.(fp);
+          if (fp && isDirty) {
             (async () => {
               const base = String(fp).split(/[\\/]/).pop() || fp;
               let choice = "cancel";
@@ -1358,19 +1403,23 @@ const App = () => {
               } catch { choice = "cancel"; }
               const mm = modelRef.current;
               if (!mm) return;
+              const isNbTab = node.getComponent() === "notebook" || /\.ipynb$/i.test(fp || "");
+              const isClean = () => !window.__ibxIsDirty?.(fp) && !window.__ibxIsNotebookDirty?.(fp);
+              const forget = () => { try { window.__ibxForgetDirty?.(fp); } catch {} try { window.__ibxForgetNotebookDirty?.(fp); } catch {} };
               if (choice === "save") {
                 window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: "save", path: fp } }));
                 // Close once the save lands and the dirty flag clears.
+                // Notebooks save synchronously-ish; give them a longer window.
                 setTimeout(() => {
                   try {
-                    if (!window.__ibxIsDirty?.(fp)) {
-                      window.__ibxForgetDirty?.(fp);
+                    if (isClean()) {
+                      forget();
                       mm.doAction(Actions.deleteTab(nodeId));
                     }
                   } catch {}
-                }, 500);
+                }, isNbTab ? 1200 : 500);
               } else if (choice === "dontSave") {
-                try { window.__ibxForgetDirty?.(fp); } catch {}
+                try { forget(); } catch {}
                 try { mm.doAction(Actions.deleteTab(nodeId)); } catch {}
               }
             })();
@@ -1422,6 +1471,7 @@ const App = () => {
           const existing = findTabByFilePath(m.getRoot(), filePath);
           if (existing) { m.doAction(Actions.selectTab(existing.getId())); continue; }
 
+          // Plain editor flow — .ipynb renders its cell UI inside the tab.
           const name = filePath.replace(/.*[\\/]/, "") || filePath;
           m.doAction(Actions.addNode({
             type: "tab", component: "editor", name, enableClose: true,

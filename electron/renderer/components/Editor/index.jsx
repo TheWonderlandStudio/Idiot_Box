@@ -70,6 +70,7 @@ import "@codingame/monaco-vscode-restructuredtext-default-extension";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Actions } from "flexlayout-react";
+import NotebookPanel from "../Notebook/index.jsx";
 import { initialize, getService, IThemeService, ILanguageService, ICommandService, IExtensionService } from "@codingame/monaco-vscode-api";
 import { createConfiguredEditor } from "@codingame/monaco-vscode-api/monaco";
 // NOTE: "@codingame/monaco-vscode-api/monaco" does NOT export `Uri` or `editor`
@@ -172,6 +173,12 @@ const ensureEditorReady = () => {
   }
   return initPromise;
 };
+
+// Shared with Notebook cells: per-cell Monaco editors use the same
+// createConfiguredEditor + services, so expose the singleton init promise
+// here instead of calling initialize() a second time (re-init conflicts).
+// Rejected when services fail — consumers must fall back (plain textarea).
+try { window.__ibxEditorReady = ensureEditorReady(); } catch {}
 
 const ext = (p) => { try { return p.slice(p.lastIndexOf(".")).toLowerCase(); } catch { return ""; } };
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
@@ -352,6 +359,7 @@ const getMonacoLanguage = async (filePath, text) => {
     case ".scss": case ".sass": return "scss";
     case ".less": return "less";
     case ".json": case ".jsonc": return "json";
+    case ".ipynb": return "json"; // raw "Open as JSON" view (cell UI is default)
     case ".md": case ".markdown": case ".mdown": return "markdown";
     case ".rst": return "restructuredtext";
     case ".log": return "log";
@@ -573,6 +581,11 @@ try {
 
 const EditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
+  // .ipynb renders the notebook cell UI INSIDE this editor tab (like a normal
+  // file tab) instead of a Monaco text editor. config.forceText bypasses this
+  // ("Open as JSON" opens the raw notebook source as text).
+  const forceText = config?.forceText === true;
+  const isIpynb = !forceText && /\.ipynb$/i.test(filePath || "");
 
   // ── Project gate: editor is only usable when a project is open ───────────
   const [hasProject, setHasProject] = useState(!!window.__currentProjectPath);
@@ -861,8 +874,9 @@ const EditorPanel = ({ config, nodeId }) => {
   }, [minimap, wordWrap, lineNumbers, fontSize, fontFamily, tabSize]);
 
   // ── Create / swap the configured editor when the file changes ──────────────
+  // Skipped for .ipynb (NotebookPanel owns the tab content instead).
   useEffect(() => {
-    if (!ready || !filePath || !hostRef.current) return;
+    if (!ready || !filePath || !hostRef.current || isIpynb) return;
     loadedRef.current = false;
     largeFileRef.current = false;
     let cancelled = false;
@@ -1113,11 +1127,12 @@ const EditorPanel = ({ config, nodeId }) => {
     })();
 
     return () => { cancelled = true; cleanup(); };
-  }, [ready, filePath, nodeId, hasProject]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, filePath, nodeId, hasProject, isIpynb]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live reload: external edits (other apps / git / build tools) → auto-update
+  // Skipped for .ipynb (NotebookPanel watches the file itself).
   useEffect(() => {
-    if (!filePath) return;
+    if (!filePath || isIpynb) return;
     let timer = null;
     const unsub = window.electronAPI.onFsChange((_dir, changedPath) => {
       if (changedPath !== filePath) return;
@@ -1145,11 +1160,12 @@ const EditorPanel = ({ config, nodeId }) => {
       }, 150);
     });
     return () => { unsub(); if (timer) clearTimeout(timer); };
-  }, [filePath, nodeId]);
+  }, [filePath, nodeId, isIpynb]);
 
   // ── Live Edit from Browser (text-only) ───────────────────────────────────
+  // Skipped for .ipynb (cell UI is not a text buffer).
   useEffect(() => {
-    if (!filePath) return;
+    if (!filePath || isIpynb) return;
     const handler = async (e) => {
       const p = e.detail?.filePath || e.detail?.path;
       if (!p || p !== filePath) return;
@@ -1212,7 +1228,7 @@ const EditorPanel = ({ config, nodeId }) => {
       window.removeEventListener("liveEdit:fileChanged", handler);
       try{ unsub(); }catch{}
     };
-  }, [filePath, nodeId]);
+  }, [filePath, nodeId, isIpynb]);
 
   // ── Reveal line (from SearchPanel / Problems) ──────────────────────────────
   useEffect(() => {
@@ -1234,8 +1250,9 @@ const EditorPanel = ({ config, nodeId }) => {
   }, [filePath]);
 
   // ── Git diff gutter ────────────────────────────────────────────────────────
+  // Skipped for .ipynb (no Monaco model to decorate).
   useEffect(() => {
-    if (!filePath || !hasProject) return;
+    if (!filePath || !hasProject || isIpynb) return;
     let cancelled = false;
     let decorationIds = [];
     const updateDiff = async () => {
@@ -1337,12 +1354,14 @@ const EditorPanel = ({ config, nodeId }) => {
         }
       } catch {}
     };
-  }, [filePath, hasProject, content]);
+  }, [filePath, hasProject, content, isIpynb]);
 
   // ── Save / Save As ───────────────────────────────────────────────────────
+  // No-ops for .ipynb — NotebookPanel owns saving (it listens to the same
+  // editor:command events with the same path).
   const doSave = useCallback(async () => {
     const p = pathRef.current;
-    if (!p) return;
+    if (!p || isIpynb) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
     // Format on Save (Settings → Editor → Format On Save, default off).
     // No-op when the language has no formatter registered.
@@ -1363,11 +1382,11 @@ const EditorPanel = ({ config, nodeId }) => {
     } else {
       await window.electronAPI.showAlert(`Failed to save file:\n${result?.error || "Unknown error"}`);
     }
-  }, [nodeId, content]);
+  }, [nodeId, content, isIpynb]);
 
   const doSaveAs = useCallback(async () => {
     const p = pathRef.current;
-    if (!p) return;
+    if (!p || isIpynb) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
     const text = editorRef.current?.getValue() ?? content;
     const result = await window.electronAPI.saveFileAs(p, text);
@@ -1385,10 +1404,13 @@ const EditorPanel = ({ config, nodeId }) => {
       } catch { /* node may be gone */ }
     }
     flashStatus(`Saved as: ${fileName(newPath)}`);
-  }, [nodeId, content]);
+  }, [nodeId, content, isIpynb]);
 
   // ── File & Edit menu commands ────────────────────────────────────────────
+  // .ipynb tabs ignore everything here — the embedded NotebookPanel handles
+  // save itself (same event, same path) and has no Monaco instance.
   useEffect(() => {
+    if (isIpynb) return;
     const onCmd = async (e) => {
       const cmd = e.detail?.cmd;
       if (!cmd) return;
@@ -1434,7 +1456,7 @@ const EditorPanel = ({ config, nodeId }) => {
     };
     window.addEventListener("editor:command", onCmd);
     return () => window.removeEventListener("editor:command", onCmd);
-  }, [doSave, doSaveAs]);
+  }, [doSave, doSaveAs, isIpynb]);
 
   // ── AutoSave toggle ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -1494,7 +1516,11 @@ const EditorPanel = ({ config, nodeId }) => {
         <>
           {/* ── Editor Canvas ──────────────────────────────────────────────── */}
           <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-            {!ready ? (
+            {isIpynb ? (
+              // .ipynb opens in this editor tab like a normal file, but shows
+              // the notebook cell UI instead of a Monaco text editor.
+              <NotebookPanel config={config} nodeId={nodeId} />
+            ) : !ready ? (
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 height: "100%", color: "#777", fontSize: 13, flexDirection: "column", gap: 12,
@@ -1526,8 +1552,8 @@ const EditorPanel = ({ config, nodeId }) => {
             )}
           </div>
 
-          {/* ── Bottom Status Bar ────────────────────────────────────────────── */}
-          {filePath && (
+          {/* ── Bottom Status Bar (text files only — notebooks have their own toolbar) ── */}
+          {filePath && !isIpynb && (
             <div
               style={{
                 display: "flex",
@@ -1564,8 +1590,8 @@ const EditorPanel = ({ config, nodeId }) => {
             </div>
           )}
 
-          {/* ── Language picker popup ────────────────────────────────────────── */}
-          {showLangMenu && filePath && (
+          {/* ── Language picker popup (text files only) ──────────────────────── */}
+          {showLangMenu && filePath && !isIpynb && (
             <>
               <div
                 onClick={() => setShowLangMenu(false)}

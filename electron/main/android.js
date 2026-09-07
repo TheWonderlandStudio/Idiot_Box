@@ -15,6 +15,8 @@ const os = require("os");
 const https = require("https");
 const http = require("http");
 const { spawn, execFile } = require("child_process");
+let ptyMod = null;
+try { ptyMod = require("node-pty"); } catch (e) { /* ConPTY unavailable — plain spawn fallback */ }
 
 let _deps = null; // { app, BrowserWindow, shell }
 
@@ -730,29 +732,262 @@ async function emulatorSerialToAvd(serial) {
 
 // Track emulator processes spawned by this app for Stop support
 const runningEmulators = new Map(); // avdName -> { pid, child, startedAt, logFile }
+// In-app Terminal tab that mirrors emulator stdout/stderr (must match renderer index.jsx)
+const EMULATOR_LOG_TAB = "android-emulator-log";
 
-function startEmulatorProcess(avdName, extraArgs = []) {
+// The emulator resolves <name>.ini -> path= -> config.ini. Follow that link
+// instead of assuming the location (a stale/wrong guess = silent no-op).
+function avdConfigPath(avdName) {
+  try {
+    const raw = fs.readFileSync(path.join(getAvdDir(), `${avdName}.ini`), "utf8");
+    const m = raw.match(/^\s*path\s*=\s*(.*?)\s*$/m);
+    if (m && m[1]) {
+      const cfg = path.join(m[1].replace(/\//g, path.sep), "config.ini");
+      if (fs.existsSync(cfg)) return cfg;
+    }
+  } catch {}
+  return path.join(getAvdDir(), `${avdName}.avd`, "config.ini");
+}
+
+function readAvdKey(avdName, key) {
+  try {
+    const raw = fs.readFileSync(avdConfigPath(avdName), "utf8");
+    const m = raw.match(new RegExp("^\\s*" + key.replace(/\./g, "\\.") + "\\s*=\\s*(.*?)\\s*$", "m"));
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
+// Physical keyboard in the emulator's own window needs hw.keyboard=yes in the
+// AVD's config.ini — avdmanager-created AVDs often lack it. Patch on every
+// start (takes effect on boot); returns true when it changed something.
+function ensureAvdKeyboard(avdName, iniPath = null) {
+  try {
+    const ini = iniPath || avdConfigPath(avdName);
+    if (!fs.existsSync(ini)) return false;
+    const text = fs.readFileSync(ini, "utf8");
+    const m = text.match(/^\s*hw\.keyboard\s*=\s*(.*?)\s*$/m);
+    if (m && String(m[1]).toLowerCase() === "yes") return false; // already good
+    let next;
+    if (m) next = text.replace(/^\s*hw\.keyboard\s*=.*$/m, "hw.keyboard=yes");
+    else next = (text.endsWith("\n") ? text : text + "\n") + "hw.keyboard=yes\n";
+    if (next === text) return false;
+    fs.writeFileSync(ini, next);
+    return true;
+  } catch { return false; }
+}
+
+function startEmulatorProcess(avdName, extraArgs = [], { headless = true } = {}) {
   ensureDirs();
   const bin = emulatorBin();
   if (!fs.existsSync(bin)) throw new Error("Emulator not installed yet — run Setup SDK first.");
+  const kbFixed = ensureAvdKeyboard(avdName);
   if (runningEmulators.has(avdName)) {
     const cur = runningEmulators.get(avdName);
-    try { process.kill(cur.pid, 0); return cur; } catch { runningEmulators.delete(avdName); }
+    try {
+      process.kill(cur.pid, 0);
+      if (kbFixed) {
+        broadcast({ op: "start", phase: "config", message: `${avdName}: physical keyboard enabled — takes effect after restart.`, avd: avdName, at: Date.now() });
+      }
+      return cur;
+    } catch { runningEmulators.delete(avdName); }
   }
   const logFile = path.join(getDownloadsDir(), `emulator-${avdName}.log`);
-  const args = ["-avd", avdName, ...extraArgs];
-  const child = spawn(bin, args, {
-    env: androidEnv(),
-    detached: true,
-    windowsHide: false, // emulator opens its own window; keep visible
-    stdio: ["ignore", "ignore", "ignore"],
+  // Headless (default): no OS pop-up — the screen is streamed into the IDE panel via adb.
+  // Windowed: classic separate emulator window (user choice via pop-out button).
+  const args = headless
+    ? ["-avd", avdName, "-no-window", "-no-audio", "-no-boot-anim", ...extraArgs]
+    : ["-avd", avdName, "-no-boot-anim", ...extraArgs];
+  // Console strategy: ConPTY (node-pty) hosts the whole process tree on an
+  // INVISIBLE console — plain CREATE_NO_WINDOW only hides the direct child
+  // while grandchildren (qemu) still pop a visible conhost. Qt GUI windows
+  // are unaffected (windowed mode still shows its window, minus the console).
+  let child;
+  let pid;
+  let usedPty = false;
+  if (ptyMod) {
+    try {
+      const p = ptyMod.spawn(bin, args, {
+        name: "xterm-256color", cols: 160, rows: 40,
+        cwd: getDownloadsDir(), env: androidEnv(),
+      });
+      pid = p.pid;
+      usedPty = true;
+      child = {
+        pid,
+        stdout: { on: (ev, fn) => { if (ev === "data") p.onData((d) => { try { fn(d); } catch {} }); } },
+        stderr: { on: () => {} }, // pty merges stderr into stdout
+        stdin: { write: () => {}, end: () => {} },
+        on: (ev, fn) => { if (ev === "exit" || ev === "close") p.onExit(({ exitCode }) => { try { fn(exitCode); } catch {} }); },
+        kill: () => { try { p.kill(); } catch {} },
+        unref: () => {},
+      };
+    } catch (e) { ptyMod = null; } // fall through to plain spawn
+  }
+  if (!usedPty) {
+    const c = spawn(bin, args, {
+      env: androidEnv(),
+      detached: true,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    c.unref();
+    child = c;
+    pid = c.pid;
+  }
+  // Mirror stdout/stderr into the in-app Terminal ("Emulator" tab) + log file
+  const forwardEmuOut = (chunk) => {
+    try {
+      let text = String(chunk.toString("utf8") || "");
+      if (!text) return;
+      try { fs.appendFileSync(logFile, text); } catch {}
+      text = text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+      if (text.length > 32768) text = text.slice(0, 32768) + "\r\n[…truncated]\r\n";
+      const { BrowserWindow } = deps();
+      for (const win of BrowserWindow.getAllWindows()) {
+        try { if (!win.isDestroyed()) win.webContents.send("terminal:data", { tabId: EMULATOR_LOG_TAB, data: text }); } catch {}
+      }
+    } catch {}
+  };
+  try { child.stdout.on("data", (d) => forwardEmuOut(d)); } catch {}
+  try { child.stderr.on("data", (d) => forwardEmuOut(d)); } catch {}
+  const t0 = Date.now();
+  child.on("exit", (code) => {
+    if (runningEmulators.get(avdName)?.pid === child.pid) runningEmulators.delete(avdName);
+    try {
+      const { BrowserWindow } = deps();
+      for (const win of BrowserWindow.getAllWindows()) {
+        try { if (!win.isDestroyed()) win.webContents.send("terminal:exit", { tabId: EMULATOR_LOG_TAB, code: code ?? 0 }); } catch {}
+      }
+    } catch {}
+    if (Date.now() - t0 < 15000) {
+      broadcast({ op: "start", phase: "error", message: `${avdName}: emulator exited too quickly (code ${code}) — check free disk space, or delete + recreate the AVD.`, avd: avdName, at: Date.now() });
+    }
   });
-  child.unref();
-  child.on("exit", () => { if (runningEmulators.get(avdName)?.pid === child.pid) runningEmulators.delete(avdName); });
-  const entry = { pid: child.pid, startedAt: Date.now(), logFile };
+  const entry = { pid, startedAt: Date.now(), logFile, headless };
   runningEmulators.set(avdName, entry);
-  broadcast({ op: "start", phase: "started", message: `${avdName} starting (pid ${child.pid})…`, avd: avdName, at: Date.now() });
+  if (kbFixed) {
+    broadcast({ op: "start", phase: "config", message: `${avdName}: physical keyboard enabled (hw.keyboard=yes).`, avd: avdName, at: Date.now() });
+  }
+  // Proof line: exact value the emulator will boot with + the file it came from
+  try {
+    const cfg = avdConfigPath(avdName);
+    const val = readAvdKey(avdName, "hw.keyboard");
+    broadcast({ op: "start", phase: "config", message: `${avdName}: keyboard check → hw.keyboard=${val === null ? "(missing!)" : val} @ ${cfg}`, avd: avdName, at: Date.now() });
+  } catch {}
+  forwardEmuOut(`[${avdName}] emulator starting (pid ${pid}) — full log: ${logFile}\n`);
+  broadcast({
+    op: "start", phase: "started", avd: avdName, at: Date.now(),
+    message: headless
+      ? `${avdName} starting headless (pid ${pid}) — screen appears in the panel…`
+      : `${avdName} starting in a separate window (pid ${pid})…`,
+  });
   return entry;
+}
+
+// ─── Embedded screen: serial resolve, boot probe, screencap, input ──────────
+// The panel polls these — no native window embedding needed.
+function validSerial(serial) {
+  return /^emulator-\d+$/.test(String(serial || ""));
+}
+
+async function waitForSerial(avdName, timeoutMs = 150000) {
+  const start = Date.now();
+  for (;;) {
+    let devs = [];
+    try { devs = await adbDevices(); } catch {}
+    for (const d of devs) {
+      if (!d.serial.startsWith("emulator-") || d.state !== "device") continue;
+      let avd = null;
+      try { avd = await emulatorSerialToAvd(d.serial); } catch {}
+      if (avd === avdName) return d.serial;
+    }
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`Timed out waiting for ${avdName} on adb (is the emulator still booting? Check the log).`);
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
+function adbShell(serial, shellArgs, { timeout = 20000 } = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(adbBin(), ["-s", serial, ...shellArgs], { env: androidEnv(), timeout, windowsHide: true, encoding: "utf8" }, (err, stdout, stderr) => {
+      if (err) {
+        err.stdout = stdout;
+        err.stderr = stderr;
+        return reject(err);
+      }
+      resolve(String(stdout || ""));
+    });
+  });
+}
+
+// Skip re-sending identical frames (static screens are the common case).
+const frameHashes = new Map(); // serial -> hash
+function fnv1a(buf) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < buf.length; i++) {
+    h ^= buf[i];
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+async function findSerial(avdName) {
+  try {
+    const devs = await adbDevices();
+    for (const d of devs) {
+      if (!d.serial.startsWith("emulator-") || d.state !== "device") continue;
+      let avd = null;
+      try { avd = await emulatorSerialToAvd(d.serial); } catch {}
+      if (avd === avdName) return d.serial;
+    }
+  } catch {}
+  return null;
+}
+
+// Stream mode: drop the virtual display to ~540px wide (density scaled too)
+// so screencap encode + transfer keeps up. Reset restores the AVD default.
+async function setDisplayMode(serial, mode) {
+  if (!validSerial(serial)) throw new Error("Bad emulator serial.");
+  if (mode === "reset") {
+    await adbShell(serial, ["shell", "wm", "size", "reset"], { timeout: 15000 }).catch(() => {});
+    await adbShell(serial, ["shell", "wm", "density", "reset"], { timeout: 15000 }).catch(() => {});
+    return { ok: true, mode: "reset" };
+  }
+  const sizeOut = await adbShell(serial, ["shell", "wm", "size"], { timeout: 15000 });
+  const densOut = await adbShell(serial, ["shell", "wm", "density"], { timeout: 15000 }).catch(() => "");
+  const sm = sizeOut.match(/Physical size:\s*(\d+)x(\d+)/);
+  if (!sm) throw new Error("Could not read display size.");
+  const pw = parseInt(sm[1], 10), ph = parseInt(sm[2], 10);
+  if (pw <= 600) return { ok: true, mode: "stream", skipped: true }; // already small
+  const dm = densOut.match(/Physical density:\s*(\d+)/);
+  const pd = dm ? parseInt(dm[1], 10) : 0;
+  const nw = 540;
+  const nh = Math.round((ph * nw) / pw);
+  const nd = pd ? Math.round((pd * nw) / pw) : 0;
+  await adbShell(serial, ["shell", "wm", "size", `${nw}x${nh}`], { timeout: 15000 });
+  if (nd) await adbShell(serial, ["shell", "wm", "density", String(nd)], { timeout: 15000 }).catch(() => {});
+  return { ok: true, mode: "stream", size: `${nw}x${nh}` };
+}
+
+// `adb emu <cmd>` — talks to the emulator console (rotation, kill, …)
+function adbEmu(serial, emuArgs, { timeout = 15000 } = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(adbBin(), ["-s", serial, "emu", ...emuArgs],
+      { env: androidEnv(), timeout, windowsHide: true, encoding: "utf8" },
+      (err, stdout, stderr) => {
+        if (err) { err.stdout = stdout; err.stderr = stderr; return reject(err); }
+        resolve(String(stdout || "").trim() || String(stderr || "").trim());
+      });
+  });
+}
+
+function escapeInputText(s) {
+  return String(s || "")
+    .replace(/%/g, "%%")
+    .replace(/ /g, "%s")
+    .replace(/(['"()&|<>!`$\\;*?~#])/g, "\\$1")
+    .slice(0, 500);
 }
 
 async function stopEmulatorProcess(avdName) {
@@ -925,8 +1160,119 @@ async function getState() {
     defaultImage: DEFAULT_IMAGE,
     avds,
     running,
-    tracked: [...runningEmulators.entries()].map(([avd, e]) => ({ avd, pid: e.pid, startedAt: e.startedAt })),
+    tracked: [...runningEmulators.entries()].map(([avd, e]) => ({ avd, pid: e.pid, startedAt: e.startedAt, headless: e.headless !== false })),
   };
+}
+
+// ─── Raw framebuffer (no PNG encode on-device → 3-4x faster than screencap -p)
+// `screencap` (raw) emits a 12-byte header (w, h, format LE) + RGBA pixels,
+// which maps 1:1 onto canvas ImageData in the panel.
+function parseRawFrame(raw) {
+  if (!raw || raw.length < 16) throw new Error("Empty frame.");
+  const w = raw.readUInt32LE(0), h = raw.readUInt32LE(4), fmt = raw.readUInt32LE(8);
+  if (fmt !== 1 || w <= 0 || h <= 0 || w > 4096 || h > 4096) {
+    throw new Error(`Unsupported frame format (${w}x${h} fmt ${fmt}).`);
+  }
+  const expect = 12 + w * h * 4;
+  if (raw.length < expect) throw new Error("Truncated frame.");
+  return { w, h, pixels: raw.subarray(12, expect) };
+}
+const lastRawFrames = new Map(); // serial -> Buffer (memcmp skip for static screens)
+
+function captureRawFrame(serial) {
+  return new Promise((resolve, reject) => {
+    execFile(adbBin(), ["-s", serial, "exec-out", "screencap"],
+      { env: androidEnv(), timeout: 20000, windowsHide: true, encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
+      (err, stdout) => (err ? reject(err) : resolve(stdout)));
+  });
+}
+
+// ─── Persistent `adb shell` frame session ────────────────────────────────────
+// A fresh adb client spawn (+handshake) per frame costs ~50-100ms on Windows.
+// Instead, one `adb shell` stays open per serial: write "screencap", read the
+// 12-byte header, then exactly w*h*4 bytes. The header makes every frame
+// self-synchronizing (rotate/resize mid-stream just works). Any desync kills
+// the session and the frame falls back to one-shot exec-out (previous path),
+// so worst case == today's behavior.
+const frameSessions = new Map(); // serial -> { child, buf, queue, busy, dead }
+
+function frameSessionDestroy(serial) {
+  const s = frameSessions.get(serial);
+  if (!s) return;
+  frameSessions.delete(serial);
+  try { s.dead = true; } catch {}
+  try { s.child.kill(); } catch {}
+}
+
+function frameSessionPump(s) {
+  while (s.queue.length && !s.dead) {
+    const req = s.queue[0];
+    if (s.buf.length < req.need) return;
+    const chunk = s.buf.subarray(0, req.need);
+    s.buf = s.buf.subarray(req.need);
+    s.queue.shift();
+    try { req.resolve(Buffer.from(chunk)); } catch {}
+  }
+}
+
+function frameSessionGet(serial) {
+  let s = frameSessions.get(serial);
+  if (s && !s.dead) return s;
+  if (s) frameSessions.delete(serial);
+  const child = spawn(adbBin(), ["-s", serial, "shell"], {
+    env: androidEnv(), windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
+  });
+  s = { child, buf: Buffer.alloc(0), queue: [], busy: false, dead: false };
+  child.stdout.on("data", (d) => {
+    const cur = frameSessions.get(serial);
+    if (!cur || cur !== s || s.dead) return;
+    s.buf = Buffer.concat([s.buf, d]);
+    if (s.buf.length > 96 * 1024 * 1024) { // garbage flood — desynced, start over
+      frameSessionDestroy(serial);
+      return;
+    }
+    frameSessionPump(s);
+  });
+  child.stderr.on("data", () => {}); // shell chatter ignored — header validates sync
+  child.on("error", () => { s.dead = true; });
+  child.on("exit", () => { s.dead = true; });
+  frameSessions.set(serial, s);
+  return s;
+}
+
+function frameSessionRead(serial, need, timeoutMs = 15000) {
+  const s = frameSessionGet(serial);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const i = s.queue.findIndex((q) => q.resolve === resolve);
+      if (i >= 0) s.queue.splice(i, 1);
+      reject(new Error("Frame read timed out"));
+    }, timeoutMs);
+    s.queue.push({ need, resolve: (b) => { clearTimeout(timer); resolve(b); } });
+    frameSessionPump(s);
+  });
+}
+
+async function captureFrameSession(serial) {
+  const s = frameSessionGet(serial);
+  if (s.dead) throw new Error("shell dead");
+  if (s.busy) throw new Error("session busy");
+  s.busy = true;
+  try {
+    try { s.child.stdin.write("screencap\n"); }
+    catch (e) { throw new Error("shell write failed"); }
+    const head = await frameSessionRead(serial, 12);
+    const w = head.readUInt32LE(0), h = head.readUInt32LE(4), fmt = head.readUInt32LE(8);
+    if (fmt !== 1 || w <= 0 || h <= 0 || w > 4096 || h > 4096) {
+      throw new Error(`desync (${w}x${h} fmt ${fmt})`);
+    }
+    const expect = w * h * 4;
+    if (expect > 64 * 1024 * 1024) throw new Error("frame too large");
+    const pixels = await frameSessionRead(serial, expect);
+    return { w, h, pixels };
+  } finally {
+    try { s.busy = false; } catch {}
+  }
 }
 
 // ─── IPC wiring ─────────────────────────────────────────────────────────────
@@ -965,6 +1311,13 @@ function setupAndroidIpc() {
     try {
       const avdName = String(name || "").trim();
       if (!avdName) return { ok: false, error: "Missing AVD name." };
+      try {
+        const s = await findSerial(avdName);
+        if (s) {
+          await setDisplayMode(s, "reset").catch(() => {});
+          frameSessionDestroy(s);
+        }
+      } catch {}
       await stopEmulatorProcess(avdName).catch(() => {});
       if (fs.existsSync(avdManagerBin())) {
         await runAvdManager(["delete", "avd", "-n", avdName], { stdin: "" }).catch(async (e) => {
@@ -984,21 +1337,225 @@ function setupAndroidIpc() {
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
   });
 
-  ipcMain.handle("android:startAvd", async (_e, { name, args } = {}) => {
+  ipcMain.handle("android:startAvd", async (_e, { name, args, windowed } = {}) => {
     try {
       const avdName = String(name || "").trim();
       if (!avdName) return { ok: false, error: "Missing AVD name." };
-      const entry = startEmulatorProcess(avdName, Array.isArray(args) ? args.filter((a) => typeof a === "string").slice(0, 12) : []);
-      return { ok: true, pid: entry.pid };
+      const entry = startEmulatorProcess(
+        avdName,
+        Array.isArray(args) ? args.filter((a) => typeof a === "string").slice(0, 12) : [],
+        { headless: !windowed }
+      );
+      return { ok: true, pid: entry.pid, headless: entry.headless !== false };
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
   });
 
   ipcMain.handle("android:stopAvd", async (_e, { name } = {}) => {
     try {
-      const r = await stopEmulatorProcess(String(name || "").trim());
+      const avdName = String(name || "").trim();
+      // restore full resolution before killing (stream mode changed it)
+      try {
+        const s = await findSerial(avdName);
+        if (s) {
+          await setDisplayMode(s, "reset").catch(() => {});
+          frameSessionDestroy(s);
+        }
+      } catch {}
+      const r = await stopEmulatorProcess(avdName);
       if (r.ok) broadcast({ op: "stop", phase: "done", message: `${name} stopped.`, avd: name, at: Date.now() });
       return r;
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
+  });
+
+  ipcMain.handle("android:frameStop", async (_e, { serial } = {}) => {
+    try { if (validSerial(serial)) frameSessionDestroy(serial); } catch {}
+    return { ok: true };
+  });
+
+  ipcMain.handle("android:display", async (_e, { serial, mode } = {}) => {
+    try {
+      if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      return await setDisplayMode(serial, mode === "reset" ? "reset" : "stream");
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("android:screenshot", async (_e, { serial, name } = {}) => {
+    try {
+      if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      const png = await new Promise((resolve, reject) => {
+        execFile(adbBin(), ["-s", serial, "exec-out", "screencap", "-p"],
+          { env: androidEnv(), timeout: 20000, windowsHide: true, encoding: "buffer", maxBuffer: 32 * 1024 * 1024 },
+          (err, stdout) => (err ? reject(err) : resolve(stdout)));
+      });
+      if (!png || png.length < 100) return { ok: false, error: "Empty frame." };
+      ensureDirs();
+      const safe = String(name || "emulator").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40) || "emulator";
+      const file = path.join(getDownloadsDir(), `${safe}-${Date.now()}.png`);
+      fs.writeFileSync(file, png);
+      return { ok: true, path: file };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  // Wait until the AVD's adbd is reachable, then the panel streams its screen.
+  ipcMain.handle("android:waitSerial", async (_e, { name, timeoutMs } = {}) => {
+    try {
+      const avdName = String(name || "").trim();
+      if (!avdName) return { ok: false, error: "Missing AVD name." };
+      const t = Math.min(300000, Math.max(10000, parseInt(timeoutMs, 10) || 150000));
+      return { ok: true, serial: await waitForSerial(avdName, t) };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 500) }; }
+  });
+
+  // Keyboard diagnostics: host-side config value + what Android itself sees
+  // (dumpsys input device list + active IME). Runs automatically when the
+  // panel connects to a device; result lines go to the setup log.
+  ipcMain.handle("android:diagKeyboard", async (_e, { serial, name } = {}) => {
+    const lines = [];
+    try {
+      const avdName = String(name || "").trim();
+      if (avdName) {
+        try {
+          lines.push(`host: hw.keyboard=${readAvdKey(avdName, "hw.keyboard") ?? "(missing)"}`);
+          lines.push(`host: config=${avdConfigPath(avdName)}`);
+        } catch {}
+      }
+      if (!validSerial(serial)) {
+        lines.push("device: no adb serial yet — rerun after boot");
+        return { ok: true, lines };
+      }
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      try {
+        const dump = await adbShell(serial, ["shell", "dumpsys", "input"], { timeout: 20000 });
+        const kb = [];
+        for (const ln of String(dump).split(/\r?\n/)) {
+          if (/keyboard/i.test(ln) && kb.length < 12) kb.push(ln.trim().slice(0, 140));
+        }
+        // device descriptors carry keyboard flags — grab those blocks too
+        const devBlocks = String(dump).match(/Device [^\n]*\n(?:.*\n){0,8}/gi) || [];
+        for (const b of devBlocks) {
+          if (/keyboard/i.test(b) && kb.length < 12) {
+            const first = b.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 3).join(" | ").slice(0, 140);
+            if (first && !kb.includes(first)) kb.push(first);
+          }
+        }
+        lines.push(`device: keyboard lines (${kb.length})${kb.length ? "" : " — NONE, Android sees no hard keyboard!"}`);
+        for (const k of kb) lines.push(`device:   ${k}`);
+      } catch (e) { lines.push(`device: dumpsys failed (${String(e?.message || e).split("\n")[0].slice(0, 100)})`); }
+      try {
+        const ime = (await adbShell(serial, ["shell", "settings", "get", "secure", "default_input_method"], { timeout: 15000 })).trim();
+        lines.push(`device: default_ime=${ime || "(unknown)"}`);
+      } catch {}
+      return { ok: true, lines };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("android:bootState", async (_e, { serial } = {}) => {
+    try {
+      if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      const out = await adbShell(serial, ["shell", "getprop", "sys.boot_completed"], { timeout: 15000 });
+      return { ok: true, booted: out.trim() === "1" };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("android:screencap", async (_e, { serial } = {}) => {
+    try {
+      if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      const png = await new Promise((resolve, reject) => {
+        execFile(adbBin(), ["-s", serial, "exec-out", "screencap", "-p"],
+          { env: androidEnv(), timeout: 20000, windowsHide: true, encoding: "buffer", maxBuffer: 32 * 1024 * 1024 },
+          (err, stdout) => (err ? reject(err) : resolve(stdout)));
+      });
+      if (!png || png.length < 100) return { ok: false, error: "Empty frame." };
+      const hash = fnv1a(png);
+      if (frameHashes.get(serial) === hash) return { ok: true, unchanged: true };
+      frameHashes.set(serial, hash);
+      if (frameHashes.size > 20) {
+        try { frameHashes.delete(frameHashes.keys().next().value); } catch {}
+      }
+      return { ok: true, png };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("android:frame", async (_e, { serial } = {}) => {
+    try {
+      if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      let w, h, pixels;
+      try {
+        ({ w, h, pixels } = await captureFrameSession(serial));
+      } catch (e) {
+        // session broken/desynced → destroy it, one-shot fallback (previous path)
+        frameSessionDestroy(serial);
+        ({ w, h, pixels } = parseRawFrame(await captureRawFrame(serial)));
+      }
+      const prev = lastRawFrames.get(serial);
+      if (prev && prev.length === pixels.length && prev.equals(pixels)) {
+        return { ok: true, unchanged: true, w, h };
+      }
+      lastRawFrames.set(serial, Buffer.from(pixels));
+      if (lastRawFrames.size > 10) {
+        try { lastRawFrames.delete(lastRawFrames.keys().next().value); } catch {}
+      }
+      return { ok: true, w, h, pixels };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("android:input", async (_e, { serial, action } = {}) => {
+    try {
+      if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      const a = action || {};
+      const num = (v, lo, hi) => {
+        const n = Math.round(Number(v));
+        if (!Number.isFinite(n) || n < lo || n > hi) throw new Error("Coordinates out of range.");
+        return n;
+      };
+      let args;
+      if (a.type === "tap") {
+        args = ["shell", "input", "tap", String(num(a.x, 0, 8000)), String(num(a.y, 0, 8000))];
+      } else if (a.type === "swipe") {
+        args = ["shell", "input", "swipe",
+          String(num(a.x1, 0, 8000)), String(num(a.y1, 0, 8000)),
+          String(num(a.x2, 0, 8000)), String(num(a.y2, 0, 8000)),
+          String(num(a.ms ?? 300, 50, 5000))];
+      } else if (a.type === "key") {
+        args = ["shell", "input", "keyevent", String(num(a.code, 0, 300))];
+      } else if (a.type === "text") {
+        const t = escapeInputText(a.text);
+        if (!t) return { ok: false, error: "Empty text." };
+        args = ["shell", "input", "text", t];
+      } else if (a.type === "rotate") {
+        // True rotation like the emulator toolbar: console `rotate` first,
+        // settings keys as fallback. Always reports which path worked (or both errors).
+        const short = (e) => String(e?.message || e || "").split("\n")[0].slice(0, 160);
+        try {
+          const out = await adbEmu(serial, ["rotate"], { timeout: 15000 });
+          if (/unknown command|invalid|not supported|error|failed/i.test(out)) {
+            throw new Error(out.slice(0, 160) || "console rejected rotate");
+          }
+          return { ok: true, method: "console", detail: out.slice(0, 120) };
+        } catch (e1) {
+          try {
+            await adbShell(serial, ["shell", "settings", "put", "system", "accelerometer_rotation", "0"], { timeout: 15000 });
+            let cur = 0;
+            try { cur = parseInt(await adbShell(serial, ["shell", "settings", "get", "system", "user_rotation"], { timeout: 15000 }), 10) || 0; } catch {}
+            const next = (cur + 1) % 4;
+            await adbShell(serial, ["shell", "settings", "put", "system", "user_rotation", String(next)], { timeout: 15000 });
+            return { ok: true, method: "settings", detail: `rotation=${next}` };
+          } catch (e2) {
+            throw new Error(`Rotate failed — console: ${short(e1)}; settings: ${short(e2)}`);
+          }
+        }
+      } else {
+        return { ok: false, error: "Unknown input action." };
+      }
+      await adbShell(serial, args, { timeout: 15000 });
+      return { ok: true };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
   });
 
   ipcMain.handle("android:installPackage", async (_e, { packageId } = {}) => {
@@ -1033,4 +1590,9 @@ module.exports = {
   matchDeviceId,
   listDeviceIds,
   parseSdkLine,
+  parseRawFrame,
+  ensureAvdKeyboard,
+  avdConfigPath,
+  readAvdKey,
+  frameSessionPump,
 };

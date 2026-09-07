@@ -98,6 +98,10 @@ const TerminalPanel = ({ nodeId, config }) => {
     tabIdRef.current = `term_${safeNodeId}_${rand}`;
   }
   const tabId = tabIdRef.current;
+  // Mirror mode: read-only view of an externally-driven stream
+  // (config.mirrorTabId, e.g. the Android emulator log) — no PTY is spawned.
+  const mirrorTabId = config?.mirrorTabId || null;
+  const listenId = mirrorTabId || tabId;
 
   // ── Context menu (Right Click anywhere inside terminal) ────────────────────
   const handleContextMenu = useCallback(async (e) => {
@@ -142,6 +146,7 @@ const TerminalPanel = ({ nodeId, config }) => {
         window.electronAPI.writeToTerminal(tabId, "\x1bc");
         break;
       case "restart": {
+        if (mirrorTabId) { term?.clear(); break; } // mirror has no PTY — just clear
         const dir = cwdRef.current ?? cwd;
         if (!dir) return;
         window.electronAPI.openTerminal(tabId, dir, true); // force restart
@@ -191,7 +196,7 @@ const TerminalPanel = ({ nodeId, config }) => {
     const startTerminal = async (targetCwd) => {
       if (disposed || termRef.current || !targetCwd) return;
 
-      setCwd(targetCwd);
+      setCwd(mirrorTabId ? null : targetCwd);
 
       // Load terminal settings (fontSize, fontFamily, cursor, scrollback) — previously hardcoded to 13px,
       // so Settings → Terminal → Font Size never affected the terminal and instead leaked to editor.
@@ -255,9 +260,11 @@ const TerminalPanel = ({ nodeId, config }) => {
       term.open(el);
       term.focus();
 
-      term.onData((data) => {
-        window.electronAPI.writeToTerminal(tabId, data);
-      });
+      if (!mirrorTabId) {
+        term.onData((data) => {
+          window.electronAPI.writeToTerminal(tabId, data);
+        });
+      }
 
       termRef.current = term;
       fitRef.current = fit;
@@ -279,7 +286,7 @@ const TerminalPanel = ({ nodeId, config }) => {
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return;
         try {
           fit.fit();
-          if (term.cols > 0 && term.rows > 0) {
+          if (!mirrorTabId && term.cols > 0 && term.rows > 0) {
             window.electronAPI.resizeTerminal(tabId, term.cols, term.rows);
           }
         } catch {}
@@ -312,13 +319,18 @@ const TerminalPanel = ({ nodeId, config }) => {
         safeFit();
       }, 500);
 
-      await window.electronAPI.openTerminal(tabId, targetCwd || cwdRef.current);
+      if (!mirrorTabId) await window.electronAPI.openTerminal(tabId, targetCwd || cwdRef.current);
     };
 
     initTerminalRef.current = startTerminal;
 
     (async () => {
       try {
+        // Mirror tabs need no project/cwd — show the stream immediately
+        if (mirrorTabId) {
+          await startTerminal("__mirror__");
+          return;
+        }
         // Resolve project working directory
         let targetCwd = config?.cwd || window.__currentProjectPath;
         if (!targetCwd) {
@@ -343,7 +355,7 @@ const TerminalPanel = ({ nodeId, config }) => {
       initTerminalRef.current = null;
       if (rafId !== undefined) cancelAnimationFrame(rafId);
       if (fitIv !== undefined) clearInterval(fitIv);
-      window.electronAPI.closeTerminal(tabId);
+      if (!mirrorTabId) window.electronAPI.closeTerminal(tabId);
       if (term) { try { term.dispose(); } catch {} }
       termRef.current = null;
       fitRef.current = null;
@@ -354,19 +366,19 @@ const TerminalPanel = ({ nodeId, config }) => {
   // ── Listen for shell output / exit ────────────────────────────────────────
   useEffect(() => {
     const unsubData = window.electronAPI.onTerminalData(({ tabId: tId, data }) => {
-      if (tId === tabId && termRef.current) {
+      if (tId === listenId && termRef.current) {
         try { termRef.current.write(data); } catch {}
       }
     });
 
     const unsubExit = window.electronAPI.onTerminalExit(({ tabId: tId, code }) => {
-      if (tId === tabId && termRef.current) {
+      if (tId === listenId && termRef.current) {
         try { termRef.current.write(`\x1b[33m\r\n[Process exited with code ${code}]\x1b[0m\r\n`); } catch {}
       }
     });
 
     return () => { unsubData(); unsubExit(); };
-  }, [tabId]);
+  }, [tabId, mirrorTabId, listenId]);
 
   // ── Live terminal settings (fontSize, fontFamily, cursor, scrollback, copyOnSelect) ───────
   // Previously only fontSize was partially wired and leaked to editor; now all terminal
@@ -534,7 +546,7 @@ const TerminalPanel = ({ nodeId, config }) => {
     };
   }, [tabId]);
 
-  const dirName = cwd ? cwd.replace(/[\\/]$/, "").split(/[\\/]/).pop() || cwd : "Terminal";
+  const dirName = mirrorTabId ? "Emulator" : (cwd ? cwd.replace(/[\\/]$/, "").split(/[\\/]/).pop() || cwd : "Terminal");
 
   return (
     <div className="term-panel" onClick={handleFocus}>
@@ -550,7 +562,7 @@ const TerminalPanel = ({ nodeId, config }) => {
         )}
       </div>
 
-      {!cwd && !initError && (
+      {!cwd && !mirrorTabId && !initError && (
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 2,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",

@@ -267,15 +267,30 @@ contextBridge.exposeInMainWorld("electronAPI", {
   androidListAvds:      () => ipcRenderer.invoke("android:listAvds"),
   androidCreateAvd:     (payload) => ipcRenderer.invoke("android:createAvd", payload),
   androidDeleteAvd:     (name) => ipcRenderer.invoke("android:deleteAvd", { name }),
-  androidStartAvd:      (name, args) => ipcRenderer.invoke("android:startAvd", { name, args }),
+  androidStartAvd:      (name, opts) => ipcRenderer.invoke("android:startAvd", { name, ...(opts || {}) }),
   androidStopAvd:       (name) => ipcRenderer.invoke("android:stopAvd", { name }),
   androidInstallPackage:(packageId) => ipcRenderer.invoke("android:installPackage", { packageId }),
   androidRevealFolder:  () => ipcRenderer.invoke("android:revealFolder"),
+  // Embedded screen: headless emulator streamed into the panel
+  androidWaitSerial:  (name, timeoutMs) => ipcRenderer.invoke("android:waitSerial", { name, timeoutMs }),
+  androidBootState:   (serial) => ipcRenderer.invoke("android:bootState", { serial }),
+  androidDiagKeyboard:(serial, name) => ipcRenderer.invoke("android:diagKeyboard", { serial, name }),
+  androidScreencap:   (serial) => ipcRenderer.invoke("android:screencap", { serial }),
+  androidFrame:       (serial) => ipcRenderer.invoke("android:frame", { serial }),
+  androidFrameStop:   (serial) => ipcRenderer.invoke("android:frameStop", { serial }),
+  androidInput:       (serial, action) => ipcRenderer.invoke("android:input", { serial, action }),
+  androidDisplay:     (serial, mode) => ipcRenderer.invoke("android:display", { serial, mode }),
+  androidScreenshot:  (serial, name) => ipcRenderer.invoke("android:screenshot", { serial, name }),
   onAndroidProgress: (callback) => {
     const handler = (_e, payload) => callback(payload);
     ipcRenderer.on("android:progress", handler);
     return () => ipcRenderer.removeListener("android:progress", handler);
   },
+
+  // ── Notebook (Jupyter-like .ipynb cells, stateful Python kernel in main) ─
+  notebookCheckPython: () => ipcRenderer.invoke("notebook:checkPython"),
+  notebookExecute: (payload) => ipcRenderer.invoke("notebook:execute", payload),
+  notebookRestart: (payload) => ipcRenderer.invoke("notebook:restart", payload),
 
   // ── Session ─────────────────────────────────────────────────────────────────
   saveSession:   (data) => ipcRenderer.invoke("session:save", data),
