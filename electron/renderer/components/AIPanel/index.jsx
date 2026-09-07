@@ -55,10 +55,16 @@ import {
   X,
   RotateCcw,
   CircleAlert,
+  Sparkles,
 } from "lucide-react";
 
 // ─── Provider catalogue (mirrors main ai-service defaults) ────────────────
 const PROVIDERS = [
+  {
+    id: "pollinations", label: "Pollinations (free)", needsKey: false,
+    models: ["openai", "openai-fast", "mistral"],
+    keyUrl: "https://enter.pollinations.ai",
+  },
   {
     id: "openai", label: "OpenAI", needsKey: true,
     models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"],
@@ -92,6 +98,7 @@ const PROVIDERS = [
 ];
 
 const DEFAULT_MODELS = {
+  pollinations: "openai",
   openai: "gpt-4o-mini",
   anthropic: "claude-3-5-sonnet-latest",
   google: "gemini-2.0-flash",
@@ -185,14 +192,15 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
   const projectPathRef = useRef(null);
   const attachRef = useRef(true);
   const toolsRef = useRef(true);
-  const [provider, setProvider] = useState("openai");
+  const [provider, setProvider] = useState("pollinations");
   const [providerMeta, setProviderMeta] = useState(PROVIDERS[0]);
-  const [model, setModel] = useState(DEFAULT_MODELS.openai);
+  const [model, setModel] = useState(DEFAULT_MODELS.pollinations);
   const [hasKey, setHasKey] = useState(false);
   const [attachFile, setAttachFile] = useState(true);
   const [allowTools, setAllowTools] = useState(true);
   const [ctxPreview, setCtxPreview] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [route, setRoute] = useState(null); // { provider, model, fallback } of last request
   const modelFocusRef = useRef(false);
 
   try {
@@ -209,7 +217,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
     try {
       projectPathRef.current = window.__currentProjectPath || null;
     } catch {}
-    const p = String(d.aiProvider || d.ai?.provider || "openai").toLowerCase();
+    const p = String(d.aiProvider || d.ai?.provider || "pollinations").toLowerCase();
     const meta = PROVIDERS.find((x) => x.id === p) || PROVIDERS[0];
     setProviderMeta(meta);
     setProvider(meta.id);
@@ -266,6 +274,17 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
       try { unsub?.(); } catch {}
     };
   }, [mountEl]);
+
+  // Actual backend route (free fallback may differ from selection).
+  useEffect(() => {
+    const handler = (e) => {
+      const d = e.detail || {};
+      if (d.fallback) setRoute(d);
+      else setRoute(null);
+    };
+    window.addEventListener("ai:route", handler);
+    return () => window.removeEventListener("ai:route", handler);
+  }, []);
 
   // Editor context peek for the attach toggle label.
   useEffect(() => {
@@ -373,6 +392,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
       clearError?.();
     } catch {}
     setMessages([]);
+    setRoute(null);
     try {
       localStorage.removeItem(storageKey);
     } catch {}
@@ -442,7 +462,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
           {(providerMeta.models || []).map((m) => <option key={m} value={m} />)}
         </datalist>
         <span
-          title={hasKey ? "API key set (Settings → AI)" : providerMeta.needsKey ? "No API key — open Settings → AI" : "Local server — no key needed"}
+          title={hasKey ? "API key set (Settings → AI)" : providerMeta.needsKey ? "No API key — open Settings → AI" : "No API key needed for free use"}
           onClick={openSettings}
           className={`size-2.5 shrink-0 cursor-pointer rounded-full ${hasKey ? "bg-green-500" : providerMeta.needsKey ? "bg-red-500" : "bg-sky-500"}`}
         />
@@ -462,6 +482,22 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
           </MessageAction>
         )}
       </div>
+
+      {/* Free-fallback notice */}
+      {route?.fallback && (
+        <div className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-sky-500" />
+          <span className="min-w-0 flex-1 break-words">{route.fallback.notice}</span>
+          <button
+            type="button"
+            onClick={() => setRoute(null)}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Chat */}
       <Conversation className="min-h-0 flex-1">

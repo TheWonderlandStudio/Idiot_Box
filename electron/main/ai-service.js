@@ -30,9 +30,16 @@ const DEFAULT_MODELS = {
   openai: "gpt-4o-mini",
   anthropic: "claude-3-5-sonnet-latest",
   google: "gemini-2.0-flash",
+  pollinations: "openai",
   ollama: "llama3.1",
   "openai-compatible": "llama3.1",
 };
+
+// Pollinations.ai (https://pollinations.ai) — free tier, no signup required.
+// Docs: POST https://text.pollinations.ai/openai (exact path, OpenAI-compatible).
+// The AI SDK appends /chat/completions, so requests go through a fetch wrapper
+// that strips the suffix back to the documented endpoint.
+const POLLINATIONS_BASE_URL = "https://text.pollinations.ai/openai";
 
 function pickSetting(s, ...keys) {
   for (const k of keys) {
@@ -50,7 +57,7 @@ function pickSetting(s, ...keys) {
 
 function resolveConfig(payload = {}, settings = {}) {
   const provider = String(
-    payload.provider || pickSetting(settings, "aiProvider", "provider") || "openai"
+    payload.provider || pickSetting(settings, "aiProvider", "provider") || "pollinations"
   ).toLowerCase();
   const model =
     String(payload.model || pickSetting(settings, "aiModel", "model") || "").trim() ||
@@ -80,6 +87,9 @@ function humanAiError(raw) {
   const s = String(raw || "");
   const low = s.toLowerCase();
   if (!s) return "AI request failed";
+  if (low.includes("402") || low.includes("payment required") || low.includes("pollen") || low.includes("budget exhausted") || low.includes("key_budget")) {
+    return "Pollinations free budget exhausted — sign up free at enter.pollinations.ai and paste the token in Settings → AI, add any other provider key, or run Ollama locally for unlimited free AI.";
+  }
   if (low.includes("401") || low.includes("unauthorized") || low.includes("invalid api key") ||
       low.includes("incorrect api key") || low.includes("invalid x-api-key") || low.includes("authentication")) {
     return "Invalid API key — check Settings → AI and paste a valid key for the selected provider.";
@@ -114,6 +124,43 @@ function ensureInside(root, rel) {
     if (joined === r || joined.startsWith(r + path.sep)) return joined;
   } catch { /* ignore */ }
   return null;
+}
+
+// Fast localhost probe for the free-routing fallback (no key configured).
+// Returns { reachable, models[] } — never throws, ~2.5s worst case.
+async function probeOllama(baseURL) {
+  try {
+    const base = String(baseURL || "http://localhost:11434/v1").replace(/\/v1\/?$/, "");
+    const u = new URL(base);
+    const origin = `${u.protocol}//${u.host}`;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 2500);
+    try {
+      const r = await fetch(`${origin}/api/tags`, { signal: ctrl.signal });
+      if (!r.ok) return { reachable: false, models: [] };
+      let models = [];
+      try {
+        const j = await r.json();
+        models = ((j && j.models) || []).map((m) => m.name || m.model).filter(Boolean);
+      } catch { /* ignore */ }
+      return { reachable: true, models };
+    } finally {
+      clearTimeout(t);
+    }
+  } catch {
+    return { reachable: false, models: [] };
+  }
+}
+
+function pickOllamaModel(models) {
+  const list = Array.isArray(models) ? models : [];
+  const prefer = ["qwen2.5-coder", "codellama", "llama3.1", "mistral", "deepseek-coder-v2"];
+  const low = list.map((m) => String(m).toLowerCase());
+  for (const p of prefer) {
+    const idx = low.findIndex((m) => m.includes(p));
+    if (idx >= 0) return list[idx];
+  }
+  return list[0] || DEFAULT_MODELS.ollama;
 }
 
 function isUiMessage(m) {
@@ -260,6 +307,25 @@ async function resolveModel(cfg) {
     const { gateway } = await import("ai");
     return gateway(model);
   }
+  if (provider === "pollinations") {
+    const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
+    // Hit the exact documented endpoint (SDK would append /chat/completions).
+    const exactEndpointFetch = async (input, init) => {
+      try {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const fixed = String(url).replace(/\/chat\/completions\/?(\?.*)?$/, "$1");
+        return fetch(fixed, init);
+      } catch {
+        return fetch(input, init);
+      }
+    };
+    return createOpenAICompatible({
+      name: "pollinations",
+      baseURL: POLLINATIONS_BASE_URL,
+      ...(apiKey ? { apiKey } : {}),
+      fetch: exactEndpointFetch,
+    })(model);
+  }
   if (provider === "ollama" || provider === "openai-compatible" || provider === "custom" || provider === "lmstudio") {
     const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
     return createOpenAICompatible({
@@ -290,8 +356,40 @@ function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
       : [];
     if (!uiMessages.length) return { ok: false, error: "No messages to send." };
 
-    if (needsKey(cfg.provider) && !cfg.apiKey) {
-      return { ok: false, error: `Missing API key for ${cfg.provider} — open Settings → AI and paste a key.` };
+    // ── Free routing: no API key configured? Use local Ollama if it is
+    // running, otherwise free Pollinations (https://pollinations.ai).
+    // Explicit provider choices are respected whenever they can run.
+    let fallback = null;
+    const storedProvider = String(
+      settings.aiProvider || (settings.ai && settings.ai.provider) || ""
+    ).toLowerCase();
+    // Explicit = a stored choice, or credentials that can actually run.
+    // Anything else (fresh defaults) is auto mode: prefer free local Ollama,
+    // else free Pollinations.
+    const explicit = !!storedProvider ||
+      (cfg.provider !== "pollinations" && !(needsKey(cfg.provider) && !cfg.apiKey));
+    const needsKeyNow = needsKey(cfg.provider) && !cfg.apiKey;
+    if (needsKeyNow || !explicit) {
+      const probe = await probeOllama(cfg.provider === "ollama" ? cfg.baseURL : undefined);
+      if (probe.reachable && cfg.provider !== "ollama") {
+        const from = cfg.provider;
+        cfg.provider = "ollama";
+        cfg.model = pickOllamaModel(probe.models);
+        if (!cfg.baseURL) cfg.baseURL = "http://localhost:11434/v1";
+        fallback = {
+          provider: "ollama",
+          notice: `No API key — using local Ollama (${cfg.model}) instead${explicit ? ` of ${from}` : ""}. Add a key in Settings → AI to switch providers.`,
+        };
+      } else if (!probe.reachable && cfg.provider !== "pollinations" && (!explicit || needsKeyNow)) {
+        const from = cfg.provider;
+        cfg.provider = "pollinations";
+        cfg.model = DEFAULT_MODELS.pollinations;
+        cfg.baseURL = POLLINATIONS_BASE_URL;
+        fallback = {
+          provider: "pollinations",
+          notice: `No API key — trying free Pollinations (rate-limited)${explicit ? ` instead of ${from}` : ""}. For reliable AI, add a key in Settings → AI or run Ollama locally (ollama.com).`,
+        };
+      }
     }
 
     const controller = new AbortController();
@@ -306,9 +404,12 @@ function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
         const { z } = await import("zod");
         const model = await resolveModel(cfg);
         const tools = cfg.allowTools ? await buildTools(cfg.projectRoot, z) : undefined;
+        // Keyless Pollinations is heavily rate-limited: fewer chained tool
+        // steps so a single answer fits the free tier.
+        const maxSteps = cfg.provider === "pollinations" && !cfg.apiKey ? 2 : 5;
         const stopWhen = typeof ai.stepCountIs === "function"
-          ? ai.stepCountIs(5)
-          : typeof ai.isStepCount === "function" ? ai.isStepCount(5) : undefined;
+          ? ai.stepCountIs(maxSteps)
+          : typeof ai.isStepCount === "function" ? ai.isStepCount(maxSteps) : undefined;
 
         const modelMessages = await ai.convertToModelMessages(uiMessages, {
           ...(tools ? { tools } : {}),
@@ -381,7 +482,7 @@ function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
       }
     })();
 
-    return { ok: true, requestId, model: cfg.model, provider: cfg.provider };
+    return { ok: true, requestId, model: cfg.model, provider: cfg.provider, fallback };
   });
 
   ipcMain.handle("ai:abort", async (_e, requestId) => {
@@ -400,6 +501,23 @@ function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
       return { ok: false, error: `Missing API key for ${cfg.provider}.` };
     }
     if (!cfg.model) return { ok: false, error: "Missing model id." };
+    if (cfg.provider === "pollinations") {
+      // Free tier, no key needed — just prove the endpoint is reachable.
+      // (Listing endpoints are auth-free per Pollinations docs.)
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 6000);
+        try {
+          const r = await fetch("https://text.pollinations.ai/models", { signal: ctrl.signal });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return { ok: true, detail: `Pollinations reachable — free tier, no key needed (rate-limited). Add a token in Settings → AI for higher limits.` };
+        } finally {
+          clearTimeout(t);
+        }
+      } catch (e) {
+        return { ok: false, error: `Cannot reach Pollinations.ai — check your connection. (${e.message})` };
+      }
+    }
     if (cfg.provider === "ollama" || cfg.provider === "openai-compatible" || cfg.provider === "custom" || cfg.provider === "lmstudio") {
       const base = cfg.baseURL || "http://localhost:11434/v1";
       try {

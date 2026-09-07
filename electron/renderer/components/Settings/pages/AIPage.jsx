@@ -8,6 +8,7 @@ import React, { useState } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PROVIDERS = [
+  { id: "pollinations", label: "Pollinations (free)", needsKey: false, keyUrl: "https://enter.pollinations.ai", models: ["openai", "openai-fast", "mistral"] },
   { id: "openai", label: "OpenAI", needsKey: true, keyUrl: "https://platform.openai.com/api-keys", models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1", "o4-mini"] },
   { id: "anthropic", label: "Anthropic", needsKey: true, keyUrl: "https://console.anthropic.com/settings/keys", models: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-sonnet-4-5"] },
   { id: "google", label: "Google Gemini", needsKey: true, keyUrl: "https://aistudio.google.com/apikey", models: ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"] },
@@ -19,7 +20,7 @@ const PROVIDERS = [
 const DEFAULT_BASE_URL = { ollama: "http://localhost:11434/v1", "openai-compatible": "http://localhost:1234/v1" };
 
 const AIPage = ({ settings, onSave }) => {
-  const provider = String(settings.aiProvider || settings.ai?.provider || "openai");
+  const provider = String(settings.aiProvider || settings.ai?.provider || "pollinations");
   const meta = PROVIDERS.find((p) => p.id === provider) || PROVIDERS[0];
   const model = String(settings.aiModel || settings.ai?.model || meta.models[0] || "");
   const apiKey = String(settings.aiApiKey || settings.ai?.apiKey || "");
@@ -66,7 +67,8 @@ const AIPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Provider</span>
         <span className="sw-row__desc">
-          Model provider used by the AI panel (Vercel AI SDK). Ollama runs locally and needs no key.
+          Model provider used by the AI panel (Vercel AI SDK). Pollinations is free with no key.
+          No key configured? The panel automatically uses local Ollama if running, else free Pollinations.
         </span>
         <select
           className="sw-select"
@@ -109,10 +111,12 @@ const AIPage = ({ settings, onSave }) => {
 
       {/* ── API key ──────────────────────────────────────────────────── */}
       <div className="sw-row">
-        <span className="sw-row__label">API Key</span>
+        <span className="sw-row__label">API Key{meta.needsKey ? "" : " (optional)"}</span>
         <span className="sw-row__desc">
           {meta.needsKey ? (
             <>Stored locally in settings.json. {meta.keyUrl && <>Get one at <a href={meta.keyUrl} onClick={(e) => { e.preventDefault(); window.electronAPI?.openUrl?.(meta.keyUrl); }}>{meta.keyUrl}</a>.</>}</>
+          ) : meta.id === "pollinations" ? (
+            <>Not required — Pollinations works without a key (rate-limited). Paste a free token from <a href={meta.keyUrl} onClick={(e) => { e.preventDefault(); window.electronAPI?.openUrl?.(meta.keyUrl); }}>{meta.keyUrl}</a> for higher limits. Stored locally only.</>
           ) : (
             <>Optional for {meta.label} — only needed if your local server requires one.</>
           )}

@@ -121,6 +121,19 @@ export class ElectronIpcTransport {
     if (!res?.ok) throw new Error(res?.error || "AI request failed");
     const requestId = res.requestId;
     const transport = this;
+    // Tell the panel which backend actually serves this request
+    // (free fallback may differ from the selected provider).
+    try {
+      window.dispatchEvent(
+        new CustomEvent("ai:route", {
+          detail: {
+            provider: res.provider,
+            model: res.model,
+            fallback: res.fallback || null,
+          },
+        })
+      );
+    } catch {}
 
     let onAbort = null;
     const stream = new ReadableStream({
