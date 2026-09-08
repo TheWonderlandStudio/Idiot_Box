@@ -24,6 +24,21 @@ const DEVICE_PRESETS = [
 ];
 const DEVICE_MIN = { w: 240, h: 320 };
 
+// ── Guest user-agents — preset ke hisaab se sites MOBILE layout serve karein
+// (desktop UA par Google jaise pages desktop-width render karke h-scroll dete hain)
+const GUEST_UAS = {
+  iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+  android: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
+  ipad: "Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+};
+// presetId -> UA family (desktop/custom = default desktop UA)
+const presetUA = (id) => {
+  if (id === "pixel-7") return "android";
+  if (id === "ipad-air" || id === "ipad-pro-11") return "ipad";
+  if (id === "iphone-14-pro" || id === "iphone-se") return "iphone";
+  return null;
+};
+
 // ── BrowserPanel ───────────────────────────────────────────────────────────────
 const WEBVIEW_PRELOAD = typeof window !== "undefined" && window.electronAPI?.getWebviewPreload
   ? window.electronAPI.getWebviewPreload() : undefined;
@@ -58,6 +73,10 @@ const BrowserPanel = (props) => {
   const stageRef = useRef(null);
   const scaleRef = useRef(1);
   const deviceOnRef = useRef(false);
+  // guest UA bridge (ref-indirection taaki hook order/TDZ issue na ho —
+  // asli impl showToast ke baad define hoti hai, calls hamesha post-render)
+  const guestUARef = useRef({ key: null, def: null });
+  const requestGuestUARef = useRef(null);
   useEffect(() => { deviceOnRef.current = deviceOn; }, [deviceOn]);
 
   // Responsive mode: pages WITHOUT <meta name="viewport"> render desktop-width
@@ -108,6 +127,8 @@ const BrowserPanel = (props) => {
     setPresetOpen(false);
     // Already-loaded page par turant viewport fix lagao (dom-ready dobara nahi aayega)
     setTimeout(() => injectViewportMeta(), 80);
+    // Mobile UA → site mobile layout serve kare (warna desktop + h-scroll)
+    try { requestGuestUARef.current?.(presetUA(id)); } catch {}
   }, [injectViewportMeta]);
 
   const handleRotate = useCallback(() => {
@@ -123,18 +144,26 @@ const BrowserPanel = (props) => {
     let sw = 0, sh = 0;
     setDevSize((s) => { sw = s.w; sh = s.h; return s; });
     const k = scaleRef.current || 1;
+    let lastW = sw, lastH = sh;
     const move = (ev) => {
       const st = stageRef.current?.getBoundingClientRect();
       const maxW = Math.max(DEVICE_MIN.w, Math.round((st?.width || 1400) - 20));
       const maxH = Math.max(DEVICE_MIN.h, Math.round((st?.height || 900) - 20));
       const nw = Math.round(Math.min(Math.max(sw + (ev.clientX - sx) / k, DEVICE_MIN.w), maxW));
       const nh = Math.round(Math.min(Math.max(sh + (ev.clientY - sy) / k, DEVICE_MIN.h), maxH));
+      lastW = nw; lastH = nh;
       setDevSize({ w: nw, h: nh });
       setPresetId("custom");
     };
     const up = () => {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
+      // Drag-end par UA sync: desktop-chaudi (1024+) → desktop UA, warna mobile UA.
+      // (Sirf tab switch ho to reload — requestGuestUA andar guard karta hai.)
+      try {
+        if (lastW >= 1024) requestGuestUARef.current?.(null);
+        else if (lastW < 768) requestGuestUARef.current?.("iphone");
+      } catch {}
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
@@ -182,6 +211,29 @@ const BrowserPanel = (props) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(()=> setToast(null), 2800);
   }, []);
+
+  // ── Guest UA switch — UA sirf (re)load par lagta hai, isliye switch+reload ─
+  const requestGuestUA = useCallback(async (uaKey) => {
+    const wv = webviewRef.current;
+    if (!wv || !window.electronAPI?.setGuestUserAgent) return;
+    try {
+      const id = wv.getWebContentsId?.();
+      if (typeof id !== "number") return;
+      // Original desktop UA ek baar capture karo (restore ke liye)
+      if (!guestUARef.current.def && window.electronAPI?.getGuestUserAgent) {
+        try { guestUARef.current.def = await window.electronAPI.getGuestUserAgent(id); } catch {}
+      }
+      if (guestUARef.current.key === uaKey) return; // already on it — no reload
+      guestUARef.current.key = uaKey;
+      const target = uaKey ? GUEST_UAS[uaKey] : (guestUARef.current.def || navigator.userAgent);
+      const ok = await window.electronAPI.setGuestUserAgent(id, target);
+      if (ok) {
+        try { wv.reload(); } catch {}
+        showToast(uaKey ? "Mobile layout — page reloaded" : "Desktop layout restored — reloaded", uaKey ? "success" : "info");
+      }
+    } catch {}
+  }, [showToast]);
+  requestGuestUARef.current = requestGuestUA;
 
   const revertActiveInGuest = useCallback(async () => {
     try { await webviewRef.current?.executeJavaScript(`(() => { try{ if(window.__ibxRevertActive) return window.__ibxRevertActive(); if(window.__ibxCancelEdit) return window.__ibxCancelEdit(); }catch{} return false; })()`); } catch {}
@@ -1129,7 +1181,13 @@ const BrowserPanel = (props) => {
           <button
             className={`browser__btn${deviceOn ? " browser__btn--active" : ""}`}
             onClick={() => {
-              if (!deviceOnRef.current) setTimeout(() => injectViewportMeta(), 80);
+              if (!deviceOnRef.current) {
+                setTimeout(() => injectViewportMeta(), 80);
+                try { requestGuestUARef.current?.(presetUA(presetId)); } catch {}
+              } else {
+                // Wapas desktop browsing → desktop UA restore + reload
+                try { requestGuestUARef.current?.(null); } catch {}
+              }
               setDeviceOn((v) => !v);
             }}
             title="Responsive view — custom page size"
@@ -1314,7 +1372,7 @@ const BrowserPanel = (props) => {
             >
               <Maximize2 size={13} />
             </button>
-            <button className="browser__btn" onClick={() => setDeviceOn(false)} title="Exit responsive view">
+            <button className="browser__btn" onClick={() => { try { requestGuestUARef.current?.(null); } catch {} setDeviceOn(false); }} title="Exit responsive view">
               <X size={13} />
             </button>
             <div className="browser__siderail-sep" />

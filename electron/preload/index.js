@@ -76,6 +76,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showBrowserTabContextMenu: ()            => ipcRenderer.invoke("browser:tabContextMenu"),
   showBrowserWebviewContextMenu: (params) => ipcRenderer.invoke("browser:webviewContextMenu", params),
 
+  // ── Browser guest user-agent (responsive/mobile preview) ───────────────────
+  // wcId = webview.getWebContentsId(). Empty/omitted ua => default UA restore.
+  getGuestUserAgent: (wcId)     => ipcRenderer.invoke("browser:getGuestUA", wcId),
+  setGuestUserAgent: (wcId, ua) => ipcRenderer.invoke("browser:setGuestUA", { wcId, ua }),
+
   // ── Filesystem watcher ─────────────────────────────────────────────────────
   watchDir:   (rootPath) => ipcRenderer.invoke("fs:watch",   rootPath),
   unwatchDir: (rootPath) => ipcRenderer.invoke("fs:unwatch", rootPath),

@@ -2347,6 +2347,26 @@ ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionTe
   });
 });
 
+// ── Browser guest user-agent — responsive/mobile preview ────────────────────
+// Renderer (Browser panel) switches UA per viewport preset so sites serve
+// their mobile layout instead of desktop + horizontal scrollbar.
+ipcMain.handle("browser:getGuestUA", (_event, wcId) => {
+  try {
+    const wc = require("electron").webContents.fromId(Number(wcId));
+    return wc ? wc.getUserAgent() : null;
+  } catch { return null; }
+});
+ipcMain.handle("browser:setGuestUA", (_event, { wcId, ua }) => {
+  try {
+    const wc = require("electron").webContents.fromId(Number(wcId));
+    // NOTE: hamesha explicit UA string aata hai — default restore ke liye
+    // renderer pehle getGuestUA se original capture karke wahi wapas bhejta hai.
+    if (!wc || typeof ua !== "string" || !ua.length || ua.length > 500) return false;
+    wc.setUserAgent(ua);
+    return true;
+  } catch { return false; }
+});
+
 // ─── Browser tab context menu ─────────────────────────────────────────────────
 ipcMain.handle("browser:tabContextMenu", (event) => {
   return new Promise((resolve) => {
