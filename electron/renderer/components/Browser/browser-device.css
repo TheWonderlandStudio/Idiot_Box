@@ -1,66 +1,92 @@
-/* ── Browser device / responsive preview ────────────────────────────────────
- * Custom device frames + free-resize viewport. No extra deps — sirf central
- * tokens. webview element kabhi remount nahi hota (same tree), isliye device
- * mode on/off me page reload NAHI hota. */
+/* ── Browser responsive viewport size ───────────────────────────────────────
+ * Koi device mockup/frame nahi — sirf page-size control (presets + free
+ * resize + rotate + fit). No extra deps — sirf central tokens. webview
+ * element kabhi remount nahi hota, isliye size badalne par page reload
+ * NAHI hota. */
 
-.browser__devicebar {
+/* ── Side rail — responsive controls (hideable) ──────────────────────────── */
+.browser__siderail {
+  position: absolute;
+  left: var(--space-8);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-raised);
+  border: var(--space-1) solid var(--border-light);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-pop);
+}
+
+.browser__siderail-sep {
+  height: var(--space-1);
+  margin: var(--space-2) var(--space-4);
+  background: var(--border);
+}
+
+.browser__side-tab {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  width: 14px;
+  height: 48px;
   display: flex;
   align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-4) var(--space-8);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--bg-hover);
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
-.browser__devicebar-icon {
-  display: flex;
-  align-items: center;
-  color: var(--teal);
-  flex-shrink: 0;
-}
-
-.browser__device-select {
-  background: var(--bg-app);
-  color: var(--text-bright);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  font-size: var(--fs-small);
-  font-family: inherit;
-  padding: 3px 6px;
-  outline: none;
-  cursor: pointer;
-  max-width: 230px;
-  flex-shrink: 1;
-  min-width: 0;
-}
-
-.browser__device-select:focus { border-color: var(--accent); }
-
-.browser__device-dims {
-  font-size: var(--fs-small);
+  justify-content: center;
+  background: var(--bg-raised);
+  border: var(--space-1) solid var(--border-light);
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  user-select: none;
+  cursor: pointer;
+  padding: 0;
 }
 
-/* ── Stage (device mode me view-wrap center + dotted canvas banta hai) ───── */
+.browser__side-tab:hover {
+  color: var(--text-hover);
+  background: var(--bg-hover);
+}
+
+/* Preset popup — more-menu look, rail ke bagal me */
+.browser__preset-pop {
+  top: 50%;
+  right: auto;
+  left: 52px;
+  transform: translateY(-50%);
+  min-width: 220px;
+  z-index: 1001;
+}
+
+/* ── Stage (size mode me view-wrap centered scroll area banta hai) ───────── */
 .browser__view-wrap--device {
   align-items: center;
   overflow: auto;
   padding: var(--space-24);
-  background-color: var(--bg-app);
-  background-image: radial-gradient(var(--border) 1px, transparent 1.2px);
-  background-size: 18px 18px;
+  background: var(--bg-app);
 }
 
-/* ── Device shell — hamesha mounted rehta hai (fill mode me invisible) ───── */
+/* ── Sized viewport box — hamesha mounted rehta hai (fill mode me invisible) ─
+ * True-fit: OUTER scaled size ka hai (scroll nahi aata), INNER full device px
+ * ka hai taaki page ko poora viewport mile. */
 .browser__device {
   position: relative;
   flex-shrink: 0;
   margin: auto;
+  box-sizing: border-box; /* border andar gine — bahar 2px overflow scroll na aaye */
+  background: var(--black);
+  border: var(--space-1) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.browser__device:not(.browser__device--fill) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .browser__device--fill {
@@ -70,72 +96,27 @@
   min-height: 0;
   min-width: 0;
   margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.browser__device-screen {
+  flex: none;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.browser__device--fill .browser__device-screen {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  border-radius: 0;
 }
 
 .browser__device:not(.browser__device--fill) .browser__view {
   display: block;
-}
-
-/* ── Frames ─────────────────────────────────────────────────────────────── */
-.browser__device--phone {
-  background: var(--black);
-  border: var(--space-1) solid var(--border-strong);
-  border-radius: 44px;
-  padding: 12px;
-  box-shadow: var(--shadow-pop);
-}
-
-.browser__device--phone .browser__view {
-  border-radius: 32px;
-  overflow: hidden;
-}
-
-.browser__device--tablet {
-  background: var(--black);
-  border: var(--space-1) solid var(--border-strong);
-  border-radius: 26px;
-  padding: 16px;
-  box-shadow: var(--shadow-pop);
-}
-
-.browser__device--tablet .browser__view {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.browser__device--plain {
-  background: var(--black);
-  border: var(--space-1) solid var(--border-strong);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: var(--shadow-pop);
-}
-
-/* Dynamic-island notch (phone) / camera dot (tablet) */
-.browser__notch {
-  position: absolute;
-  top: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 110px;
-  height: 26px;
-  background: var(--black);
-  border-radius: 20px;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.browser__camdot {
-  position: absolute;
-  top: 5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-round);
-  background: var(--bg-hover);
-  z-index: 2;
-  pointer-events: none;
 }
 
 /* ── Free-resize corner handle ──────────────────────────────────────────── */
@@ -157,6 +138,10 @@
 .browser__resize-handle:hover {
   opacity: 1;
   border-color: var(--teal);
+}
+
+.browser__device:hover .browser__resize-handle {
+  opacity: 1;
 }
 
 /* ── Floating size badge ────────────────────────────────────────────────── */
@@ -181,10 +166,9 @@
 
 /* ── Small panels ───────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
-  .browser__device-dims { display: none; }
-  .browser__device-select { max-width: 150px; }
   .browser__view-wrap--device { padding: var(--space-12); }
+  .browser__siderail { left: var(--space-4); }
+  .browser__preset-pop { left: 44px; min-width: 190px; }
 }
 
-.is-tiny .browser__device-dims { display: none; }
-.is-tiny .browser__device-select { max-width: 150px; }
+.is-tiny .browser__siderail { left: var(--space-4); }

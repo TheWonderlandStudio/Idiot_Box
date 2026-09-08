@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
-import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle, Smartphone, RotateCw, Frame, Maximize2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle, Smartphone, RotateCw, Maximize2, X } from "lucide-react";
 import "./browser-device.css";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
@@ -8,16 +8,19 @@ const LOCK_ICON   = "M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1
 const UNLOCK_ICON = "M8 1a4 4 0 0 1 4 4v1h-1V5a3 3 0 0 0-5.7-1.37l-.78-.62A4 4 0 0 1 8 1zm-5.65.09l12 14-.7.6L1.65 1.7zM6 7.49l-1.82.01a1 1 0 0 0-.18 0v3.85L2.35 9.7l-.7.6L4 13.2V14a1 1 0 0 0 1 1h6.15l-1-1H5v-4.5l1.85.01zm4.56-.57A1 1 0 0 1 12 7.5V8h1a1 1 0 0 1 1 1v3.15l-1-1V9h-1.44z";
 const LOCAL_ICON  = "M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 12.93A6 6 0 0 1 2 8c0-.33.03-.66.07-1H4v1h2v1H5v1h1v2l1 1zm5.1-3.83A4.9 4.9 0 0 0 13 8c0-2.5-1.83-4.55-4.2-4.96L9 4v1H7V4h-.44l3.55 5.1zm-9.4.14A5 5 0 0 1 2 8c0 1.72.87 3.23 2.2 4.14l.83-1.04z";
 
-// ── Device presets (CSS px — page sees this as its viewport width) ─────────
-// NOTE: webview resizing == real responsive preview (media queries respond).
-// UA spoofing / touch emulation nahi hai — woh main-process work hai, future scope.
+// ── Responsive sizes (CSS px — webview ko EXACT yehi w/h milta hai) ─────────
+// webview resizing == real responsive preview (media queries respond).
+// Koi device mockup/frame nahi — sirf page-size control. Pages jinke paas
+// <meta viewport> nahi hai unme width=device-width auto-inject hota hai
+// (injectViewportMeta) taaki desktop-width render + h-scroll na aaye.
+// UA spoofing / touch emulation nahi hai — future scope.
 const DEVICE_PRESETS = [
-  { id: "iphone-14-pro", label: "iPhone 14 Pro", w: 393,  h: 852,  frame: "phone",  icon: "phone" },
-  { id: "iphone-se",     label: "iPhone SE",     w: 375,  h: 667,  frame: "phone",  icon: "phone" },
-  { id: "pixel-7",       label: "Pixel 7",       w: 412,  h: 915,  frame: "phone",  icon: "phone" },
-  { id: "ipad-air",      label: "iPad Air",      w: 820,  h: 1180, frame: "tablet", icon: "tablet" },
-  { id: "ipad-pro-11",   label: "iPad Pro 11",   w: 834,  h: 1194, frame: "tablet", icon: "tablet" },
-  { id: "desktop-hd",    label: "Desktop HD",    w: 1440, h: 900,  frame: "plain",  icon: "desktop" },
+  { id: "iphone-14-pro", label: "iPhone 14 Pro", w: 393,  h: 852 },
+  { id: "iphone-se",     label: "iPhone SE",     w: 375,  h: 667 },
+  { id: "pixel-7",       label: "Pixel 7",       w: 412,  h: 915 },
+  { id: "ipad-air",      label: "iPad Air",      w: 820,  h: 1180 },
+  { id: "ipad-pro-11",   label: "iPad Pro 11",   w: 834,  h: 1194 },
+  { id: "desktop-hd",    label: "Desktop HD",    w: 1440, h: 900 },
 ];
 const DEVICE_MIN = { w: 240, h: 320 };
 
@@ -44,16 +47,36 @@ const BrowserPanel = (props) => {
   const [toast,        setToast]        = useState(null);
   const [hasProject,   setHasProject]   = useState(() => { try { return !!window.__currentProjectPath; } catch { return false; } });
 
-  // ── Device / responsive preview mode (custom — no extra deps) ──────────
+  // ── Responsive viewport size (custom — no extra deps) ───────────────────
   const [deviceOn,  setDeviceOn]  = useState(false);
   const [presetId,  setPresetId]  = useState(DEVICE_PRESETS[0].id);
   const [devSize,   setDevSize]   = useState({ w: DEVICE_PRESETS[0].w, h: DEVICE_PRESETS[0].h });
-  const [frameKind, setFrameKind] = useState(DEVICE_PRESETS[0].frame);
-  const [frameOn,   setFrameOn]   = useState(true);
   const [fitOn,     setFitOn]     = useState(true);
+  const [railHidden, setRailHidden] = useState(false);
+  const [presetOpen, setPresetOpen] = useState(false);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
   const stageRef = useRef(null);
   const scaleRef = useRef(1);
+  const deviceOnRef = useRef(false);
+  useEffect(() => { deviceOnRef.current = deviceOn; }, [deviceOn]);
+
+  // Responsive mode: pages WITHOUT <meta name="viewport"> render desktop-width
+  // inside a narrow view → horizontal scrollbar. Inject width=device-width when
+  // missing (sirf responsive mode me; normal browsing untouched rehta hai).
+  const injectViewportMeta = useCallback(async () => {
+    try {
+      await webviewRef.current?.executeJavaScript(`(() => {
+        try {
+          if (document.querySelector('meta[name="viewport"]')) return 'exists';
+          const m = document.createElement('meta');
+          m.name = 'viewport';
+          m.content = 'width=device-width, initial-scale=1';
+          (document.head || document.documentElement).appendChild(m);
+          return 'injected';
+        } catch (e) { return 'error'; }
+      })()`);
+    } catch {}
+  }, []);
 
   // Stage measure → fit-to-panel scale (page viewport stays full device px)
   useEffect(() => {
@@ -81,9 +104,11 @@ const BrowserPanel = (props) => {
     if (!p) return;
     setPresetId(p.id);
     setDevSize({ w: p.w, h: p.h });
-    setFrameKind(p.frame);
     setDeviceOn(true);
-  }, []);
+    setPresetOpen(false);
+    // Already-loaded page par turant viewport fix lagao (dom-ready dobara nahi aayega)
+    setTimeout(() => injectViewportMeta(), 80);
+  }, [injectViewportMeta]);
 
   const handleRotate = useCallback(() => {
     setDevSize((s) => ({ w: s.h, h: s.w }));
@@ -279,6 +304,8 @@ const BrowserPanel = (props) => {
 
     wv.addEventListener("did-start-loading",    () => setIsLoading(true));
     wv.addEventListener("did-stop-loading",     () => setIsLoading(false));
+    // Har document load par viewport fix (responsive mode on ho to)
+    wv.addEventListener("dom-ready", () => { if (deviceOnRef.current) injectViewportMeta(); });
     wv.addEventListener("did-fail-load", (e) => {
       setIsLoading(false);
       // -3 = ERR_ABORTED (e.g. localhost dev server not running or navigation cancelled) — ignore silently
@@ -1098,11 +1125,14 @@ const BrowserPanel = (props) => {
             />
           </div>
 
-          {/* Device view toggle — mobile/tablet responsive preview */}
+          {/* Responsive view toggle — custom page size */}
           <button
             className={`browser__btn${deviceOn ? " browser__btn--active" : ""}`}
-            onClick={() => setDeviceOn((v) => !v)}
-            title="Device view — mobile / tablet responsive preview"
+            onClick={() => {
+              if (!deviceOnRef.current) setTimeout(() => injectViewportMeta(), 80);
+              setDeviceOn((v) => !v);
+            }}
+            title="Responsive view — custom page size"
             style={deviceOn ? { background: "var(--teal-a18)", color: "var(--teal)", border: "1px solid var(--teal-a35)" } : undefined}
           >
             <Smartphone size={14} />
@@ -1153,47 +1183,6 @@ const BrowserPanel = (props) => {
             ref={actionListRef}
             style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
           />
-        </div>
-      )}
-
-      {/* Device / responsive preview bar */}
-      {!barHidden && deviceOn && (
-        <div className="browser__devicebar">
-          <span className="browser__devicebar-icon"><Smartphone size={13} /></span>
-          <select
-            className="browser__device-select"
-            value={presetId}
-            onChange={(e) => applyPreset(e.target.value)}
-            title="Device preset"
-          >
-            {presetId === "custom" && <option value="custom">Custom — {devSize.w}×{devSize.h}</option>}
-            {DEVICE_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>{p.label} — {p.w}×{p.h}</option>
-            ))}
-          </select>
-          <span className="browser__device-dims">
-            {devSize.w}×{devSize.h}{devScale < 0.999 ? ` · ${Math.round(devScale * 100)}%` : ""}
-          </span>
-          <button className="browser__btn" onClick={handleRotate} title="Rotate viewport">
-            <RotateCw size={13} />
-          </button>
-          <button
-            className={`browser__btn${frameOn ? " browser__btn--active" : ""}`}
-            onClick={() => setFrameOn((v) => !v)}
-            title="Toggle device frame"
-          >
-            <Frame size={13} />
-          </button>
-          <button
-            className={`browser__btn${fitOn ? " browser__btn--active" : ""}`}
-            onClick={() => setFitOn((v) => !v)}
-            title="Fit frame in panel"
-          >
-            <Maximize2 size={13} />
-          </button>
-          <button className="browser__btn" onClick={() => setDeviceOn(false)} title="Exit device view">
-            <X size={13} />
-          </button>
         </div>
       )}
 
@@ -1262,32 +1251,40 @@ const BrowserPanel = (props) => {
         </>
       )}
 
-      {/* Webview — device frame me bhi SAME element rehta hai (no remount, no reload) */}
+      {/* Webview — responsive size me bhi SAME element rehta hai (no remount, no reload).
+          True-fit: outer box scaled size ka hai (scroll nahi aata), inner box
+          full device px ka hai taaki page ko poora viewport mile. */}
       <div
         ref={stageRef}
         className={`browser__view-wrap${deviceOn ? " browser__view-wrap--device" : ""}`}
       >
         <div
-          className={`browser__device${deviceOn && frameOn ? ` browser__device--${frameKind}` : ""}${deviceOn ? "" : " browser__device--fill"}`}
+          className={`browser__device${deviceOn ? "" : " browser__device--fill"}`}
           style={deviceOn ? {
-            width: devSize.w,
-            height: devSize.h,
-            transform: devScale !== 1 ? `scale(${devScale})` : undefined,
+            width: Math.max(1, Math.round(devSize.w * devScale)),
+            height: Math.max(1, Math.round(devSize.h * devScale)),
           } : undefined}
         >
-          <webview
-            key="browser-webview"
-            className="browser__view"
-            ref={webviewRefCb}
-            src={navUrl}
-            preload={WEBVIEW_PRELOAD}
-            // webview is a custom Electron element - use string attrs to avoid React boolean warnings
-            allowpopups=""
-            allowFullScreen=""
-            style={deviceOn ? { width: "100%", height: "100%", flex: "none" } : undefined}
-          />
-          {deviceOn && frameOn && frameKind === "phone" && <div className="browser__notch" />}
-          {deviceOn && frameOn && frameKind === "tablet" && <div className="browser__camdot" />}
+          <div
+            className="browser__device-screen"
+            style={deviceOn ? {
+              width: devSize.w,
+              height: devSize.h,
+              transform: devScale !== 1 ? `scale(${devScale})` : undefined,
+            } : undefined}
+          >
+            <webview
+              key="browser-webview"
+              className="browser__view"
+              ref={webviewRefCb}
+              src={navUrl}
+              preload={WEBVIEW_PRELOAD}
+              // webview is a custom Electron element - use string attrs to avoid React boolean warnings
+              allowpopups=""
+              allowFullScreen=""
+              style={deviceOn ? { width: "100%", height: "100%", flex: "none" } : undefined}
+            />
+          </div>
           {deviceOn && (
             <div
               className="browser__resize-handle"
@@ -1300,6 +1297,56 @@ const BrowserPanel = (props) => {
           <div className="browser__device-meta">
             {activePreset ? activePreset.label : "Custom"} • {devSize.w}×{devSize.h}{devScale < 0.999 ? ` • ${Math.round(devScale * 100)}%` : ""}
           </div>
+        )}
+        {/* Side rail — responsive controls (hideable) */}
+        {deviceOn && !railHidden && (
+          <div className="browser__siderail">
+            <button className="browser__btn" onClick={() => setPresetOpen((v) => !v)} title="Viewport size presets">
+              <Smartphone size={14} />
+            </button>
+            <button className="browser__btn" onClick={handleRotate} title="Rotate viewport">
+              <RotateCw size={13} />
+            </button>
+            <button
+              className={`browser__btn${fitOn ? " browser__btn--active" : ""}`}
+              onClick={() => setFitOn((v) => !v)}
+              title="Fit page in panel"
+            >
+              <Maximize2 size={13} />
+            </button>
+            <button className="browser__btn" onClick={() => setDeviceOn(false)} title="Exit responsive view">
+              <X size={13} />
+            </button>
+            <div className="browser__siderail-sep" />
+            <button className="browser__btn" onClick={() => setRailHidden(true)} title="Hide controls">
+              <ChevronLeft size={13} />
+            </button>
+          </div>
+        )}
+        {deviceOn && railHidden && (
+          <button className="browser__side-tab" onClick={() => setRailHidden(false)} title="Show responsive controls">
+            <ChevronRight size={13} />
+          </button>
+        )}
+        {/* Preset popup */}
+        {deviceOn && presetOpen && (
+          <>
+            <div className="browser__lock-overlay" onClick={() => setPresetOpen(false)} />
+            <div className="browser__more-menu browser__preset-pop" onClick={(e) => e.stopPropagation()}>
+              {presetId === "custom" && (
+                <div className="browser__more-item" style={{ cursor: "default", color: "var(--text-muted)" }}>
+                  <span className="browser__more-label">Custom — {devSize.w}×{devSize.h}</span>
+                  <span>✓</span>
+                </div>
+              )}
+              {DEVICE_PRESETS.map((p) => (
+                <button key={p.id} className="browser__more-item" onClick={() => applyPreset(p.id)} title={`${p.label} (${p.w}×${p.h})`}>
+                  <span className="browser__more-label">{p.label} — {p.w}×{p.h}</span>
+                  {presetId === p.id && <span style={{ color: "var(--teal)" }}>✓</span>}
+                </button>
+              ))}
+            </div>
+          </>
         )}
         {/* Edit mode overlay hint when bar hidden */}
         {editMode && barHidden && (
