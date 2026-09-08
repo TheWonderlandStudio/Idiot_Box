@@ -623,6 +623,9 @@ const EditorPanel = ({ config, nodeId }) => {
   const [wordWrap,        setWordWrap]        = useState("on");
   const [lineNumbers,     setLineNumbers]     = useState("on");
   const [fontSize,        setFontSize]        = useState(13);
+  // NOTE: Monaco ko REAL font string chahiye — var(--font-code) yahan resolve
+  // NAHI hota (JS API, CSS nahi). Isliye literal rakha hai, jo --font-code
+  // token ke barabar hai. Token badle to yahan bhi badlo.
   const [fontFamily,      setFontFamily]      = useState('Consolas, "Courier New", monospace');
   const [tabSize,         setTabSize]         = useState(2);
   const [editorTheme,     setEditorTheme]     = useState("dark"); // default dark
@@ -749,11 +752,11 @@ const EditorPanel = ({ config, nodeId }) => {
     const style = document.createElement("style");
     style.id = "git-diff-style";
     style.textContent = `
-      .git-diff-added { background: rgba(115,201,145,0.15) !important; }
-      .git-diff-added-glyph { border-left: 3px solid #73c991 !important; margin-left: 3px; }
-      .git-diff-modified { background: rgba(204,167,0,0.12) !important; }
-      .git-diff-modified-glyph { border-left: 3px solid #cca700 !important; margin-left: 3px; }
-      .git-diff-removed { background: rgba(244,71,71,0.12) !important; }
+      .git-diff-added { background: var(--git-added-a15) !important; }
+      .git-diff-added-glyph { border-left: 3px solid var(--git-added) !important; margin-left: var(--space-3); }
+      .git-diff-modified { background: var(--git-modified-a12) !important; }
+      .git-diff-modified-glyph { border-left: 3px solid var(--git-modified) !important; margin-left: var(--space-3); }
+      .git-diff-removed { background: var(--git-removed-a12) !important; }
     `;
     document.head.appendChild(style);
   }, []);
@@ -924,7 +927,7 @@ const EditorPanel = ({ config, nodeId }) => {
         flashStatus(`Binary or unreadable file: ${fileName(filePath)}`);
         const host = hostRef.current;
         if (host) {
-          host.innerHTML = `<div style="padding:24px; color:#888; text-align:center; font-family:sans-serif; font-size:13px;">Binary or unsupported file type (${fileName(filePath)}).<br/>Editing is disabled to prevent corruption.</div>`;
+          host.innerHTML = `<div style="padding:var(--space-24); color:var(--icon); text-align:center; font-family:sans-serif; font-size:var(--fs-title);">Binary or unsupported file type (${fileName(filePath)}).<br/>Editing is disabled to prevent corruption.</div>`;
         }
         return;
       }
@@ -1478,7 +1481,7 @@ const EditorPanel = ({ config, nodeId }) => {
         flexDirection: "column",
         height: "100%",
         width: "100%",
-        background: "#1e1e1e",
+        background: "var(--bg-surface)",
         overflow: "hidden",
         position: "relative",
       }}
@@ -1487,27 +1490,27 @@ const EditorPanel = ({ config, nodeId }) => {
       {!hasProject ? (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          height: "100%", flexDirection: "column", gap: 14,
+          height: "100%", flexDirection: "column", gap: "var(--space-14)",
         }}>
           <svg width="52" height="52" viewBox="0 0 16 16" fill="none">
-            <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z" fill="#3a3a3a"/>
+            <path style={{ fill: "var(--border-light)" }} d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z"/>
           </svg>
-          <span style={{ color: "#666", fontWeight: 600, fontSize: 13 }}>No project open</span>
-          <span style={{ color: "#444", fontSize: 11, textAlign: "center", maxWidth: 220, lineHeight: 1.6 }}>
-            Open a project from the <strong style={{ color: "#555" }}>File</strong> menu or the Project Panel,
+          <span style={{ color: "var(--text-muted)", fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-title)" }}>No project open</span>
+          <span style={{ color: "var(--text-disabled)", fontSize: "var(--fs-small)", textAlign: "center", maxWidth: 220, lineHeight: "var(--lh-doc)" }}>
+            Open a project from the <strong style={{ color: "var(--text-placeholder)" }}>File</strong> menu or the Project Panel,
             then select a file to edit.
           </span>
           <button
             onClick={() => window.electronAPI.openFolder()}
             style={{
-              marginTop: 4,
-              height: 30, padding: "0 16px",
-              background: "#2d2d2d", border: "1px solid #3c3c3c",
-              borderRadius: 3, color: "#bbb",
-              fontSize: 12, cursor: "pointer",
+              marginTop: "var(--space-4)",
+              height: 30, padding: "0 var(--space-16)",
+              background: "var(--bg-active)", border: "1px solid var(--border-strong)",
+              borderRadius: "var(--radius-sm)", color: "var(--text-soft)",
+              fontSize: "var(--fs-body)", cursor: "pointer",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#383838"; e.currentTarget.style.borderColor = "#5a9fd4"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#2d2d2d"; e.currentTarget.style.borderColor = "#3c3c3c"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-lift)"; e.currentTarget.style.borderColor = "var(--accent-light)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-active)"; e.currentTarget.style.borderColor = "var(--border-strong)"; }}
           >
             Open Folder…
           </button>
@@ -1523,27 +1526,27 @@ const EditorPanel = ({ config, nodeId }) => {
             ) : !ready ? (
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
-                height: "100%", color: "#777", fontSize: 13, flexDirection: "column", gap: 12,
+                height: "100%", color: "var(--icon-muted)", fontSize: "var(--fs-title)", flexDirection: "column", gap: "var(--space-12)",
               }}>
-                <span style={{ color: "#aaa", fontWeight: 500 }}>Initializing VS Code editor…</span>
+                <span style={{ color: "var(--icon-hover)", fontWeight: "var(--fw-medium)" }}>Initializing VS Code editor…</span>
               </div>
             ) : initError ? (
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
-                height: "100%", color: "#f44747", fontSize: 13, padding: 20, textAlign: "center",
+                height: "100%", color: "var(--danger)", fontSize: "var(--fs-title)", padding: "var(--space-20)", textAlign: "center",
               }}>
                 Editor init error: {initError}
               </div>
             ) : !filePath ? (
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
-                height: "100%", color: "#555", fontSize: 13, flexDirection: "column", gap: 12,
+                height: "100%", color: "var(--text-placeholder)", fontSize: "var(--fs-title)", flexDirection: "column", gap: "var(--space-12)",
               }}>
-                <svg width="48" height="48" viewBox="0 0 16 16" fill="#333">
+                <svg style={{ fill: "var(--bg-thumb)" }} width="48" height="48" viewBox="0 0 16 16">
                   <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4Zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5Z"/>
                 </svg>
-                <span style={{ color: "#777", fontWeight: 500 }}>Editor</span>
-                <span style={{ fontSize: 11, color: "#444" }}>
+                <span style={{ color: "var(--icon-muted)", fontWeight: "var(--fw-medium)" }}>Editor</span>
+                <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)" }}>
                   Single-click any file in Project Panel to edit
                 </span>
               </div>
@@ -1559,19 +1562,19 @@ const EditorPanel = ({ config, nodeId }) => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "2px 10px",
-                background: "#007acc",
-                color: "#ffffff",
-                fontSize: 11,
-                height: 22,
+                padding: "var(--space-2) var(--space-10)",
+                background: "var(--accent)",
+                color: "var(--text-inverse)",
+                fontSize: "var(--fs-small)",
+                height: "var(--bar-h-sm)",
                 flexShrink: 0,
                 userSelect: "none",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
                 <span>{statusMsg || `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`}</span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
                 {(autoSave || autoSaveEnabled) && <span>AutoSave: On</span>}
                 <span>Spaces: {tabSize}</span>
                 <span>UTF-8</span>
@@ -1579,9 +1582,9 @@ const EditorPanel = ({ config, nodeId }) => {
                   onClick={() => { setShowLangMenu((v) => !v); setLangQuery(""); }}
                   title={detected && langAuto ? `Auto-detected: ${detected.reason} — click to change` : "Change language mode"}
                   style={{
-                    textTransform: "uppercase", fontWeight: 600, cursor: "pointer",
-                    padding: "0 5px", borderRadius: 2,
-                    background: showLangMenu ? "rgba(255,255,255,0.25)" : "transparent",
+                    textTransform: "uppercase", fontWeight: "var(--fw-semibold)", cursor: "pointer",
+                    padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)",
+                    background: showLangMenu ? "var(--white-a25)" : "transparent",
                   }}
                 >
                   {langAuto ? "✨ " : ""}{language}
@@ -1595,17 +1598,17 @@ const EditorPanel = ({ config, nodeId }) => {
             <>
               <div
                 onClick={() => setShowLangMenu(false)}
-                style={{ position: "absolute", inset: 0, zIndex: 40 }}
+                style={{ position: "absolute", inset: 0, zIndex: "var(--z-menu)" }}
               />
               <div
                 style={{
-                  position: "absolute", right: 8, bottom: 26, zIndex: 41,
-                  background: "#252526", border: "1px solid #3c3c3c", borderRadius: 4,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-                  maxHeight: 300, overflowY: "auto", minWidth: 220, padding: 4,
+                  position: "absolute", right: 8, bottom: 26, zIndex: "var(--z-menu-top)",
+                  background: "var(--bg-vscode)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-md)",
+                  boxShadow: "var(--shadow-pop)",
+                  maxHeight: 300, overflowY: "auto", minWidth: 220, padding: "var(--space-4)",
                 }}
               >
-                <div style={{ fontSize: 10, color: "#888", padding: "4px 8px", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon)", padding: "var(--space-4) var(--space-8)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                   Language mode
                 </div>
                 <input
@@ -1614,9 +1617,9 @@ const EditorPanel = ({ config, nodeId }) => {
                   onChange={(e) => setLangQuery(e.target.value)}
                   placeholder="Search languages…"
                   style={{
-                    width: "100%", boxSizing: "border-box", margin: "0 0 4px",
-                    background: "#1e1e1e", border: "1px solid #3c3c3c", borderRadius: 3,
-                    color: "#ddd", fontSize: 12, padding: "5px 8px", outline: "none",
+                    width: "100%", boxSizing: "border-box", margin: "0 0 var(--space-4)",
+                    background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)",
+                    color: "var(--text-hover)", fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", outline: "none",
                   }}
                 />
                 {detected && detected.id !== language && (
@@ -1624,20 +1627,20 @@ const EditorPanel = ({ config, nodeId }) => {
                     onClick={() => setEditorLanguage(detected.id, true)}
                     title={`Detected from content: ${detected.reason}`}
                     style={{
-                      fontSize: 12, padding: "5px 8px", borderRadius: 3, cursor: "pointer",
-                      color: "#4ec9b0", background: "rgba(78,201,176,0.12)",
-                      border: "1px solid rgba(78,201,176,0.35)", marginBottom: 4,
+                      fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                      color: "var(--teal)", background: "var(--teal-a12)",
+                      border: "1px solid var(--teal-a35)", marginBottom: "var(--space-4)",
                     }}
                   >
                     ✨ Suggested: {detected.id}
-                    <span style={{ color: "#888", fontSize: 11 }}> — {detected.reason}</span>
+                    <span style={{ color: "var(--icon)", fontSize: "var(--fs-small)" }}> — {detected.reason}</span>
                   </div>
                 )}
                 <div
                   onClick={runAutoDetect}
                   style={{
-                    fontSize: 12, padding: "5px 8px", borderRadius: 3, cursor: "pointer",
-                    color: "#9cdcfe", marginBottom: 4,
+                    fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                    color: "var(--code-cyan)", marginBottom: "var(--space-4)",
                   }}
                 >
                   ↻ Auto-detect from content
@@ -1647,9 +1650,9 @@ const EditorPanel = ({ config, nodeId }) => {
                     key={id}
                     onClick={() => setEditorLanguage(id)}
                     style={{
-                      fontSize: 12, padding: "3px 8px", borderRadius: 3, cursor: "pointer",
-                      color: id === language ? "#ffffff" : "#cccccc",
-                      background: id === language ? "#094771" : "transparent",
+                      fontSize: "var(--fs-body)", padding: "var(--space-3) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                      color: id === language ? "var(--text-inverse)" : "var(--text-bright)",
+                      background: id === language ? "var(--select-blue)" : "transparent",
                     }}
                   >
                     {id}

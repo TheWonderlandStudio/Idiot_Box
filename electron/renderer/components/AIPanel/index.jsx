@@ -690,7 +690,7 @@ export default function AIPanel({ nodeId }) {
   const storageKey = `ai:chat:${projectPath || "global"}`;
 
   return (
-    <div ref={hostRef} style={{ height: "100%", display: "flex", flexDirection: "column", background: "#1e1e1e" }}>
+    <div ref={hostRef} style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--bg-surface)" }}>
       {mount
         ? createPortal(
             <AiChat key={chatId} chatId={chatId} storageKey={storageKey} nodeId={nodeId} mountEl={mount} />,

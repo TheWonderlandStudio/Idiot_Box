@@ -81,7 +81,7 @@ const SettingsWindow = () => {
   }, []);
 
   const renderPage = () => {
-    if (loading) return <div style={{ color: "#555", fontSize: 12 }}>Loading...</div>;
+    if (loading) return <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-body)" }}>Loading...</div>;
     switch (activePage) {
       case "general":     return <GeneralPage settings={settings} onSave={updateSettings} />;
       case "editor":      return <EditorPage settings={settings} onSave={updateSettings} />;

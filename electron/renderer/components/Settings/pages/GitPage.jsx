@@ -141,7 +141,7 @@ const GitPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">About Git Integration</span>
         <span className="sw-row__desc">
-          Idiot Box uses your system Git installation. Ensure <code style={{ background: "#2a2a2a", padding: "1px 4px", borderRadius: 3 }}>git</code> is available on PATH for full functionality.
+          Idiot Box uses your system Git installation. Ensure <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)" }}>git</code> is available on PATH for full functionality.
         </span>
       </div>
     </div>

@@ -77,19 +77,19 @@ const QuickOpen = () => {
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 950 }} onClick={() => setOpen(false)} />
+      <div style={{ position: "fixed", inset: 0, zIndex: "var(--z-quick)" }} onClick={() => setOpen(false)} />
       <div
         style={{
           position: "fixed", top: "12%", left: "50%", transform: "translateX(-50%)",
-          width: 640, maxWidth: "90vw", zIndex: 951,
-          background: "#252526", border: "1px solid #3a3a3a", borderRadius: 6,
-          boxShadow: "0 12px 48px rgba(0,0,0,0.65)", overflow: "hidden",
+          width: 640, maxWidth: "90vw", zIndex: "var(--z-quick-top)",
+          background: "var(--bg-vscode)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-float)", overflow: "hidden",
           display: "flex", flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "#1e1e1e", borderBottom: "1px solid #3a3a3a" }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 2H9L12 5V13H4V2Z" stroke="#888" strokeWidth="1.2" /><path d="M9 2V5H12" stroke="#888" strokeWidth="1.2" /></svg>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-8) var(--space-12)", background: "var(--bg-surface)", borderBottom: "var(--space-1) solid var(--border-light)" }}>
+          <svg style={{ stroke: "var(--icon)" }} width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 2H9L12 5V13H4V2Z" strokeWidth="1.2" /><path d="M9 2V5H12" strokeWidth="1.2" /></svg>
           <input
             ref={inputRef}
             value={query}
@@ -103,17 +103,17 @@ const QuickOpen = () => {
             placeholder="Type file name… (Ctrl+P)"
             style={{
               flex: 1, background: "transparent", border: "none",
-              color: "#dddddd", fontSize: 13, outline: "none",
+              color: "var(--text-hover)", fontSize: "var(--fs-title)", outline: "none",
             }}
           />
-          {loading && <span style={{ fontSize: 11, color: "#666" }}>…</span>}
+          {loading && <span style={{ fontSize: "var(--fs-small)", color: "var(--text-muted)" }}>…</span>}
         </div>
         <div style={{ maxHeight: 380, overflowY: "auto" }}>
           {!window.__currentProjectPath && (
-            <div style={{ padding: 16, fontSize: 12, color: "#666", textAlign: "center" }}>Open a project first</div>
+            <div style={{ padding: "var(--space-16)", fontSize: "var(--fs-body)", color: "var(--text-muted)", textAlign: "center" }}>Open a project first</div>
           )}
           {window.__currentProjectPath && files.length === 0 && !loading && (
-            <div style={{ padding: 16, fontSize: 12, color: "#666", textAlign: "center" }}>{query ? "No files match" : "No files found"}</div>
+            <div style={{ padding: "var(--space-16)", fontSize: "var(--fs-body)", color: "var(--text-muted)", textAlign: "center" }}>{query ? "No files match" : "No files found"}</div>
           )}
           {files.map((item, i) => (
             <div
@@ -121,20 +121,20 @@ const QuickOpen = () => {
               onClick={() => openFile(item)}
               onMouseEnter={() => setIdx(i)}
               style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "6px 12px",
-                cursor: "pointer", fontSize: 12.5,
-                background: i === idx ? "#094771" : "transparent", color: i === idx ? "#ffffff" : "#cccccc",
-                borderBottom: "1px solid #2d2d2d",
+                display: "flex", alignItems: "center", gap: "var(--space-10)", padding: "var(--space-6) var(--space-12)",
+                cursor: "pointer", fontSize: "var(--fs-body-plus)",
+                background: i === idx ? "var(--select-blue)" : "transparent", color: i === idx ? "var(--text-inverse)" : "var(--text-bright)",
+                borderBottom: "1px solid var(--bg-active)",
               }}
             >
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <span style={{ fontWeight: 600 }}>{item.name}</span>
-                <span style={{ color: i === idx ? "#bbbbbb" : "#777", marginLeft: 8 }}>{item.rel}</span>
+                <span style={{ fontWeight: "var(--fw-semibold)" }}>{item.name}</span>
+                <span style={{ color: i === idx ? "var(--text-soft)" : "var(--icon-muted)", marginLeft: "var(--space-8)" }}>{item.rel}</span>
               </span>
             </div>
           ))}
         </div>
-        <div style={{ padding: "4px 12px", fontSize: 10, color: "#666", borderTop: "1px solid #2d2d2d", display: "flex", justifyContent: "space-between" }}>
+        <div style={{ padding: "var(--space-4) var(--space-12)", fontSize: "var(--fs-tiny)", color: "var(--text-muted)", borderTop: "var(--space-1) solid var(--bg-active)", display: "flex", justifyContent: "space-between" }}>
           <span>↑↓ Navigate • Enter Open • Esc Close</span>
           <span>{files.length} files</span>
         </div>

@@ -397,17 +397,17 @@ const ProjectWindow = () => {
               await window.electronAPI.openFolder();
             }}
             style={{
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
-              padding: "20px 32px", background: "#2d2d2d",
-              border: "1px solid #3c3c3c", borderRadius: 2,
-              color: "#c8c8c8", fontSize: 13, fontFamily: "inherit",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--space-10)",
+              padding: "var(--space-20) 32px", background: "var(--bg-active)",
+              border: "1px solid var(--border-strong)", borderRadius: "var(--radius-xs)",
+              color: "var(--text-primary)", fontSize: "var(--fs-title)", fontFamily: "inherit",
               cursor: "pointer", outline: "none",
-              transition: "background 0.15s, border-color 0.15s",
+              transition: "background var(--t-slow), border-color var(--t-slow)",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#383838"; e.currentTarget.style.borderColor = "#5a9fd4"; e.currentTarget.style.color = "#e8e8e8"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#2d2d2d"; e.currentTarget.style.borderColor = "#3c3c3c"; e.currentTarget.style.color = "#c8c8c8"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-lift)"; e.currentTarget.style.borderColor = "var(--accent-light)"; e.currentTarget.style.color = "var(--updater-title)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-active)"; e.currentTarget.style.borderColor = "var(--border-strong)"; e.currentTarget.style.color = "var(--text-primary)"; }}
           >
-            <FolderOpen size={28} style={{ color: "#c8a84b" }} />
+            <FolderOpen size={28} style={{ color: "var(--warn-gold)" }} />
             Open Folder
           </button>
         </div>

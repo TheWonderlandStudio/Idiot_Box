@@ -4,7 +4,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Fredoka', sans-serif;
+  font-family: var(--font-ui);
 }
 
 html,
@@ -51,8 +51,8 @@ body,
   width: 100%;
   height: 100%;
   background: var(--bg-panel);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 3px;
+  border: 1px solid var(--white-a10);
+  border-radius: var(--radius-sm);
 }
 
 /* Terminal side tab close button — visible on tab hover */
@@ -76,8 +76,8 @@ body,
 .browser__bar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 8px;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-8);
   background: var(--bg-surface);
   border-bottom: 1px solid var(--bg-hover);
   flex-shrink: 0;
@@ -89,45 +89,45 @@ body,
   width: 30px;
   height: 28px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.1s, color 0.1s;
+  transition: background var(--t-normal), color var(--t-normal);
 }
 .browser__btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-hover); }
 .browser__btn:disabled { opacity: 0.25; cursor: default; }
-.browser__btn--active { background: rgba(78,201,176,0.18) !important; color: #4ec9b0 !important; border: 1px solid rgba(78,201,176,0.35) !important; }
-.browser__btn--active:hover { background: rgba(78,201,176,0.28) !important; color: #5fd8be !important; }
+.browser__btn--active { background: var(--teal-a18) !important; color: var(--teal) !important; border: 1px solid var(--teal-a35) !important; }
+.browser__btn--active:hover { background: var(--teal-a28) !important; color: var(--teal-bright) !important; }
 .browser__url-wrap {
   position: relative;
   flex: 1;
   display: flex;
   align-items: center;
-  margin: 0 4px;
+  margin: 0 var(--space-4);
   border: 1px solid var(--border-light);
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   background: var(--bg-app);
-  transition: border-color 0.15s;
+  transition: border-color var(--t-slow);
 }
 .browser__url-wrap--focused { border-color: var(--accent); }
 .browser__lock {
   flex-shrink: 0;
-  margin: 0 0 0 8px; padding: 3px;
-  border-radius: 4px; cursor: pointer;
-  color: var(--icon); transition: color 0.1s, background 0.1s;
+  margin: 0 0 0 var(--space-8); padding: var(--space-3);
+  border-radius: var(--radius-md); cursor: pointer;
+  color: var(--icon); transition: color var(--t-normal), background var(--t-normal);
 }
 .browser__lock:hover { color: var(--text-bright); background: var(--bg-header); }
 .browser__url {
   width: 100%;
   height: 28px;
-  padding: 0 8px;
+  padding: 0 var(--space-8);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--text-bright);
-  font-size: 12.5px;
+  font-size: var(--fs-body-plus);
   font-family: inherit;
   outline: none;
 }
@@ -139,10 +139,10 @@ body,
   height: 14px;
   border: 2px solid var(--border);
   border-top-color: var(--accent);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   animation: browser-spin 0.6s linear infinite;
   pointer-events: none;
-  z-index: 1;
+  z-index: var(--z-base);
 }
 @keyframes browser-spin {
   to { transform: rotate(360deg); }
@@ -154,36 +154,36 @@ body,
 
 /* ── Lock icon info popup ──────────────────────────── */
 .browser__lock-overlay {
-  position: fixed; inset: 0; z-index: 999;
+  position: fixed; inset: 0; z-index: var(--z-modal);
 }
 .browser__lock-popup {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-popup);
   background: var(--bg-raised);
-  border: 1px solid #3c3c3c;
-  border-radius: 8px;
-  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: var(--space-10) var(--space-14);
   min-width: 260px;
   max-width: 380px;
-  box-shadow: 0 8px 24px var(--overlay);
+  box-shadow: var(--shadow-pop);
 }
 .browser__lock-popup-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 5px 0;
+  gap: var(--space-2);
+  padding: var(--space-5) 0;
 }
 .browser__lock-popup-item + .browser__lock-popup-item {
   border-top: 1px solid var(--border);
 }
 .browser__lock-popup-label {
-  font-size: 10px;
+  font-size: var(--fs-tiny);
   color: var(--icon);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 .browser__lock-popup-value {
-  font-size: 12.5px;
+  font-size: var(--fs-body-plus);
   color: var(--text-bright);
 }
 
@@ -192,31 +192,31 @@ body,
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 1001;
+  z-index: var(--z-popup-top);
   min-width: 190px;
-  padding: 4px;
+  padding: var(--space-4);
   background: var(--bg-raised);
-  border: 1px solid #3c3c3c;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px var(--overlay);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-pop);
   display: flex;
   flex-direction: column;
 }
 .browser__more-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   width: 100%;
   padding: 7px 9px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-5);
   background: transparent;
   color: var(--text-bright);
-  font-size: 12.5px;
+  font-size: var(--fs-body-plus);
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  transition: background 0.1s;
+  transition: background var(--t-normal);
 }
 .browser__more-item:hover { background: var(--bg-hover); }
 .browser__more-icon {
@@ -229,17 +229,17 @@ body,
 .browser__more-item:hover .browser__more-icon { color: var(--text-hover); }
 .browser__more-label { flex: 1; white-space: nowrap; }
 .browser__more-badge {
-  font-size: 9px;
-  font-weight: 800;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-extrabold);
   letter-spacing: 0.4px;
-  background: rgba(78,201,176,0.22);
-  color: #4ec9b0;
-  padding: 1px 5px;
-  border-radius: 3px;
+  background: var(--teal-a22);
+  color: var(--teal);
+  padding: var(--space-1) var(--space-5);
+  border-radius: var(--radius-sm);
 }
 .browser__more-sep {
   height: 1px;
-  margin: 4px 6px;
+  margin: var(--space-4) var(--space-6);
   background: var(--border);
 }
 
@@ -247,14 +247,14 @@ body,
 .browser__show-btn {
   position: absolute;
   top: 0; right: 0;
-  z-index: 10;
+  z-index: var(--z-popover);
   width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: 0 0 0 4px;
   background: var(--bg-surface);
   color: var(--text-muted);
   cursor: pointer;
-  transition: color 0.1s, background 0.1s;
+  transition: color var(--t-normal), background var(--t-normal);
 }
 .browser__show-btn:hover { background: var(--bg-hover); color: var(--text-hover); }
 
@@ -272,5 +272,5 @@ body,
   width: 100%;
   height: 100%;
   border: none;
-  background: #ffffff;
+  background: var(--text-inverse);
 }

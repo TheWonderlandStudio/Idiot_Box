@@ -4,6 +4,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
+import { cssVar } from "../shared/theme.js";
 
 let nextTerminalId = 1;
 
@@ -30,11 +31,11 @@ const XTERM_CUSTOM_CSS = `
 .xterm-char-measure-element,
 .xterm-width-cache-measure-container,
 .xterm-width-cache-measure-container span { font-family: inherit; }
-.xterm { height: 100%; padding: 0 !important; background: #1e1e1e !important; }
-.xterm-viewport { scrollbar-width: thin; background: #1e1e1e !important; }
+.xterm { height: 100%; padding: 0 !important; background: var(--bg-surface) !important; }
+.xterm-viewport { scrollbar-width: thin; background: var(--bg-surface) !important; }
 .xterm-viewport::-webkit-scrollbar { width: 6px; }
 .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
-.xterm-viewport::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+.xterm-viewport::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-sm); }
 .xterm-viewport::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 .xterm-cursor { outline: none !important; }
 .xterm-cursor-block { background: var(--text-highlight) !important; opacity: 0.9; }
@@ -42,22 +43,22 @@ const XTERM_CUSTOM_CSS = `
 @keyframes xterm-cursor-blink { 50% { opacity: 0; } }
 .xterm-selection div { background: var(--selection) !important; opacity: 0.5; }
 .xterm-rows { font-variant-ligatures: none; letter-spacing: normal; }
-.term-xterm { padding: 4px 6px; box-sizing: border-box; background: #1e1e1e; height: 100%; width: 100%; overflow: hidden; }
+.term-xterm { padding: var(--space-4) var(--space-6); box-sizing: border-box; background: var(--bg-surface); height: 100%; width: 100%; overflow: hidden; }
 .term-xterm .xterm { pointer-events: auto; }
 .term-xterm .xterm-viewport { pointer-events: auto; }
-.xterm-screen { background: #1e1e1e !important; }
+.xterm-screen { background: var(--bg-surface) !important; }
 `;
 
 const TERMINAL_PANEL_CSS = `
-.term-panel { display:flex; flex-direction:column; height:100%; width:100%; background:#1e1e1e; position:relative; overflow:hidden; }
-.term-content { flex:1; position:relative; overflow:hidden; z-index:1; background:#1e1e1e; display:flex; flex-direction:column; min-height:0; }
-.term-empty { display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-muted); font-size:13px; background:var(--bg-surface); }
-.term-status { display:flex; align-items:center; gap:6px; padding:3px 10px; background:var(--bg-raised); border-top:1px solid var(--border); font-size:11px; color:var(--text-muted); flex-shrink:0; user-select:none; }
+.term-panel { display:flex; flex-direction:column; height:100%; width:100%; background:var(--bg-surface); position:relative; overflow:hidden; }
+.term-content { flex:1; position:relative; overflow:hidden; z-index:var(--z-base); background:var(--bg-surface); display:flex; flex-direction:column; min-height:0; }
+.term-empty { display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-muted); font-size:var(--fs-title); background:var(--bg-surface); }
+.term-status { display:flex; align-items:center; gap:var(--space-6); padding:var(--space-3) var(--space-10); background:var(--bg-raised); border-top:1px solid var(--border); font-size:var(--fs-small); color:var(--text-muted); flex-shrink:0; user-select:none; }
 .term-status-icon { flex-shrink:0; }
 .term-status-path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
-.term-status-actions { display:flex; align-items:center; gap:4px; }
-.term-status-btn { background:transparent; border:none; color:#888; cursor:pointer; padding:2px 4px; border-radius:2px; font-size:11px; }
-.term-status-btn:hover { background:#333; color:#fff; }
+.term-status-actions { display:flex; align-items:center; gap:var(--space-4); }
+.term-status-btn { background:transparent; border:none; color:var(--icon); cursor:pointer; padding:var(--space-2) var(--space-4); border-radius:var(--radius-xs); font-size:var(--fs-small); }
+.term-status-btn:hover { background:var(--bg-thumb); color:var(--text-inverse); }
 `;
 
 const TerminalStyle = () => <style>{XTERM_CUSTOM_CSS}{TERMINAL_PANEL_CSS}</style>;
@@ -214,18 +215,32 @@ const TerminalPanel = ({ nodeId, config }) => {
         lineHeight: 1.15,
         letterSpacing: 0,
         allowTransparency: false,
+        // Palette xterm canvas par paint hota hai — var() yahan resolve nahi
+        // hota, isliye CENTRAL sheet se runtime par read karo (cssVar).
+        // Fallbacks == pehle wale hardcoded values (koi visual change nahi).
         theme: {
-          background: "#1e1e1e",
-          foreground: "#cccccc",
-          cursor: "#c8c8c8",
-          cursorAccent: "#1e1e1e",
-          selectionBackground: "#2c4f6e",
-          selectionInactiveBackground: "#264f78",
-          black: "#333333", red: "#f44747", green: "#4ec9b0", yellow: "#dcdcaa",
-          blue: "#569cd6", magenta: "#c586c0", cyan: "#9cdcfe", white: "#d4d4d4",
-          brightBlack: "#767676", brightRed: "#f44747", brightGreen: "#4ec9b0",
-          brightYellow: "#dcdcaa", brightBlue: "#569cd6", brightMagenta: "#c586c0",
-          brightCyan: "#9cdcfe", brightWhite: "#ffffff",
+          background: cssVar("--bg-surface", "#1e1e1e"),
+          foreground: cssVar("--text-bright", "#cccccc"),
+          cursor: cssVar("--text-primary", "#c8c8c8"),
+          cursorAccent: cssVar("--bg-surface", "#1e1e1e"),
+          selectionBackground: cssVar("--term-selection", "#2c4f6e"),
+          selectionInactiveBackground: cssVar("--selection", "#264f78"),
+          black: cssVar("--border", "#333333"),
+          red: cssVar("--danger", "#f44747"),
+          green: cssVar("--teal", "#4ec9b0"),
+          yellow: cssVar("--code-yellow", "#dcdcaa"),
+          blue: cssVar("--code-blue", "#569cd6"),
+          magenta: cssVar("--code-magenta", "#c586c0"),
+          cyan: cssVar("--code-cyan", "#9cdcfe"),
+          white: cssVar("--text-highlight", "#d4d4d4"),
+          brightBlack: cssVar("--term-bright-black", "#767676"),
+          brightRed: cssVar("--danger", "#f44747"),
+          brightGreen: cssVar("--teal", "#4ec9b0"),
+          brightYellow: cssVar("--code-yellow", "#dcdcaa"),
+          brightBlue: cssVar("--code-blue", "#569cd6"),
+          brightMagenta: cssVar("--code-magenta", "#c586c0"),
+          brightCyan: cssVar("--code-cyan", "#9cdcfe"),
+          brightWhite: cssVar("--text-inverse", "#ffffff"),
         },
       });
 
@@ -483,7 +498,7 @@ const TerminalPanel = ({ nodeId, config }) => {
       try {
         const el = elRef.current?.closest?.(".term-panel");
         if (el) {
-          el.style.outline = "2px solid #007acc";
+          el.style.outline = "2px solid var(--accent)";
           el.style.outlineOffset = "-2px";
           setTimeout(() => { try { el.style.outline = ""; } catch {} }, 600);
         }
@@ -493,7 +508,7 @@ const TerminalPanel = ({ nodeId, config }) => {
       try {
         const el = elRef.current?.closest?.(".term-panel");
         if (el) {
-          el.style.outline = "2px solid #007acc";
+          el.style.outline = "2px solid var(--accent)";
           el.style.outlineOffset = "-2px";
           setTimeout(() => { try { el.style.outline = ""; } catch {} }, 600);
         }
@@ -554,7 +569,7 @@ const TerminalPanel = ({ nodeId, config }) => {
 
       <div className="term-content" onContextMenu={handleContextMenu}>
         {initError ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#f44747", fontSize: 12, padding: 20, textAlign: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--danger)", fontSize: "var(--fs-body)", padding: "var(--space-20)", textAlign: "center" }}>
             Terminal init error: {initError}
           </div>
         ) : (
@@ -564,14 +579,14 @@ const TerminalPanel = ({ nodeId, config }) => {
 
       {!cwd && !mirrorTabId && !initError && (
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 2,
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: "var(--z-raised)",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          color: "#666", fontSize: 13, background: "#1e1e1e", gap: 12, userSelect: "none",
+          color: "var(--text-muted)", fontSize: "var(--fs-title)", background: "var(--bg-surface)", gap: "var(--space-12)", userSelect: "none",
         }}>
           <svg width="40" height="40" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="3" width="12" height="10" rx="1" stroke="#444" strokeWidth="1.2" fill="none" />
-            <path d="M5 7L7 9L5 11" stroke="#444" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M9 11H11" stroke="#444" strokeWidth="1.2" strokeLinecap="round" />
+            <rect style={{ stroke: "var(--text-disabled)" }} x="2" y="3" width="12" height="10" rx="1" strokeWidth="1.2" fill="none" />
+            <path style={{ stroke: "var(--text-disabled)" }} d="M5 7L7 9L5 11" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            <path style={{ stroke: "var(--text-disabled)" }} d="M9 11H11" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
           <span>Open a project to use the terminal</span>
         </div>
@@ -579,9 +594,9 @@ const TerminalPanel = ({ nodeId, config }) => {
 
       <div className="term-status">
         <svg className="term-status-icon" width="11" height="11" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="3" width="12" height="10" rx="1" stroke="#777" strokeWidth="1.2" fill="none" />
-          <path d="M5 7L7 9L5 11" stroke="#777" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M9 7L11 9L9 11" stroke="#777" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <rect style={{ stroke: "var(--icon-muted)" }} x="2" y="3" width="12" height="10" rx="1" strokeWidth="1.2" fill="none" />
+          <path style={{ stroke: "var(--icon-muted)" }} d="M5 7L7 9L5 11" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          <path style={{ stroke: "var(--icon-muted)" }} d="M9 7L11 9L9 11" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span className="term-status-path">{dirName}</span>
 

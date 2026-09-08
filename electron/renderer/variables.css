@@ -1,73 +1,426 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Idiot Box — CENTRAL UI TOKEN SHEET (single source of truth)
+ * ───────────────────────────────────────────────────────────────────────────
+ * Yehi ek file puri app ka look define karti hai. Koi bhi color / font /
+ * spacing / radius / shadow / size hardcode mat karo — hamesha var() use karo:
+ *
+ *   background: var(--bg-surface);   color: var(--text-primary);
+ *   border: 1px solid var(--border);  font-family: var(--font-ui);
+ *
+ * RULES
+ *  1. Naya rang chahiye? Pehle yahan token banao, phir var() se use karo.
+ *  2. Values abhi EXACT wahi hain jo pehle hardcoded the — isliye UI bilkul
+ *     waisa hi dikhega, koi visual change nahi.
+ *  3. Dark default hai. Light theme ke liye neeche :root[data-theme="light"]
+ *     me har surface/text/border token ka override hai. Semantic (teal / blue /
+ *     git / danger / warning) jaan-bujh kar dono themes me SAME rakhe hain,
+ *     kyunki pehle ye hardcoded same rehte the.
+ *  4. Entry points: electron/renderer/index.jsx aur SettingsWindow.jsx dono
+ *     sabse pehle isi file ko import karte hain, isliye ye tokens main window
+ *     + settings window + saare panels me available hain. (AI panel ka Tailwind
+ *     Shadow-DOM CSS alag build hota hai — uske bridge tokens §12 me hain.)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --bg-app:          #0d0d0d;
-  --bg-panel:        #111;
-  --bg-surface:      #1e1e1e;
-  --bg-workspace:    #1f1f1f;
-  --bg-raised:       #252525;
+  /* ── §1 Surfaces (dark default) ───────────────────────────────────────── */
+  --bg-app:          #0d0d0d;   /* main window */
+  --bg-panel:        #111;      /* bare flexlayout panel card */
+  --bg-surface:      #1e1e1e;   /* editor / terminal / generic panel body */
+  --bg-workspace:    #1f1f1f;   /* project window root */
+  --bg-raised:       #252525;   /* popups, dialogs, status rows */
+  --bg-vscode:       #252526;   /* VS Code-style headers / cards (ex-#252526) */
   --bg-hover:        #2a2a2a;
+  --bg-hover-strong: #2a2d2e;   /* ex-#2a2d2e card hover */
   --bg-active:       #2d2d2d;
   --bg-input:        #0d0d0d;
+  --bg-input-strong: #3c3c3c;   /* git commit input etc. */
   --bg-header:       #1a1a1a;
+  --bg-header-dark:  #222222;   /* project sidebar header (ex-#222) */
   --bg-subtle:       #2e2e2e;
+  --bg-deep:         #181818;   /* canvas / preview stage */
+  --bg-inset:        #141414;   /* deep inset search field */
+  --bg-bar:          #272727;   /* project unified bar */
+  --bg-sidebar-dark: #202020;   /* settings sidebar */
+  --bg-thumb:        #333333;   /* sliders, pills (ex-#333) */
+  --bg-lift:         #383838;   /* hover lift for ghost buttons */
+  --paper-dim:       #f3f3f3;   /* dim paper (embed status wells) */
+  --canvas-veil:     rgba(24,24,24,0.92); /* excalidraw empty overlay veil */
 
+  /* ── §2 Text ──────────────────────────────────────────────────────────── */
   --text-primary:    #c8c8c8;
   --text-bright:     #ccc;
   --text-highlight:  #d4d4d4;
   --text-hover:      #ddd;
   --text-secondary:  #999;
   --text-label:      #b0b0b0;
-  --text-muted:      #666;
-  --text-placeholder:#555;
+  --text-soft:       #bbbbbb;   /* ex-#bbb section titles / ghost buttons */
+  --text-soft-2:     #bdbdbd;   /* ex-#bdbdbd canvas group heads */
+  --text-warm:       #d0d0d0;   /* ex-#d0d0d0 card titles / inputs */
   --text-nav:        #a0a0a0;
   --text-input:      #e0e0e0;
-  --text-inverse:    #fff;
+  --text-muted:      #666;
+  --text-placeholder:#555;
+  --text-inverse:    #fff;      /* text on dark/accent fills */
   --text-disabled:   #444;
+  --paper:           #ffffff;   /* canvas / preview paper surface */
+  --black:           #000000;
+  --ink-on-teal:     #0d1117;   /* dark ink on teal fills (ex-#0d1117) */
 
+  /* ── §3 Borders ───────────────────────────────────────────────────────── */
   --border:          #333;
+  --border-row:      #232323;   /* list row separators */
   --border-light:    #3a3a3a;
+  --border-strong:   #3c3c3c;   /* raised cards / inputs (ex-#3c3c3c) */
   --border-subtle:   #2e2e2e;
   --border-input:    #363636;
   --border-focus:    #007acc;
 
+  /* ── §4 Brand accent (blue) ───────────────────────────────────────────── */
   --accent:          #007acc;
-  --accent-light:    #5a9fd4;
+  --accent-light:    #5a9fd4;   /* links, focus rings, active icons */
   --accent-dark:     #005fb8;
   --accent-hover:    #326080;
   --accent-active:   #254460;
   --accent-border:   #3a6a9a;
+  --editor-blue:     #0e639c;   /* primary buttons, cell selection */
+  --editor-blue-hover: #1177bb;
+  --select-blue:     #094771;   /* active list item / branch pill */
+  --link-blue:       #3794ff;   /* markdown links in notebook */
+  --accent-soft-a08: rgba(90,159,212,0.08);
+  --accent-soft-a12: rgba(90,159,212,0.12);
+  --accent-soft-a18: rgba(90,159,212,0.18);
+  --accent-soft-a25: rgba(90,159,212,0.25);
+  --accent-soft-a60: rgba(90,159,212,0.6);
+  --accent-deep-a25: rgba(14,99,156,0.25);
 
+  /* ── §5 Teal (AI / live / success accent, ex-#4ec9b0 family) ───────────── */
+  --teal:            #4ec9b0;
+  --teal-bright:     #5fd8be;   /* teal hover */
+  --teal-deep:       #3da58a;   /* teal gradient end */
+  --teal-dim:        #3fb49c;
+  --teal-line:       #2ea68a;
+  --teal-pale:       #6ee7c7;
+  --teal-a06:        rgba(78,201,176,0.06);
+  --teal-a08:        rgba(78,201,176,0.08);
+  --teal-a12:        rgba(78,201,176,0.12);
+  --teal-a14:        rgba(78,201,176,0.14);
+  --teal-a15:        rgba(78,201,176,0.15);
+  --teal-a18:        rgba(78,201,176,0.18);
+  --teal-a22:        rgba(78,201,176,0.22);
+  --teal-a25:        rgba(78,201,176,0.25);
+  --teal-a28:        rgba(78,201,176,0.28);
+  --teal-a30:        rgba(78,201,176,0.30);
+  --teal-a32:        rgba(78,201,176,0.32);
+  --teal-a35:        rgba(78,201,176,0.35);
+  --teal-a45:        rgba(78,201,176,0.45);
+  --teal-a50:        rgba(78,201,176,0.50);
+  --teal-a95:        rgba(78,201,176,0.95);
+  --teal-border-soft: #4ec9b033; /* 20% teal hairline (8-digit hex) */
+
+  /* ── §6 Code / syntax hues ────────────────────────────────────────────── */
+  --code-blue:       #569cd6;
+  --code-cyan:       #9cdcfe;
+  --code-magenta:    #c586c0;
+  --code-yellow:     #dcdcaa;
+  --code-orange:     #ce9178;
+  --code-tan:        #d7ba7d;
+  --code-green-soft: #9ae6b4;   /* terminal light-green variant */
+  --info-blue:       #7eb8f7;   /* updater / syncing tint */
+  --info-blue-a12:   rgba(126,184,247,0.12);
+  --info-blue-a14:   rgba(126,184,247,0.14);
+  --info-blue-a18:   rgba(126,184,247,0.18);
+  --info-blue-a22:   rgba(126,184,247,0.22);
+
+  /* ── §7 Git / diff ────────────────────────────────────────────────────── */
+  --git-added:       #73c991;
+  --git-added-a10:   rgba(115,201,145,0.10);
+  --git-added-a15:   rgba(115,201,145,0.15);
+  --git-modified:    #cca700;
+  --git-modified-a12: rgba(204,167,0,0.12);
+  --git-removed-a12: rgba(244,71,71,0.12);
+  --diff-del-text:   #ff7b72;
+  --diff-hunk-a10:   rgba(86,156,214,0.10);
+
+  /* ── §8 Danger / error ────────────────────────────────────────────────── */
   --danger:          #f44747;
-  --success:         #4caf50;
-  --warning:         #e6a23c;
+  --error-soft:      #f48771;   /* soft error text / notebook stderr */
+  --error-muted:     #e06c75;   /* settings danger button */
+  --error-text:      #ff8a8a;   /* toast error text */
+  --error-text-soft: #ffb3b3;
+  --error-text-pale: #ff9b9b;
+  --error-text-pale-2: #ff9a9a;
+  --error-bg:        #2a1717;   /* error card */
+  --error-bg-2:      #2a1e1e;
+  --error-bg-strong: #3a1d1d;
+  --error-bg-red:    #3a1f1f;
+  --error-bg-solid:  #5a1d1d;   /* git banner */
+  --error-bg-deep:   #1a0f0f;
+  --error-border:    #732222;
+  --error-border-2:  #5a2a2a;
+  --error-border-3:  #7a2a2a;
+  --error-border-soft: #6e2b2b;
+  --error-border-faint: #3a2a2a;
+  --error-short:     #e55;      /* shorthand red */
+  --error-tint-a07:  rgba(244,71,71,0.07);
+  --error-tint-a09:  rgba(244,71,71,0.09);
 
+  /* ── §9 Warning ───────────────────────────────────────────────────────── */
+  --warning:         #e6a23c;
+  --warn-soft:       #e6c65c;
+  --warn-gold:       #c8a84b;
+  --warn-bg:         #3a2b12;   /* notebook warning banner */
+  --warn-bg-2:       #3a2f14;   /* canvas banner */
+  --warn-border:     #6e5218;
+  --warn-border-2:   #6e5a1f;
+  --warn-bg-olive:   #2d2d1a;
+  --warn-border-olive: #4a4a2a;
+  --warn-tint-a05:   rgba(230,162,60,0.05);
+  --warn-tint-a12:   rgba(230,162,60,0.12);
+  --warn-tint-a25:   rgba(230,162,60,0.25);
+  --warn-tint-a30:   rgba(230,162,60,0.30);
+  --warn-tint-a50:   rgba(230,162,60,0.50);
+
+  /* ── §10 Success / info panels ────────────────────────────────────────── */
+  --success:         #4caf50;
+  --success-bg:      #1a3a2a;
+  --success-bg-2:    #1a2a1e;
+  --success-bg-3:    #1e2a1e;
+  --success-bg-4:    #1a2e1a;
+  --success-bg-deep: #0f2a1e;
+  --success-border:  #2d6a4f;
+  --success-border-2: #2a5a3a;
+  --success-border-3: #2a5a2a;
+  --success-border-4: #2d5a2d;
+  --info-bg:         #12324a;
+  --info-bg-2:       #1c2836;
+  --info-border:     #1e5a8a;
+
+  /* ── §11 Selection / scrollbar / icons / overlays ─────────────────────── */
   --selection:       #264f78;
   --selection-bg:    #2b4f72;
   --selection-bg-alt:#1a3a52;
   --selection-border:#1e3a52;
-
   --scrollbar:       #3a3a3a;
   --scrollbar-hover: #555;
-
+  --scrollbar-card:  #3d3d3d;
   --icon:            #888;
   --icon-muted:      #777;
   --icon-hover:      #aaa;
-
+  --icon-faint:      #6b6b6b;
   --overlay:         rgba(0,0,0,0.5);
   --overlay-dark:    rgba(0,0,0,0.6);
+  --overlay-a25:     rgba(0,0,0,0.25);
+  --overlay-a30:     rgba(0,0,0,0.30);
+  --overlay-a40:     rgba(0,0,0,0.40);
+  --overlay-a45:     rgba(0,0,0,0.45);
+  --overlay-a55:     rgba(0,0,0,0.55);
+  --overlay-a58:     rgba(0,0,0,0.58);
+  --overlay-a65:     rgba(0,0,0,0.65);
+  --white-a02:       rgba(255,255,255,0.02);
+  --white-a06:       rgba(255,255,255,0.06);
+  --white-a08:       rgba(255,255,255,0.08);
+  --white-a10:       rgba(255,255,255,0.10);
+  --white-a12:       rgba(255,255,255,0.12);
+  --white-a18:       rgba(255,255,255,0.18);
+  --white-a22:       rgba(255,255,255,0.22);
+  --white-a24:       rgba(255,255,255,0.24);
+  --white-a25:       rgba(255,255,255,0.25);
+
+  /* ── §12 Status dots / misc one-offs (same values, ab centralized) ────── */
+  --away-a15:        rgba(220,220,170,0.15);
+  --offline-a15:     rgba(197,134,192,0.15);
+  --error-border-short: #a33;   /* shorthand error border (ex-#a33) */
+
+  /* ── §12b Terminal theme (xterm palette — hamesha dark rehta hai) ─────── */
+  --term-selection:  #2c4f6e;
+  --term-bright-black: #767676;
+  --term-green-a14:  rgba(143,191,143,0.14);
+  --term-green-a22:  rgba(143,191,143,0.22);
+
+  /* ── §12c Updater modal mini-system (dark marketing surface) ──────────── */
+  --updater-modal-1: #2b2b30;
+  --updater-modal-2: #1e1e22;
+  --updater-modal-border: #3a3a3e;
+  --updater-icon-1:  #1a3a5a;
+  --updater-icon-2:  #122a42;
+  --updater-icon-border: #2a4a6a;
+  --updater-track-1: #0f1926;
+  --updater-track-2: #0d1420;
+  --updater-track-border: #1e2e4a;
+  --updater-info-1:  #12233a;
+  --updater-info-2:  #1a2a3a;
+  --updater-title:   #e8e8e8;
+  --updater-subtle:  #9a9a9a;
+  --updater-faint:   #8a8a8a;
+  --updater-ok:      #8fbf8f;
+  --updater-dark-row: #2a2a2e;
+  --grad-teal:       linear-gradient(180deg, var(--teal) 0%, var(--teal-deep) 100%);
+  --grad-teal-soft:  linear-gradient(90deg, var(--teal-a18) 0%, var(--teal-a28) 100%);
+  --grad-preview-grid: repeating-conic-gradient(var(--bg-vscode) 0% 25%, var(--bg-surface) 0% 50%) 50% / 16px 16px;
+  --grad-modal:      linear-gradient(180deg, var(--updater-modal-1) 0%, var(--updater-modal-2) 100%);
+  --grad-icon:       linear-gradient(180deg, var(--updater-icon-1) 0%, var(--updater-icon-2) 100%);
+  --grad-track:      linear-gradient(180deg, var(--updater-track-1) 0%, var(--updater-track-2) 100%);
+  --grad-progress:   linear-gradient(90deg, var(--teal) 0%, var(--teal-dim) 50%, var(--teal-line) 100%);
+  --grad-shimmer:    linear-gradient(90deg, transparent 0%, var(--white-a22) 50%, transparent 100%);
+  --grad-info:       linear-gradient(90deg, var(--updater-info-1) 0%, var(--updater-info-2) 100%);
+
+  /* ── §12d Media viewer surfaces ───────────────────────────────────────── */
+  --media-stage:     #0a0a0a;
+  --media-panel:     #121212;
+  --media-chip:      #262626;
+  --media-video-bg:  #525659;
+  --media-sep:       #282828;
+  --media-error-bg:  #1c1414;
+  --media-error-border: #4a2222;
+  --media-veil:      rgba(22,22,22,0.92);
+
+  /* ── §12e Second-pass leftovers (rare one-off surfaces — same values) ─── */
+  --coal:            #1c1c1c;   /* dark ink on gold / chip bg */
+  --success-badge-bg: #2d5a2a; /* untracked count pill */
+  --success-badge-border: #3a7a3a;
+  --success-tint-bg: #1a2a1a;  /* untracked label well */
+  --ext-active-border: #2d4a43;
+  --emu-veil:        rgba(37,37,38,0.9);
+  --emu-veil-strong: rgba(37,37,38,0.92);
+  --spotlight-veil:  rgba(20,20,20,0.92);
+  --updater-ok-border: #2d4a2d;
+  --updater-error-1: #2a1a1a;
+  --updater-info-0:  #101f36;
+  --updater-teal-1:  #0f2e28;
+  --updater-teal-2:  #1a3a2e;
+  --updater-dark-2:  #202023;
+  --modal-deep-1:    #1e1e20;
+  --modal-deep-2:    #18181a;
+  --updater-mute:    #7a7a7a;
+  --updater-ok-a22:  rgba(154,230,180,0.22);
+  --updater-ok-dim:  rgba(45,90,45,0.6);
+  --updater-teal-dim: rgba(45,106,79,0.6);
+  --updater-track-fill: rgba(13,26,42,0.9);
+  --updater-track-line: rgba(42,74,106,0.5);
+
+  /* ── §13 Typography ───────────────────────────────────────────────────── */
+  --font-ui:     'Fredoka', sans-serif;
+  --font-system: 'Segoe UI', system-ui, sans-serif;
+  --font-code:   Consolas, "Courier New", monospace;
+  --fs-micro:    9px;
+  --fs-tiny:     10px;
+  --fs-mini:     10.5px;
+  --fs-small:    11px;
+  --fs-small-plus: 11.5px;
+  --fs-body:     12px;
+  --fs-body-plus: 12.5px;
+  --fs-title:    13px;
+  --fs-title-plus: 13.5px;
+  --fs-large:    14px;
+  --fs-xl:       16px;
+  --fs-hero:     20px;
+  --fs-15:       15px;
+  --fs-17:       17px;
+  --fs-18:       18px;
+  --fs-22:       22px;
+  --fs-28:       28px;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+  --fw-extrabold: 800;
+  --lh-tight:    1.3;
+  --lh-snug:     1.35;
+  --lh-flat:     1;
+  --lh-body:     1.4;
+  --lh-code:     1.5;
+  --lh-md:       1.55;
+  --lh-doc:      1.6;
+
+  /* ── §14 Shape / spacing / elevation ──────────────────────────────────── */
+  --radius-xs:   2px;
+  --radius-sm:   3px;
+  --radius-5:    5px;
+  --radius-md:   4px;
+  --radius-lg:   6px;
+  --radius-7:    7px;
+  --radius-xl:   8px;
+  --radius-9:    9px;
+  --radius-pill: 10px;
+  --radius-3xl:  12px;
+  --radius-2xl:  20px;
+  --radius-round: 50%;
+  --space-1:     1px;
+  --space-2:     2px;
+  --space-3:     3px;
+  --space-4:     4px;
+  --space-5:     5px;
+  --space-6:     6px;
+  --space-8:     8px;
+  --space-10:    10px;
+  --space-12:    12px;
+  --space-14:    14px;
+  --space-16:    16px;
+  --space-18:    18px;
+  --space-20:    20px;
+  --space-24:    24px;
+  --shadow-pop:  0 8px 24px var(--overlay);
+  --shadow-modal: 0 8px 32px var(--overlay-dark);
+  --shadow-toast: 0 6px 18px var(--overlay-a40);
+  --shadow-card-hover: 0 8px 20px var(--overlay-a40);
+  --shadow-float: 0 12px 48px var(--overlay-a65);
+  --z-base:      1;
+  --z-raised:    2;
+  --z-banner:    5;
+  --z-float:     6;
+  --z-elevated:  7;
+  --z-popover:   10;
+  --z-toast:     20;
+  --z-toast-top: 30;
+  --z-menu:      40;
+  --z-menu-top:  41;
+  --z-palette:   900;
+  --z-palette-top: 901;
+  --z-search:    940;
+  --z-quick:     950;
+  --z-quick-top: 951;
+  --z-modal:     999;
+  --z-popup:     1000;
+  --z-popup-top: 1001;
+  --z-updater:   9997;
+  --z-updater-top: 9998;
+  --z-dialog:    9999;
+  --bar-h-sm:    22px;   /* status bars */
+  --bar-h:       26px;   /* project / sidebar bars */
+  --bar-h-lg:    32px;   /* canvas toolbar */
+  --header-h:    42px;   /* settings header */
+  --t-fast:      0.08s;
+  --t-normal:    0.1s;
+  --t-med:       0.12s;
+  --t-slow:      0.15s;
+  --t-toggle:    0.18s;
+  --t-progress:  0.3s;
 }
 
 /* ── Light theme overrides ─────────────────────────────────────────────── */
+/* Surfaces / text / borders follow the light theme. Accent + semantic hues
+   stay identical (wahi values jo dark me hardcoded the) taaki koi visual
+   surprise na ho; sirf chrome light hota hai. */
 :root[data-theme="light"] {
   --bg-app:          #ffffff;
   --bg-panel:        #f3f3f3;
   --bg-surface:      #ffffff;
   --bg-workspace:    #f3f3f3;
   --bg-raised:       #e8e8e8;
+  --bg-vscode:       #ececec;
   --bg-hover:        #e5e5e5;
+  --bg-hover-strong: #e0e0e0;
   --bg-active:       #d4d4d4;
   --bg-input:        #ffffff;
+  --bg-input-strong: #e8e8e8;
   --bg-header:       #f3f3f3;
+  --bg-header-dark:  #ececec;
   --bg-subtle:       #e0e0e0;
+  --bg-deep:         #f0f0f0;
+  --bg-inset:        #ffffff;
+  --bg-bar:          #ececec;
+  --bg-sidebar-dark: #f0f0f0;
+  --bg-thumb:        #c0c0c0;
 
   --text-primary:    #1e1e1e;
   --text-bright:     #222;
@@ -75,25 +428,39 @@
   --text-hover:      #000;
   --text-secondary:  #555;
   --text-label:      #333;
-  --text-muted:      #777;
-  --text-placeholder:#999;
+  --text-soft:       #444;
+  --text-soft-2:     #3a3a3a;
+  --text-warm:       #222;
   --text-nav:        #555;
   --text-input:      #1a1a1a;
+  --text-muted:      #777;
+  --text-placeholder:#999;
   --text-inverse:    #fff;
   --text-disabled:   #aaa;
+  --paper:           #ffffff;
+  --black:           #000000;
+  --ink-on-teal:     #0d1117;
 
   --border:          #e0e0e0;
+  --border-row:      #e8e8e8;
   --border-light:    #d0d0d0;
+  --border-strong:   #c8c8c8;
   --border-subtle:   #e8e8e8;
   --border-input:    #d0d0d0;
   --border-focus:    #007acc;
 
   --scrollbar:       #c0c0c0;
   --scrollbar-hover: #a0a0a0;
+  --scrollbar-card:  #b8b8b8;
 
   --icon:            #666;
   --icon-muted:      #777;
   --icon-hover:      #333;
+  --icon-faint:      #999;
+
+  /* Hardcoded-dark content surfaces (notebook cells, terminal, canvas stage)
+     pehle light mode me bhi dark hi rehte the — wahi behavior rakha hai taaki
+     "jaisa hai waisa hi dikhe". Inhe light karna ho to sirf yahin badlo. */
 }
 
 /* Light theme component overrides (hard-coded backgrounds in settings.css etc.) */

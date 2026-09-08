@@ -3,20 +3,20 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { Search, RefreshCw, ExternalLink, Copy, Square, X } from "lucide-react";
 
 const s = {
-  wrap: { display: "flex", flexDirection: "column", height: "100%", background: "#1e1e1e", color: "#cccccc", overflow: "hidden", fontFamily: "'Segoe UI',system-ui,sans-serif" },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: "#252526", borderBottom: "1px solid #2d2d2d", flexShrink: 0, gap: 10 },
-  title: { fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "#bbb", display: "flex", alignItems: "center", gap: 8 },
-  badge: { fontSize: 11, background: "#3a3a3a", color: "#fff", padding: "1px 6px", borderRadius: 10, fontWeight: 700, minWidth: 18, textAlign: "center" },
-  btnGhost: { background: "#2d2d2d", border: "1px solid #3a3a3a", color: "#ccc", borderRadius: 4, padding: "5px 10px", fontSize: 11, cursor: "pointer" },
-  iconBtn: { background: "#2d2d2d", border: "1px solid #3a3a3a", color: "#bbb", cursor: "pointer", padding: "4px 8px", borderRadius: 4, fontSize: 12, lineHeight: 1 },
-  input: { background: "#252526", border: "1px solid #3a3a3a", color: "#e0e0e0", borderRadius: 4, padding: "5px 8px 5px 26px", fontSize: 12, outline: "none", width: "100%" },
-  th: { fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "#888", padding: "6px 10px", borderBottom: "1px solid #2d2d2d", background: "#252526", display: "flex", gap: 8 },
-  row: { display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", fontSize: 12, borderBottom: "1px solid #232323" },
+  wrap: { display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-surface)", color: "var(--text-bright)", overflow: "hidden", fontFamily: "var(--font-system)" },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-6) var(--space-10)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0, gap: "var(--space-10)" },
+  title: { fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--text-soft)", display: "flex", alignItems: "center", gap: "var(--space-8)" },
+  badge: { fontSize: "var(--fs-small)", background: "var(--border-light)", color: "var(--text-inverse)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-pill)", fontWeight: "var(--fw-bold)", minWidth: 18, textAlign: "center" },
+  btnGhost: { background: "var(--bg-active)", border: "1px solid var(--border-light)", color: "var(--text-bright)", borderRadius: "var(--radius-md)", padding: "var(--space-5) var(--space-10)", fontSize: "var(--fs-small)", cursor: "pointer" },
+  iconBtn: { background: "var(--bg-active)", border: "1px solid var(--border-light)", color: "var(--text-soft)", cursor: "pointer", padding: "var(--space-4) var(--space-8)", borderRadius: "var(--radius-md)", fontSize: "var(--fs-body)", lineHeight: "var(--lh-flat)" },
+  input: { background: "var(--bg-vscode)", border: "1px solid var(--border-light)", color: "var(--text-input)", borderRadius: "var(--radius-md)", padding: "var(--space-5) var(--space-8) var(--space-5) 26px", fontSize: "var(--fs-body)", outline: "none", width: "100%" },
+  th: { fontSize: "var(--fs-tiny)", fontWeight: "var(--fw-bold)", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--icon)", padding: "var(--space-6) var(--space-10)", borderBottom: "var(--space-1) solid var(--bg-active)", background: "var(--bg-vscode)", display: "flex", gap: "var(--space-8)" },
+  row: { display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-10)", fontSize: "var(--fs-body)", borderBottom: "var(--space-1) solid var(--border-row)" },
 };
 
 function stateColor(p) {
-  if (p.state === "DETECTED") return "#569cd6";
-  return "#4ec9b0";
+  if (p.state === "DETECTED") return "var(--code-blue)";
+  return "var(--teal)";
 }
 
 const PortsPanel = () => {
@@ -146,25 +146,25 @@ const PortsPanel = () => {
     <div style={s.wrap}>
       <div style={s.header}>
         <div style={s.title}>Ports <span style={s.badge}>{filtered.length}</span></div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#bbb", cursor: "pointer", userSelect: "none" }}>
-            <input type="checkbox" checked={showProjectOnly} onChange={(e) => setShowProjectOnly(e.target.checked)} style={{ accentColor: "#0e639c" }} />
+        <div style={{ display: "flex", gap: "var(--space-8)", alignItems: "center" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", fontSize: "var(--fs-small)", color: "var(--text-soft)", cursor: "pointer", userSelect: "none" }}>
+            <input type="checkbox" checked={showProjectOnly} onChange={(e) => setShowProjectOnly(e.target.checked)} style={{ accentColor: "var(--editor-blue)" }} />
             Current project only
           </label>
           <button onClick={() => fetchPorts(false)} title="Refresh" style={{ ...s.iconBtn, display: "flex", alignItems: "center", justifyContent: "center" }}><RefreshCw size={12} /></button>
         </div>
       </div>
 
-      <div style={{ padding: "6px 8px", borderBottom: "1px solid #232323", display: "flex", gap: 6, background: "#1e1e1e" }}>
+      <div style={{ padding: "var(--space-6) var(--space-8)", borderBottom: "var(--space-1) solid var(--border-row)", display: "flex", gap: "var(--space-6)", background: "var(--bg-surface)" }}>
         <div style={{ position: "relative", flex: 1 }}>
-          <Search size={12} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#666", pointerEvents: "none" }} />
+          <Search size={12} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
           <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter" style={s.input} />
         </div>
         {filter && <button onClick={() => setFilter("")} style={{ ...s.btnGhost, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} /></button>}
       </div>
 
-      {error && <div style={{ margin: "8px", padding: "8px 10px", background: "#5a1d1d", border: "1px solid #7a2a2a", borderRadius: 4, color: "#ffb3b3", fontSize: 11 }}>{error}</div>}
-      {toast && <div style={{ margin: error ? "0 8px 8px" : "8px", padding: "6px 10px", background: toast.isError ? "#5a1d1d" : "#1a3a2a", border: "1px solid " + (toast.isError ? "#7a2a2a" : "#2a5a3a"), borderRadius: 4, color: toast.isError ? "#ffb3b3" : "#4ec9b0", fontSize: 11 }}>{toast.text}</div>}
+      {error && <div style={{ margin: "var(--space-8)", padding: "var(--space-8) var(--space-10)", background: "var(--error-bg-solid)", border: "var(--space-1) solid var(--error-border-3)", borderRadius: "var(--radius-md)", color: "var(--error-text-soft)", fontSize: "var(--fs-small)" }}>{error}</div>}
+      {toast && <div style={{ margin: error ? "0 var(--space-8) var(--space-8)" : "var(--space-8)", padding: "var(--space-6) var(--space-10)", background: toast.isError ? "var(--error-bg-solid)" : "var(--success-bg)", border: "var(--space-1) solid " + (toast.isError ? "var(--error-border-3)" : "var(--success-border-2)"), borderRadius: "var(--radius-md)", color: toast.isError ? "var(--error-text-soft)" : "var(--teal)", fontSize: "var(--fs-small)" }}>{toast.text}</div>}
 
       <div style={s.th}>
         <span style={{ flex: "0 0 80px" }}>Port</span>
@@ -173,12 +173,12 @@ const PortsPanel = () => {
       </div>
 
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {loading && filtered.length === 0 && <div style={{ padding: 20, color: "#666", fontSize: 12, textAlign: "center" }}>Loading…</div>}
+        {loading && filtered.length === 0 && <div style={{ padding: "var(--space-20)", color: "var(--text-muted)", fontSize: "var(--fs-body)", textAlign: "center" }}>Loading…</div>}
         {!loading && filtered.length === 0 && !error && (
-          <div style={{ textAlign: "center", padding: 30, color: "#666", fontSize: 12 }}>
-            <div style={{ fontWeight: 700, color: "#999", marginBottom: 6 }}>{showProjectOnly && projectPath ? "No project ports" : "No ports"}</div>
-            <div style={{ color: "#555", fontSize: 11 }}>{showProjectOnly && projectPath ? "No ports for current project" : "No ports detected"}</div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
+          <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
+            <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-secondary)", marginBottom: "var(--space-6)" }}>{showProjectOnly && projectPath ? "No project ports" : "No ports"}</div>
+            <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-small)" }}>{showProjectOnly && projectPath ? "No ports for current project" : "No ports detected"}</div>
+            <div style={{ display: "flex", gap: "var(--space-8)", justifyContent: "center", marginTop: "var(--space-12)" }}>
               <button onClick={() => fetchPorts(false)} style={s.btnGhost}>Refresh</button>
             </div>
           </div>
@@ -191,16 +191,16 @@ const PortsPanel = () => {
               key={String(p.port) + ":" + String(p.pid || "")}
               onClick={() => setSelected(p.port)}
               onDoubleClick={() => openInBrowser(p.port)}
-              style={{ ...s.row, background: isSel ? "#2a2d2e" : "transparent", cursor: "pointer", borderLeft: `3px solid ${isSel ? col : "transparent"}`, paddingLeft: isSel ? "7px" : "10px" }}
+              style={{ ...s.row, background: isSel ? "var(--bg-hover-strong)" : "transparent", cursor: "pointer", borderLeft: `3px solid ${isSel ? col : "transparent"}`, paddingLeft: isSel ? "7px" : "10px" }}
             >
-              <span style={{ flex: "0 0 80px", fontFamily: "Consolas, monospace", fontWeight: 700, color: "#4ec9b0", display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: col, flexShrink: 0 }} />:{p.port}
+              <span style={{ flex: "0 0 80px", fontFamily: "var(--font-code)", fontWeight: "var(--fw-bold)", color: "var(--teal)", display: "flex", alignItems: "center", gap: "var(--space-6)" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "var(--radius-round)", background: col, flexShrink: 0 }} />:{p.port}
               </span>
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#ccc" }} title={p.process}>{p.process || "—"}</span>
-              <span style={{ flex: "0 0 110px", display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                <button onClick={(e) => { e.stopPropagation(); openInBrowser(p.port); }} title="Open in Browser" style={{ ...s.iconBtn, background: "#094771", color: "#fff", borderColor: "#0e639c", display: "flex", alignItems: "center", justifyContent: "center" }}><ExternalLink size={12} /></button>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-bright)" }} title={p.process}>{p.process || "—"}</span>
+              <span style={{ flex: "0 0 110px", display: "flex", gap: "var(--space-4)", justifyContent: "flex-end" }}>
+                <button onClick={(e) => { e.stopPropagation(); openInBrowser(p.port); }} title="Open in Browser" style={{ ...s.iconBtn, background: "var(--select-blue)", color: "var(--text-inverse)", borderColor: "var(--editor-blue)", display: "flex", alignItems: "center", justifyContent: "center" }}><ExternalLink size={12} /></button>
                 <button onClick={(e) => { e.stopPropagation(); copyUrl(p.port); }} title="Copy URL" style={{ ...s.iconBtn, display: "flex", alignItems: "center", justifyContent: "center" }}><Copy size={12} /></button>
-                {p.pid ? <button onClick={(e) => { e.stopPropagation(); handleKill(p); }} title="Stop process" style={{ ...s.iconBtn, color: "#f44747", display: "flex", alignItems: "center", justifyContent: "center" }}><Square size={10} fill="currentColor" /></button> : null}
+                {p.pid ? <button onClick={(e) => { e.stopPropagation(); handleKill(p); }} title="Stop process" style={{ ...s.iconBtn, color: "var(--danger)", display: "flex", alignItems: "center", justifyContent: "center" }}><Square size={10} fill="currentColor" /></button> : null}
               </span>
             </div>
           );

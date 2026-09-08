@@ -95,7 +95,7 @@ const AIPage = ({ settings, onSave }) => {
         <div className="sw-inline-row">
           <input
             className="sw-input"
-            style={{ flex: 1, fontFamily: "Consolas,monospace" }}
+            style={{ flex: 1, fontFamily: "var(--font-code)" }}
             value={model}
             list="ai-settings-models"
             onChange={(e) => update({ aiModel: e.target.value })}
@@ -124,7 +124,7 @@ const AIPage = ({ settings, onSave }) => {
         <div className="sw-inline-row">
           <input
             className="sw-input"
-            style={{ flex: 1, fontFamily: "Consolas,monospace" }}
+            style={{ flex: 1, fontFamily: "var(--font-code)" }}
             type={showKey ? "text" : "password"}
             value={apiKey}
             onChange={(e) => update({ aiApiKey: e.target.value.trim() })}
@@ -153,7 +153,7 @@ const AIPage = ({ settings, onSave }) => {
           </span>
           <input
             className="sw-input"
-            style={{ fontFamily: "Consolas,monospace" }}
+            style={{ fontFamily: "var(--font-code)" }}
             value={baseUrl}
             onChange={(e) => update({ aiBaseUrl: e.target.value.trim() })}
             placeholder={DEFAULT_BASE_URL[meta.id]}
@@ -243,7 +243,7 @@ const AIPage = ({ settings, onSave }) => {
             {testing ? "Testing…" : "Test Connection"}
           </button>
           {testResult && (
-            <span style={{ fontSize: 12, color: testResult.ok ? "#4ec9b0" : "#f44747" }}>
+            <span style={{ fontSize: "var(--fs-body)", color: testResult.ok ? "var(--teal)" : "var(--danger)" }}>
               {testResult.ok ? `✓ ${testResult.detail || "OK"}` : `✕ ${testResult.error || "Failed"}`}
             </span>
           )}

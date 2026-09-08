@@ -365,19 +365,19 @@ const MediaViewer = () => {
         width: "100%",
         overflow: "hidden",
         position: "relative",
-        background: "#121212",
+        background: "var(--media-panel)",
         outline: "none",
         userSelect: "none",
       }}
     >
       {/* ── Empty state ─────────────────────────────────────────────── */}
       {!filePath && !error && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#666", fontSize: 13, flexDirection: "column", gap: 12 }}>
-          <svg width="40" height="40" viewBox="0 0 16 16" fill="#383838">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", fontSize: "var(--fs-title)", flexDirection: "column", gap: "var(--space-12)" }}>
+          <svg style={{ fill: "var(--bg-lift)" }} width="40" height="40" viewBox="0 0 16 16">
             <path d="M2 2.5A1.5 1.5 0 0 1 3.5 1h6.086a1.5 1.5 0 0 1 1.06.44l2.914 2.914A1.5 1.5 0 0 1 14 5.414V13.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 13.5v-11z"/>
           </svg>
-          <span style={{ color: "#888", fontWeight: 500 }}>Drop file here to view</span>
-          <span style={{ fontSize: 11, color: "#555", textAlign: "center", lineHeight: 1.5 }}>Images • Videos • PDFs • Audio • Text<br/>or right-click any file → Open in Media Viewer</span>
+          <span style={{ color: "var(--icon)", fontWeight: "var(--fw-medium)" }}>Drop file here to view</span>
+          <span style={{ fontSize: "var(--fs-small)", color: "var(--text-placeholder)", textAlign: "center", lineHeight: "var(--lh-code)" }}>Images • Videos • PDFs • Audio • Text<br/>or right-click any file → Open in Media Viewer</span>
         </div>
       )}
 
@@ -388,23 +388,23 @@ const MediaViewer = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "4px 10px",
-            background: "#1c1c1c",
-            borderBottom: "1px solid #2d2d2d",
+            padding: "var(--space-4) var(--space-10)",
+            background: "var(--coal)",
+            borderBottom: "1px solid var(--bg-active)",
             flexShrink: 0,
-            fontSize: 12,
-            color: "#ccc",
-            zIndex: 10,
-            gap: 8,
+            fontSize: "var(--fs-body)",
+            color: "var(--text-bright)",
+            zIndex: "var(--z-popover)",
+            gap: "var(--space-8)",
             flexWrap: "wrap",
           }}
         >
           {/* File Name & Path */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", minWidth: 0, flex: 1 }}>
             <span
               style={{
-                fontWeight: 600,
-                color: "#e0e0e0",
+                fontWeight: "var(--fw-semibold)",
+                color: "var(--text-input)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -416,7 +416,7 @@ const MediaViewer = () => {
 
             {/* File info pill */}
             {(fileInfo?.size || fileInfo?.width) && (
-              <span style={{ fontSize: 10, background: "#2a2a2a", color: "#aaa", padding: "1px 6px", borderRadius: 3, flexShrink: 0 }}>
+              <span style={{ fontSize: "var(--fs-tiny)", background: "var(--bg-hover)", color: "var(--icon-hover)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)", flexShrink: 0 }}>
                 {fileInfo.width ? `${fileInfo.width}×${fileInfo.height} px • ` : ""}
                 {formatFileSize(fileInfo.size)}
               </span>
@@ -424,7 +424,7 @@ const MediaViewer = () => {
           </div>
 
           {/* Action Toolbar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", flexShrink: 0 }}>
             {/* Image / Video Zoom & Rotate controls */}
             {(type === "image" || type === "video") && (
               <>
@@ -438,7 +438,7 @@ const MediaViewer = () => {
                 <button
                   onClick={handleResetZoom}
                   title="Reset Zoom (100%)"
-                  style={{ ...btnStyle, minWidth: 42, fontSize: 11 }}
+                  style={{ ...btnStyle, minWidth: 42, fontSize: "var(--fs-small)" }}
                 >
                   {fitMode ? "Fit" : `${Math.round(zoom * 100)}%`}
                 </button>
@@ -454,7 +454,7 @@ const MediaViewer = () => {
                 <button
                   onClick={handleFitScreen}
                   title="Fit to Screen (F)"
-                  style={{ ...btnStyle, background: fitMode ? "#333" : "transparent" }}
+                  style={{ ...btnStyle, background: fitMode ? "var(--bg-thumb)" : "transparent" }}
                 >
                   ⛶
                 </button>
@@ -475,14 +475,14 @@ const MediaViewer = () => {
                 <button
                   onClick={handleFlipH}
                   title="Flip Horizontal (H)"
-                  style={{ ...btnStyle, background: flipH ? "#333" : "transparent" }}
+                  style={{ ...btnStyle, background: flipH ? "var(--bg-thumb)" : "transparent" }}
                 >
                   ↔
                 </button>
                 <button
                   onClick={handleFlipV}
                   title="Flip Vertical (V)"
-                  style={{ ...btnStyle, background: flipV ? "#333" : "transparent" }}
+                  style={{ ...btnStyle, background: flipV ? "var(--bg-thumb)" : "transparent" }}
                 >
                   ↕
                 </button>
@@ -500,7 +500,7 @@ const MediaViewer = () => {
                     setVideoSpeed(spd);
                     if (videoRef.current) videoRef.current.playbackRate = spd;
                   }}
-                  style={{ background: "#262626", color: "#ccc", border: "1px solid #3c3c3c", borderRadius: 3, fontSize: 11, padding: "1px 4px", outline: "none", cursor: "pointer" }}
+                  style={{ background: "var(--media-chip)", color: "var(--text-bright)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)", fontSize: "var(--fs-small)", padding: "var(--space-1) var(--space-4)", outline: "none", cursor: "pointer" }}
                   title="Playback Speed"
                 >
                   <option value={0.5}>0.5x</option>
@@ -517,12 +517,12 @@ const MediaViewer = () => {
             {type === "text" && (
               <>
                 <button onClick={() => setFontSize(s => Math.max(9, s - 1))} title="Decrease font size" style={btnStyle}>A-</button>
-                <span style={{ fontSize: 11, color: "#888", minWidth: 20, textAlign: "center" }}>{fontSize}px</span>
+                <span style={{ fontSize: "var(--fs-small)", color: "var(--icon)", minWidth: 20, textAlign: "center" }}>{fontSize}px</span>
                 <button onClick={() => setFontSize(s => Math.min(32, s + 1))} title="Increase font size" style={btnStyle}>A+</button>
                 <button
                   onClick={() => setLineWrap(w => !w)}
                   title="Toggle Word Wrap"
-                  style={{ ...btnStyle, background: lineWrap ? "#333" : "transparent" }}
+                  style={{ ...btnStyle, background: lineWrap ? "var(--bg-thumb)" : "transparent" }}
                 >
                   Wrap
                 </button>
@@ -534,7 +534,7 @@ const MediaViewer = () => {
             <button
               onClick={() => setShowInfo(v => !v)}
               title="File Info"
-              style={{ ...btnStyle, color: showInfo ? "#5a9fd4" : "#999" }}
+              style={{ ...btnStyle, color: showInfo ? "var(--accent-light)" : "var(--text-secondary)" }}
             >
               ⓘ
             </button>
@@ -552,7 +552,7 @@ const MediaViewer = () => {
             <button
               onClick={handleClose}
               title="Close File (Esc)"
-              style={{ ...btnStyle, color: "#e55" }}
+              style={{ ...btnStyle, color: "var(--error-short)" }}
             >
               ✕
             </button>
@@ -579,12 +579,12 @@ const MediaViewer = () => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0a0a0a",
+          background: "var(--media-stage)",
           cursor: isDragging ? "grabbing" : (zoom > 1 || !fitMode) ? "grab" : "default",
         }}
       >
         {error && (
-          <div style={{ color: "#f44747", fontSize: 13, textAlign: "center", padding: 24, maxWidth: 450, lineHeight: 1.6, background: "#1c1414", border: "1px solid #4a2222", borderRadius: 6 }}>
+          <div style={{ color: "var(--danger)", fontSize: "var(--fs-title)", textAlign: "center", padding: "var(--space-24)", maxWidth: 450, lineHeight: "var(--lh-doc)", background: "var(--media-error-bg)", border: "var(--space-1) solid var(--media-error-border)", borderRadius: "var(--radius-lg)" }}>
             {error}
           </div>
         )}
@@ -598,7 +598,7 @@ const MediaViewer = () => {
               justifyContent: "center",
               width: fitMode ? "100%" : "auto",
               height: fitMode ? "100%" : "auto",
-              transition: isDragging ? "none" : "transform 0.1s ease-out",
+              transition: isDragging ? "none" : "transform var(--t-normal) ease-out",
             }}
           >
             <img
@@ -616,7 +616,7 @@ const MediaViewer = () => {
                 maxHeight: fitMode ? "100%" : "none",
                 objectFit: "contain",
                 transform: mediaTransform,
-                transition: isDragging ? "none" : "transform 0.15s ease-out",
+                transition: isDragging ? "none" : "transform var(--t-slow) ease-out",
                 pointerEvents: "none",
               }}
               alt=""
@@ -652,7 +652,7 @@ const MediaViewer = () => {
                 maxWidth: fitMode ? "100%" : "none",
                 maxHeight: fitMode ? "100%" : "none",
                 transform: mediaTransform,
-                transition: isDragging ? "none" : "transform 0.15s ease-out",
+                transition: isDragging ? "none" : "transform var(--t-slow) ease-out",
               }}
               src={content}
               onError={() => setError(`Failed to play video. Unsupported codec or corrupted file.`)}
@@ -664,23 +664,23 @@ const MediaViewer = () => {
         {type === "pdf" && content && (
           <iframe
             src={content}
-            style={{ width: "100%", height: "100%", border: "none", background: "#525659" }}
+            style={{ width: "100%", height: "100%", border: "none", background: "var(--media-video-bg)" }}
             title={fileName(filePath)}
           />
         )}
 
         {/* ── AUDIO VIEW ───────────────────────────────────────────── */}
         {type === "audio" && content && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, width: "100%" }}>
-            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#252526", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>♫</div>
-            <div style={{ color: "#e0e0e0", fontSize: 13, fontWeight: 600, textAlign: "center", maxWidth: "80%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName(filePath)}</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--space-16)", padding: "var(--space-24)", width: "100%" }}>
+            <div style={{ width: 80, height: 80, borderRadius: "var(--radius-round)", background: "var(--bg-vscode)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-28)" }}>♫</div>
+            <div style={{ color: "var(--text-input)", fontSize: "var(--fs-title)", fontWeight: "var(--fw-semibold)", textAlign: "center", maxWidth: "80%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName(filePath)}</div>
             <audio
               controls
               src={content}
               style={{ width: "80%", maxWidth: 480, outline: "none" }}
               onError={() => setError(`Failed to play audio.`)}
             />
-            {fileInfo?.size && <div style={{ color: "#888", fontSize: 11 }}>{formatFileSize(fileInfo.size)}</div>}
+            {fileInfo?.size && <div style={{ color: "var(--icon)", fontSize: "var(--fs-small)" }}>{formatFileSize(fileInfo.size)}</div>}
           </div>
         )}
 
@@ -690,13 +690,13 @@ const MediaViewer = () => {
             <pre
               style={{
                 margin: 0,
-                padding: 16,
-                color: "#d4d4d4",
+                padding: "var(--space-16)",
+                color: "var(--text-highlight)",
                 fontSize: `${fontSize}px`,
-                fontFamily: 'Consolas, "Courier New", monospace',
+                fontFamily: 'var(--font-code)',
                 whiteSpace: lineWrap ? "pre-wrap" : "pre",
                 wordBreak: lineWrap ? "break-word" : "normal",
-                lineHeight: 1.5,
+                lineHeight: "var(--lh-code)",
                 userSelect: "text",
               }}
             >
@@ -712,19 +712,19 @@ const MediaViewer = () => {
               position: "absolute",
               top: 12,
               right: 12,
-              background: "rgba(22, 22, 22, 0.92)",
+              background: "var(--media-veil)",
               backdropFilter: "blur(8px)",
-              border: "1px solid #383838",
-              borderRadius: 6,
-              padding: 14,
-              fontSize: 11,
-              color: "#ccc",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
-              zIndex: 20,
+              border: "1px solid var(--bg-lift)",
+              borderRadius: "var(--radius-lg)",
+              padding: "var(--space-14)",
+              fontSize: "var(--fs-small)",
+              color: "var(--text-bright)",
+              boxShadow: "0 8px 24px var(--overlay-dark)",
+              zIndex: "var(--z-toast)",
               minWidth: 240,
             }}
           >
-            <div style={{ fontWeight: 700, color: "#fff", marginBottom: 8, fontSize: 12, borderBottom: "1px solid #333", paddingBottom: 4 }}>
+            <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-inverse)", marginBottom: "var(--space-8)", fontSize: "var(--fs-body)", borderBottom: "1px solid var(--border)", paddingBottom: "var(--space-4)" }}>
               File Details
             </div>
             <div style={infoRowStyle}><span style={infoLabelStyle}>Name:</span> {fileName(filePath)}</div>
@@ -750,11 +750,11 @@ const MediaViewer = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "2px 10px",
-            background: "#181818",
-            borderTop: "1px solid #282828",
-            fontSize: 10,
-            color: "#777",
+            padding: "var(--space-2) var(--space-10)",
+            background: "var(--bg-deep)",
+            borderTop: "1px solid var(--media-sep)",
+            fontSize: "var(--fs-tiny)",
+            color: "var(--icon-muted)",
             flexShrink: 0,
           }}
         >
@@ -769,34 +769,34 @@ const MediaViewer = () => {
 const btnStyle = {
   background: "transparent",
   border: "1px solid transparent",
-  color: "#bbb",
-  borderRadius: 3,
-  padding: "2px 6px",
-  fontSize: 12,
+  color: "var(--text-soft)",
+  borderRadius: "var(--radius-sm)",
+  padding: "var(--space-2) var(--space-6)",
+  fontSize: "var(--fs-body)",
   cursor: "pointer",
   outline: "none",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  lineHeight: 1,
-  transition: "background 0.1s, color 0.1s",
+  lineHeight: "var(--lh-flat)",
+  transition: "background var(--t-normal), color var(--t-normal)",
 };
 
 const dividerStyle = {
   width: 1,
   height: 14,
-  background: "#333",
-  margin: "0 2px",
+  background: "var(--bg-thumb)",
+  margin: "0 var(--space-2)",
 };
 
 const infoRowStyle = {
   display: "flex",
-  marginBottom: 4,
-  lineHeight: 1.4,
+  marginBottom: "var(--space-4)",
+  lineHeight: "var(--lh-body)",
 };
 
 const infoLabelStyle = {
-  color: "#888",
+  color: "var(--icon)",
   width: 75,
   flexShrink: 0,
 };

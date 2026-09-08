@@ -8,14 +8,14 @@ const cacheKey = (name, isDir, isOpen) => `${name}|${isDir ? 1 : 0}|${isOpen ? 1
 // ── Fallback SVGs ─────────────────────────────────────────────────────────────
 const FolderFallback = ({ size }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-    <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z" fill="#c8a84b" opacity="0.85"/>
+    <path style={{ fill: "var(--warn-gold)" }} d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z" opacity="0.85"/>
   </svg>
 );
 
 const FileFallback = ({ size }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-    <rect x="2" y="1" width="10" height="14" rx="1" fill="#6b6b6b"/>
-    <path d="M8.5 1.5V5H12" fill="none" stroke="#999" strokeWidth="0.8"/>
+    <rect style={{ fill: "var(--icon-faint)" }} x="2" y="1" width="10" height="14" rx="1"/>
+    <path style={{ stroke: "var(--text-secondary)" }} d="M8.5 1.5V5H12" fill="none" strokeWidth="0.8"/>
   </svg>
 );
 

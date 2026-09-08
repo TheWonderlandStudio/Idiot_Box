@@ -23,11 +23,11 @@ const TreeRow = ({
   gitStatus,
 }) => {
   const gitColor = gitStatus ? (
-    String(gitStatus).includes("M") ? "#cca700" :
-    String(gitStatus).includes("A") ? "#73c991" :
-    String(gitStatus).includes("D") ? "#f44747" :
-    String(gitStatus).includes("?") ? "#73c991" :
-    String(gitStatus).includes("R") ? "#569cd6" : "#888"
+    String(gitStatus).includes("M") ? "var(--git-modified)" :
+    String(gitStatus).includes("A") ? "var(--git-added)" :
+    String(gitStatus).includes("D") ? "var(--danger)" :
+    String(gitStatus).includes("?") ? "var(--git-added)" :
+    String(gitStatus).includes("R") ? "var(--code-blue)" : "var(--icon)"
   ) : null;
   return (
    <div
@@ -61,7 +61,7 @@ const TreeRow = ({
     <span className="pw-tree-row__icon" aria-hidden="true">{iconEl}</span>
     <span className="pw-tree-row__label" title={label}>{label}</span>
     {gitStatus && (
-      <span title={String(gitStatus).trim()==="??" ? "Untracked" : String(gitStatus).trim()} style={{ marginLeft: "auto", fontSize: 10, color: gitColor, fontWeight: 700, paddingRight: 8, flexShrink: 0 }}>{String(gitStatus).trim()==="??" ? "U" : String(gitStatus).trim().slice(0, 2)}</span>
+      <span title={String(gitStatus).trim()==="??" ? "Untracked" : String(gitStatus).trim()} style={{ marginLeft: "auto", fontSize: "var(--fs-tiny)", color: gitColor, fontWeight: "var(--fw-bold)", paddingRight: "var(--space-8)", flexShrink: 0 }}>{String(gitStatus).trim()==="??" ? "U" : String(gitStatus).trim().slice(0, 2)}</span>
     )}
   </div>
 );
@@ -212,7 +212,7 @@ const FolderNode = ({
         />
       ))}
       {isOpen && loading && (
-        <div style={{ paddingLeft: `${6 + (depth + 1) * 14 + 14}px`, color: "#555", fontSize: 11, height: 20, lineHeight: "20px" }}>...</div>
+        <div style={{ paddingLeft: `${6 + (depth + 1) * 14 + 14}px`, color: "var(--text-placeholder)", fontSize: "var(--fs-small)", height: 20, lineHeight: "20px" }}>...</div>
       )}
     </>
   );

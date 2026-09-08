@@ -71,7 +71,6 @@ const DEFAULT_JSON = {
         type: "tabset", weight: 25, id: "editor-tabset",
         children: [
           { type: "tab", name: "Editor", component: "editor" },
-          { type: "tab", name: "AI", component: "aiPanel" },
         ],
       },
       
@@ -114,21 +113,21 @@ const UpdaterNavButton = () => {
     if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError(()=> { setState("idle"); setProgress(null); }));
     return ()=> unsubs.forEach(u=>{try{u()}catch{}});
   }, []);
-  if (state === "checking") return <span title="Checking for updates…" style={{background:"rgba(126,184,247,0.12)", color:"#7eb8f7", border:"1px solid rgba(126,184,247,0.18)", fontSize:10.5, padding:"2px 8px", borderRadius:3, display:"flex", alignItems:"center", gap:4}}>↻ Checking…</span>;
+  if (state === "checking") return <span title="Checking for updates…" style={{background:"var(--info-blue-a12)", color:"var(--info-blue)", border:"1px solid var(--info-blue-a18)", fontSize:"var(--fs-mini)", padding:"var(--space-2) var(--space-8)", borderRadius:"var(--radius-sm)", display:"flex", alignItems:"center", gap:"var(--space-4)"}}>↻ Checking…</span>;
   if (state === "downloading") {
     const pct = Math.round(progress?.percent || 0);
     const mb = progress?.transferred ? `${(progress.transferred/1024/1024).toFixed(1)} MB` : "";
     return (
-      <span title={`Downloading v${info?.version||""} ${pct}% ${mb} • ${progress?.bytesPerSecond ? (progress.bytesPerSecond/1024/1024).toFixed(1)+' MB/s' : ''}`} style={{background:"linear-gradient(90deg, rgba(78,201,176,0.18) 0%, rgba(78,201,176,0.28) 100%)", color:"#4ec9b0", border:"1px solid #4ec9b033", fontSize:10.5, padding:"3px 8px", borderRadius:4, display:"flex", alignItems:"center", gap:6, minWidth:120, position:"relative", overflow:"hidden"}}>
-        <span style={{position:"absolute", left:0, top:0, bottom:0, width:`${pct}%`, background:"rgba(78,201,176,0.22)", transition:"width 0.3s", borderRadius:3}} />
-        <span style={{position:"relative", display:"flex", alignItems:"center", gap:4, fontWeight:700}}><span style={{display:"inline-block", width:8, height:8, border:"1.5px solid #4ec9b0", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.9s linear infinite"}} /> {pct}%</span>
-        <span style={{position:"relative", opacity:0.8, fontSize:10}}>{mb}</span>
+      <span title={`Downloading v${info?.version||""} ${pct}% ${mb} • ${progress?.bytesPerSecond ? (progress.bytesPerSecond/1024/1024).toFixed(1)+' MB/s' : ''}`} style={{background:"var(--grad-teal-soft)", color:"var(--teal)", border:"1px solid var(--teal-border-soft)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-8)", borderRadius:"var(--radius-md)", display:"flex", alignItems:"center", gap:"var(--space-6)", minWidth:120, position:"relative", overflow:"hidden"}}>
+        <span style={{position:"absolute", left:0, top:0, bottom:0, width:`${pct}%`, background:"var(--teal-a22)", transition:"width var(--t-progress)", borderRadius:"var(--radius-sm)"}} />
+        <span style={{position:"relative", display:"flex", alignItems:"center", gap:"var(--space-4)", fontWeight:"var(--fw-bold)"}}><span style={{display:"inline-block", width:8, height:8, border:"1.5px solid var(--teal)", borderTopColor:"transparent", borderRadius:"var(--radius-round)", animation:"spin 0.9s linear infinite"}} /> {pct}%</span>
+        <span style={{position:"relative", opacity:0.8, fontSize:"var(--fs-tiny)"}}>{mb}</span>
       </span>
     );
   }
-  if (state === "downloaded") return <button onClick={()=>{ try{window.electronAPI.updaterInstall()}catch{} }} title="Restart to install update" style={{background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, border:"none", borderRadius:4, fontSize:10.5, padding:"3px 10px", cursor:"pointer", boxShadow:"0 2px 8px rgba(78,201,176,0.3)"}}>↻ Restart v{info?.version||""}</button>;
+  if (state === "downloaded") return <button onClick={()=>{ try{window.electronAPI.updaterInstall()}catch{} }} title="Restart to install update" style={{background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", border:"none", borderRadius:"var(--radius-md)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-10)", cursor:"pointer", boxShadow:"0 var(--space-2) var(--space-8) var(--teal-a30)"}}>↻ Restart v{info?.version||""}</button>;
   if (state !== "available") return null;
-  return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, border:"none", borderRadius:4, fontSize:10.5, padding:"3px 10px", cursor:"pointer", display:"flex", alignItems:"center", gap:4, animation:"pulse 1.5s infinite", boxShadow:"0 2px 8px rgba(78,201,176,0.32)"}}>⬇ Update v{info?.version||"new"}</button>;
+  return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", border:"none", borderRadius:"var(--radius-md)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-10)", cursor:"pointer", display:"flex", alignItems:"center", gap:"var(--space-4)", animation:"pulse 1.5s infinite", boxShadow:"0 var(--space-2) var(--space-8) var(--teal-a32)"}}>⬇ Update v{info?.version||"new"}</button>;
 };
 
 // ── Helpers to walk the flex model tree ────────────────────────────────────
@@ -483,33 +482,9 @@ const App = () => {
           cleanEmpty2(json.layout);
         } catch {}
       })();
-      // ── Auto-inject AI panel for sessions that predate it ──────────────
-      (() => {
-        try {
-          let hasAI = false;
-          const walk = (node) => {
-            if (node.type === "tab" && node.component === "aiPanel") hasAI = true;
-            if (node.children) node.children.forEach(walk);
-          };
-          walk(json.layout || json);
-          if (hasAI) return;
-          // Prefer the editor tabset (shares the right column with Editor)
-          let target = null;
-          const findTarget = (node) => {
-            if (node.type === "tabset" && node.children && node.children.some((c) => c.component === "editor")) {
-              target = node; return true;
-            }
-            if (node.children) for (const ch of node.children) if (findTarget(ch)) return true;
-            return false;
-          };
-          findTarget(json.layout || json);
-          if (target) {
-            target.children.push({ type: "tab", name: "AI", component: "aiPanel" });
-          } else if (json.layout && Array.isArray(json.layout.children)) {
-            json.layout.children.push({ type: "tabset", weight: 20, children: [{ type: "tab", name: "AI", component: "aiPanel" }] });
-          }
-        } catch {}
-      })();
+      // NOTE: AI panel default layout me nahi hai (user choice) — purane saved
+      // sessions me agar aiPanel tab hai to wahi render hoga, naya inject nahi hota.
+      // AI kholo via: New Panel launcher, status-bar AI button, Ctrl+Shift+A.
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
       setTick((t) => t + 1);
@@ -1104,7 +1079,7 @@ const App = () => {
       if (!overlayEl) {
         overlayEl = document.createElement("div");
         overlayEl.id = "zoom-overlay";
-        overlayEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,20,20,0.92);color:#e8e8e8;border:1px solid #3c3c3c;border-radius:8px;padding:10px 22px;font-family:system-ui,Segoe UI,sans-serif;font-size:22px;font-weight:600;letter-spacing:0.3px;z-index:99999;pointer-events:none;opacity:0;transition:opacity 0.18s ease;box-shadow:0 8px 28px rgba(0,0,0,0.45);";
+        overlayEl.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--spotlight-veil);color:var(--updater-title);border:1px solid var(--border-strong);border-radius:var(--radius-xl);padding:var(--space-10) 22px;font-family:system-ui,Segoe UI,sans-serif;font-size:var(--fs-22);font-weight:var(--fw-semibold);letter-spacing:0.3px;z-index:99999;pointer-events:none;opacity:0;transition:opacity var(--t-toggle) ease;box-shadow:0 8px 28px var(--overlay-a45);";
         document.body.appendChild(overlayEl);
       }
       return overlayEl;
@@ -1432,7 +1407,7 @@ const App = () => {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "#0d0d0d" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
       <UpdaterBanner />
       <div style={{ flex: 1, minHeight: 0 }}>
         <Layout
@@ -1490,7 +1465,7 @@ const App = () => {
           const nId = node.getId();
           renderValues.content = (
             <div
-              style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden" }}
+              style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", overflow: "hidden" }}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1501,11 +1476,11 @@ const App = () => {
                 <img src={favicon} width={14} height={14} style={{ flexShrink: 0 }}
                   onError={(e) => { e.target.style.display = "none"; }} />
               ) : (
-                <svg width={14} height={14} viewBox="0 0 16 16" fill="#888" style={{ flexShrink: 0 }}>
+                <svg width={14} height={14} viewBox="0 0 16 16" style={{ flexShrink: 0, fill: "var(--icon)" }}>
                   <circle cx="8" cy="8" r="7" />
                 </svg>
               )}
-              <span title={title} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{title.length > 14 ? title.slice(0, 12) + "…" : title}</span>
+              <span title={title} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-body)" }}>{title.length > 14 ? title.slice(0, 12) + "…" : title}</span>
             </div>
           );
         }
@@ -1523,7 +1498,7 @@ const App = () => {
             }}
             title="Add Panel"
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="#fff">
+            <svg style={{ fill: "var(--text-inverse)" }} width="12" height="12" viewBox="0 0 16 16">
               <rect x="7" y="1" width="2" height="14" rx="1"/>
               <rect x="1" y="7" width="14" height="2" rx="1"/>
             </svg>
@@ -1536,25 +1511,25 @@ const App = () => {
       {/* ── IDE status bar ─────────────────────────────────────────────── */}
       <div
         style={{
-          display: "flex", alignItems: "center", gap: 14,
-          padding: "1px 10px", background: "#007acc", color: "#ffffff",
-          fontSize: 11, height: 22, flexShrink: 0, userSelect: "none",
+          display: "flex", alignItems: "center", gap: "var(--space-14)",
+          padding: "var(--space-1) var(--space-10)", background: "var(--accent)", color: "var(--text-inverse)",
+          fontSize: "var(--fs-small)", height: "var(--bar-h-sm)", flexShrink: 0, userSelect: "none",
           overflow: "hidden", whiteSpace: "nowrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0, overflow: "hidden" }}>
-          <span style={{ opacity: 0.9 }}>Idiot Box</span>
-          <span id="pw-hostbar-left" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, overflow: "hidden" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)", flex: 1, minWidth: 0, overflow: "hidden" }}>
+          <span style={{ opacity: 0.92, fontWeight: "var(--fw-semibold)", letterSpacing: "0.02em" }}>Idiot Box</span>
+          <span id="pw-hostbar-left" style={{ display: "flex", alignItems: "center", gap: "var(--space-10)", minWidth: 0, overflow: "hidden" }} />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: 10 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)" }}>
+          <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: "var(--space-10)" }} />
           <UpdaterNavButton />
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-ai-panel"))}
             title="Open AI Panel (Ctrl+Shift+A) — chat assistant powered by the Vercel AI SDK"
             style={{
-              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
-              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
+              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
             }}
           >
             AI
@@ -1563,8 +1538,8 @@ const App = () => {
             onClick={() => window.dispatchEvent(new CustomEvent("add-ports-panel"))}
             title="Open Ports — forwarded & running dev servers"
             style={{
-              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
-              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
+              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
             }}
           >
             Ports
@@ -1573,8 +1548,8 @@ const App = () => {
             onClick={() => window.dispatchEvent(new CustomEvent("add-android-panel"))}
             title="Open Android Emulator — SDK in .appdata/android"
             style={{
-              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
-              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
+              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
             }}
           >
             Emulator
@@ -1583,8 +1558,8 @@ const App = () => {
             onClick={() => window.dispatchEvent(new CustomEvent("add-canvas-panel"))}
             title="Open Canvas — visual project map of every page & component"
             style={{
-              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
-              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
+              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
             }}
           >
             Canvas
@@ -1593,8 +1568,8 @@ const App = () => {
             onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
             title="Command Palette (Ctrl+Shift+P)"
             style={{
-              background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 3,
-              color: "#ffffff", fontSize: 10.5, padding: "2px 8px", cursor: "pointer",
+              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
+              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
             }}
           >
             Palette

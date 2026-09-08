@@ -148,55 +148,55 @@ export default function UpdaterBanner() {
   const eta = useMemo(() => fmtETA(progress), [progress]);
 
   const bannerStyle = {
-    display:"flex", alignItems:"center", gap:10,
-    padding:"8px 12px", fontSize:12, flexShrink:0, borderBottom:"1px solid #2d2d2d",
+    display:"flex", alignItems:"center", gap:"var(--space-10)",
+    padding:"var(--space-8) var(--space-12)", fontSize:"var(--fs-body)", flexShrink:0, borderBottom:"var(--space-1) solid var(--bg-active)",
     position:"relative", overflow:"hidden",
   };
 
   // ── Center modal for manual checks (available / up-to-date) ────────────
   const manualModalEl = manualModal ? (
-    <div onClick={() => setManualModal(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.58)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, animation:"fadeIn 0.18s ease" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(180deg,#2a2a2e 0%,#252526 100%)", border:"1px solid #3c3c3c", borderRadius:10, padding:"22px 22px 16px", minWidth:380, maxWidth:460, boxShadow:"0 16px 48px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.06) inset", display:"flex", flexDirection:"column", gap:14 }}>
+    <div onClick={() => setManualModal(null)} style={{ position:"fixed", inset:0, background:"var(--overlay-a58)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:"var(--z-dialog)", animation:"fadeIn 0.18s ease" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(180deg,var(--updater-dark-row) 0%,var(--bg-vscode) 100%)", border:"1px solid var(--border-strong)", borderRadius:"var(--radius-pill)", padding:"22px 22px var(--space-16)", minWidth:380, maxWidth:460, boxShadow:"0 var(--space-16) 48px var(--overlay-a55), 0 var(--space-1) 0 var(--white-a06) inset", display:"flex", flexDirection:"column", gap:"var(--space-14)" }}>
         {manualModal === "available" ? (
           <>
-            <div style={{ display:"flex", alignItems:"center", gap:10, color:"#4ec9b0", fontSize:15, fontWeight:800, letterSpacing:0.2 }}>
-              <span style={{ width:30, height:30, borderRadius:8, background:"rgba(78,201,176,0.14)", border:"1px solid rgba(78,201,176,0.28)", display:"flex", alignItems:"center", justifyContent:"center" }}><Rocket size={16} style={{color:"#4ec9b0"}} /></span>
+            <div style={{ display:"flex", alignItems:"center", gap:"var(--space-10)", color:"var(--teal)", fontSize:"var(--fs-15)", fontWeight:"var(--fw-extrabold)", letterSpacing:0.2 }}>
+              <span style={{ width:30, height:30, borderRadius:"var(--radius-xl)", background:"var(--teal-a14)", border:"1px solid var(--teal-a28)", display:"flex", alignItems:"center", justifyContent:"center" }}><Rocket size={16} style={{color:"var(--teal)"}} /></span>
               Update available — v{info?.version}
-              <span style={{ marginLeft:"auto", fontSize:11, fontWeight:600, color:"#9ae6b4", background:"rgba(78,201,176,0.12)", border:"1px solid rgba(78,201,176,0.22)", padding:"2px 7px", borderRadius:20 }}>NEW</span>
+              <span style={{ marginLeft:"auto", fontSize:"var(--fs-small)", fontWeight:"var(--fw-semibold)", color:"var(--code-green-soft)", background:"var(--teal-a12)", border:"1px solid var(--teal-a22)", padding:"var(--space-2) 7px", borderRadius:"var(--radius-2xl)" }}>NEW</span>
             </div>
-            <div style={{ fontSize:12.5, color:"#d4d4d4", lineHeight:1.6, background:"#1e1e1e", border:"1px solid #2d2d2d", borderRadius:8, padding:"10px 12px" }}>
-              <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6, color:"#cccccc", fontSize:11, fontWeight:700, letterSpacing:0.4, textTransform:"uppercase", opacity:0.9 }}><Sparkles size={12} /> Release notes</div>
-              <div style={{ maxHeight:110, overflow:"auto", whiteSpace:"pre-wrap", wordBreak:"break-word", color:"#bbbbbb", fontSize:12, lineHeight:1.55 }}>
+            <div style={{ fontSize:"var(--fs-body-plus)", color:"var(--text-highlight)", lineHeight:"var(--lh-doc)", background:"var(--bg-surface)", border:"1px solid var(--bg-active)", borderRadius:"var(--radius-xl)", padding:"var(--space-10) var(--space-12)" }}>
+              <div style={{ display:"flex", gap:"var(--space-8)", alignItems:"center", marginBottom:"var(--space-6)", color:"var(--text-bright)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", letterSpacing:0.4, textTransform:"uppercase", opacity:0.9 }}><Sparkles size={12} /> Release notes</div>
+              <div style={{ maxHeight:110, overflow:"auto", whiteSpace:"pre-wrap", wordBreak:"break-word", color:"var(--text-soft)", fontSize:"var(--fs-body)", lineHeight:"var(--lh-md)" }}>
                 {info?.releaseNotes ? String(info.releaseNotes).slice(0, 900) + (String(info.releaseNotes).length > 900 ? "…" : "") : `A new version is available.\nCurrent: v${currentVersion} → Latest: v${info?.version}\nClick Update & Restart to download and install.`}
               </div>
-              <button onClick={handleViewRelease} style={{ marginTop:8, display:"inline-flex", alignItems:"center", gap:4, background:"transparent", border:"none", color:"#4ec9b0", fontSize:11, cursor:"pointer", padding:0 }}>View on GitHub <ExternalLink size={11} /></button>
+              <button onClick={handleViewRelease} style={{ marginTop:"var(--space-8)", display:"inline-flex", alignItems:"center", gap:"var(--space-4)", background:"transparent", border:"none", color:"var(--teal)", fontSize:"var(--fs-small)", cursor:"pointer", padding:0 }}>View on GitHub <ExternalLink size={11} /></button>
             </div>
             {/* Cycle stepper */}
-            <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:"#8a8a8a" }}>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4, color:"#4ec9b0", fontWeight:700 }}><CheckCircle2 size={12} /> Check</span>
+            <div style={{ display:"flex", alignItems:"center", gap:"var(--space-6)", fontSize:"var(--fs-small)", color:"var(--updater-faint)" }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)", color:"var(--teal)", fontWeight:"var(--fw-bold)" }}><CheckCircle2 size={12} /> Check</span>
               <span style={{ opacity:0.4 }}>—</span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4, color:"#4ec9b0", fontWeight:700 }}><Download size={12} /> Download</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)", color:"var(--teal)", fontWeight:"var(--fw-bold)" }}><Download size={12} /> Download</span>
               <span style={{ opacity:0.4 }}>—</span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4, opacity:0.6 }}><RefreshCw size={12} /> Restart</span>
-              <span style={{ marginLeft:"auto", fontSize:10, opacity:0.5 }}>v{currentVersion} → v{info?.version}</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)", opacity:0.6 }}><RefreshCw size={12} /> Restart</span>
+              <span style={{ marginLeft:"auto", fontSize:"var(--fs-tiny)", opacity:0.5 }}>v{currentVersion} → v{info?.version}</span>
             </div>
-            <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:2 }}>
-              <button onClick={() => setManualModal(null)} style={{ ...btnStyle, background:"#2d2d2d", border:"1px solid #3c3c3c" }}>Later</button>
-              <button onClick={() => { setManualModal(null); handleDownload(); }} style={{ ...btnStyle, background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, boxShadow:"0 2px 10px rgba(78,201,176,0.35)" }}><Download size={14} /> Update & Restart</button>
+            <div style={{ display:"flex", gap:"var(--space-8)", justifyContent:"flex-end", marginTop:"var(--space-2)" }}>
+              <button onClick={() => setManualModal(null)} style={{ ...btnStyle, background:"var(--bg-active)", border:"1px solid var(--border-strong)" }}>Later</button>
+              <button onClick={() => { setManualModal(null); handleDownload(); }} style={{ ...btnStyle, background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", boxShadow:"0 2px 10px var(--teal-a35)" }}><Download size={14} /> Update & Restart</button>
             </div>
           </>
         ) : (
           <>
-            <div style={{ display:"flex", alignItems:"center", gap:10, color:"#8fbf8f", fontSize:14, fontWeight:800 }}>
-              <span style={{ width:30, height:30, borderRadius:8, background:"rgba(143,191,143,0.14)", border:"1px solid rgba(143,191,143,0.22)", display:"flex", alignItems:"center", justifyContent:"center" }}><CheckCircle2 size={16} style={{color:"#8fbf8f"}} /></span>
+            <div style={{ display:"flex", alignItems:"center", gap:"var(--space-10)", color:"var(--updater-ok)", fontSize:"var(--fs-large)", fontWeight:"var(--fw-extrabold)" }}>
+              <span style={{ width:30, height:30, borderRadius:"var(--radius-xl)", background:"var(--term-green-a14)", border:"1px solid var(--term-green-a22)", display:"flex", alignItems:"center", justifyContent:"center" }}><CheckCircle2 size={16} style={{color:"var(--updater-ok)"}} /></span>
               You're up to date
             </div>
-            <div style={{ fontSize:12.5, color:"#cccccc", lineHeight:1.6, background:"#1e1e1e", border:"1px solid #2d2d2d", borderRadius:8, padding:"12px" }}>
-              <div style={{ fontWeight:700, color:"#d4d4d4" }}>v{currentVersion} is the latest version.</div>
-              <div style={{ opacity:0.75, marginTop:4 }}>No update available. We'll check again automatically every 6 hours.</div>
+            <div style={{ fontSize:"var(--fs-body-plus)", color:"var(--text-bright)", lineHeight:"var(--lh-doc)", background:"var(--bg-surface)", border:"1px solid var(--bg-active)", borderRadius:"var(--radius-xl)", padding:"var(--space-12)" }}>
+              <div style={{ fontWeight:"var(--fw-bold)", color:"var(--text-highlight)" }}>v{currentVersion} is the latest version.</div>
+              <div style={{ opacity:0.75, marginTop:"var(--space-4)" }}>No update available. We'll check again automatically every 6 hours.</div>
             </div>
-            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:2 }}>
-              <button onClick={() => setManualModal(null)} style={{ ...btnStyle, background:"#0e639c", color:"#fff", fontWeight:700, minWidth:72, justifyContent:"center" }}>OK</button>
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"var(--space-2)" }}>
+              <button onClick={() => setManualModal(null)} style={{ ...btnStyle, background:"var(--editor-blue)", color:"var(--text-inverse)", fontWeight:"var(--fw-bold)", minWidth:72, justifyContent:"center" }}>OK</button>
             </div>
           </>
         )}
@@ -206,62 +206,62 @@ export default function UpdaterBanner() {
 
   // ── Downloading modal overlay (polished, centered, with progress bar) ──
   const downloadingModalEl = state === "downloading" ? (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.58)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9998, animation:"fadeIn 0.2s ease" }}>
-      <div style={{ background:"linear-gradient(180deg,#2b2b30 0%,#1e1e22 100%)", border:"1px solid #3a3a3e", borderRadius:12, padding:"20px 22px 18px", width:440, maxWidth:"92vw", boxShadow:"0 20px 60px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.08) inset", display:"flex", flexDirection:"column", gap:14 }}>
+    <div style={{ position:"fixed", inset:0, background:"var(--overlay-a58)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:"var(--z-updater-top)", animation:"fadeIn 0.2s ease" }}>
+      <div style={{ background:"var(--grad-modal)", border:"1px solid var(--updater-modal-border)", borderRadius:"var(--radius-3xl)", padding:"var(--space-20) 22px var(--space-18)", width:440, maxWidth:"92vw", boxShadow:"0 var(--space-20) 60px var(--overlay-dark), 0 var(--space-1) 0 var(--white-a08) inset", display:"flex", flexDirection:"column", gap:"var(--space-14)" }}>
         {/* Header */}
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <span style={{ width:36, height:36, borderRadius:10, background:"linear-gradient(180deg,#1a3a5a 0%,#122a42 100%)", border:"1px solid #2a4a6a", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 10px rgba(0,0,0,0.25)" }}>
-            <RefreshCw size={18} style={{ color:"#7eb8f7", animation:"spin 1s linear infinite" }} />
+        <div style={{ display:"flex", alignItems:"center", gap:"var(--space-12)" }}>
+          <span style={{ width:36, height:36, borderRadius:"var(--radius-pill)", background:"var(--grad-icon)", border:"1px solid var(--updater-icon-border)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 10px var(--overlay-a25)" }}>
+            <RefreshCw size={18} style={{ color:"var(--info-blue)", animation:"spin 1s linear infinite" }} />
           </span>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:14, fontWeight:800, color:"#e8e8e8", letterSpacing:0.2, display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ fontSize:"var(--fs-large)", fontWeight:"var(--fw-extrabold)", color:"var(--updater-title)", letterSpacing:0.2, display:"flex", alignItems:"center", gap:"var(--space-8)" }}>
               Downloading update
-              <span style={{ fontSize:11, fontWeight:700, color:"#7eb8f7", background:"rgba(126,184,247,0.12)", border:"1px solid rgba(126,184,247,0.22)", padding:"1px 7px", borderRadius:20 }}>v{info?.version || "…"}</span>
+              <span style={{ fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", color:"var(--info-blue)", background:"var(--info-blue-a12)", border:"1px solid var(--info-blue-a22)", padding:"var(--space-1) 7px", borderRadius:"var(--radius-2xl)" }}>v{info?.version || "…"}</span>
             </div>
-            <div style={{ fontSize:11, color:"#9a9a9a", marginTop:2, display:"flex", alignItems:"center", gap:6 }}>
+            <div style={{ fontSize:"var(--fs-small)", color:"var(--updater-subtle)", marginTop:"var(--space-2)", display:"flex", alignItems:"center", gap:"var(--space-6)" }}>
               <span>Proper update cycle</span>
               <span style={{ opacity:0.3 }}>•</span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:3 }}><CheckCircle2 size={11} style={{color:"#4ec9b0"}} /> Check</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-3)" }}><CheckCircle2 size={11} style={{color:"var(--teal)"}} /> Check</span>
               <span style={{ opacity:0.3 }}>→</span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:3, color:"#7eb8f7", fontWeight:700 }}><Download size={11} /> Download</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-3)", color:"var(--info-blue)", fontWeight:"var(--fw-bold)" }}><Download size={11} /> Download</span>
               <span style={{ opacity:0.3 }}>→</span>
-              <span style={{ opacity:0.5, display:"inline-flex", alignItems:"center", gap:3 }}><RefreshCw size={11} /> Install</span>
+              <span style={{ opacity:0.5, display:"inline-flex", alignItems:"center", gap:"var(--space-3)" }}><RefreshCw size={11} /> Install</span>
             </div>
           </div>
-          <span style={{ fontSize:18, fontWeight:800, color:"#7eb8f7", minWidth:44, textAlign:"right" }}>{pct}%</span>
+          <span style={{ fontSize:"var(--fs-18)", fontWeight:"var(--fw-extrabold)", color:"var(--info-blue)", minWidth:44, textAlign:"right" }}>{pct}%</span>
         </div>
 
         {/* Big progress bar */}
-        <div style={{ position:"relative", height:12, background:"linear-gradient(180deg,#0f1926 0%,#0d1420 100%)", border:"1px solid #1e2e4a", borderRadius:8, overflow:"hidden", boxShadow:"inset 0 1px 2px rgba(0,0,0,0.4)" }}>
+        <div style={{ position:"relative", height:12, background:"var(--grad-track)", border:"1px solid var(--updater-track-border)", borderRadius:"var(--radius-xl)", overflow:"hidden", boxShadow:"inset 0 1px 2px var(--overlay-a40)" }}>
           <div style={{
             width:`${pct}%`,
             height:"100%",
-            background:"linear-gradient(90deg,#4ec9b0 0%,#3fb49c 50%,#2ea68a 100%)",
-            borderRadius:8,
+            background:"var(--grad-progress)",
+            borderRadius:"var(--radius-xl)",
             transition:"width 0.35s cubic-bezier(0.22,1,0.36,1)",
             position:"relative",
             overflow:"hidden",
-            boxShadow:"0 0 12px rgba(78,201,176,0.45)"
+            boxShadow:"0 0 12px var(--teal-a45)"
           }}>
             {/* shimmer */}
             <div style={{
               position:"absolute", inset:0,
-              background:"linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%)",
+              background:"var(--grad-shimmer)",
               transform:"translateX(-100%)",
               animation:"shimmer 1.2s infinite",
             }} />
           </div>
           {/* tick marks */}
-          <div style={{ position:"absolute", inset:0, display:"flex", justifyContent:"space-between", padding:"0 1px", pointerEvents:"none" }}>
-            {Array.from({length:10}).map((_,i)=><div key={i} style={{ width:1, background:"rgba(255,255,255,0.06)", height:"100%" }} />)}
+          <div style={{ position:"absolute", inset:0, display:"flex", justifyContent:"space-between", padding:"0 var(--space-1)", pointerEvents:"none" }}>
+            {Array.from({length:10}).map((_,i)=><div key={i} style={{ width:1, background:"var(--white-a06)", height:"100%" }} />)}
           </div>
         </div>
 
         {/* Stats grid */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"var(--space-8)" }}>
           <div style={statCardStyle}>
             <div style={statLabelStyle}><Download size={11} /> Transferred</div>
-            <div style={statValueStyle}>{fmtBytes(transferred)} <span style={{ opacity:0.5, fontWeight:500 }}>/</span> {fmtBytes(total)}</div>
+            <div style={statValueStyle}>{fmtBytes(transferred)} <span style={{ opacity:0.5, fontWeight:"var(--fw-medium)" }}>/</span> {fmtBytes(total)}</div>
             <div style={statSubStyle}>{pct}% completed</div>
           </div>
           <div style={statCardStyle}>
@@ -276,15 +276,15 @@ export default function UpdaterBanner() {
           </div>
         </div>
 
-        <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:11, color:"#8a8a8a", background:"#1e1e1e", border:"1px solid #2d2d2d", borderRadius:8, padding:"8px 10px" }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:"#4ec9b0", boxShadow:"0 0 6px #4ec9b0", animation:"pulse 1.4s infinite" }} />
+        <div style={{ display:"flex", alignItems:"center", gap:"var(--space-8)", fontSize:"var(--fs-small)", color:"var(--updater-faint)", background:"var(--bg-surface)", border:"var(--space-1) solid var(--bg-active)", borderRadius:"var(--radius-xl)", padding:"var(--space-8) var(--space-10)" }}>
+          <span style={{ width:6, height:6, borderRadius:"var(--radius-round)", background:"var(--teal)", boxShadow:"0 0 6px var(--teal)", animation:"pulse 1.4s infinite" }} />
           Downloading from GitHub Releases — keep the app open. Will auto-install on restart after {pct}% .
           <span style={{ marginLeft:"auto", opacity:0.6 }}>{total ? `${fmtBytes(total)} total` : ""}</span>
         </div>
 
-        <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-          <button onClick={() => { /* keep downloading in background, just hide modal? But keep banner */ }} style={{ ...btnStyle, background:"transparent", border:"1px solid #3a3a3e", color:"#9a9a9a" }} title="Keep downloading in background (banner stays)">Background</button>
-          <button onClick={handleViewRelease} style={{ ...btnStyle, background:"#2d2d2d", border:"1px solid #3c3c3c", color:"#cccccc" }}><ExternalLink size={12} /> Release</button>
+        <div style={{ display:"flex", gap:"var(--space-8)", justifyContent:"flex-end" }}>
+          <button onClick={() => { /* keep downloading in background, just hide modal? But keep banner */ }} style={{ ...btnStyle, background:"transparent", border:"1px solid var(--updater-modal-border)", color:"var(--updater-subtle)" }} title="Keep downloading in background (banner stays)">Background</button>
+          <button onClick={handleViewRelease} style={{ ...btnStyle, background:"var(--bg-active)", border:"1px solid var(--border-strong)", color:"var(--text-bright)" }}><ExternalLink size={12} /> Release</button>
         </div>
       </div>
       <style>{`
@@ -301,13 +301,13 @@ export default function UpdaterBanner() {
   if (state === "checking") {
     return (
       <>
-        <div style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 12px", background:"linear-gradient(90deg,#12233a 0%,#1a2a3a 100%)", borderBottom:"1px solid #2a4a6a", color:"#7eb8f7", fontSize:12, flexShrink:0 }}>
-          <span style={{ width:22, height:22, borderRadius:6, background:"rgba(126,184,247,0.14)", border:"1px solid rgba(126,184,247,0.22)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"var(--space-10)", padding:"7px var(--space-12)", background:"var(--grad-info)", borderBottom:"var(--space-1) solid var(--updater-icon-border)", color:"var(--info-blue)", fontSize:"var(--fs-body)", flexShrink:0 }}>
+          <span style={{ width:22, height:"var(--bar-h-sm)", borderRadius:"var(--radius-lg)", background:"var(--info-blue-a14)", border:"1px solid var(--info-blue-a22)", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <RefreshCw size={13} style={{ animation:"spin 1s linear infinite" }} />
           </span>
-          <span style={{ fontWeight:700, letterSpacing:0.2 }}>Checking for updates…</span>
-          <span style={{ opacity:0.7, fontSize:11 }}>Proper cycle: Check → Download → Install</span>
-          {currentVersion && <span style={{ marginLeft:"auto", opacity:0.6, fontSize:11, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.08)", padding:"1px 6px", borderRadius:20 }}>v{currentVersion}</span>}
+          <span style={{ fontWeight:"var(--fw-bold)", letterSpacing:0.2 }}>Checking for updates…</span>
+          <span style={{ opacity:0.7, fontSize:"var(--fs-small)" }}>Proper cycle: Check → Download → Install</span>
+          {currentVersion && <span style={{ marginLeft:"auto", opacity:0.6, fontSize:"var(--fs-small)", background:"var(--white-a06)", border:"1px solid var(--white-a08)", padding:"var(--space-1) var(--space-6)", borderRadius:"var(--radius-2xl)" }}>v{currentVersion}</span>}
         </div>
         {manualModalEl}
         <style>{`@keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`}</style>
@@ -317,9 +317,9 @@ export default function UpdaterBanner() {
   if (state === "not-available") {
     return (
       <>
-        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,#1a2a1e 0%,#1e2a1e 100%)", color:"#8fbf8f", borderBottomColor:"#2d4a2d", justifyContent:"space-between" }}>
-          <span style={{ display:"inline-flex", alignItems:"center", gap:8 }}><CheckCircle2 size={14} style={{color:"#8fbf8f"}} /> You're up to date — <b>v{currentVersion}</b> is the latest</span>
-          <button onClick={() => setState("idle")} title="Dismiss" style={{ ...btnStyle, background:"transparent", border:"1px solid #2d4a2d", color:"#8fbf8f", padding:"4px 8px" }}><X size={14} /></button>
+        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,var(--success-bg-2) 0%,var(--success-bg-3) 100%)", color:"var(--updater-ok)", borderBottomColor:"var(--updater-ok-border)", justifyContent:"space-between" }}>
+          <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-8)" }}><CheckCircle2 size={14} style={{color:"var(--updater-ok)"}} /> You're up to date — <b>v{currentVersion}</b> is the latest</span>
+          <button onClick={() => setState("idle")} title="Dismiss" style={{ ...btnStyle, background:"transparent", border:"1px solid var(--updater-ok-border)", color:"var(--updater-ok)", padding:"var(--space-4) var(--space-8)" }}><X size={14} /></button>
         </div>
         {manualModalEl}
       </>
@@ -329,13 +329,13 @@ export default function UpdaterBanner() {
   if (state === "error") {
     return (
       <>
-        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,#2a1a1a 0%,#3a1f1f 100%)", color:"#ff9a9a", borderBottomColor:"#5a2a2a" }}>
+        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,var(--updater-error-1) 0%,var(--error-bg-red) 100%)", color:"var(--error-text-pale-2)", borderBottomColor:"var(--error-border-2)" }}>
           <AlertCircle size={14} />
-          <span style={{ fontWeight:600 }}>Update check failed:</span>
+          <span style={{ fontWeight:"var(--fw-semibold)" }}>Update check failed:</span>
           <span style={{ opacity:0.9, maxWidth:420, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{String(error).slice(0,140)}</span>
-          <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
-            <button onClick={handleCheck} style={{ ...btnStyle, background:"#ff9a9a", color:"#1a0f0f", fontWeight:700 }}><RefreshCw size={12} /> Retry</button>
-            <button onClick={() => setState("idle")} style={{ ...btnStyle, background:"transparent", border:"1px solid #5a2a2a", color:"#ff9a9a" }}><X size={12} /></button>
+          <div style={{ marginLeft:"auto", display:"flex", gap:"var(--space-8)" }}>
+            <button onClick={handleCheck} style={{ ...btnStyle, background:"var(--error-text-pale-2)", color:"var(--error-bg-deep)", fontWeight:"var(--fw-bold)" }}><RefreshCw size={12} /> Retry</button>
+            <button onClick={() => setState("idle")} style={{ ...btnStyle, background:"transparent", border:"1px solid var(--error-border-2)", color:"var(--error-text-pale-2)" }}><X size={12} /></button>
           </div>
         </div>
         {manualModalEl}
@@ -346,16 +346,16 @@ export default function UpdaterBanner() {
   if (state === "available") {
     return (
       <>
-        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,#0f2a1e 0%,#1a2e1a 100%)", color:"#9ae6b4", borderBottomColor:"#2d5a2d" }}>
-          <span style={{ width:24, height:24, borderRadius:7, background:"rgba(78,201,176,0.14)", border:"1px solid rgba(78,201,176,0.22)", display:"flex", alignItems:"center", justifyContent:"center" }}><Rocket size={14} style={{ color:"#4ec9b0" }} /></span>
-          <span>Update available: <strong style={{ color:"#4ec9b0" }}>v{info?.version || "new"}</strong> {currentVersion ? <span style={{ opacity:0.7 }}>(current v{currentVersion})</span> : ""}</span>
-          <span style={{ opacity:0.6, fontSize:11, marginLeft:4, display:"none" }}>{info?.releaseNotes ? "" : ""}</span>
-          <div style={{ marginLeft:"auto", display:"flex", gap:8, alignItems:"center" }}>
-            <button onClick={handleViewRelease} title="View release on GitHub" style={{ ...btnStyle, background:"transparent", border:"1px solid rgba(154,230,180,0.22)", color:"#9ae6b4", padding:"4px 8px" }}><ExternalLink size={12} /> Notes</button>
-            <button onClick={handleDownload} style={{ ...btnStyle, background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, boxShadow:"0 2px 10px rgba(78,201,176,0.32)" }}>
+        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,var(--success-bg-deep) 0%,var(--success-bg-4) 100%)", color:"var(--code-green-soft)", borderBottomColor:"var(--success-border-4)" }}>
+          <span style={{ width:24, height:24, borderRadius:"var(--radius-7)", background:"var(--teal-a14)", border:"1px solid var(--teal-a22)", display:"flex", alignItems:"center", justifyContent:"center" }}><Rocket size={14} style={{ color:"var(--teal)" }} /></span>
+          <span>Update available: <strong style={{ color:"var(--teal)" }}>v{info?.version || "new"}</strong> {currentVersion ? <span style={{ opacity:0.7 }}>(current v{currentVersion})</span> : ""}</span>
+          <span style={{ opacity:0.6, fontSize:"var(--fs-small)", marginLeft:"var(--space-4)", display:"none" }}>{info?.releaseNotes ? "" : ""}</span>
+          <div style={{ marginLeft:"auto", display:"flex", gap:"var(--space-8)", alignItems:"center" }}>
+            <button onClick={handleViewRelease} title="View release on GitHub" style={{ ...btnStyle, background:"transparent", border:"1px solid var(--updater-ok-a22)", color:"var(--code-green-soft)", padding:"var(--space-4) var(--space-8)" }}><ExternalLink size={12} /> Notes</button>
+            <button onClick={handleDownload} style={{ ...btnStyle, background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", boxShadow:"0 2px 10px var(--teal-a32)" }}>
               <Download size={14} /> Download — {info?.version ? `v${info.version}` : ""}
             </button>
-            <button onClick={() => { setState("idle"); setManualModal(null); }} title="Dismiss" style={{ ...btnStyle, background:"transparent", border:"1px solid rgba(45,90,45,0.6)", color:"#9ae6b4" }}>
+            <button onClick={() => { setState("idle"); setManualModal(null); }} title="Dismiss" style={{ ...btnStyle, background:"transparent", border:"1px solid var(--updater-ok-dim)", color:"var(--code-green-soft)" }}>
               <X size={14} />
             </button>
           </div>
@@ -370,34 +370,34 @@ export default function UpdaterBanner() {
     return (
       <>
         {/* Top banner with progress */}
-        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,#101f36 0%,#1a2a3a 100%)", color:"#7eb8f7", borderBottomColor:"#2a4a6a", flexDirection:"column", alignItems:"stretch", gap:0, padding:0 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px" }}>
-            <span style={{ width:24, height:24, borderRadius:7, background:"rgba(126,184,247,0.14)", border:"1px solid rgba(126,184,247,0.22)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <RefreshCw size={14} style={{ color:"#7eb8f7", animation:"spin 1s linear infinite" }} />
+        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,var(--updater-info-0) 0%,var(--updater-info-2) 100%)", color:"var(--info-blue)", borderBottomColor:"var(--updater-icon-border)", flexDirection:"column", alignItems:"stretch", gap:0, padding:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"var(--space-10)", padding:"var(--space-8) var(--space-12)" }}>
+            <span style={{ width:24, height:24, borderRadius:"var(--radius-7)", background:"var(--info-blue-a14)", border:"1px solid var(--info-blue-a22)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <RefreshCw size={14} style={{ color:"var(--info-blue)", animation:"spin 1s linear infinite" }} />
             </span>
-            <span style={{ fontWeight:700, letterSpacing:0.2 }}>Downloading update {info?.version ? `v${info.version} ` : ""}</span>
-            <span style={{ fontWeight:800, color:"#7eb8f7" }}>{pct}%</span>
-            <span style={{ opacity:0.7, fontSize:11, display:"none" }}>{subText}</span>
-            <span style={{ marginLeft:"auto", fontSize:11, opacity:0.85, display:"flex", alignItems:"center", gap:8 }}>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Zap size={11} /> {fmtSpeed(speed)}</span>
+            <span style={{ fontWeight:"var(--fw-bold)", letterSpacing:0.2 }}>Downloading update {info?.version ? `v${info.version} ` : ""}</span>
+            <span style={{ fontWeight:"var(--fw-extrabold)", color:"var(--info-blue)" }}>{pct}%</span>
+            <span style={{ opacity:0.7, fontSize:"var(--fs-small)", display:"none" }}>{subText}</span>
+            <span style={{ marginLeft:"auto", fontSize:"var(--fs-small)", opacity:0.85, display:"flex", alignItems:"center", gap:"var(--space-8)" }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)" }}><Zap size={11} /> {fmtSpeed(speed)}</span>
               <span style={{ opacity:0.5 }}>•</span>
-              <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Clock size={11} /> {eta}</span>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)" }}><Clock size={11} /> {eta}</span>
               <span style={{ opacity:0.5 }}>•</span>
               <span>{fmtBytes(transferred)}{total ? ` / ${fmtBytes(total)}` : ""}</span>
             </span>
           </div>
           {/* Full-width progress bar */}
-          <div style={{ height:4, background:"rgba(13,26,42,0.9)", borderTop:"1px solid rgba(42,74,106,0.5)", position:"relative", overflow:"hidden" }}>
+          <div style={{ height:4, background:"var(--updater-track-fill)", borderTop:"1px solid var(--updater-track-line)", position:"relative", overflow:"hidden" }}>
             <div style={{
               width:`${pct}%`,
               height:"100%",
-              background:"linear-gradient(90deg,#4ec9b0 0%,#6ee7c7 50%,#4ec9b0 100%)",
+              background:"linear-gradient(90deg,var(--teal) 0%,var(--teal-pale) 50%,var(--teal) 100%)",
               transition:"width 0.35s cubic-bezier(0.22,1,0.36,1)",
               position:"relative",
               overflow:"hidden",
-              boxShadow:"0 0 8px rgba(78,201,176,0.5)",
+              boxShadow:"0 0 8px var(--teal-a50)",
             }}>
-              <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.24) 50%, transparent 100%)", transform:"translateX(-100%)", animation:"shimmer 1.1s infinite" }} />
+              <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg, transparent 0%, var(--white-a24) 50%, transparent 100%)", transform:"translateX(-100%)", animation:"shimmer 1.1s infinite" }} />
             </div>
           </div>
         </div>
@@ -416,38 +416,38 @@ export default function UpdaterBanner() {
   if (state === "downloaded") {
     return (
       <>
-        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,#0f2e28 0%,#1a3a2e 100%)", color:"#9ae6b4", borderBottomColor:"#2d6a4f" }}>
-          <span style={{ width:26, height:26, borderRadius:8, background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 10px rgba(78,201,176,0.35)" }}><Download size={14} style={{ color:"#0d1117" }} /></span>
-          <span>Update <strong style={{ color:"#4ec9b0" }}>v{info?.version || ""}</strong> downloaded — restart to install</span>
-          <span style={{ opacity:0.6, fontSize:11, marginLeft:6, display:"none" }}>Proper cycle: Downloaded → Install</span>
-          <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
-            <button onClick={handleInstall} style={{ ...btnStyle, background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, boxShadow:"0 2px 10px rgba(78,201,176,0.32)" }}>
+        <div style={{ ...bannerStyle, background:"linear-gradient(90deg,var(--updater-teal-1) 0%,var(--updater-teal-2) 100%)", color:"var(--code-green-soft)", borderBottomColor:"var(--success-border)" }}>
+          <span style={{ width:26, height:"var(--bar-h)", borderRadius:"var(--radius-xl)", background:"var(--grad-teal)", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 2px 10px var(--teal-a35)" }}><Download size={14} style={{ color:"var(--ink-on-teal)" }} /></span>
+          <span>Update <strong style={{ color:"var(--teal)" }}>v{info?.version || ""}</strong> downloaded — restart to install</span>
+          <span style={{ opacity:0.6, fontSize:"var(--fs-small)", marginLeft:"var(--space-6)", display:"none" }}>Proper cycle: Downloaded → Install</span>
+          <div style={{ marginLeft:"auto", display:"flex", gap:"var(--space-8)" }}>
+            <button onClick={handleInstall} style={{ ...btnStyle, background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", boxShadow:"0 2px 10px var(--teal-a32)" }}>
               <RefreshCw size={14} /> Restart Now
             </button>
-            <button onClick={() => { setState("idle"); setManualModal(null); }} title="Later (installs on quit)" style={{ ...btnStyle, background:"transparent", border:"1px solid rgba(45,106,79,0.6)", color:"#9ae6b4" }}>
+            <button onClick={() => { setState("idle"); setManualModal(null); }} title="Later (installs on quit)" style={{ ...btnStyle, background:"transparent", border:"1px solid var(--updater-teal-dim)", color:"var(--code-green-soft)" }}>
               Later
             </button>
           </div>
         </div>
         {/* Success modal */}
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9997, animation:"fadeIn 0.18s ease" }}>
-          <div style={{ background:"linear-gradient(180deg,#2a2a2e 0%,#202023 100%)", border:"1px solid #3c3c3c", borderRadius:12, padding:"20px 22px", width:400, maxWidth:"92vw", boxShadow:"0 16px 48px rgba(0,0,0,0.55)", display:"flex", flexDirection:"column", gap:12, animation:"fadeIn 0.2s ease" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, color:"#4ec9b0", fontSize:15, fontWeight:800 }}>
-              <span style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", display:"flex", alignItems:"center", justifyContent:"center" }}><CheckCircle2 size={18} style={{color:"#0d1117"}} /></span>
+        <div style={{ position:"fixed", inset:0, background:"var(--overlay-a55)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:"var(--z-updater)", animation:"fadeIn 0.18s ease" }}>
+          <div style={{ background:"linear-gradient(180deg,var(--updater-dark-row) 0%,var(--updater-dark-2) 100%)", border:"1px solid var(--border-strong)", borderRadius:"var(--radius-3xl)", padding:"var(--space-20) 22px", width:400, maxWidth:"92vw", boxShadow:"0 var(--space-16) 48px var(--overlay-a55)", display:"flex", flexDirection:"column", gap:"var(--space-12)", animation:"fadeIn 0.2s ease" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"var(--space-10)", color:"var(--teal)", fontSize:"var(--fs-15)", fontWeight:"var(--fw-extrabold)" }}>
+              <span style={{ width:32, height:"var(--bar-h-lg)", borderRadius:"var(--radius-9)", background:"var(--grad-teal)", display:"flex", alignItems:"center", justifyContent:"center" }}><CheckCircle2 size={18} style={{color:"var(--ink-on-teal)"}} /></span>
               Update ready — v{info?.version}
             </div>
-            <div style={{ fontSize:12.5, color:"#d4d4d4", lineHeight:1.6, background:"#1e1e1e", border:"1px solid #2d2d2d", borderRadius:8, padding:"12px" }}>
-              <div style={{ fontWeight:700, color:"#e8e8e8" }}>Download complete ✓</div>
-              <div style={{ opacity:0.8, marginTop:4 }}>Restart now to install <b>v{info?.version}</b> (current v{currentVersion}). Or close the app — it will auto-install on quit.</div>
-              <div style={{ marginTop:8, display:"flex", gap:6, fontSize:11, color:"#8a8a8a" }}>
-                <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><CheckCircle2 size={11} style={{color:"#4ec9b0"}} /> Downloaded</span>
+            <div style={{ fontSize:"var(--fs-body-plus)", color:"var(--text-highlight)", lineHeight:"var(--lh-doc)", background:"var(--bg-surface)", border:"1px solid var(--bg-active)", borderRadius:"var(--radius-xl)", padding:"var(--space-12)" }}>
+              <div style={{ fontWeight:"var(--fw-bold)", color:"var(--updater-title)" }}>Download complete ✓</div>
+              <div style={{ opacity:0.8, marginTop:"var(--space-4)" }}>Restart now to install <b>v{info?.version}</b> (current v{currentVersion}). Or close the app — it will auto-install on quit.</div>
+              <div style={{ marginTop:"var(--space-8)", display:"flex", gap:"var(--space-6)", fontSize:"var(--fs-small)", color:"var(--updater-faint)" }}>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)" }}><CheckCircle2 size={11} style={{color:"var(--teal)"}} /> Downloaded</span>
                 <span>→</span>
-                <span style={{ display:"inline-flex", alignItems:"center", gap:4, color:"#4ec9b0", fontWeight:700 }}><RefreshCw size={11} /> Restart</span>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)", color:"var(--teal)", fontWeight:"var(--fw-bold)" }}><RefreshCw size={11} /> Restart</span>
               </div>
             </div>
-            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-              <button onClick={() => setState("idle")} style={{ ...btnStyle, background:"#2d2d2d", border:"1px solid #3c3c3c" }}>Later</button>
-              <button onClick={handleInstall} style={{ ...btnStyle, background:"linear-gradient(180deg,#4ec9b0 0%,#3da58a 100%)", color:"#0d1117", fontWeight:800, boxShadow:"0 2px 10px rgba(78,201,176,0.35)" }}><RefreshCw size={14} /> Restart Now</button>
+            <div style={{ display:"flex", gap:"var(--space-8)", justifyContent:"flex-end" }}>
+              <button onClick={() => setState("idle")} style={{ ...btnStyle, background:"var(--bg-active)", border:"1px solid var(--border-strong)" }}>Later</button>
+              <button onClick={handleInstall} style={{ ...btnStyle, background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", boxShadow:"0 2px 10px var(--teal-a35)" }}><RefreshCw size={14} /> Restart Now</button>
             </div>
           </div>
         </div>
@@ -460,32 +460,32 @@ export default function UpdaterBanner() {
 }
 
 const btnStyle = {
-  display:"flex", alignItems:"center", gap:6,
-  padding:"6px 12px", borderRadius:7, border:"none",
-  fontSize:12, cursor:"pointer",
-  background:"#252526", color:"#cccccc",
-  fontWeight:600, letterSpacing:0.1,
-  transition:"transform 0.12s, box-shadow 0.12s, background 0.12s",
+  display:"flex", alignItems:"center", gap:"var(--space-6)",
+  padding:"var(--space-6) var(--space-12)", borderRadius:"var(--radius-7)", border:"none",
+  fontSize:"var(--fs-body)", cursor:"pointer",
+  background:"var(--bg-vscode)", color:"var(--text-bright)",
+  fontWeight:"var(--fw-semibold)", letterSpacing:0.1,
+  transition:"transform var(--t-med), box-shadow var(--t-med), background var(--t-med)",
 };
 
 const statCardStyle = {
-  background:"linear-gradient(180deg,#1e1e20 0%,#18181a 100%)",
-  border:"1px solid #2d2d2d",
-  borderRadius:8,
-  padding:"10px 11px",
-  display:"flex", flexDirection:"column", gap:4,
+  background:"linear-gradient(180deg,var(--modal-deep-1) 0%,var(--modal-deep-2) 100%)",
+  border:"1px solid var(--bg-active)",
+  borderRadius:"var(--radius-xl)",
+  padding:"var(--space-10) 11px",
+  display:"flex", flexDirection:"column", gap:"var(--space-4)",
 };
 
 const statLabelStyle = {
-  fontSize:10, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase",
-  color:"#8a8a8a", display:"flex", alignItems:"center", gap:4,
+  fontSize:"var(--fs-tiny)", fontWeight:"var(--fw-bold)", letterSpacing:0.5, textTransform:"uppercase",
+  color:"var(--updater-faint)", display:"flex", alignItems:"center", gap:"var(--space-4)",
 };
 
 const statValueStyle = {
-  fontSize:13, fontWeight:800, color:"#e8e8e8", letterSpacing:0.2,
-  display:"flex", alignItems:"center", gap:4,
+  fontSize:"var(--fs-title)", fontWeight:"var(--fw-extrabold)", color:"var(--updater-title)", letterSpacing:0.2,
+  display:"flex", alignItems:"center", gap:"var(--space-4)",
 };
 
 const statSubStyle = {
-  fontSize:10, color:"#7a7a7a", fontWeight:500,
+  fontSize:"var(--fs-tiny)", color:"var(--updater-mute)", fontWeight:"var(--fw-medium)",
 };

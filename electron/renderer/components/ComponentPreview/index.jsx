@@ -28,17 +28,17 @@ class PreviewErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{
-          padding: 16,
-          background: "#2a1717",
-          border: "1px solid #732222",
-          borderRadius: 6,
-          color: "#f44747",
-          fontSize: 12,
-          fontFamily: "Consolas, monospace",
+          padding: "var(--space-16)",
+          background: "var(--error-bg)",
+          border: "1px solid var(--error-border)",
+          borderRadius: "var(--radius-lg)",
+          color: "var(--danger)",
+          fontSize: "var(--fs-body)",
+          fontFamily: "var(--font-code)",
           maxWidth: 600,
-          margin: 16,
+          margin: "var(--space-16)",
         }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Runtime Error in Component</div>
+          <div style={{ fontWeight: "var(--fw-semibold)", marginBottom: "var(--space-6)" }}>Runtime Error in Component</div>
           <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {this.state.error?.message || String(this.state.error)}
           </div>
@@ -51,45 +51,50 @@ class PreviewErrorBoundary extends React.Component {
 
 // ── Built-in sample component shown with temp data ──────────────────────────
 const SAMPLE_TEMP_DATA = [
-  { id: 1, name: "Alice Kumar", role: "UI Designer",    status: "Active",  color: "#4ec9b0" },
-  { id: 2, name: "Bob Sharma",  role: "Full-stack Dev", status: "Active",  color: "#569cd6" },
-  { id: 3, name: "Charlie Rao", role: "Project Lead",   status: "Away",    color: "#dcdcaa" },
-  { id: 4, name: "Diana Singh", role: "QA Engineer",    status: "Offline", color: "#c586c0" },
+  { id: 1, name: "Alice Kumar", role: "UI Designer",    status: "Active",  color: "var(--teal)" },
+  { id: 2, name: "Bob Sharma",  role: "Full-stack Dev", status: "Active",  color: "var(--code-blue)" },
+  { id: 3, name: "Charlie Rao", role: "Project Lead",   status: "Away",    color: "var(--code-yellow)" },
+  { id: 4, name: "Diana Singh", role: "QA Engineer",    status: "Offline", color: "var(--code-magenta)" },
 ];
 
 const SampleComponent = () => {
   const total = SAMPLE_TEMP_DATA.length;
   const active = SAMPLE_TEMP_DATA.filter((d) => d.status === "Active").length;
   return (
-    <div style={{ width: "100%", boxSizing: "border-box", background: "#252526", border: "1px solid #333", borderRadius: 8, padding: 20, color: "#d4d4d4", fontFamily: "'Segoe UI', Arial, sans-serif" }}>
-      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Team Overview</div>
-      <div style={{ fontSize: 12, color: "#888", marginBottom: 16 }}>Sample component rendered with temp data</div>
-      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-        <div style={{ flex: 1, background: "#1e1e1e", border: "1px solid #333", borderRadius: 6, padding: "10px 12px" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#4ec9b0" }}>{total}</div>
-          <div style={{ fontSize: 11, color: "#888" }}>Total members</div>
+    <div style={{ width: "100%", boxSizing: "border-box", background: "var(--bg-vscode)", border: "1px solid var(--border)", borderRadius: "var(--radius-xl)", padding: "var(--space-20)", color: "var(--text-highlight)", fontFamily: "var(--font-system)" }}>
+      <div style={{ fontSize: "var(--fs-xl)", fontWeight: "var(--fw-semibold)", marginBottom: "var(--space-4)" }}>Team Overview</div>
+      <div style={{ fontSize: "var(--fs-body)", color: "var(--icon)", marginBottom: "var(--space-16)" }}>Sample component rendered with temp data</div>
+      <div style={{ display: "flex", gap: "var(--space-10)", marginBottom: "var(--space-16)" }}>
+        <div style={{ flex: 1, background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "var(--space-10) var(--space-12)" }}>
+          <div style={{ fontSize: "var(--fs-hero)", fontWeight: "var(--fw-bold)", color: "var(--teal)" }}>{total}</div>
+          <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>Total members</div>
         </div>
-        <div style={{ flex: 1, background: "#1e1e1e", border: "1px solid #333", borderRadius: 6, padding: "10px 12px" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "#569cd6" }}>{active}</div>
-          <div style={{ fontSize: 11, color: "#888" }}>Active now</div>
+        <div style={{ flex: 1, background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "var(--space-10) var(--space-12)" }}>
+          <div style={{ fontSize: "var(--fs-hero)", fontWeight: "var(--fw-bold)", color: "var(--code-blue)" }}>{active}</div>
+          <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>Active now</div>
         </div>
       </div>
       {SAMPLE_TEMP_DATA.map((d) => (
-        <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderBottom: "1px solid #2d2d2d" }}>
-          <div style={{ width: 28, height: 28, borderRadius: "50%", background: d.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#111", flexShrink: 0 }}>
+        <div key={d.id} style={{ display: "flex", alignItems: "center", gap: "var(--space-10)", padding: "var(--space-8) var(--space-6)", borderBottom: "var(--space-1) solid var(--bg-active)" }}>
+          <div style={{ width: 28, height: 28, borderRadius: "var(--radius-round)", background: d.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)", color: "var(--bg-panel)", flexShrink: 0 }}>
             {d.name.split(" ").map((w) => w[0]).join("")}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>{d.name}</div>
-            <div style={{ fontSize: 11, color: "#888" }}>{d.role}</div>
+            <div style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-semibold)" }}>{d.name}</div>
+            <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>{d.role}</div>
           </div>
-          <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: d.status === "Active" ? "rgba(78,201,176,.15)" : d.status === "Away" ? "rgba(220,220,170,.15)" : "rgba(197,134,192,.15)", color: d.status === "Active" ? "#4ec9b0" : d.status === "Away" ? "#dcdcaa" : "#c586c0", border: `1px solid ${d.color}33` }}>{d.status}</span>
+          <span style={{ fontSize: "var(--fs-tiny)", padding: "var(--space-2) var(--space-8)", borderRadius: "var(--radius-pill)", background: d.status === "Active" ? "var(--teal-a15)" : d.status === "Away" ? "var(--away-a15)" : "var(--offline-a15)", color: d.status === "Active" ? "var(--teal)" : d.status === "Away" ? "var(--code-yellow)" : "var(--code-magenta)", border: `var(--space-1) solid color-mix(in srgb, ${d.color} 20%, transparent)` }}>{d.status}</span>
         </div>
       ))}
     </div>
   );
 };
 
+// NOTE: IFRAME_HTML alag document me render hota hai — wahan app ke
+// var(--tokens) resolve NAHI hote, isliye literals rakhe hain.
+// Values CENTRAL sheet ke barabar hain: --error-bg (#2a1717),
+// --error-border (#732222), --danger (#f44747), --border (#333).
+// Token badle to yahan bhi badlo.
 const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:#2a1717;border:1px solid #732222;border-radius:6px;color:#f44747;font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
 <script>
 (function(){
@@ -173,35 +178,35 @@ const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>htm
   }
   // Sample data for sampleMode (duplicated inside iframe for isolation)
   const SAMPLE_DATA=[
-    {id:1,name:"Alice Kumar",role:"UI Designer",status:"Active",color:"#4ec9b0"},
-    {id:2,name:"Bob Sharma",role:"Full-stack Dev",status:"Active",color:"#569cd6"},
-    {id:3,name:"Charlie Rao",role:"Project Lead",status:"Away",color:"#dcdcaa"},
-    {id:4,name:"Diana Singh",role:"QA Engineer",status:"Offline",color:"#c586c0"}
+    {id:1,name:"Alice Kumar",role:"UI Designer",status:"Active",color:"var(--teal)"},
+    {id:2,name:"Bob Sharma",role:"Full-stack Dev",status:"Active",color:"var(--code-blue)"},
+    {id:3,name:"Charlie Rao",role:"Project Lead",status:"Away",color:"var(--code-yellow)"},
+    {id:4,name:"Diana Singh",role:"QA Engineer",status:"Offline",color:"var(--code-magenta)"}
   ];
   function SampleComponent(){
     const R=window.React;
     const total=SAMPLE_DATA.length;
     const active=SAMPLE_DATA.filter(d=>d.status==="Active").length;
-    return R.createElement('div',{style:{width:'100%',boxSizing:'border-box',background:'#252526',border:'1px solid #333',borderRadius:8,padding:20,color:'#d4d4d4',fontFamily:"'Segoe UI', Arial, sans-serif"}},
-      R.createElement('div',{style:{fontSize:16,fontWeight:600,marginBottom:4}},'Team Overview'),
-      R.createElement('div',{style:{fontSize:12,color:'#888',marginBottom:16}},'Sample component rendered with temp data'),
-      R.createElement('div',{style:{display:'flex',gap:10,marginBottom:16}},
-        R.createElement('div',{style:{flex:1,background:'#1e1e1e',border:'1px solid #333',borderRadius:6,padding:'10px 12px'}},
-          R.createElement('div',{style:{fontSize:20,fontWeight:700,color:'#4ec9b0'}}, total),
-          R.createElement('div',{style:{fontSize:11,color:'#888'}},'Total members')
+    return R.createElement('div',{style:{width:'100%',boxSizing:'border-box',background:'var(--bg-vscode)',border:'1px solid var(--border)',borderRadius:"var(--radius-xl)",padding:"var(--space-20)",color:'var(--text-highlight)',fontFamily:"var(--font-system)"}},
+      R.createElement('div',{style:{fontSize:"var(--fs-xl)",fontWeight:"var(--fw-semibold)",marginBottom:"var(--space-4)"}},'Team Overview'),
+      R.createElement('div',{style:{fontSize:"var(--fs-body)",color:'var(--icon)',marginBottom:"var(--space-16)"}},'Sample component rendered with temp data'),
+      R.createElement('div',{style:{display:'flex',gap:"var(--space-10)",marginBottom:"var(--space-16)"}},
+        R.createElement('div',{style:{flex:1,background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:"var(--radius-lg)",padding:'var(--space-10) var(--space-12)'}},
+          R.createElement('div',{style:{fontSize:"var(--fs-hero)",fontWeight:"var(--fw-bold)",color:'var(--teal)'}}, total),
+          R.createElement('div',{style:{fontSize:"var(--fs-small)",color:'var(--icon)'}},'Total members')
         ),
-        R.createElement('div',{style:{flex:1,background:'#1e1e1e',border:'1px solid #333',borderRadius:6,padding:'10px 12px'}},
-          R.createElement('div',{style:{fontSize:20,fontWeight:700,color:'#569cd6'}}, active),
-          R.createElement('div',{style:{fontSize:11,color:'#888'}},'Active now')
+        R.createElement('div',{style:{flex:1,background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:"var(--radius-lg)",padding:'var(--space-10) var(--space-12)'}},
+          R.createElement('div',{style:{fontSize:"var(--fs-hero)",fontWeight:"var(--fw-bold)",color:'var(--code-blue)'}}, active),
+          R.createElement('div',{style:{fontSize:"var(--fs-small)",color:'var(--icon)'}},'Active now')
         )
       ),
-      ...SAMPLE_DATA.map(d=> R.createElement('div',{key:d.id, style:{display:'flex',alignItems:'center',gap:10,padding:'8px 6px',borderBottom:'1px solid #2d2d2d'}},
-        R.createElement('div',{style:{width:28,height:28,borderRadius:'50%',background:d.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'#111',flexShrink:0}}, d.name.split(' ').map(w=>w[0]).join('')),
+      ...SAMPLE_DATA.map(d=> R.createElement('div',{key:d.id, style:{display:'flex',alignItems:'center',gap:"var(--space-10)",padding:'var(--space-8) var(--space-6)',borderBottom:'var(--space-1) solid var(--bg-active)'}},
+        R.createElement('div',{style:{width:28,height:28,borderRadius:'var(--radius-round)',background:d.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:"var(--fs-small)",fontWeight:"var(--fw-bold)",color:'var(--bg-panel)',flexShrink:0}}, d.name.split(' ').map(w=>w[0]).join('')),
         R.createElement('div',{style:{flex:1,minWidth:0}},
-          R.createElement('div',{style:{fontSize:12,fontWeight:600}}, d.name),
-          R.createElement('div',{style:{fontSize:11,color:'#888'}}, d.role)
+          R.createElement('div',{style:{fontSize:"var(--fs-body)",fontWeight:"var(--fw-semibold)"}}, d.name),
+          R.createElement('div',{style:{fontSize:"var(--fs-small)",color:'var(--icon)'}}, d.role)
         ),
-        R.createElement('span',{style:{fontSize:10,padding:'2px 8px',borderRadius:10,background:d.status==='Active'?'rgba(78,201,176,.15)':d.status==='Away'?'rgba(220,220,170,.15)':'rgba(197,134,192,.15)',color:d.status==='Active'?'#4ec9b0':d.status==='Away'?'#dcdcaa':'#c586c0',border:'1px solid '+d.color+'33'}}, d.status)
+        R.createElement('span',{style:{fontSize:"var(--fs-tiny)",padding:'var(--space-2) var(--space-8)',borderRadius:"var(--radius-pill)",background:d.status==='Active'?'var(--teal-a15)':d.status==='Away'?'var(--away-a15)':'var(--offline-a15)',color:d.status==='Active'?'var(--teal)':d.status==='Away'?'var(--code-yellow)':'var(--code-magenta)',border:'var(--space-1) solid color-mix(in srgb, '+d.color+' 20%, transparent)'}}, d.status)
       ))
     );
   }
@@ -226,7 +231,7 @@ const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>htm
         try{
           const R=window.React;
           const content=R.createElement(R.Fragment,null,
-            R.createElement('div',{style:{width:'100%',minHeight:'100%',transform:'scale('+zoom+')',transformOrigin:'top left',transition:'transform 0.1s ease'}},
+            R.createElement('div',{style:{width:'100%',minHeight:'100%',transform:'scale('+zoom+')',transformOrigin:'top left',transition:'transform var(--t-normal) ease'}},
               R.createElement(SampleComponent,null)
             )
           );
@@ -238,7 +243,7 @@ const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>htm
         const root=ensureRoot(); if(!root) return;
         try{
           const R=window.React;
-          root.render(R.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:10,color:'#666',fontSize:13}}, R.createElement('div',null,'Select a .jsx or .tsx file to render live preview')));
+          root.render(R.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:"var(--space-10)",color:'var(--text-muted)',fontSize:"var(--fs-title)"}}, R.createElement('div',null,'Select a .jsx or .tsx file to render live preview')));
         }catch(e){ showError(String(e)); }
         return;
       }
@@ -246,7 +251,7 @@ const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>htm
         const root=ensureRoot(); if(!root) return;
         try{
           const R=window.React;
-          root.render(R.createElement('div',{style:{color:'#777',fontSize:12}},'Loading preview…'));
+          root.render(R.createElement('div',{style:{color:'var(--icon-muted)',fontSize:"var(--fs-body)"}},'Loading preview…'));
         }catch(e){ showError(String(e)); }
         return;
       }
@@ -276,7 +281,7 @@ const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>htm
       try{
         const R=window.React;
         const el = R.isValidElement(Comp) ? Comp : R.createElement(Comp);
-        const wrapper=R.createElement('div',{style:{width:'100%',minHeight:'100%',transform:'scale('+zoom+')',transformOrigin:'top left',transition:'transform 0.1s ease'}}, el);
+        const wrapper=R.createElement('div',{style:{width:'100%',minHeight:'100%',transform:'scale('+zoom+')',transformOrigin:'top left',transition:'transform var(--t-normal) ease'}}, el);
         // Simple error boundary via try/catch around render — runtime errors during render will be caught by window.onerror
         root.render(wrapper);
       }catch(e){ showError(e.message||String(e)); }
@@ -714,7 +719,7 @@ const ComponentPreview = ({ nodeId, config }) => {
     }
     // Apply bgMode to iframe body (parent controls outer container bg too)
     try {
-      doc.body.style.background = bgMode === "light" ? "#ffffff" : bgMode === "grid" ? "repeating-conic-gradient(#252526 0% 25%, #1e1e1e 0% 50%) 50% / 16px 16px" : "#1e1e1e";
+      doc.body.style.background = bgMode === "light" ? "var(--text-inverse)" : bgMode === "grid" ? "var(--grad-preview-grid)" : "var(--bg-surface)";
       const m = getMount();
       if (m) m.style.background = "transparent";
     } catch {}
@@ -757,19 +762,19 @@ const ComponentPreview = ({ nodeId, config }) => {
   const fileName = filePath ? filePath.split(/[\\/]/).pop() : "No file selected";
 
   const getCanvasBg = () => {
-    if (bgMode === "light") return "#ffffff";
-    if (bgMode === "grid") return "repeating-conic-gradient(#252526 0% 25%, #1e1e1e 0% 50%) 50% / 16px 16px";
-    return "#1e1e1e";
+    if (bgMode === "light") return "var(--text-inverse)";
+    if (bgMode === "grid") return "var(--grad-preview-grid)";
+    return "var(--bg-surface)";
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", background: "#181818", position: "relative", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", background: "var(--bg-deep)", position: "relative", overflow: "hidden" }}>
       {/* ── Header Toolbar ─────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 10px", background: "#252526", borderBottom: "1px solid #2d2d2d", fontSize: 12, color: "#ccc", flexShrink: 0, gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-          <span style={{ fontWeight: 600, color: "#4ec9b0", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-4) var(--space-10)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", fontSize: "var(--fs-body)", color: "var(--text-bright)", flexShrink: 0, gap: "var(--space-8)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: "var(--fw-semibold)", color: "var(--teal)", display: "flex", alignItems: "center", gap: "var(--space-4)", flexShrink: 0 }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M4 2.5L1.5 8L4 13.5M12 2.5L14.5 8L12 13.5M9.5 2L6.5 14" stroke="#4ec9b0" strokeWidth="1.2" strokeLinecap="round" />
+              <path style={{ stroke: "var(--teal)" }} d="M4 2.5L1.5 8L4 13.5M12 2.5L14.5 8L12 13.5M9.5 2L6.5 14" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
             Preview:
           </span>
@@ -789,12 +794,12 @@ const ComponentPreview = ({ nodeId, config }) => {
               }
             }}
             style={{
-              background: "#1e1e1e",
-              color: "#d0d0d0",
-              border: "1px solid #3c3c3c",
-              borderRadius: 3,
-              fontSize: 11,
-              padding: "2px 6px",
+              background: "var(--bg-surface)",
+              color: "var(--text-warm)",
+              border: "1px solid var(--border-strong)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "var(--fs-small)",
+              padding: "var(--space-2) var(--space-6)",
               outline: "none",
               cursor: "pointer",
               maxWidth: 260,
@@ -820,36 +825,36 @@ const ComponentPreview = ({ nodeId, config }) => {
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", flexShrink: 0 }}>
           {/* Sample Component Button */}
           <button
             onClick={() => setSampleMode(true)}
             title="Show sample component with temp data"
-            style={{ background: sampleMode ? "#2d2d2d" : "transparent", border: "none", color: sampleMode ? "#4ec9b0" : "#aaa", cursor: "pointer", padding: "2px 8px", fontSize: 11, borderRadius: 3 }}
+            style={{ background: sampleMode ? "var(--bg-active)" : "transparent", border: "none", color: sampleMode ? "var(--teal)" : "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", borderRadius: "var(--radius-sm)" }}
           >
             Sample
           </button>
 
           {/* Background Mode Toggle */}
-          <div style={{ display: "flex", background: "#1e1e1e", borderRadius: 3, border: "1px solid #333", padding: 1 }}>
+          <div style={{ display: "flex", background: "var(--bg-surface)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: "var(--space-1)" }}>
             <button
               onClick={() => setBgMode("dark")}
               title="Dark Background"
-              style={{ background: bgMode === "dark" ? "#333" : "transparent", color: bgMode === "dark" ? "#fff" : "#777", border: "none", borderRadius: 2, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}
+              style={{ background: bgMode === "dark" ? "var(--bg-thumb)" : "transparent", color: bgMode === "dark" ? "var(--text-inverse)" : "var(--icon-muted)", border: "none", borderRadius: "var(--radius-xs)", padding: "var(--space-2) var(--space-6)", fontSize: "var(--fs-tiny)", cursor: "pointer" }}
             >
               Dark
             </button>
             <button
               onClick={() => setBgMode("light")}
               title="Light Background"
-              style={{ background: bgMode === "light" ? "#333" : "transparent", color: bgMode === "light" ? "#fff" : "#777", border: "none", borderRadius: 2, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}
+              style={{ background: bgMode === "light" ? "var(--bg-thumb)" : "transparent", color: bgMode === "light" ? "var(--text-inverse)" : "var(--icon-muted)", border: "none", borderRadius: "var(--radius-xs)", padding: "var(--space-2) var(--space-6)", fontSize: "var(--fs-tiny)", cursor: "pointer" }}
             >
               Light
             </button>
             <button
               onClick={() => setBgMode("grid")}
               title="Grid Background"
-              style={{ background: bgMode === "grid" ? "#333" : "transparent", color: bgMode === "grid" ? "#fff" : "#777", border: "none", borderRadius: 2, padding: "2px 6px", fontSize: 10, cursor: "pointer" }}
+              style={{ background: bgMode === "grid" ? "var(--bg-thumb)" : "transparent", color: bgMode === "grid" ? "var(--text-inverse)" : "var(--icon-muted)", border: "none", borderRadius: "var(--radius-xs)", padding: "var(--space-2) var(--space-6)", fontSize: "var(--fs-tiny)", cursor: "pointer" }}
             >
               Grid
             </button>
@@ -859,7 +864,7 @@ const ComponentPreview = ({ nodeId, config }) => {
           <button
             onClick={() => { if (filePath) loadAndTranspile(filePath); }}
             title="Reload Preview"
-            style={{ background: "transparent", border: "none", color: "#aaa", cursor: "pointer", padding: "2px 4px", fontSize: 12 }}
+            style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-4)", fontSize: "var(--fs-body)" }}
           >
             ↻
           </button>

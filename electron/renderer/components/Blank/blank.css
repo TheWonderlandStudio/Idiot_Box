@@ -1,0 +1,141 @@
+/* ── Blank / New Panel launcher ─────────────────────────────────────────── */
+/* Values wahi hain jo pehle inline styles me the — sirf classes me shift hue
+   hain taaki responsive overrides lag sakein. Sab tokens CENTRAL sheet se. */
+
+.bp-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-surface);
+  color: var(--text-bright);
+  padding: var(--space-24);
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+.bp-inner {
+  max-width: 680px;
+  width: 100%;
+  text-align: center;
+  margin: auto 0;
+  flex-shrink: 0;
+}
+
+.bp-title {
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--text-input);
+  margin-bottom: var(--space-8);
+}
+
+.bp-sub {
+  font-size: var(--fs-body-plus);
+  color: var(--icon);
+  margin-bottom: var(--space-24);
+}
+
+.bp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-14);
+  justify-content: center;
+}
+
+.bp-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-18) var(--space-16);
+  background: var(--bg-vscode);
+  border: var(--space-1) solid var(--bg-active);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  outline: none;
+  color: inherit;
+  font-family: var(--font-ui);
+  transition: background var(--t-slow) ease, border-color var(--t-slow) ease,
+    transform var(--t-slow) ease, box-shadow var(--t-slow) ease;
+}
+
+.bp-card:hover {
+  background: var(--bg-hover-strong);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.bp-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft-a25);
+}
+
+.bp-icon {
+  margin-bottom: var(--space-12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  transition: transform var(--t-slow) ease;
+}
+
+.bp-card:hover .bp-icon {
+  transform: scale(1.08);
+}
+
+.bp-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.bp-name {
+  font-size: var(--fs-title-plus);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.005em;
+  color: var(--text-hover);
+  margin-bottom: var(--space-6);
+}
+
+.bp-desc {
+  font-size: var(--fs-small);
+  color: var(--icon-muted);
+  line-height: var(--lh-md);
+}
+
+/* ── Responsive: chhote panels / windows ────────────────────────────────── */
+@media (max-width: 700px) {
+  .bp-root { padding: var(--space-16); }
+  .bp-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-8); }
+  .bp-card { padding: var(--space-12) var(--space-8); }
+  .bp-card:hover { transform: none; box-shadow: none; }
+  .bp-card:hover .bp-icon { transform: none; }
+  .bp-title { font-size: var(--fs-body-plus); }
+  .bp-sub { margin-bottom: var(--space-16); }
+}
+
+@media (max-width: 560px) {
+  .bp-root { padding: var(--space-12); }
+  .bp-grid { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: var(--space-6); }
+  .bp-desc { display: none; }
+  .bp-icon svg { width: 20px; height: 20px; }
+  .bp-name { font-size: var(--fs-body); margin-bottom: 0; }
+}
+
+/* ── Electron fallback classes (window width se lagte hain — index.jsx) ─── */
+.is-narrow .bp-root { padding: var(--space-16); }
+.is-narrow .bp-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-8); }
+.is-narrow .bp-card { padding: var(--space-12) var(--space-8); }
+.is-narrow .bp-card:hover { transform: none; box-shadow: none; }
+.is-narrow .bp-card:hover .bp-icon { transform: none; }
+.is-narrow .bp-title { font-size: var(--fs-body-plus); }
+.is-narrow .bp-sub { margin-bottom: var(--space-16); }
+.is-tiny .bp-root { padding: var(--space-12); }
+.is-tiny .bp-grid { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: var(--space-6); }
+.is-tiny .bp-desc { display: none; }
+.is-tiny .bp-icon svg { width: 20px; height: 20px; }
+.is-tiny .bp-name { font-size: var(--fs-body); margin-bottom: 0; }

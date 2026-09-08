@@ -97,7 +97,7 @@ const KeybindingsPage = () => {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", marginBottom: "var(--space-16)" }}>
         <input
           className="sw-input"
           style={{ flex: 1 }}
@@ -106,22 +106,22 @@ const KeybindingsPage = () => {
           onChange={(e) => setFilter(e.target.value)}
           aria-label="Filter keybindings"
         />
-        <span style={{ fontSize: 11, color: "var(--text-placeholder)", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: "var(--fs-small)", color: "var(--text-placeholder)", whiteSpace: "nowrap" }}>
           {shown} of {total}
         </span>
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ color: "var(--text-placeholder)", fontSize: 12, padding: 16, textAlign: "center", border: "1px dashed #333", borderRadius: 6 }}>
+        <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-body)", padding: "var(--space-16)", textAlign: "center", border: "var(--space-1) dashed var(--border)", borderRadius: "var(--radius-lg)" }}>
           No keybindings match "{filter}"
         </div>
       ) : (
         filtered.map((cat) => (
-          <div key={cat.category} style={{ marginBottom: 20 }}>
+          <div key={cat.category} style={{ marginBottom: "var(--space-20)" }}>
             <div style={{
-              fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+              fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)", letterSpacing: 0.3,
               textTransform: "uppercase", color: "var(--text-label)",
-              marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid var(--bg-subtle)"
+              marginBottom: "var(--space-8)", paddingBottom: "var(--space-4)", borderBottom: "1px solid var(--bg-subtle)"
             }}>
               {cat.category}
             </div>
@@ -138,8 +138,8 @@ const KeybindingsPage = () => {
         ))
       )}
 
-      <div style={{ marginTop: 8, padding: 10, background: "rgba(90,159,212,0.08)", border: "1px solid rgba(90,159,212,0.18)", borderRadius: 4, fontSize: 11, color: "var(--text-placeholder)", lineHeight: 1.5 }}>
-        Tip: Most shortcuts use <code style={{ background: "#2a2a2a", padding: "1px 4px", borderRadius: 3, color: "#bbb" }}>Ctrl</code> on Windows/Linux and <code style={{ background: "#2a2a2a", padding: "1px 4px", borderRadius: 3, color: "#bbb" }}>Cmd</code> on macOS. You can also open the Command Palette with <code style={{ background: "#2a2a2a", padding: "1px 4px", borderRadius: 3, color: "#bbb" }}>Ctrl+Shift+P</code> to search for any command.
+      <div style={{ marginTop: "var(--space-8)", padding: "var(--space-10)", background: "var(--accent-soft-a08)", border: "var(--space-1) solid var(--accent-soft-a18)", borderRadius: "var(--radius-md)", fontSize: "var(--fs-small)", color: "var(--text-placeholder)", lineHeight: "var(--lh-code)" }}>
+        Tip: Most shortcuts use <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Ctrl</code> on Windows/Linux and <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Cmd</code> on macOS. You can also open the Command Palette with <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Ctrl+Shift+P</code> to search for any command.
       </div>
     </div>
   );

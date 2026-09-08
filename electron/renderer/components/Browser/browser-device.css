@@ -1,0 +1,190 @@
+/* ── Browser device / responsive preview ────────────────────────────────────
+ * Custom device frames + free-resize viewport. No extra deps — sirf central
+ * tokens. webview element kabhi remount nahi hota (same tree), isliye device
+ * mode on/off me page reload NAHI hota. */
+
+.browser__devicebar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-8);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-hover);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.browser__devicebar-icon {
+  display: flex;
+  align-items: center;
+  color: var(--teal);
+  flex-shrink: 0;
+}
+
+.browser__device-select {
+  background: var(--bg-app);
+  color: var(--text-bright);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-small);
+  font-family: inherit;
+  padding: 3px 6px;
+  outline: none;
+  cursor: pointer;
+  max-width: 230px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.browser__device-select:focus { border-color: var(--accent); }
+
+.browser__device-dims {
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ── Stage (device mode me view-wrap center + dotted canvas banta hai) ───── */
+.browser__view-wrap--device {
+  align-items: center;
+  overflow: auto;
+  padding: var(--space-24);
+  background-color: var(--bg-app);
+  background-image: radial-gradient(var(--border) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+/* ── Device shell — hamesha mounted rehta hai (fill mode me invisible) ───── */
+.browser__device {
+  position: relative;
+  flex-shrink: 0;
+  margin: auto;
+}
+
+.browser__device--fill {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.browser__device:not(.browser__device--fill) .browser__view {
+  display: block;
+}
+
+/* ── Frames ─────────────────────────────────────────────────────────────── */
+.browser__device--phone {
+  background: var(--black);
+  border: var(--space-1) solid var(--border-strong);
+  border-radius: 44px;
+  padding: 12px;
+  box-shadow: var(--shadow-pop);
+}
+
+.browser__device--phone .browser__view {
+  border-radius: 32px;
+  overflow: hidden;
+}
+
+.browser__device--tablet {
+  background: var(--black);
+  border: var(--space-1) solid var(--border-strong);
+  border-radius: 26px;
+  padding: 16px;
+  box-shadow: var(--shadow-pop);
+}
+
+.browser__device--tablet .browser__view {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.browser__device--plain {
+  background: var(--black);
+  border: var(--space-1) solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow-pop);
+}
+
+/* Dynamic-island notch (phone) / camera dot (tablet) */
+.browser__notch {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 26px;
+  background: var(--black);
+  border-radius: 20px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.browser__camdot {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-round);
+  background: var(--bg-hover);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ── Free-resize corner handle ──────────────────────────────────────────── */
+.browser__resize-handle {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  z-index: 3;
+  opacity: 0.55;
+  border-right: 2px solid var(--icon-muted);
+  border-bottom: 2px solid var(--icon-muted);
+  border-bottom-right-radius: 6px;
+  transition: opacity var(--t-normal), border-color var(--t-normal);
+}
+
+.browser__resize-handle:hover {
+  opacity: 1;
+  border-color: var(--teal);
+}
+
+/* ── Floating size badge ────────────────────────────────────────────────── */
+.browser__device-meta {
+  position: absolute;
+  top: var(--space-8);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: var(--fs-tiny);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  border: var(--space-1) solid var(--border-light);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Small panels ───────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .browser__device-dims { display: none; }
+  .browser__device-select { max-width: 150px; }
+  .browser__view-wrap--device { padding: var(--space-12); }
+}
+
+.is-tiny .browser__device-dims { display: none; }
+.is-tiny .browser__device-select { max-width: 150px; }

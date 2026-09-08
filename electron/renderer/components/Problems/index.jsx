@@ -86,32 +86,32 @@ const ProblemsPanel = () => {
     return "•";
   };
   const getSeverityColor = (sev) => {
-    if (sev === 8) return "#f44747";
-    if (sev === 4) return "#cca700";
-    if (sev === 2) return "#3794ff";
-    return "#888";
+    if (sev === 8) return "var(--danger)";
+    if (sev === 4) return "var(--git-modified)";
+    if (sev === 2) return "var(--link-blue)";
+    return "var(--icon)";
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#1e1e1e", color: "#cccccc", fontFamily: "sans-serif", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", background: "#252526", borderBottom: "1px solid #2d2d2d", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>Problems</span>
-          <span style={{ fontSize: 10, background: markers.filter((m) => m.severity === 8).length ? "#5a1d1d" : "#2d2d2d", color: markers.filter((m) => m.severity === 8).length ? "#f44747" : "#888", padding: "1px 6px", borderRadius: 3 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-surface)", color: "var(--text-bright)", fontFamily: "sans-serif", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-6) var(--space-12)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
+          <span style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-semibold)" }}>Problems</span>
+          <span style={{ fontSize: "var(--fs-tiny)", background: markers.filter((m) => m.severity === 8).length ? "var(--error-bg-solid)" : "var(--bg-active)", color: markers.filter((m) => m.severity === 8).length ? "var(--danger)" : "var(--icon)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)" }}>
             {markers.filter((m) => m.severity === 8).length} errors
           </span>
-          <span style={{ fontSize: 10, background: "#2d2d2d", color: "#888", padding: "1px 6px", borderRadius: 3 }}>{filtered.length}/{markers.length}</span>
+          <span style={{ fontSize: "var(--fs-tiny)", background: "var(--bg-active)", color: "var(--icon)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)" }}>{filtered.length}/{markers.length}</span>
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: "var(--space-4)" }}>
           {["all", "error", "warning"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               style={{
-                background: filter === f ? "#094771" : "transparent",
-                border: "1px solid #3a3a3a",
-                color: filter === f ? "#fff" : "#888",
-                padding: "2px 8px", borderRadius: 3, cursor: "pointer", fontSize: 11, textTransform: "capitalize",
+                background: filter === f ? "var(--select-blue)" : "transparent",
+                border: "1px solid var(--border-light)",
+                color: filter === f ? "var(--text-inverse)" : "var(--icon)",
+                padding: "var(--space-2) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer", fontSize: "var(--fs-small)", textTransform: "capitalize",
               }}
             >
               {f}
@@ -120,11 +120,11 @@ const ProblemsPanel = () => {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 4 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)" }}>
         {filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: 32, color: "#666", fontSize: 12 }}>
+          <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
             {markers.length === 0 ? "No problems — all good" : `No ${filter} problems`}
-            <div style={{ fontSize: 11, marginTop: 8, color: "#555" }}>Diagnostics from Monaco (TS/JS) will appear here</div>
+            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>Diagnostics from Monaco (TS/JS) will appear here</div>
           </div>
         )}
         {filtered.map((m, i) => (
@@ -132,18 +132,18 @@ const ProblemsPanel = () => {
             key={`${m.resource?.path}:${m.startLineNumber}:${m.startColumn}:${i}`}
             onClick={() => openMarker(m)}
             style={{
-              display: "flex", gap: 8, padding: "6px 8px", cursor: "pointer",
-              borderBottom: "1px solid #2d2d2d", alignItems: "flex-start",
+              display: "flex", gap: "var(--space-8)", padding: "var(--space-6) var(--space-8)", cursor: "pointer",
+              borderBottom: "1px solid var(--bg-active)", alignItems: "flex-start",
             }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "#2a2d2e"}
+            onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover-strong)"}
             onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
           >
-            <span style={{ color: getSeverityColor(m.severity), fontSize: 12, flexShrink: 0, marginTop: 1 }}>{getSeverityIcon(m.severity)}</span>
+            <span style={{ color: getSeverityColor(m.severity), fontSize: "var(--fs-body)", flexShrink: 0, marginTop: "var(--space-1)" }}>{getSeverityIcon(m.severity)}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: "#cccccc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.message}</div>
-              <div style={{ fontSize: 11, color: "#888", display: "flex", gap: 8 }}>
-                <span style={{ fontFamily: "Consolas, monospace" }}>{m.resource?.path?.split("/").pop() || "unknown"}:{m.startLineNumber}:{m.startColumn}</span>
-                <span style={{ color: "#555" }}>{m.source || ""}</span>
+              <div style={{ fontSize: "var(--fs-body)", color: "var(--text-bright)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.message}</div>
+              <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)", display: "flex", gap: "var(--space-8)" }}>
+                <span style={{ fontFamily: "var(--font-code)" }}>{m.resource?.path?.split("/").pop() || "unknown"}:{m.startLineNumber}:{m.startColumn}</span>
+                <span style={{ color: "var(--text-placeholder)" }}>{m.source || ""}</span>
               </div>
             </div>
           </div>

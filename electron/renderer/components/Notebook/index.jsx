@@ -62,7 +62,7 @@ const inlineMd = (s) => {
 };
 const renderMarkdown = (src) => {
   const text = String(src ?? "");
-  if (!text.trim()) return '<p style="color:#666">Empty markdown — click to edit.</p>';
+  if (!text.trim()) return '<p style="color:var(--text-muted)">Empty markdown — click to edit.</p>';
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   let html = "", i = 0, inCode = false, codeLang = "", codeBuf = [];
   const flushCode = () => { html += "<pre><code>" + escapeHtml(codeBuf.join("\n")) + "</code></pre>"; codeBuf = []; };
@@ -175,6 +175,9 @@ const nbWithMonoFallback = (f) => {
 
 // Mirror of the main Editor's font settings (live-synced). Theme itself flows
 // through the shared theme service, so cells always match the Editor theme.
+// NOTE: ye values Monaco cell editors me jati hain (JS API — var() resolve
+// NAHI hota). Isliye literals rakhe hain jo CENTRAL tokens ke barabar hain:
+// fontSize 13 == --fs-title, font stack == --font-code. Token badle to yahan bhi badlo.
 const useNbEditorSettings = () => {
   const [s, setS] = useState({
     fontSize: 13,
@@ -780,8 +783,8 @@ const NotebookPanel = ({ config, nodeId }) => {
   if (!hasProject) {
     return (
       <div className="nb-panel" style={{ alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "#666", fontWeight: 600, fontSize: 13 }}>No project open</span>
-        <span style={{ color: "#444", fontSize: 11 }}>Open a project, then select a .ipynb file.</span>
+        <span style={{ color: "var(--text-muted)", fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-title)" }}>No project open</span>
+        <span style={{ color: "var(--text-disabled)", fontSize: "var(--fs-small)" }}>Open a project, then select a .ipynb file.</span>
         <button className="nb-btn" onClick={() => window.electronAPI.openFolder()}>Open Folder…</button>
       </div>
     );
@@ -813,7 +816,7 @@ const NotebookPanel = ({ config, nodeId }) => {
         <button className="nb-btn" onClick={() => insertCell(cells.length, "code")} title="Add code cell at end">+ Code</button>
         <button className="nb-btn" onClick={() => insertCell(cells.length, "markdown")} title="Add markdown cell at end">+ Text</button>
       </div>
-      {statusMsg && <div className="nb-status" style={{ padding: "2px 12px", color: isErrMsg ? "#f48771" : "#4ec9b0" }}>{statusMsg}</div>}
+      {statusMsg && <div className="nb-status" style={{ padding: "var(--space-2) var(--space-12)", color: isErrMsg ? "var(--error-soft)" : "var(--teal)" }}>{statusMsg}</div>}
       {kernel.status === "error" && (
         <div className="nb-banner nb-banner--error">
           <span style={{ flex: 1 }}>{kernel.version || "Python 3 not found on PATH — cells can't run. Install Python, then restart the app."}</span>
@@ -915,7 +918,7 @@ const NotebookPanel = ({ config, nodeId }) => {
                 ) : cell.cell_type === "markdown" ? (
                   mdEditing[cell.id] ? (
                     <div className="nb-codewrap">
-                      <div className="nb-codewrap__gutter" style={{ background: "#4ec9b0" }} />
+                      <div className="nb-codewrap__gutter" style={{ background: "var(--teal)" }} />
                       <textarea
                         ref={(el) => { if (el) taRefs.current.set(cell.id, el); else taRefs.current.delete(cell.id); }}
                         className="nb-textarea"
@@ -936,7 +939,7 @@ const NotebookPanel = ({ config, nodeId }) => {
                   )
                 ) : (
                   <div className="nb-codewrap">
-                    <div className="nb-codewrap__gutter" style={{ background: "#666" }} />
+                    <div className="nb-codewrap__gutter" style={{ background: "var(--text-muted)" }} />
                     <textarea
                       ref={(el) => { if (el) taRefs.current.set(cell.id, el); else taRefs.current.delete(cell.id); }}
                       className="nb-textarea"

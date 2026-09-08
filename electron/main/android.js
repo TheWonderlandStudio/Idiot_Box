@@ -735,6 +735,24 @@ const runningEmulators = new Map(); // avdName -> { pid, child, startedAt, logFi
 // In-app Terminal tab that mirrors emulator stdout/stderr (must match renderer index.jsx)
 const EMULATOR_LOG_TAB = "android-emulator-log";
 
+let emuGrpc = null;
+try { emuGrpc = require("./emulatorGrpc"); } catch (e) { /* gRPC frame source unavailable */ }
+const grpcPorts = new Map(); // avdName -> grpc port
+const grpcAuthFailed = new Set(); // avdName — server demanded auth; don't retry spammy
+const grpcOkLogged = new Set(); // avdName — one-time "frames via gRPC" note
+
+function getFreePort() {
+  const net = require("net");
+  return new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.on("error", reject);
+    s.listen(0, "127.0.0.1", () => {
+      const port = s.address().port;
+      s.close(() => resolve(port));
+    });
+  });
+}
+
 // The emulator resolves <name>.ini -> path= -> config.ini. Follow that link
 // instead of assuming the location (a stale/wrong guess = silent no-op).
 function avdConfigPath(avdName) {
@@ -776,7 +794,7 @@ function ensureAvdKeyboard(avdName, iniPath = null) {
   } catch { return false; }
 }
 
-function startEmulatorProcess(avdName, extraArgs = [], { headless = true } = {}) {
+async function startEmulatorProcess(avdName, extraArgs = [], { headless = true } = {}) {
   ensureDirs();
   const bin = emulatorBin();
   if (!fs.existsSync(bin)) throw new Error("Emulator not installed yet — run Setup SDK first.");
@@ -791,12 +809,20 @@ function startEmulatorProcess(avdName, extraArgs = [], { headless = true } = {})
       return cur;
     } catch { runningEmulators.delete(avdName); }
   }
+  // gRPC frame source (localhost-only, no auth): picked per start so parallel
+  // AVDs never clash. If the port can't be reserved, frames use adb instead.
+  let grpcPort = null;
+  if (emuGrpc) {
+    try { grpcPort = await getFreePort(); }
+    catch { grpcPort = null; }
+  }
   const logFile = path.join(getDownloadsDir(), `emulator-${avdName}.log`);
   // Headless (default): no OS pop-up — the screen is streamed into the IDE panel via adb.
   // Windowed: classic separate emulator window (user choice via pop-out button).
   const args = headless
     ? ["-avd", avdName, "-no-window", "-no-audio", "-no-boot-anim", ...extraArgs]
     : ["-avd", avdName, "-no-boot-anim", ...extraArgs];
+  if (grpcPort) args.push("-grpc", `localhost:${grpcPort}`);
   // Console strategy: ConPTY (node-pty) hosts the whole process tree on an
   // INVISIBLE console — plain CREATE_NO_WINDOW only hides the direct child
   // while grandchildren (qemu) still pop a visible conhost. Qt GUI windows
@@ -863,8 +889,12 @@ function startEmulatorProcess(avdName, extraArgs = [], { headless = true } = {})
       broadcast({ op: "start", phase: "error", message: `${avdName}: emulator exited too quickly (code ${code}) — check free disk space, or delete + recreate the AVD.`, avd: avdName, at: Date.now() });
     }
   });
-  const entry = { pid, startedAt: Date.now(), logFile, headless };
+  const entry = { pid, startedAt: Date.now(), logFile, headless, grpcPort };
   runningEmulators.set(avdName, entry);
+  if (grpcPort) {
+    grpcPorts.set(avdName, grpcPort);
+    grpcAuthFailed.delete(avdName);
+  }
   if (kbFixed) {
     broadcast({ op: "start", phase: "config", message: `${avdName}: physical keyboard enabled (hw.keyboard=yes).`, avd: avdName, at: Date.now() });
   }
@@ -890,6 +920,26 @@ function validSerial(serial) {
   return /^emulator-\d+$/.test(String(serial || ""));
 }
 
+// serial -> avdName (filled on resolve; lets android:frame find the grpc port
+// without an extra adb call per frame). Evicted on stop/delete.
+const serialAvdCache = new Map();
+function cacheSerialAvd(serial, avdName) {
+  if (!serial || !avdName) return;
+  serialAvdCache.set(serial, avdName);
+  if (serialAvdCache.size > 32) {
+    try { serialAvdCache.delete(serialAvdCache.keys().next().value); } catch {}
+  }
+}
+function evictAvdCaches(avdName) {
+  try {
+    for (const [serial, avd] of serialAvdCache) {
+      if (avd === avdName) serialAvdCache.delete(serial);
+    }
+  } catch {}
+  grpcPorts.delete(avdName);
+  grpcAuthFailed.delete(avdName);
+}
+
 async function waitForSerial(avdName, timeoutMs = 150000) {
   const start = Date.now();
   for (;;) {
@@ -899,7 +949,10 @@ async function waitForSerial(avdName, timeoutMs = 150000) {
       if (!d.serial.startsWith("emulator-") || d.state !== "device") continue;
       let avd = null;
       try { avd = await emulatorSerialToAvd(d.serial); } catch {}
-      if (avd === avdName) return d.serial;
+      if (avd === avdName) {
+        cacheSerialAvd(d.serial, avdName);
+        return d.serial;
+      }
     }
     if (Date.now() - start > timeoutMs) {
       throw new Error(`Timed out waiting for ${avdName} on adb (is the emulator still booting? Check the log).`);
@@ -1189,11 +1242,17 @@ function captureRawFrame(serial) {
 
 // ─── Persistent `adb shell` frame session ────────────────────────────────────
 // A fresh adb client spawn (+handshake) per frame costs ~50-100ms on Windows.
-// Instead, one `adb shell` stays open per serial: write "screencap", read the
-// 12-byte header, then exactly w*h*4 bytes. The header makes every frame
-// self-synchronizing (rotate/resize mid-stream just works). Any desync kills
-// the session and the frame falls back to one-shot exec-out (previous path),
-// so worst case == today's behavior.
+// Instead, one `adb shell` stays open per serial with a MARKER-FRAMED protocol:
+//
+//   write:  echo __FS__; screencap; echo __FE__
+//   read:   line "__FS__" → 12-byte header → w*h*4 pixels → line "__FE__"
+//
+// Every frame boundary is explicitly verified, so a stray byte can never
+// cascade into a permanently glitched stream (the failure mode of naive
+// exact-size reads): any mismatch destroys the session and the frame falls
+// back to one-shot exec-out. Worst case == old behavior, never a stuck glitch.
+const FS_START = "__FS__";
+const FS_END = "__FE__";
 const frameSessions = new Map(); // serial -> { child, buf, queue, busy, dead }
 
 function frameSessionDestroy(serial) {
@@ -1201,17 +1260,46 @@ function frameSessionDestroy(serial) {
   if (!s) return;
   frameSessions.delete(serial);
   try { s.dead = true; } catch {}
+  // settle anything still waiting — a hung read would freeze the panel loop
+  try {
+    const pending = s.queue.splice(0);
+    for (const q of pending) { try { q.reject(new Error("session destroyed")); } catch {} }
+  } catch {}
   try { s.child.kill(); } catch {}
 }
 
+// Queue entries: { kind:"exact", need } or { kind:"line", max }. Strict FIFO.
 function frameSessionPump(s) {
   while (s.queue.length && !s.dead) {
     const req = s.queue[0];
-    if (s.buf.length < req.need) return;
-    const chunk = s.buf.subarray(0, req.need);
-    s.buf = s.buf.subarray(req.need);
-    s.queue.shift();
-    try { req.resolve(Buffer.from(chunk)); } catch {}
+    if (req.kind === "line") {
+      const idx = s.buf.indexOf(0x0a); // \n
+      if (idx < 0) {
+        if (s.buf.length > req.max) {
+          s.buf = Buffer.alloc(0); // drop unterminated garbage so it can't poison the next reader
+          s.queue.shift();
+          try { req.reject(new Error("line too long (desync)")); } catch {}
+          continue;
+        }
+        return; // wait for more bytes
+      }
+      if (idx > req.max) {
+        s.buf = s.buf.subarray(idx + 1); // drop the over-long line, keep what follows
+        s.queue.shift();
+        try { req.reject(new Error("line too long (desync)")); } catch {}
+        continue;
+      }
+      const line = s.buf.subarray(0, idx);
+      s.buf = s.buf.subarray(idx + 1);
+      s.queue.shift();
+      try { req.resolve(Buffer.from(line)); } catch {}
+    } else {
+      if (s.buf.length < req.need) return;
+      const chunk = s.buf.subarray(0, req.need);
+      s.buf = s.buf.subarray(req.need);
+      s.queue.shift();
+      try { req.resolve(Buffer.from(chunk)); } catch {}
+    }
   }
 }
 
@@ -1233,25 +1321,31 @@ function frameSessionGet(serial) {
     }
     frameSessionPump(s);
   });
-  child.stderr.on("data", () => {}); // shell chatter ignored — header validates sync
+  child.stderr.on("data", () => {}); // shell chatter ignored — markers validate sync
   child.on("error", () => { s.dead = true; });
   child.on("exit", () => { s.dead = true; });
   frameSessions.set(serial, s);
   return s;
 }
 
-function frameSessionRead(serial, need, timeoutMs = 15000) {
+function frameSessionEnqueue(serial, req, timeoutMs = 15000) {
   const s = frameSessionGet(serial);
   return new Promise((resolve, reject) => {
+    const entry = { ...req, resolve: (b) => { clearTimeout(timer); resolve(b); }, reject: (e) => { clearTimeout(timer); reject(e); } };
     const timer = setTimeout(() => {
-      const i = s.queue.findIndex((q) => q.resolve === resolve);
+      const i = s.queue.indexOf(entry); // identity — always removes the right one
       if (i >= 0) s.queue.splice(i, 1);
-      reject(new Error("Frame read timed out"));
+      entry.reject(new Error("Frame read timed out"));
     }, timeoutMs);
-    s.queue.push({ need, resolve: (b) => { clearTimeout(timer); resolve(b); } });
+    s.queue.push(entry);
     frameSessionPump(s);
   });
 }
+
+const frameSessionRead = (serial, need, timeoutMs) =>
+  frameSessionEnqueue(serial, { kind: "exact", need }, timeoutMs);
+const frameSessionReadLine = (serial, max = 256, timeoutMs) =>
+  frameSessionEnqueue(serial, { kind: "line", max }, timeoutMs);
 
 async function captureFrameSession(serial) {
   const s = frameSessionGet(serial);
@@ -1259,8 +1353,14 @@ async function captureFrameSession(serial) {
   if (s.busy) throw new Error("session busy");
   s.busy = true;
   try {
-    try { s.child.stdin.write("screencap\n"); }
+    try { s.child.stdin.write(`echo ${FS_START}; screencap; echo ${FS_END}\n`); }
     catch (e) { throw new Error("shell write failed"); }
+    // skip any stray lines until the start marker (bounded — shell MOTDs etc.)
+    for (let i = 0; i < 50; i++) {
+      const ln = (await frameSessionReadLine(serial)).toString("utf8").replace(/\r$/, "");
+      if (ln === FS_START) break;
+      if (i === 49) throw new Error("no start marker (desync)");
+    }
     const head = await frameSessionRead(serial, 12);
     const w = head.readUInt32LE(0), h = head.readUInt32LE(4), fmt = head.readUInt32LE(8);
     if (fmt !== 1 || w <= 0 || h <= 0 || w > 4096 || h > 4096) {
@@ -1269,6 +1369,8 @@ async function captureFrameSession(serial) {
     const expect = w * h * 4;
     if (expect > 64 * 1024 * 1024) throw new Error("frame too large");
     const pixels = await frameSessionRead(serial, expect);
+    const endLn = (await frameSessionReadLine(serial)).toString("utf8").replace(/\r$/, "");
+    if (endLn !== FS_END) throw new Error("no end marker (desync)");
     return { w, h, pixels };
   } finally {
     try { s.busy = false; } catch {}
@@ -1318,6 +1420,11 @@ function setupAndroidIpc() {
           frameSessionDestroy(s);
         }
       } catch {}
+      try {
+        const gp = grpcPorts.get(avdName);
+        if (gp && emuGrpc) emuGrpc.closeClient(gp);
+      } catch {}
+      evictAvdCaches(avdName);
       await stopEmulatorProcess(avdName).catch(() => {});
       if (fs.existsSync(avdManagerBin())) {
         await runAvdManager(["delete", "avd", "-n", avdName], { stdin: "" }).catch(async (e) => {
@@ -1341,7 +1448,7 @@ function setupAndroidIpc() {
     try {
       const avdName = String(name || "").trim();
       if (!avdName) return { ok: false, error: "Missing AVD name." };
-      const entry = startEmulatorProcess(
+      const entry = await startEmulatorProcess(
         avdName,
         Array.isArray(args) ? args.filter((a) => typeof a === "string").slice(0, 12) : [],
         { headless: !windowed }
@@ -1361,6 +1468,11 @@ function setupAndroidIpc() {
           frameSessionDestroy(s);
         }
       } catch {}
+      try {
+        const gp = grpcPorts.get(avdName);
+        if (gp && emuGrpc) emuGrpc.closeClient(gp);
+      } catch {}
+      evictAvdCaches(avdName);
       const r = await stopEmulatorProcess(avdName);
       if (r.ok) broadcast({ op: "stop", phase: "done", message: `${name} stopped.`, avd: name, at: Date.now() });
       return r;
@@ -1485,13 +1597,36 @@ function setupAndroidIpc() {
       if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
       if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
       let w, h, pixels;
-      try {
-        ({ w, h, pixels } = await captureFrameSession(serial));
-      } catch (e) {
-        // session broken/desynced → destroy it, one-shot fallback (previous path)
-        frameSessionDestroy(serial);
-        ({ w, h, pixels } = parseRawFrame(await captureRawFrame(serial)));
+      let framed = null;
+      // 1) gRPC screenshot (persistent channel, server-side scaling, no adb spawn)
+      const avd = serialAvdCache.get(serial) || null;
+      const port = avd ? grpcPorts.get(avd) : null;
+      if (emuGrpc && port && avd && !grpcAuthFailed.has(avd)) {
+        try {
+          framed = await emuGrpc.getScreenshot(port, { width: emuGrpc.STREAM_WIDTH });
+          if (!grpcOkLogged.has(avd)) {
+            grpcOkLogged.add(avd);
+            broadcast({ op: "frame", phase: "grpc", message: `${avd}: frames via gRPC (${framed.w}x${framed.h}).`, avd, at: Date.now() });
+          }
+        } catch (e) {
+          if (e?.grpcAuth) {
+            grpcAuthFailed.add(avd);
+            broadcast({ op: "frame", phase: "auth", message: `${avd}: emulator wants gRPC auth — using adb frames instead.`, avd, at: Date.now() });
+          }
+          framed = null;
+        }
       }
+      // 2) persistent adb shell session
+      if (!framed) {
+        try {
+          framed = await captureFrameSession(serial);
+        } catch (e) {
+          // session broken/desynced → destroy it, one-shot fallback (previous path)
+          frameSessionDestroy(serial);
+          framed = parseRawFrame(await captureRawFrame(serial));
+        }
+      }
+      ({ w, h, pixels } = framed);
       const prev = lastRawFrames.get(serial);
       if (prev && prev.length === pixels.length && prev.equals(pixels)) {
         return { ok: true, unchanged: true, w, h };

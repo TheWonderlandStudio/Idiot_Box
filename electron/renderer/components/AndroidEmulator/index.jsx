@@ -18,17 +18,17 @@ const FALLBACK_DEVICES = [
 ];
 
 const s = {
-  wrap: { display: "flex", flexDirection: "column", height: "100%", background: "#1e1e1e", color: "#cccccc", overflow: "hidden", fontFamily: "'Segoe UI',system-ui,sans-serif" },
-  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: "#252526", borderBottom: "1px solid #2d2d2d", flexShrink: 0, gap: 10 },
-  title: { fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "#bbb", display: "flex", alignItems: "center", gap: 8 },
-  badge: { fontSize: 11, background: "#3a3a3a", color: "#fff", padding: "1px 6px", borderRadius: 10, fontWeight: 700, minWidth: 18, textAlign: "center" },
-  btn: { background: "#0e639c", border: "1px solid #0e639c", color: "#fff", borderRadius: 4, padding: "5px 10px", fontSize: 11.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 },
-  btnGhost: { background: "#2d2d2d", border: "1px solid #3a3a3a", color: "#ccc", borderRadius: 4, padding: "5px 10px", fontSize: 11.5, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 },
-  iconBtn: { background: "#2d2d2d", border: "1px solid #3a3a3a", color: "#bbb", cursor: "pointer", padding: "4px 8px", borderRadius: 4, fontSize: 12, lineHeight: 1 },
-  input: { background: "#252526", border: "1px solid #3a3a3a", color: "#e0e0e0", borderRadius: 4, padding: "6px 8px", fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box" },
-  select: { background: "#252526", border: "1px solid #3a3a3a", color: "#e0e0e0", borderRadius: 4, padding: "6px 8px", fontSize: 12, outline: "none", width: "100%", boxSizing: "border-box" },
-  row: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", fontSize: 12, borderBottom: "1px solid #232323" },
-  label: { fontSize: 11, color: "#999", marginBottom: 4, display: "block" },
+  wrap: { display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-surface)", color: "var(--text-bright)", overflow: "hidden", fontFamily: "var(--font-system)" },
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-6) var(--space-10)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0, gap: "var(--space-10)" },
+  title: { fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--text-soft)", display: "flex", alignItems: "center", gap: "var(--space-8)" },
+  badge: { fontSize: "var(--fs-small)", background: "var(--border-light)", color: "var(--text-inverse)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-pill)", fontWeight: "var(--fw-bold)", minWidth: 18, textAlign: "center" },
+  btn: { background: "var(--editor-blue)", border: "1px solid var(--editor-blue)", color: "var(--text-inverse)", borderRadius: "var(--radius-md)", padding: "var(--space-5) var(--space-10)", fontSize: "var(--fs-small-plus)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-6)" },
+  btnGhost: { background: "var(--bg-active)", border: "1px solid var(--border-light)", color: "var(--text-bright)", borderRadius: "var(--radius-md)", padding: "var(--space-5) var(--space-10)", fontSize: "var(--fs-small-plus)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-6)" },
+  iconBtn: { background: "var(--bg-active)", border: "1px solid var(--border-light)", color: "var(--text-soft)", cursor: "pointer", padding: "var(--space-4) var(--space-8)", borderRadius: "var(--radius-md)", fontSize: "var(--fs-body)", lineHeight: "var(--lh-flat)" },
+  input: { background: "var(--bg-vscode)", border: "1px solid var(--border-light)", color: "var(--text-input)", borderRadius: "var(--radius-md)", padding: "var(--space-6) var(--space-8)", fontSize: "var(--fs-body)", outline: "none", width: "100%", boxSizing: "border-box" },
+  select: { background: "var(--bg-vscode)", border: "1px solid var(--border-light)", color: "var(--text-input)", borderRadius: "var(--radius-md)", padding: "var(--space-6) var(--space-8)", fontSize: "var(--fs-body)", outline: "none", width: "100%", boxSizing: "border-box" },
+  row: { display: "flex", alignItems: "center", gap: "var(--space-10)", padding: "var(--space-8) var(--space-10)", fontSize: "var(--fs-body)", borderBottom: "var(--space-1) solid var(--border-row)" },
+  label: { fontSize: "var(--fs-small)", color: "var(--text-secondary)", marginBottom: "var(--space-4)", display: "block" },
 };
 
 const AndroidEmulatorPanel = () => {
@@ -540,7 +540,7 @@ const AndroidEmulatorPanel = () => {
       {!(view && full) && (
       <div style={s.header}>
         <div style={s.title}>Android Emulator <span style={s.badge}>{avds.length}</span></div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "var(--space-6)", alignItems: "center" }}>
           <button onClick={() => fetchState(false)} title="Refresh" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><RefreshCw size={12} /></button>
           <button onClick={() => window.dispatchEvent(new CustomEvent("add-emulator-log-panel"))} title="Open emulator output in Terminal" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Terminal size={12} /></button>
           <button onClick={() => window.electronAPI?.androidRevealFolder?.()} title="Open .appdata/android folder" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><FolderOpen size={12} /></button>
@@ -548,15 +548,15 @@ const AndroidEmulatorPanel = () => {
       </div>
       )}
 
-      {error && <div style={{ margin: 8, padding: "8px 10px", background: "#5a1d1d", border: "1px solid #7a2a2a", borderRadius: 4, color: "#ffb3b3", fontSize: 11, whiteSpace: "pre-wrap" }}>{error}</div>}
-      {toast && <div style={{ margin: error ? "0 8px 8px" : 8, padding: "6px 10px", background: toast.isError ? "#5a1d1d" : "#1a3a2a", border: "1px solid " + (toast.isError ? "#7a2a2a" : "#2a5a3a"), borderRadius: 4, color: toast.isError ? "#ffb3b3" : "#4ec9b0", fontSize: 11 }}>{toast.text}</div>}
+      {error && <div style={{ margin: "var(--space-8)", padding: "var(--space-8) var(--space-10)", background: "var(--error-bg-solid)", border: "var(--space-1) solid var(--error-border-3)", borderRadius: "var(--radius-md)", color: "var(--error-text-soft)", fontSize: "var(--fs-small)", whiteSpace: "pre-wrap" }}>{error}</div>}
+      {toast && <div style={{ margin: error ? "0 var(--space-8) var(--space-8)" : 8, padding: "var(--space-6) var(--space-10)", background: toast.isError ? "var(--error-bg-solid)" : "var(--success-bg)", border: "var(--space-1) solid " + (toast.isError ? "var(--error-border-3)" : "var(--success-border-2)"), borderRadius: "var(--radius-md)", color: toast.isError ? "var(--error-text-soft)" : "var(--teal)", fontSize: "var(--fs-small)" }}>{toast.text}</div>}
 
       {/* First-run SDK banner (§2–§4) */}
       {sdkMissing && (
-        <div style={{ margin: 8, padding: 12, background: "#252526", border: "1px solid #3a3a3a", borderRadius: 6 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#e0e0e0", marginBottom: 4 }}>Android SDK not installed</div>
-          <div style={{ fontSize: 11.5, color: "#999", marginBottom: 8, lineHeight: 1.5 }}>
-            Downloads Google command-line tools into <code style={{ color: "#4ec9b0" }}>.appdata/android/sdk</code> and installs platform-tools, emulator + Android 15 image. Needs Java 17+ {state?.java?.ok && (state.java.major || 0) >= 17 ? <span style={{ color: "#4ec9b0" }}>(found: {state.java.version}{state.java.source ? ` via ${state.java.source}` : ""})</span> : <span style={{ color: "#d7ba7d" }}>(system Java {state?.java?.version || "missing"} — Setup auto-downloads a portable JDK 17, system Java untouched)</span>}.
+        <div style={{ margin: "var(--space-8)", padding: "var(--space-12)", background: "var(--bg-vscode)", border: "var(--space-1) solid var(--border-light)", borderRadius: "var(--radius-lg)" }}>
+          <div style={{ fontSize: "var(--fs-body-plus)", fontWeight: "var(--fw-bold)", color: "var(--text-input)", marginBottom: "var(--space-4)" }}>Android SDK not installed</div>
+          <div style={{ fontSize: "var(--fs-small-plus)", color: "var(--text-secondary)", marginBottom: "var(--space-8)", lineHeight: "var(--lh-code)" }}>
+            Downloads Google command-line tools into <code style={{ color: "var(--teal)" }}>.appdata/android/sdk</code> and installs platform-tools, emulator + Android 15 image. Needs Java 17+ {state?.java?.ok && (state.java.major || 0) >= 17 ? <span style={{ color: "var(--teal)" }}>(found: {state.java.version}{state.java.source ? ` via ${state.java.source}` : ""})</span> : <span style={{ color: "var(--code-tan)" }}>(system Java {state?.java?.version || "missing"} — Setup auto-downloads a portable JDK 17, system Java untouched)</span>}.
           </div>
           <button onClick={handleSetup} disabled={busy === "setup"} style={{ ...s.btn, opacity: busy === "setup" ? 0.6 : 1 }}>
             <Download size={13} /> {busy === "setup" ? "Setting up…" : "Setup Android SDK"}
@@ -566,15 +566,15 @@ const AndroidEmulatorPanel = () => {
 
       {/* Device fullscreen in-panel — while a screen is open the rest of the UI hides */}
       {view ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: "#000" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "#1e1e1e", flexShrink: 0 }}>
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5, fontWeight: 700, color: "#e0e0e0" }}>{view.avd.replace(/_/g, " ")}</span>
-            {!view.serial && <span style={{ fontSize: 10.5, color: "#d7ba7d" }}>Waiting for device…</span>}
-            {view.serial && !view.booted && <span style={{ fontSize: 10.5, color: "#d7ba7d" }}>Booting…</span>}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: "var(--black)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", background: "var(--bg-surface)", flexShrink: 0 }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-small-plus)", fontWeight: "var(--fw-bold)", color: "var(--text-input)" }}>{view.avd.replace(/_/g, " ")}</span>
+            {!view.serial && <span style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)" }}>Waiting for device…</span>}
+            {view.serial && !view.booted && <span style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)" }}>Booting…</span>}
             {!full && <button onClick={() => setFull(true)} title="Fullscreen — only emulator + controls" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Maximize2 size={12} /></button>}
             <button onClick={closeViewer} title="Back to emulator list" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><X size={12} /></button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "#1e1e1e", borderTop: "1px solid #2d2d2d", flexShrink: 0, overflowX: "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", background: "var(--bg-surface)", borderTop: "var(--space-1) solid var(--bg-active)", flexShrink: 0, overflowX: "auto" }}>
             <button onClick={() => sendInput(view.serial, { type: "key", code: 4 })} disabled={!view.serial} title="Back" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><ArrowLeft size={12} /></button>
             <button onClick={() => sendInput(view.serial, { type: "key", code: 3 })} disabled={!view.serial} title="Home" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Home size={12} /></button>
             <button onClick={() => sendInput(view.serial, { type: "key", code: 187 })} disabled={!view.serial} title="Recents" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><LayoutGrid size={12} /></button>
@@ -583,13 +583,13 @@ const AndroidEmulatorPanel = () => {
             <button onClick={() => sendInput(view.serial, { type: "key", code: 24 })} disabled={!view.serial} title="Volume up" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Volume2 size={12} /></button>
             <button onClick={() => sendInput(view.serial, { type: "key", code: 26 })} disabled={!view.serial} title="Power" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Power size={12} /></button>
             <button onClick={takeScreenshot} disabled={!view.serial} title="Take screenshot (saved to .appdata/android/downloads)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Camera size={12} /></button>
-            <button onClick={() => handleStop({ name: view.avd })} title="Stop emulator" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: "#f48771" }}><Square size={12} /></button>
-            <span style={{ flex: 1, minWidth: 60, textAlign: "right", fontSize: 10.5, color: "#666", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Screen pe click karo, keyboard se type karo</span>
+            <button onClick={() => handleStop({ name: view.avd })} title="Stop emulator" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: "var(--error-soft)" }}><Square size={12} /></button>
+            <span style={{ flex: 1, minWidth: 60, textAlign: "right", fontSize: "var(--fs-mini)", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Screen pe click karo, keyboard se type karo</span>
           </div>
           <div ref={screenBoxRef} tabIndex={0} autoFocus
             onKeyDown={onScreenKey} onPaste={onScreenPaste} onCompositionEnd={onScreenIme}
             style={{
-              flex: 1, minHeight: 0, background: "#000", outline: "none", position: "relative",
+              flex: 1, minHeight: 0, background: "var(--black)", outline: "none", position: "relative",
               display: "flex", alignItems: zoomIdx === 0 ? "center" : "flex-start",
               justifyContent: zoomIdx === 0 ? "center" : "flex-start",
               overflow: zoomIdx === 0 ? "hidden" : "auto",
@@ -604,12 +604,12 @@ const AndroidEmulatorPanel = () => {
                   ? { maxWidth: "100%", maxHeight: "100%" }
                   : { width: devSize ? Math.round(devSize.w * (zoomIdx === 1 ? 1 : 2)) : undefined }),
               }} />
-            {!gotFrame && <div style={{ margin: "auto", color: "#666", fontSize: 12 }}>{view.serial ? "First frame…" : "Connecting over adb…"}</div>}
-            {full && <button onClick={() => setFull(false)} title="Exit fullscreen (Esc)" style={{ ...s.iconBtn, position: "absolute", top: 8, right: 8, display: "flex", alignItems: "center", background: "rgba(37,37,38,0.9)" }}><Minimize2 size={12} /></button>}
+            {!gotFrame && <div style={{ margin: "auto", color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>{view.serial ? "First frame…" : "Connecting over adb…"}</div>}
+            {full && <button onClick={() => setFull(false)} title="Exit fullscreen (Esc)" style={{ ...s.iconBtn, position: "absolute", top: 8, right: 8, display: "flex", alignItems: "center", background: "var(--emu-veil)" }}><Minimize2 size={12} /></button>}
             {gotFrame && (
-              <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", alignItems: "center", gap: 2, background: "rgba(37,37,38,0.92)", border: "1px solid #3a3a3a", borderRadius: 4, padding: 2 }}>
+              <div style={{ position: "absolute", bottom: 8, right: 8, display: "flex", alignItems: "center", gap: "var(--space-2)", background: "var(--emu-veil-strong)", border: "var(--space-1) solid var(--border-light)", borderRadius: "var(--radius-md)", padding: "var(--space-2)" }}>
                 <button onClick={() => setZoomIdx((z) => Math.max(0, z - 1))} disabled={zoomIdx === 0} title="Zoom out" style={{ ...s.iconBtn, border: "none", background: "none", display: "flex", alignItems: "center", opacity: zoomIdx === 0 ? 0.4 : 1 }}><ZoomOut size={12} /></button>
-                <button onClick={() => setZoomIdx(0)} title="Reset zoom (Fit)" style={{ background: "none", border: "none", color: "#bbb", cursor: "pointer", fontSize: 10.5, minWidth: 30 }}>{["Fit", "1:1", "2:1"][zoomIdx]}</button>
+                <button onClick={() => setZoomIdx(0)} title="Reset zoom (Fit)" style={{ background: "none", border: "none", color: "var(--text-soft)", cursor: "pointer", fontSize: "var(--fs-mini)", minWidth: 30 }}>{["Fit", "1:1", "2:1"][zoomIdx]}</button>
                 <button onClick={() => setZoomIdx((z) => Math.min(2, z + 1))} disabled={zoomIdx === 2} title="Zoom in" style={{ ...s.iconBtn, border: "none", background: "none", display: "flex", alignItems: "center", opacity: zoomIdx === 2 ? 0.4 : 1 }}><ZoomIn size={12} /></button>
               </div>
             )}
@@ -620,48 +620,48 @@ const AndroidEmulatorPanel = () => {
 
       {/* AVD list (§8) */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 80 }}>
-        {loading && avds.length === 0 && !sdkMissing && <div style={{ padding: 20, color: "#666", fontSize: 12, textAlign: "center" }}>Loading emulators…</div>}
+        {loading && avds.length === 0 && !sdkMissing && <div style={{ padding: "var(--space-20)", color: "var(--text-muted)", fontSize: "var(--fs-body)", textAlign: "center" }}>Loading emulators…</div>}
         {!loading && avds.length === 0 && !sdkMissing && (
-          <div style={{ textAlign: "center", padding: 30, color: "#666", fontSize: 12 }}>
-            <div style={{ fontWeight: 700, color: "#999", marginBottom: 6 }}>No emulators yet</div>
-            <div style={{ color: "#555", fontSize: 11, marginBottom: 12 }}>Create one — pick a device + Android version.</div>
+          <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
+            <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-secondary)", marginBottom: "var(--space-6)" }}>No emulators yet</div>
+            <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-small)", marginBottom: "var(--space-12)" }}>Create one — pick a device + Android version.</div>
             <button onClick={() => setShowCreate(true)} style={s.btn}><Plus size={13} /> Create Emulator</button>
           </div>
         )}
         {avds.map((avd) => (
           <div key={avd.name} style={s.row}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: avd.running ? "#4ec9b0" : "#555", flexShrink: 0 }} title={avd.running ? "Running" : "Stopped"} />
+            <span style={{ width: 8, height: 8, borderRadius: "var(--radius-round)", background: avd.running ? "var(--teal)" : "var(--text-placeholder)", flexShrink: 0 }} title={avd.running ? "Running" : "Stopped"} />
             <span style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, color: "#e0e0e0", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis" }}>{(avd.device ? avd.device.replace(/\b\w/g, (c) => c.toUpperCase()) + " " : "") || ""}{avd.name.replace(/_/g, " ")}</div>
-              <div style={{ fontSize: 11, color: "#888" }}>{avd.android || "Android"} {avd.running ? <span style={{ color: "#4ec9b0" }}>• running</span> : ""}</div>
+              <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-input)", fontSize: "var(--fs-body-plus)", overflow: "hidden", textOverflow: "ellipsis" }}>{(avd.device ? avd.device.replace(/\b\w/g, (c) => c.toUpperCase()) + " " : "") || ""}{avd.name.replace(/_/g, " ")}</div>
+              <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>{avd.android || "Android"} {avd.running ? <span style={{ color: "var(--teal)" }}>• running</span> : ""}</div>
             </span>
             {avd.running
-              ? <button onClick={() => { const t = state?.tracked?.find((x) => x.avd === avd.name); openViewer(avd.name, { stream: !t || t.headless !== false }); }} title="Show screen in panel" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: view?.avd === avd.name ? "#4ec9b0" : undefined }}><Monitor size={12} /></button>
+              ? <button onClick={() => { const t = state?.tracked?.find((x) => x.avd === avd.name); openViewer(avd.name, { stream: !t || t.headless !== false }); }} title="Show screen in panel" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: view?.avd === avd.name ? "var(--teal)" : undefined }}><Monitor size={12} /></button>
               : <button onClick={() => handleStartEmbedded(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Start in panel (embedded screen)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Monitor size={12} /></button>}
             {avd.running
-              ? <button onClick={() => handleStop(avd)} disabled={busy === avd.name} title="Stop emulator" style={{ ...s.btnGhost, color: "#f48771" }}><Square size={12} /> Stop</button>
+              ? <button onClick={() => handleStop(avd)} disabled={busy === avd.name} title="Stop emulator" style={{ ...s.btnGhost, color: "var(--error-soft)" }}><Square size={12} /> Stop</button>
               : <button onClick={() => handleStart(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Start in separate window (default)" style={s.btn}><Play size={12} /> {busy === avd.name ? "…" : "Start"}</button>}
             {avd.running && <button onClick={() => handleStartWindowed(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Restart in separate window (pop-up)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><PictureInPicture2 size={12} /></button>}
-            <button onClick={() => handleDelete(avd)} disabled={busy === avd.name} title="Delete emulator" style={{ ...s.iconBtn, color: "#f48771", display: "flex", alignItems: "center" }}><Trash2 size={12} /></button>
+            <button onClick={() => handleDelete(avd)} disabled={busy === avd.name} title="Delete emulator" style={{ ...s.iconBtn, color: "var(--error-soft)", display: "flex", alignItems: "center" }}><Trash2 size={12} /></button>
           </div>
         ))}
       </div>
 
       {/* Actions */}
-      <div style={{ padding: 8, borderTop: "1px solid #2d2d2d", display: "flex", gap: 6, background: "#252526", flexShrink: 0 }}>
+      <div style={{ padding: "var(--space-8)", borderTop: "var(--space-1) solid var(--bg-active)", display: "flex", gap: "var(--space-6)", background: "var(--bg-vscode)", flexShrink: 0 }}>
         <button onClick={() => setShowCreate((v) => !v)} disabled={!state?.sdkInstalled} title={state?.sdkInstalled ? "Create emulator (device + Android version)" : "Run Setup SDK first"} style={s.btnGhost}><Plus size={12} /> Create Emulator</button>
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 10.5, color: "#666", alignSelf: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }} title={state?.sdkRoot || ""}>{state?.sdkRoot ? ".appdata/android/sdk" : ""}</span>
+        <span style={{ fontSize: "var(--fs-mini)", color: "var(--text-muted)", alignSelf: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }} title={state?.sdkRoot || ""}>{state?.sdkRoot ? ".appdata/android/sdk" : ""}</span>
       </div>
 
       {/* Create form (§9) */}
       {showCreate && (
-        <div style={{ padding: 10, borderTop: "1px solid #2d2d2d", background: "#1e1e1e", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ padding: "var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
           <div>
             <label style={s.label}>Name</label>
             <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Pixel_8" style={s.input} />
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: "var(--space-8)" }}>
             <div style={{ flex: 1 }}>
               <label style={s.label}>Device</label>
               <select value={form.device} onChange={(e) => setForm((f) => ({ ...f, device: e.target.value }))} style={s.select}>
@@ -675,7 +675,7 @@ const AndroidEmulatorPanel = () => {
               </select>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: "var(--space-6)" }}>
             <button onClick={handleCreate} disabled={busy === "create"} style={{ ...s.btn, opacity: busy === "create" ? 0.6 : 1 }}><Plus size={12} /> {busy === "create" ? "Creating… (downloads image)" : "Create"}</button>
             <button onClick={() => setShowCreate(false)} style={s.btnGhost}>Cancel</button>
           </div>
@@ -684,29 +684,29 @@ const AndroidEmulatorPanel = () => {
 
       {/* Active download / install — one slim card, no log spam */}
       {task && (
-        <div style={{ padding: "8px 10px", borderTop: "1px solid #2d2d2d", background: "#1e1e1e", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <Download size={12} style={{ color: "#4ec9b0", flexShrink: 0, alignSelf: "center" }} />
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5, color: "#ccc" }} title={task.message}>{task.message}</span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: "#4ec9b0", flexShrink: 0 }}>{Math.round(task.percent)}%</span>
+        <div style={{ padding: "var(--space-8) var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-8)" }}>
+            <Download size={12} style={{ color: "var(--teal)", flexShrink: 0, alignSelf: "center" }} />
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-small-plus)", color: "var(--text-bright)" }} title={task.message}>{task.message}</span>
+            <span style={{ fontSize: "var(--fs-small-plus)", fontWeight: "var(--fw-bold)", color: "var(--teal)", flexShrink: 0 }}>{Math.round(task.percent)}%</span>
           </div>
-          <div style={{ height: 5, background: "#111", borderRadius: 3, marginTop: 6, overflow: "hidden" }}>
-            <div style={{ width: `${Math.min(100, Math.max(0, task.percent))}%`, height: "100%", background: "#0e639c", transition: "width 0.25s" }} />
+          <div style={{ height: 5, background: "var(--bg-panel)", borderRadius: "var(--radius-sm)", marginTop: "var(--space-6)", overflow: "hidden" }}>
+            <div style={{ width: `${Math.min(100, Math.max(0, task.percent))}%`, height: "100%", background: "var(--editor-blue)", transition: "width 0.25s" }} />
           </div>
           {typeof task.done === "number" && task.total > 0 && (
-            <div style={{ fontSize: 10.5, color: "#777", marginTop: 4 }}>{(task.done / 1048576).toFixed(1)} / {(task.total / 1048576).toFixed(1)} MB</div>
+            <div style={{ fontSize: "var(--fs-mini)", color: "var(--icon-muted)", marginTop: "var(--space-4)" }}>{(task.done / 1048576).toFixed(1)} / {(task.total / 1048576).toFixed(1)} MB</div>
           )}
         </div>
       )}
 
       {/* Progress log */}
       {log.length > 0 && (
-        <div style={{ borderTop: "1px solid #2d2d2d", background: "#111", maxHeight: 130, minHeight: 44, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 10, color: "#777", padding: "4px 10px", textTransform: "uppercase", letterSpacing: 0.4, display: "flex", justifyContent: "space-between" }}>
+        <div style={{ borderTop: "1px solid var(--bg-active)", background: "var(--bg-panel)", maxHeight: 130, minHeight: 44, display: "flex", flexDirection: "column" }}>
+          <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon-muted)", padding: "var(--space-4) var(--space-10)", textTransform: "uppercase", letterSpacing: 0.4, display: "flex", justifyContent: "space-between" }}>
             <span>Setup log</span>
-            <button onClick={() => setLog([])} style={{ background: "none", border: "none", color: "#777", cursor: "pointer", fontSize: 10 }}>clear</button>
+            <button onClick={() => setLog([])} style={{ background: "none", border: "none", color: "var(--icon-muted)", cursor: "pointer", fontSize: "var(--fs-tiny)" }}>clear</button>
           </div>
-          <div ref={logRef} style={{ flex: 1, overflowY: "auto", padding: "0 10px 8px", fontFamily: "Consolas,monospace", fontSize: 10.5, color: "#9cdcfe", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <div ref={logRef} style={{ flex: 1, overflowY: "auto", padding: "0 var(--space-10) var(--space-8)", fontFamily: "var(--font-code)", fontSize: "var(--fs-mini)", color: "var(--code-cyan)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {log.map((l, i) => <div key={i}>{l}</div>)}
           </div>
         </div>

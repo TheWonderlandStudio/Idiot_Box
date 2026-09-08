@@ -7,6 +7,7 @@ import { Excalidraw } from "@excalidraw/excalidraw";
 // so build-renderer.cjs sets conditions: ["production", ...] for it to resolve.
 import "@excalidraw/excalidraw/index.css";
 import "./canvas.css";
+import { cssVar } from "../shared/theme.js";
 
 // ── Canvas (Excalidraw drawing surface) ─────────────────────────────────────
 // Replaces the old project-map canvas. Drawings persist as JSON / .excalidraw:
@@ -86,12 +87,12 @@ const serializeDrawing = (elements, appState, files) => {
 // — i.e. the actual UI, live on the drawing. The link encodes the rel path
 // and customData carries rel+abs, so embeds survive .excalidraw save/load.
 const COMP_GROUP_COLORS = {
-  pages: "#4ec9b0",
-  components: "#569cd6",
-  views: "#c586c0",
-  widgets: "#dcdcaa",
-  features: "#ce9178",
-  ui: "#9cdcfe",
+  pages: "var(--teal)",
+  components: "var(--code-blue)",
+  views: "var(--code-magenta)",
+  widgets: "var(--code-yellow)",
+  features: "var(--code-orange)",
+  ui: "var(--code-cyan)",
 };
 
 const flattenScan = (scan) => {
@@ -133,7 +134,7 @@ const buildComponentEmbed = (file, cx, cy) => {
     id: randId("emb"), type: "embeddable",
     x: Math.round(cx - EMBED_W / 2), y: Math.round(cy - EMBED_H / 2),
     width: EMBED_W, height: EMBED_H, angle: 0,
-    strokeColor: "#1e1e1e", backgroundColor: "transparent",
+    strokeColor: "var(--bg-surface)", backgroundColor: "transparent",
     fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid",
     roughness: 1, opacity: 100, groupIds: [], frameId: null, index: null,
     roundness: { type: 3 }, boundElements: [],
@@ -230,7 +231,7 @@ function ComponentEmbed({ element }) {
     mount.style.height = "100%";
     mount.style.overflow = "auto";
     mount.style.boxSizing = "border-box";
-    mount.style.background = "#fff";
+    mount.style.background = "var(--text-inverse)";
     sr.appendChild(mount);
     const stylesHost = document.createElement("div");
     stylesHost.style.display = "none";
@@ -372,7 +373,7 @@ function ComponentEmbed({ element }) {
           <iframe
             srcDoc={html}
             sandbox="allow-scripts allow-same-origin"
-            style={{ width: "100%", height: "100%", border: 0, background: "#fff", display: "block" }}
+            style={{ width: "100%", height: "100%", border: 0, background: "var(--text-inverse)", display: "block" }}
           />
         );
       } else if (Comp) {
@@ -464,8 +465,8 @@ class CanvasErrorBoundary extends React.Component {
     if (this.state.error) {
       return (
         <div className="excalidraw-error">
-          <div style={{ fontWeight: 600 }}>Canvas error</div>
-          <div style={{ fontFamily: "Consolas, monospace", whiteSpace: "pre-wrap", wordBreak: "break-all", maxWidth: 700 }}>
+          <div style={{ fontWeight: "var(--fw-semibold)" }}>Canvas error</div>
+          <div style={{ fontFamily: "var(--font-code)", whiteSpace: "pre-wrap", wordBreak: "break-all", maxWidth: 700 }}>
             {this.state.error?.message || String(this.state.error)}
           </div>
           <button
@@ -797,7 +798,8 @@ const CanvasPanel = ({ config }) => {
 
   const handleClear = useCallback(() => {
     try {
-      excalidrawAPI?.updateScene({ elements: [], appState: { viewBackgroundColor: "#ffffff" } });
+      // Paper color CENTRAL sheet se (Excalidraw ko real color chahiye).
+      excalidrawAPI?.updateScene({ elements: [], appState: { viewBackgroundColor: cssVar("--paper", "#ffffff") } });
     } catch {}
     elementsRef.current = [];
     filesRef.current = {};
@@ -842,15 +844,15 @@ const CanvasPanel = ({ config }) => {
   }, [excalidrawAPI]);
 
   const statusText = loading ? "Loading…" : saving ? "Saving…" : dirty ? "● Unsaved" : "Saved";
-  const statusColor = loading || saving ? "#888" : dirty ? "#e6a23c" : "#4ec9b0";
+  const statusColor = loading || saving ? "var(--icon)" : dirty ? "var(--warning)" : "var(--teal)";
 
   return (
     <div className="excalidraw-panel">
       <div className="excalidraw-toolbar">
         <span className="excalidraw-toolbar__title">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="2" width="12" height="12" rx="2" stroke="#4ec9b0" strokeWidth="1.2" />
-            <path d="M4 12L12 4" stroke="#4ec9b0" strokeWidth="1.2" strokeLinecap="round" />
+            <rect style={{ stroke: "var(--teal)" }} x="2" y="2" width="12" height="12" rx="2" strokeWidth="1.2" />
+            <path style={{ stroke: "var(--teal)" }} d="M4 12L12 4" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
           Canvas
         </span>
@@ -903,7 +905,7 @@ const CanvasPanel = ({ config }) => {
                 </div>
               )}
               {compGroups.groups.map(([group, files]) => {
-                const color = COMP_GROUP_COLORS[group] || COMP_GROUP_COLORS[group.replace(/s$/, "")] || "#888";
+                const color = COMP_GROUP_COLORS[group] || COMP_GROUP_COLORS[group.replace(/s$/, "")] || "var(--icon)";
                 return (
                   <React.Fragment key={group}>
                     <div className="excalidraw-comps__group">{group}</div>
@@ -966,7 +968,7 @@ const CanvasPanel = ({ config }) => {
             <button className="excalidraw-overlay__btn" onClick={() => window.electronAPI.openFolder()}>
               Open Project
             </button>
-            <span style={{ fontSize: 11, color: "#555" }}>Drawings save per-project as .excalidraw JSON</span>
+            <span style={{ fontSize: "var(--fs-small)", color: "var(--text-placeholder)" }}>Drawings save per-project as .excalidraw JSON</span>
           </div>
         )}
 
@@ -977,12 +979,12 @@ const CanvasPanel = ({ config }) => {
         )}
 
         {error && !loading && (
-          <div className="excalidraw-banner" style={{ background: "#3a1d1d", borderColor: "#6e2b2b", color: "#f48771" }}>
+          <div className="excalidraw-banner" style={{ background: "var(--error-bg-strong)", borderColor: "var(--error-border-soft)", color: "var(--error-soft)" }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{error}</span>
             <button className="excalidraw-banner__btn" onClick={loadDrawing}>
               Retry
             </button>
-            <button className="excalidraw-banner__btn" onClick={() => setError(null)} style={{ background: "transparent", color: "#f48771" }}>
+            <button className="excalidraw-banner__btn" onClick={() => setError(null)} style={{ background: "transparent", color: "var(--error-soft)" }}>
               ✕
             </button>
           </div>
@@ -1000,7 +1002,7 @@ const CanvasPanel = ({ config }) => {
             >
               Reload
             </button>
-            <button className="excalidraw-banner__btn" onClick={() => setExternalChange(false)} style={{ background: "transparent", color: "#e6c65c" }}>
+            <button className="excalidraw-banner__btn" onClick={() => setExternalChange(false)} style={{ background: "transparent", color: "var(--warn-soft)" }}>
               Dismiss
             </button>
           </div>

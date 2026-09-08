@@ -1,0 +1,66 @@
+// Minimal subset of the Android emulator control interface, vendored from
+// https://github.com/google/android-emulator-webrtc/blob/master/proto/emulator_controller.proto
+// (Copyright (C) 2018 The Android Open Source Project, Apache-2.0).
+//
+// Only what the Idiot Box panel needs: getScreenshot. Field numbers, enum
+// values, package and service/method names are copied verbatim — the gRPC
+// wire format only interoperates if these match the emulator exactly.
+// google/protobuf/empty.proto is intentionally NOT imported (no Empty-taking
+// methods are declared here), keeping this file fully self-contained.
+syntax = "proto3";
+
+package android.emulation.control;
+
+service EmulatorController {
+    // Gets an individual screenshot in the desired format.
+    // The image is scaled to width/height (aspect preserved, never exceeds
+    // the display). Properly oriented — display directly, no post processing
+    // except the bottom-up pixel order documented on Image.image.
+    // Empty image (0x0) when the display is not visible.
+    rpc getScreenshot(ImageFormat) returns (Image) {}
+}
+
+message ImageFormat {
+    enum ImgFormat {
+        // Portable Network Graphics format.
+        PNG = 0;
+
+        // Four-channel RGBA, 4 bytes per pixel.
+        RGBA8888 = 1;
+
+        // Three-channel RGB, 3 bytes per pixel.
+        RGB888 = 2;
+    }
+
+    // The (desired) format of the resulting bytes.
+    ImgFormat format = 1;
+
+    // The (desired) width. Scaled to match (aspect preserved, never exceeds
+    // the given width). 0 = no scaling, device width is used.
+    uint32 width = 3;
+
+    // The (desired) height, same scaling rules as width. 0 = no scaling.
+    uint32 height = 4;
+
+    // The (desired) display id. 0 (or omitted) = main display.
+    uint32 display = 5;
+}
+
+message Image {
+    ImageFormat format = 1;
+
+    uint32 width = 2 [deprecated = true]; // width is contained in format.
+    uint32 height = 3 [deprecated = true]; // height is contained in format.
+
+    // Pixels left-to-right and BOTTOM UP. Empty when an alternative transport
+    // is requested (not used here — image is always inline).
+    bytes image = 4;
+
+    // Monotonically increasing sequence number in a stream of screenshots.
+    // A single screenshot always has sequence number 0.
+    uint32 seq = 5;
+
+    // Unix timestamp (microseconds) when the emulator estimates the frame
+    // was generated.
+    uint64 timestampUs = 6;
+}

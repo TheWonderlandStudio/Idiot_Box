@@ -5,10 +5,10 @@
 @media (max-width: 900px) {
   .pw-bar__search,
   .pw-bar__search-input { width: 90px !important; }
-  .pw-bar__search-input { font-size: 10.5px !important; }
+  .pw-bar__search-input { font-size: var(--fs-mini) !important; }
   .pw-sidebar { width: 140px !important; }
-  .browser__btn { width: 26px !important; height: 26px !important; }
-  .browser__url { font-size: 12px !important; height: 26px !important; }
+  .browser__btn { width: 26px !important; height: var(--bar-h) !important; }
+  .browser__url { font-size: var(--fs-body) !important; height: var(--bar-h) !important; }
   .flexlayout__tabset { min-width: 90px !important; }
 }
 
@@ -19,7 +19,7 @@
   .pw-bar__count__label { display: none !important; }
   .pw-bar__divider { display: none !important; }
   .pw-sidebar { width: 120px !important; }
-  .browser__bar { gap: 1px !important; padding: 3px 4px !important; }
+  .browser__bar { gap: var(--space-1) !important; padding: var(--space-3) var(--space-4) !important; }
   .browser__btn { width: 24px !important; height: 24px !important; }
   /* Panel headers wrap */
   .flexlayout__tabset_content { overflow: auto !important; }
@@ -31,9 +31,9 @@
   #root > div > div:last-child { /* status bar */
     flex-wrap: wrap !important;
     height: auto !important;
-    min-height: 22px !important;
-    padding: 2px 8px !important;
-    gap: 6px !important;
+    min-height: var(--bar-h-sm) !important;
+    padding: var(--space-2) var(--space-8) !important;
+    gap: var(--space-6) !important;
   }
   /* FlexLayout: allow horizontal scroll instead of crushing to 30px */
   .flexlayout__layout {
@@ -54,8 +54,8 @@
     min-width: 0 !important;
   }
   .pw-sidebar__resize { display: none !important; }
-  .pw-content { padding: 4px !important; }
-  .pw-bar { height: auto !important; min-height: 26px !important; flex-wrap: wrap !important; padding: 4px !important; gap: 6px !important; }
+  .pw-content { padding: var(--space-4) !important; }
+  .pw-bar { height: auto !important; min-height: var(--bar-h) !important; flex-wrap: wrap !important; padding: var(--space-4) !important; gap: var(--space-6) !important; }
   .pw-bar__crumbs { flex-basis: 100% !important; }
   .pw-bar__search { width: 100% !important; flex: 1 1 100% !important; }
   .pw-bar__search-input { width: 100% !important; }
@@ -69,7 +69,7 @@
   .browser__btn[title="Forward"],
   .browser__btn[title="Inspect"],
   .browser__btn[title="More"] { display: none !important; }
-  .browser__url-wrap { margin: 0 2px !important; }
+  .browser__url-wrap { margin: 0 var(--space-2) !important; }
   .browser__lock { display: none !important; }
   .flexlayout__tabset_header { height: 24px !important; }
   /* Panel headers: stack */
@@ -84,8 +84,8 @@
   .pw-sidebar { display: none !important; }
   .pw-bar__search { display: flex !important; }
   /* Make grid items smaller */
-  .pw-item { padding: 4px 2px !important; }
-  .pw-grid { gap: 1px !important; }
+  .pw-item { padding: var(--space-4) var(--space-2) !important; }
+  .pw-grid { gap: var(--space-1) !important; }
   /* Settings window already 600 min, but main now 640 — keep */
 }
 
@@ -110,8 +110,8 @@
 
 /* High-DPI / small height */
 @media (max-height: 500px) {
-  .flexlayout__tabset_header { height: 22px !important; }
-  .pw-bar { height: 22px !important; }
+  .flexlayout__tabset_header { height: var(--bar-h-sm) !important; }
+  .pw-bar { height: var(--bar-h-sm) !important; }
   .pw-statusbar { height: 20px !important; }
 }
 
@@ -125,23 +125,23 @@
 .is-narrow .flexlayout__tab { overflow: auto !important; }
 .is-tiny .browser__btn[title="Forward"],
 .is-tiny .browser__btn[title="Inspect"] { display: none !important; }
-.is-tiny [style*="justify-content: space-between"] { flex-wrap: wrap !important; gap: 6px !important; }
+.is-tiny [style*="justify-content: space-between"] { flex-wrap: wrap !important; gap: var(--space-6) !important; }
 
 /* ── Component-specific responsive: Panel headers ── */
 @media (max-width: 700px) {
   /* Panel headers use inline flex justify-content:space-between — force wrap */
   div[style*="display: flex"][style*="justify-content: space-between"] {
     flex-wrap: wrap !important;
-    gap: 8px !important;
+    gap: var(--space-8) !important;
   }
   /* Commit box + filter rows */
-  div[style*="display: flex"][style*="gap: 6px"] {
+  div[style*="display: flex"][style*="gap: var(--space-6)"] {
     flex-wrap: wrap !important;
   }
 }
 @media (max-width: 640px) {
   /* Make panel cards full-width feel */
-  div[style*="display: flex"][style*="gap: 6px"][style*="padding: 6px 8px"] {
+  div[style*="display: flex"][style*="gap: var(--space-6)"][style*="padding: var(--space-6) var(--space-8)"] {
     flex-direction: column !important;
     align-items: stretch !important;
   }

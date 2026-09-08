@@ -58,20 +58,20 @@ const SearchPanel = () => {
 
   return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 940, display: "flex", flexDirection: "column",
-      background: "rgba(0,0,0,0.5)",
+      position: "fixed", inset: 0, zIndex: "var(--z-search)", display: "flex", flexDirection: "column",
+      background: "var(--overlay)",
     }} onClick={() => setOpen(false)}>
       <div
         style={{
           margin: "8% auto 0", width: 720, maxWidth: "90vw", maxHeight: "70vh",
-          background: "#252526", border: "1px solid #3a3a3a", borderRadius: 6,
-          boxShadow: "0 12px 48px rgba(0,0,0,0.65)", overflow: "hidden",
+          background: "var(--bg-vscode)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-float)", overflow: "hidden",
           display: "flex", flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "#1e1e1e", borderBottom: "1px solid #3a3a3a" }}>
-          <Search size={14} style={{ color: "#888" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-10) var(--space-12)", background: "var(--bg-surface)", borderBottom: "var(--space-1) solid var(--border-light)" }}>
+          <Search size={14} style={{ color: "var(--icon)" }} />
           <input
             ref={inputRef}
             value={query}
@@ -81,45 +81,45 @@ const SearchPanel = () => {
               else if (e.key === "Escape") setOpen(false);
             }}
             placeholder="Search in project… (Ctrl+Shift+F)"
-            style={{ flex: 1, background: "#252526", border: "1px solid #3a3a3a", borderRadius: 3, padding: "6px 8px", color: "#ddd", fontSize: 13, outline: "none" }}
+            style={{ flex: 1, background: "var(--bg-vscode)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)", padding: "var(--space-6) var(--space-8)", color: "var(--text-hover)", fontSize: "var(--fs-title)", outline: "none" }}
           />
           <button
             onClick={() => doSearch(query)}
             disabled={!query.trim()}
-            style={{ background: query.trim() ? "#0e639c" : "#2d2d2d", border: "none", color: query.trim() ? "#fff" : "#888", padding: "6px 14px", borderRadius: 3, cursor: query.trim() ? "pointer" : "default", fontSize: 12 }}
+            style={{ background: query.trim() ? "var(--editor-blue)" : "var(--bg-active)", border: "none", color: query.trim() ? "var(--text-inverse)" : "var(--icon)", padding: "var(--space-6) var(--space-14)", borderRadius: "var(--radius-sm)", cursor: query.trim() ? "pointer" : "default", fontSize: "var(--fs-body)" }}
           >
             Search
           </button>
-          <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: 16, padding: "0 4px" }}>×</button>
+          <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "var(--icon)", cursor: "pointer", fontSize: "var(--fs-xl)", padding: "0 var(--space-4)" }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", minHeight: 200, maxHeight: 400 }}>
-          {loading && <div style={{ padding: 20, textAlign: "center", color: "#666", fontSize: 12 }}>Searching…</div>}
-          {!loading && !window.__currentProjectPath && <div style={{ padding: 20, textAlign: "center", color: "#666", fontSize: 12 }}>Open a project first</div>}
-          {!loading && window.__currentProjectPath && query && results.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#666", fontSize: 12 }}>No results for "{query}"</div>}
-          {!loading && !query && <div style={{ padding: 20, textAlign: "center", color: "#666", fontSize: 12 }}>Type to search across files</div>}
+          {loading && <div style={{ padding: "var(--space-20)", textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>Searching…</div>}
+          {!loading && !window.__currentProjectPath && <div style={{ padding: "var(--space-20)", textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>Open a project first</div>}
+          {!loading && window.__currentProjectPath && query && results.length === 0 && <div style={{ padding: "var(--space-20)", textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>No results for "{query}"</div>}
+          {!loading && !query && <div style={{ padding: "var(--space-20)", textAlign: "center", color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>Type to search across files</div>}
           {results.map((r, i) => (
             <div
               key={`${r.path}:${r.line}:${i}`}
               onClick={() => openResult(r)}
               style={{
-                display: "flex", flexDirection: "column", gap: 2, padding: "6px 12px",
-                cursor: "pointer", borderBottom: "1px solid #2d2d2d",
+                display: "flex", flexDirection: "column", gap: "var(--space-2)", padding: "var(--space-6) var(--space-12)",
+                cursor: "pointer", borderBottom: "1px solid var(--bg-active)",
                 background: "transparent",
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = "#2a2d2e"}
+              onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover-strong)"}
               onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-                <span style={{ color: "#569cd6", fontFamily: "Consolas, monospace" }}>{r.rel}</span>
-                <span style={{ color: "#888", fontSize: 11 }}>:{r.line}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", fontSize: "var(--fs-body)" }}>
+                <span style={{ color: "var(--code-blue)", fontFamily: "var(--font-code)" }}>{r.rel}</span>
+                <span style={{ color: "var(--icon)", fontSize: "var(--fs-small)" }}>:{r.line}</span>
               </div>
-              <div style={{ fontSize: 11, color: "#cccccc", fontFamily: "Consolas, monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "#1e1e1e", padding: "2px 6px", borderRadius: 2 }}>
+              <div style={{ fontSize: "var(--fs-small)", color: "var(--text-bright)", fontFamily: "var(--font-code)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: "var(--bg-surface)", padding: "var(--space-2) var(--space-6)", borderRadius: "var(--radius-xs)" }}>
                 {r.preview || r.text}
               </div>
             </div>
           ))}
         </div>
-        <div style={{ padding: "6px 12px", fontSize: 10, color: "#666", borderTop: "1px solid #2d2d2d", display: "flex", justifyContent: "space-between" }}>
+        <div style={{ padding: "var(--space-6) var(--space-12)", fontSize: "var(--fs-tiny)", color: "var(--text-muted)", borderTop: "var(--space-1) solid var(--bg-active)", display: "flex", justifyContent: "space-between" }}>
           <span>Enter Search • Click to open • Esc Close</span>
           <span>{results.length} results</span>
         </div>

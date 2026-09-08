@@ -34,7 +34,7 @@ const EditorPage = ({ settings, onSave }) => {
   const lineNumbers = settings.lineNumbers !== false; // default true (on)
   const autoSave    = settings.autoSave === true || settings.autoSave === "afterDelay"; // default false
   const formatOnSave = settings.formatOnSave === true; // default false
-  const fontSize    = Number.isFinite(settings.fontSize) ? settings.fontSize : 13;
+  const fontSize    = Number.isFinite(settings.fontSize) ? settings.fontSize : "var(--fs-title)";
   const fontFamily  = settings.fontFamily || "Consolas";
   const tabSize     = Number.isFinite(settings.tabSize) ? settings.tabSize : 2;
   const editorTheme = settings.editorTheme || settings.theme || "dark"; // default dark

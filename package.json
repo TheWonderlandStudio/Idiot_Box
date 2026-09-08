@@ -90,6 +90,8 @@
     "@codingame/monaco-vscode-xml-default-extension": "^36.0.0",
     "@codingame/monaco-vscode-yaml-default-extension": "^36.0.0",
     "@excalidraw/excalidraw": "^0.18.1",
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-use-controllable-state": "^1.2.6",
     "@streamdown/cjk": "^1.0.3",

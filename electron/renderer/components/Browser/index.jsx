@@ -1,11 +1,25 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
-import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle, Smartphone, RotateCw, Frame, Maximize2, X } from "lucide-react";
+import "./browser-device.css";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
 const LOCK_ICON   = "M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4zm-2 6V5a2 2 0 1 1 4 0v2H6z";
 const UNLOCK_ICON = "M8 1a4 4 0 0 1 4 4v1h-1V5a3 3 0 0 0-5.7-1.37l-.78-.62A4 4 0 0 1 8 1zm-5.65.09l12 14-.7.6L1.65 1.7zM6 7.49l-1.82.01a1 1 0 0 0-.18 0v3.85L2.35 9.7l-.7.6L4 13.2V14a1 1 0 0 0 1 1h6.15l-1-1H5v-4.5l1.85.01zm4.56-.57A1 1 0 0 1 12 7.5V8h1a1 1 0 0 1 1 1v3.15l-1-1V9h-1.44z";
 const LOCAL_ICON  = "M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 12.93A6 6 0 0 1 2 8c0-.33.03-.66.07-1H4v1h2v1H5v1h1v2l1 1zm5.1-3.83A4.9 4.9 0 0 0 13 8c0-2.5-1.83-4.55-4.2-4.96L9 4v1H7V4h-.44l3.55 5.1zm-9.4.14A5 5 0 0 1 2 8c0 1.72.87 3.23 2.2 4.14l.83-1.04z";
+
+// ── Device presets (CSS px — page sees this as its viewport width) ─────────
+// NOTE: webview resizing == real responsive preview (media queries respond).
+// UA spoofing / touch emulation nahi hai — woh main-process work hai, future scope.
+const DEVICE_PRESETS = [
+  { id: "iphone-14-pro", label: "iPhone 14 Pro", w: 393,  h: 852,  frame: "phone",  icon: "phone" },
+  { id: "iphone-se",     label: "iPhone SE",     w: 375,  h: 667,  frame: "phone",  icon: "phone" },
+  { id: "pixel-7",       label: "Pixel 7",       w: 412,  h: 915,  frame: "phone",  icon: "phone" },
+  { id: "ipad-air",      label: "iPad Air",      w: 820,  h: 1180, frame: "tablet", icon: "tablet" },
+  { id: "ipad-pro-11",   label: "iPad Pro 11",   w: 834,  h: 1194, frame: "tablet", icon: "tablet" },
+  { id: "desktop-hd",    label: "Desktop HD",    w: 1440, h: 900,  frame: "plain",  icon: "desktop" },
+];
+const DEVICE_MIN = { w: 240, h: 320 };
 
 // ── BrowserPanel ───────────────────────────────────────────────────────────────
 const WEBVIEW_PRELOAD = typeof window !== "undefined" && window.electronAPI?.getWebviewPreload
@@ -29,6 +43,77 @@ const BrowserPanel = (props) => {
   const [editMode,     setEditMode]     = useState(false);
   const [toast,        setToast]        = useState(null);
   const [hasProject,   setHasProject]   = useState(() => { try { return !!window.__currentProjectPath; } catch { return false; } });
+
+  // ── Device / responsive preview mode (custom — no extra deps) ──────────
+  const [deviceOn,  setDeviceOn]  = useState(false);
+  const [presetId,  setPresetId]  = useState(DEVICE_PRESETS[0].id);
+  const [devSize,   setDevSize]   = useState({ w: DEVICE_PRESETS[0].w, h: DEVICE_PRESETS[0].h });
+  const [frameKind, setFrameKind] = useState(DEVICE_PRESETS[0].frame);
+  const [frameOn,   setFrameOn]   = useState(true);
+  const [fitOn,     setFitOn]     = useState(true);
+  const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
+  const stageRef = useRef(null);
+  const scaleRef = useRef(1);
+
+  // Stage measure → fit-to-panel scale (page viewport stays full device px)
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0]?.contentRect;
+      if (r) setStageSize({ w: Math.round(r.width), h: Math.round(r.height) });
+    });
+    ro.observe(el);
+    return () => { try { ro.disconnect(); } catch {} };
+  }, [deviceOn]);
+
+  const devScale = (() => {
+    if (!deviceOn || !fitOn || !stageSize.w || !stageSize.h) return 1;
+    const s = Math.min(1, (stageSize.w - 28) / devSize.w, (stageSize.h - 28) / devSize.h);
+    return Number.isFinite(s) && s > 0 ? s : 1;
+  })();
+  scaleRef.current = devScale;
+
+  const activePreset = DEVICE_PRESETS.find((p) => p.id === presetId) || null;
+
+  const applyPreset = useCallback((id) => {
+    const p = DEVICE_PRESETS.find((x) => x.id === id);
+    if (!p) return;
+    setPresetId(p.id);
+    setDevSize({ w: p.w, h: p.h });
+    setFrameKind(p.frame);
+    setDeviceOn(true);
+  }, []);
+
+  const handleRotate = useCallback(() => {
+    setDevSize((s) => ({ w: s.h, h: s.w }));
+    setPresetId("custom");
+  }, []);
+
+  // Free resize via corner handle (deltas ÷ scale, kyunki stage scaled hai)
+  const startDevResize = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sx = e.clientX, sy = e.clientY;
+    let sw = 0, sh = 0;
+    setDevSize((s) => { sw = s.w; sh = s.h; return s; });
+    const k = scaleRef.current || 1;
+    const move = (ev) => {
+      const st = stageRef.current?.getBoundingClientRect();
+      const maxW = Math.max(DEVICE_MIN.w, Math.round((st?.width || 1400) - 20));
+      const maxH = Math.max(DEVICE_MIN.h, Math.round((st?.height || 900) - 20));
+      const nw = Math.round(Math.min(Math.max(sw + (ev.clientX - sx) / k, DEVICE_MIN.w), maxW));
+      const nh = Math.round(Math.min(Math.max(sh + (ev.clientY - sy) / k, DEVICE_MIN.h), maxH));
+      setDevSize({ w: nw, h: nh });
+      setPresetId("custom");
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }, []);
   const editModeRef  = useRef(false);
   const toastTimerRef = useRef(null);
 
@@ -159,7 +244,7 @@ const BrowserPanel = (props) => {
     || hostname === "0.0.0.0" || hostname.startsWith("192.168.") || hostname.startsWith("10.");
   const isHttps  = protocol === "https:";
   const iconPath  = isLocal ? LOCAL_ICON : (isHttps ? LOCK_ICON : UNLOCK_ICON);
-  const iconColor = isLocal ? "#888"     : (isHttps ? "#4ec9b0" : "#e6a23c");
+  const iconColor = isLocal ? "var(--icon)"     : (isHttps ? "var(--teal)" : "var(--warning)");
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const goToUrl = useCallback((u) => {
@@ -293,6 +378,10 @@ const BrowserPanel = (props) => {
           if (styleEl) return;
           styleEl = document.createElement('style');
           styleEl.id = '__ibx-edit-style';
+          // NOTE: ye CSS *bahar ki website* me inject hota hai — wahan app ke
+          // var(--tokens) resolve NAHI hote, isliye literals rakhe hain.
+          // Values CENTRAL sheet ke barabar hain: --teal (#4ec9b0),
+          // --teal-a08, --teal-a14. Token badle to yahan bhi badlo.
           styleEl.textContent = \`
             .__ibx-edit-hover { outline: 2px dashed #4ec9b0 !important; outline-offset: 2px !important; cursor: text !important; background: rgba(78,201,176,0.08) !important; }
             .__ibx-edit-active { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; background: rgba(78,201,176,0.14) !important; }
@@ -1009,6 +1098,16 @@ const BrowserPanel = (props) => {
             />
           </div>
 
+          {/* Device view toggle — mobile/tablet responsive preview */}
+          <button
+            className={`browser__btn${deviceOn ? " browser__btn--active" : ""}`}
+            onClick={() => setDeviceOn((v) => !v)}
+            title="Device view — mobile / tablet responsive preview"
+            style={deviceOn ? { background: "var(--teal-a18)", color: "var(--teal)", border: "1px solid var(--teal-a35)" } : undefined}
+          >
+            <Smartphone size={14} />
+          </button>
+
           {/* ⋮ More options — custom dropdown (Edit mode / Inspect / Extensions / Hide toolbar). Extensions actions alag. */}
           <div ref={moreWrapRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
             <button
@@ -1016,17 +1115,17 @@ const BrowserPanel = (props) => {
               className={`browser__btn${moreOpen || editMode ? " browser__btn--active" : ""}`}
               onClick={(e) => { e.stopPropagation(); setMoreOpen((v) => !v); }}
               title="More options"
-              style={editMode && !moreOpen ? { background: "rgba(78,201,176,0.18)", color: "#4ec9b0", border: "1px solid rgba(78,201,176,0.35)" } : undefined}
+              style={editMode && !moreOpen ? { background: "var(--teal-a18)", color: "var(--teal)", border: "1px solid var(--teal-a35)" } : undefined}
             >
               <MoreVertical size={15} />
               {editMode && (
-                <span style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: "50%", background: "#4ec9b0", pointerEvents: "none" }} />
+                <span style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: "var(--radius-round)", background: "var(--teal)", pointerEvents: "none" }} />
               )}
             </button>
             {moreOpen && (
               <div className="browser__more-menu" onClick={(e) => e.stopPropagation()}>
                 <button className="browser__more-item" onClick={handleToggleEditMode} title={editMode ? "Done — save pending edit & exit" : "Edit Mode — click any text to edit"}>
-                  <span className="browser__more-icon" style={editMode ? { color: "#4ec9b0" } : undefined}>
+                  <span className="browser__more-icon" style={editMode ? { color: "var(--teal)" } : undefined}>
                     {editMode ? <PencilOff size={14} /> : <Pencil size={14} />}
                   </span>
                   <span className="browser__more-label">{editMode ? "Done — exit edit mode" : "Edit mode"}</span>
@@ -1052,29 +1151,70 @@ const BrowserPanel = (props) => {
           {/* Extension actions (browser-action-list) — alag rakha hai, ⋮ me nahi */}
           <browser-action-list
             ref={actionListRef}
-            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2 }}
+            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
           />
+        </div>
+      )}
+
+      {/* Device / responsive preview bar */}
+      {!barHidden && deviceOn && (
+        <div className="browser__devicebar">
+          <span className="browser__devicebar-icon"><Smartphone size={13} /></span>
+          <select
+            className="browser__device-select"
+            value={presetId}
+            onChange={(e) => applyPreset(e.target.value)}
+            title="Device preset"
+          >
+            {presetId === "custom" && <option value="custom">Custom — {devSize.w}×{devSize.h}</option>}
+            {DEVICE_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>{p.label} — {p.w}×{p.h}</option>
+            ))}
+          </select>
+          <span className="browser__device-dims">
+            {devSize.w}×{devSize.h}{devScale < 0.999 ? ` · ${Math.round(devScale * 100)}%` : ""}
+          </span>
+          <button className="browser__btn" onClick={handleRotate} title="Rotate viewport">
+            <RotateCw size={13} />
+          </button>
+          <button
+            className={`browser__btn${frameOn ? " browser__btn--active" : ""}`}
+            onClick={() => setFrameOn((v) => !v)}
+            title="Toggle device frame"
+          >
+            <Frame size={13} />
+          </button>
+          <button
+            className={`browser__btn${fitOn ? " browser__btn--active" : ""}`}
+            onClick={() => setFitOn((v) => !v)}
+            title="Fit frame in panel"
+          >
+            <Maximize2 size={13} />
+          </button>
+          <button className="browser__btn" onClick={() => setDeviceOn(false)} title="Exit device view">
+            <X size={13} />
+          </button>
         </div>
       )}
 
       {/* Edit Mode Banner */}
       {editMode && !barHidden && (
         <div style={{
-          display:"flex", alignItems:"center", gap:8,
-          padding:"3px 10px",
-          background: isVisualOnlyUrl ? "rgba(230,162,60,0.12)" : "rgba(78,201,176,0.12)",
-          borderBottom: isVisualOnlyUrl ? "1px solid rgba(230,162,60,0.30)" : "1px solid rgba(78,201,176,0.25)",
-          color: isVisualOnlyUrl ? "#e6a23c" : "#4ec9b0", fontSize:11, fontWeight:600, flexShrink:0, letterSpacing:0.2,
+          display:"flex", alignItems:"center", gap:"var(--space-8)",
+          padding:"var(--space-3) var(--space-10)",
+          background: isVisualOnlyUrl ? "var(--warn-tint-a12)" : "var(--teal-a12)",
+          borderBottom: isVisualOnlyUrl ? "1px solid var(--warn-tint-a30)" : "1px solid var(--teal-a25)",
+          color: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-semibold)", flexShrink:0, letterSpacing:0.2,
         }}>
           <Type size={12} />
           <span>{isVisualOnlyUrl
             ? "EDIT MODE — VISUAL ONLY (no project open, saves revert) • Click a single line • Enter applies visually • Esc cancels"
             : "EDIT MODE ON — Click a single line of text • Enter to save • Esc to cancel • Saves to html/js/jsx/ts/tsx"}</span>
-          <span style={{ marginLeft:"auto", background: isVisualOnlyUrl ? "rgba(230,162,60,0.25)" : "rgba(78,201,176,0.22)", padding:"1px 6px", borderRadius:3, fontSize:10, color:"#0d1117", fontWeight:700 }}>{isVisualOnlyUrl ? "VISUAL" : "LIVE"}</span>
+          <span style={{ marginLeft:"auto", background: isVisualOnlyUrl ? "var(--warn-tint-a25)" : "var(--teal-a22)", padding:"var(--space-1) var(--space-6)", borderRadius:"var(--radius-sm)", fontSize:"var(--fs-tiny)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-bold)" }}>{isVisualOnlyUrl ? "VISUAL" : "LIVE"}</span>
           <button
             onClick={handleCancelEditMode}
             title="Cancel edit and revert"
-            style={{ marginLeft:4, background:"transparent", color: isVisualOnlyUrl ? "#e6a23c" : "#4ec9b0", border:`1px solid ${isVisualOnlyUrl ? "rgba(230,162,60,0.5)" : "rgba(78,201,176,0.5)"}`, borderRadius:3, padding:"2px 8px", fontSize:11, fontWeight:700, cursor:"pointer" }}
+            style={{ marginLeft:"var(--space-4)", background:"transparent", color: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", border:`1px solid ${isVisualOnlyUrl ? "var(--warn-tint-a50)" : "var(--teal-a50)"}`, borderRadius:"var(--radius-sm)", padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", cursor:"pointer" }}
           >
             Cancel
           </button>
@@ -1083,7 +1223,7 @@ const BrowserPanel = (props) => {
               try{ await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); }catch{}
               setTimeout(()=> setEditMode(false), 350);
             }}
-            style={{ marginLeft:4, background: isVisualOnlyUrl ? "#e6a23c" : "#4ec9b0", color:"#0d1117", border:"none", borderRadius:3, padding:"2px 8px", fontSize:11, fontWeight:700, cursor:"pointer" }}
+            style={{ marginLeft:"var(--space-4)", background: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", color:"var(--ink-on-teal)", border:"none", borderRadius:"var(--radius-sm)", padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", cursor:"pointer" }}
           >
             Done
           </button>
@@ -1122,24 +1262,52 @@ const BrowserPanel = (props) => {
         </>
       )}
 
-      {/* Webview */}
-      <div className="browser__view-wrap">
-        <webview
-          className="browser__view"
-          ref={webviewRefCb}
-          src={navUrl}
-          preload={WEBVIEW_PRELOAD}
-          // webview is a custom Electron element - use string attrs to avoid React boolean warnings
-          allowpopups=""
-          allowFullScreen=""
-        />
+      {/* Webview — device frame me bhi SAME element rehta hai (no remount, no reload) */}
+      <div
+        ref={stageRef}
+        className={`browser__view-wrap${deviceOn ? " browser__view-wrap--device" : ""}`}
+      >
+        <div
+          className={`browser__device${deviceOn && frameOn ? ` browser__device--${frameKind}` : ""}${deviceOn ? "" : " browser__device--fill"}`}
+          style={deviceOn ? {
+            width: devSize.w,
+            height: devSize.h,
+            transform: devScale !== 1 ? `scale(${devScale})` : undefined,
+          } : undefined}
+        >
+          <webview
+            key="browser-webview"
+            className="browser__view"
+            ref={webviewRefCb}
+            src={navUrl}
+            preload={WEBVIEW_PRELOAD}
+            // webview is a custom Electron element - use string attrs to avoid React boolean warnings
+            allowpopups=""
+            allowFullScreen=""
+            style={deviceOn ? { width: "100%", height: "100%", flex: "none" } : undefined}
+          />
+          {deviceOn && frameOn && frameKind === "phone" && <div className="browser__notch" />}
+          {deviceOn && frameOn && frameKind === "tablet" && <div className="browser__camdot" />}
+          {deviceOn && (
+            <div
+              className="browser__resize-handle"
+              onMouseDown={startDevResize}
+              title={`Drag to resize viewport (now ${devSize.w}×${devSize.h})`}
+            />
+          )}
+        </div>
+        {deviceOn && (
+          <div className="browser__device-meta">
+            {activePreset ? activePreset.label : "Custom"} • {devSize.w}×{devSize.h}{devScale < 0.999 ? ` • ${Math.round(devScale * 100)}%` : ""}
+          </div>
+        )}
         {/* Edit mode overlay hint when bar hidden */}
         {editMode && barHidden && (
           <div style={{
             position:"absolute", top:8, left:"50%", transform:"translateX(-50%)",
-            background:"rgba(78,201,176,0.95)", color:"#0d1117", fontSize:11, fontWeight:700,
-            padding:"4px 10px", borderRadius:4, display:"flex", alignItems:"center", gap:6,
-            boxShadow:"0 4px 12px rgba(0,0,0,0.3)", zIndex:20, pointerEvents:"none"
+            background:"var(--teal-a95)", color:"var(--ink-on-teal)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)",
+            padding:"var(--space-4) var(--space-10)", borderRadius:"var(--radius-md)", display:"flex", alignItems:"center", gap:"var(--space-6)",
+            boxShadow:"0 4px 12px var(--overlay-a30)", zIndex:"var(--z-toast)", pointerEvents:"none"
           }}>
             <Pencil size={12} /> EDIT MODE ON — click any text
           </div>
@@ -1148,11 +1316,11 @@ const BrowserPanel = (props) => {
         {toast && (
           <div style={{
             position:"absolute", bottom:16, left:"50%", transform:"translateX(-50%)",
-            background: toast.type==="error" ? "#732222" : toast.type==="success" ? "#1a3a2a" : "#252526",
-            color: toast.type==="error" ? "#ff8a8a" : toast.type==="success" ? "#4ec9b0" : "#d4d4d4",
-            border: `1px solid ${toast.type==="error" ? "#a33" : toast.type==="success" ? "#2d6a4f" : "#3c3c3c"}`,
-            padding:"8px 14px", borderRadius:6, fontSize:12, fontWeight:500,
-            boxShadow:"0 6px 18px rgba(0,0,0,0.4)", zIndex:30, maxWidth:"80%", textAlign:"center",
+            background: toast.type==="error" ? "var(--error-border)" : toast.type==="success" ? "var(--success-bg)" : "var(--bg-vscode)",
+            color: toast.type==="error" ? "var(--error-text)" : toast.type==="success" ? "var(--teal)" : "var(--text-highlight)",
+            border: `1px solid ${toast.type==="error" ? "var(--error-border-short)" : toast.type==="success" ? "var(--success-border)" : "var(--border-strong)"}`,
+            padding:"var(--space-8) var(--space-14)", borderRadius:"var(--radius-lg)", fontSize:"var(--fs-body)", fontWeight:"var(--fw-medium)",
+            boxShadow:"var(--shadow-toast)", zIndex:"var(--z-toast-top)", maxWidth:"80%", textAlign:"center",
             display:"flex", alignItems:"center", gap:8
           }}>
             {toast.type==="success" ? "✓" : toast.type==="error" ? "✕" : "•"} <span>{toast.msg}</span>

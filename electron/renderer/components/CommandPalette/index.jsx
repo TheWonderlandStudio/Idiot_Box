@@ -87,13 +87,13 @@ const CommandPalette = () => {
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 900 }} onClick={() => setOpen(false)} />
+      <div style={{ position: "fixed", inset: 0, zIndex: "var(--z-palette)" }} onClick={() => setOpen(false)} />
       <div
         style={{
           position: "fixed", top: "12%", left: "50%", transform: "translateX(-50%)",
-          width: 560, maxWidth: "90vw", zIndex: 901,
-          background: "#252526", border: "1px solid #3a3a3a", borderRadius: 6,
-          boxShadow: "0 12px 48px rgba(0,0,0,0.65)", overflow: "hidden",
+          width: 560, maxWidth: "90vw", zIndex: "var(--z-palette-top)",
+          background: "var(--bg-vscode)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-float)", overflow: "hidden",
           display: "flex", flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -110,14 +110,14 @@ const CommandPalette = () => {
           }}
           placeholder="Type a command…"
           style={{
-            width: "100%", boxSizing: "border-box", padding: "10px 12px",
-            background: "#1e1e1e", border: "none", borderBottom: "1px solid #3a3a3a",
-            color: "#dddddd", fontSize: 13, outline: "none",
+            width: "100%", boxSizing: "border-box", padding: "var(--space-10) var(--space-12)",
+            background: "var(--bg-surface)", border: "none", borderBottom: "1px solid var(--border-light)",
+            color: "var(--text-hover)", fontSize: "var(--fs-title)", outline: "none",
           }}
         />
         <div style={{ maxHeight: 340, overflowY: "auto" }}>
           {filtered.length === 0 && (
-            <div style={{ padding: 16, fontSize: 12, color: "#666", textAlign: "center" }}>No matching commands.</div>
+            <div style={{ padding: "var(--space-16)", fontSize: "var(--fs-body)", color: "var(--text-muted)", textAlign: "center" }}>No matching commands.</div>
           )}
           {filtered.map((item, i) => (
             <div
@@ -125,9 +125,9 @@ const CommandPalette = () => {
               onClick={() => run(item)}
               onMouseEnter={() => setIdx(i)}
               style={{
-                display: "flex", alignItems: "center", gap: 8, padding: "6px 12px",
-                cursor: "pointer", fontSize: 12.5,
-                background: i === idx ? "#094771" : "transparent", color: i === idx ? "#ffffff" : "#cccccc",
+                display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-12)",
+                cursor: "pointer", fontSize: "var(--fs-body-plus)",
+                background: i === idx ? "var(--select-blue)" : "transparent", color: i === idx ? "var(--text-inverse)" : "var(--text-bright)",
               }}
             >
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>

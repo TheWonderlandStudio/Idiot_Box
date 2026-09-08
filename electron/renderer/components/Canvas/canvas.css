@@ -10,7 +10,7 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background: #181818;
+  background: var(--bg-deep);
   position: relative;
   overflow: hidden;
 }
@@ -18,27 +18,27 @@
 .excalidraw-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  background: #252526;
-  border-bottom: 1px solid #2d2d2d;
-  font-size: 12px;
-  color: #ccc;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-10);
+  background: var(--bg-vscode);
+  border-bottom: 1px solid var(--bg-active);
+  font-size: var(--fs-body);
+  color: var(--text-bright);
   flex-shrink: 0;
-  min-height: 32px;
+  min-height: var(--bar-h-lg);
 }
 
 .excalidraw-toolbar__title {
-  font-weight: 600;
-  color: #4ec9b0;
+  font-weight: var(--fw-semibold);
+  color: var(--teal);
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-5);
   flex-shrink: 0;
 }
 
 .excalidraw-toolbar__file {
-  color: #d0d0d0;
+  color: var(--text-warm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -47,7 +47,7 @@
 }
 
 .excalidraw-toolbar__status {
-  font-size: 11px;
+  font-size: var(--fs-small);
   flex-shrink: 0;
 }
 
@@ -56,19 +56,19 @@
 }
 
 .excalidraw-toolbar__btn {
-  background: #1e1e1e;
-  border: 1px solid #3c3c3c;
-  border-radius: 2px;
-  color: #ccc;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  color: var(--text-bright);
   cursor: pointer;
-  padding: 1px 8px;
-  font-size: 11px;
+  padding: var(--space-1) var(--space-8);
+  font-size: var(--fs-small);
   flex-shrink: 0;
 }
 
 .excalidraw-toolbar__btn:hover:not(:disabled) {
-  background: #2a2d2e;
-  color: #fff;
+  background: var(--bg-hover-strong);
+  color: var(--text-inverse);
 }
 
 .excalidraw-toolbar__btn:disabled {
@@ -89,8 +89,8 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: #1e1e1e;
-  border-right: 1px solid #2d2d2d;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--bg-active);
   min-height: 0;
 }
 
@@ -98,81 +98,81 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #bdbdbd;
+  padding: var(--space-6) var(--space-10);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  color: var(--text-soft-2);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  border-bottom: 1px solid #2d2d2d;
+  border-bottom: 1px solid var(--bg-active);
   flex-shrink: 0;
 }
 
 .excalidraw-comps__refresh {
-  background: #252526;
-  border: 1px solid #3c3c3c;
-  border-radius: 2px;
-  color: #ccc;
+  background: var(--bg-vscode);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  color: var(--text-bright);
   cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  padding: 1px 7px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-flat);
+  padding: var(--space-1) 7px;
 }
 
 .excalidraw-comps__refresh:hover {
-  background: #2a2d2e;
-  color: #fff;
+  background: var(--bg-hover-strong);
+  color: var(--text-inverse);
 }
 
 .excalidraw-comps__search {
-  margin: 6px 8px;
-  background: #141414;
-  color: #d0d0d0;
-  border: 1px solid #3c3c3c;
-  border-radius: 2px;
-  font-size: 11px;
-  padding: 3px 8px;
+  margin: var(--space-6) var(--space-8);
+  background: var(--bg-inset);
+  color: var(--text-warm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-small);
+  padding: var(--space-3) var(--space-8);
   outline: none;
   flex-shrink: 0;
 }
 
 .excalidraw-comps__search:focus {
-  border-color: #4ec9b0;
+  border-color: var(--teal);
 }
 
 .excalidraw-comps__list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 4px 8px;
+  padding: 0 var(--space-4) var(--space-8);
 }
 
 .excalidraw-comps__group {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--fs-tiny);
+  font-weight: var(--fw-bold);
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #666;
-  padding: 8px 6px 3px;
+  color: var(--text-muted);
+  padding: var(--space-8) var(--space-6) var(--space-3);
 }
 
 .excalidraw-comps__item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 6px;
-  border-radius: 2px;
-  font-size: 12px;
+  gap: var(--space-6);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-body);
 }
 
 .excalidraw-comps__item:hover {
-  background: #2a2d2e;
+  background: var(--bg-hover-strong);
 }
 
 .excalidraw-comps__dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   flex-shrink: 0;
 }
 
@@ -182,31 +182,31 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #d0d0d0;
+  color: var(--text-warm);
   cursor: pointer;
 }
 
 .excalidraw-comps__name:hover {
-  color: #4ec9b0;
+  color: var(--teal);
   text-decoration: underline;
 }
 
 .excalidraw-comps__add {
-  background: #252526;
-  border: 1px solid #3c3c3c;
-  border-radius: 2px;
-  color: #4ec9b0;
+  background: var(--bg-vscode);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  color: var(--teal);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-flat);
   width: 22px;
   height: 20px;
   flex-shrink: 0;
 }
 
 .excalidraw-comps__add:hover:not(:disabled) {
-  background: rgba(78, 201, 176, 0.18);
+  background: var(--teal-a18);
 }
 
 .excalidraw-comps__add:disabled {
@@ -215,17 +215,17 @@
 }
 
 .excalidraw-comps__empty {
-  padding: 12px 8px;
-  color: #666;
-  font-size: 11px;
-  line-height: 1.5;
+  padding: var(--space-12) var(--space-8);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-code);
 }
 
 .excalidraw-comps__hint {
-  padding: 4px 10px;
-  border-top: 1px solid #2d2d2d;
-  color: #555;
-  font-size: 10px;
+  padding: var(--space-4) var(--space-10);
+  border-top: 1px solid var(--bg-active);
+  color: var(--text-placeholder);
+  font-size: var(--fs-tiny);
   flex-shrink: 0;
 }
 
@@ -235,7 +235,7 @@
   min-width: 0;
   position: relative;
   overflow: hidden;
-  background: #181818;
+  background: var(--bg-deep);
 }
 
 /* ── Live component embed (renderEmbeddable overlay) ──────────────────────
@@ -249,20 +249,20 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--text-inverse);
   border-radius: var(--embeddable-radius, 4px);
   overflow: hidden;
-  font-family: system-ui, "Segoe UI", sans-serif;
+  font-family: var(--font-system);
 }
 
 .comp-embed__bar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 1px 4px 1px 8px;
-  background: #252526;
-  color: #d0d0d0;
-  font-size: 11px;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-8);
+  background: var(--bg-vscode);
+  color: var(--text-warm);
+  font-size: var(--fs-small);
   height: 24px;
   flex-shrink: 0;
 }
@@ -278,25 +278,25 @@
 .comp-embed__bar-btn {
   background: transparent;
   border: none;
-  border-radius: 2px;
-  color: #999;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
   cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  padding: 2px 5px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-flat);
+  padding: var(--space-2) var(--space-5);
   flex-shrink: 0;
 }
 
 .comp-embed__bar-btn:hover {
-  background: #3c3c3c;
-  color: #fff;
+  background: var(--bg-input-strong);
+  color: var(--text-inverse);
 }
 
 .comp-embed__view {
   flex: 1;
   min-height: 0;
   position: relative;
-  background: #fff;
+  background: var(--text-inverse);
 }
 
 .comp-embed__shadow {
@@ -310,23 +310,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #777;
-  font-size: 12px;
-  background: #f3f3f3;
+  color: var(--icon-muted);
+  font-size: var(--fs-body);
+  background: var(--paper-dim);
 }
 
 .comp-embed__error {
   position: absolute;
   inset: 0;
   overflow: auto;
-  padding: 10px;
-  background: #2a1717;
-  color: #f44747;
-  font-size: 11px;
-  font-family: Consolas, monospace;
+  padding: var(--space-10);
+  background: var(--error-bg);
+  color: var(--danger);
+  font-size: var(--fs-small);
+  font-family: var(--font-code);
   white-space: pre-wrap;
   word-break: break-all;
-  line-height: 1.4;
+  line-height: var(--lh-body);
 }
 
 .excalidraw-host__inner {
@@ -348,20 +348,20 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  color: #888;
-  font-size: 13px;
-  background: rgba(24, 24, 24, 0.92);
-  z-index: 5;
+  gap: var(--space-12);
+  color: var(--icon);
+  font-size: var(--fs-title);
+  background: var(--canvas-veil);
+  z-index: var(--z-banner);
 }
 
 .excalidraw-overlay__btn {
-  background: #007acc;
+  background: var(--accent);
   border: none;
-  color: #fff;
-  border-radius: 2px;
-  padding: 6px 16px;
-  font-size: 12px;
+  color: var(--text-inverse);
+  border-radius: var(--radius-xs);
+  padding: var(--space-6) var(--space-16);
+  font-size: var(--fs-body);
   cursor: pointer;
 }
 
@@ -372,24 +372,24 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: #3a2f14;
-  border: 1px solid #6e5a1f;
-  color: #e6c65c;
-  font-size: 11px;
-  border-radius: 2px;
-  padding: 5px 10px;
-  z-index: 6;
+  gap: var(--space-10);
+  background: var(--warn-bg-2);
+  border: 1px solid var(--warn-border-2);
+  color: var(--warn-soft);
+  font-size: var(--fs-small);
+  border-radius: var(--radius-xs);
+  padding: var(--space-5) var(--space-10);
+  z-index: var(--z-float);
   max-width: 80%;
 }
 
 .excalidraw-banner__btn {
-  background: #e6c65c;
-  color: #1c1c1c;
+  background: var(--warn-soft);
+  color: var(--coal);
   border: none;
-  border-radius: 2px;
-  padding: 2px 8px;
-  font-size: 11px;
+  border-radius: var(--radius-xs);
+  padding: var(--space-2) var(--space-8);
+  font-size: var(--fs-small);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -401,11 +401,11 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  background: #181818;
-  color: #f48771;
-  font-size: 12px;
-  padding: 20px;
-  z-index: 7;
+  gap: var(--space-10);
+  background: var(--bg-deep);
+  color: var(--error-soft);
+  font-size: var(--fs-body);
+  padding: var(--space-20);
+  z-index: var(--z-elevated);
   text-align: center;
 }

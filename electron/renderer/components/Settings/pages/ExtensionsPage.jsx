@@ -60,36 +60,36 @@ const ExtensionsPage = () => {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-12)" }}>
         <span className="sw-row__desc" style={{ margin: 0 }}>
           Chrome extensions loaded into the browser. Installed paths are kept in userData and auto-loaded on startup.
         </span>
-        <button className="sw-btn" onClick={loadNew} style={{ marginLeft: 12, flexShrink: 0 }}>
+        <button className="sw-btn" onClick={loadNew} style={{ marginLeft: "var(--space-12)", flexShrink: 0 }}>
           + Load Extension
         </button>
       </div>
 
       <div
         className="sw-row"
-        style={{ alignItems: "center", border: "1px solid #2d4a43", background: "rgba(78,201,176,0.06)", marginBottom: 12 }}
+        style={{ alignItems: "center", border: "1px solid var(--ext-active-border)", background: "var(--teal-a06)", marginBottom: "var(--space-12)" }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span className="sw-row__label" style={{ marginBottom: 2 }}>Get more extensions</span>
+          <span className="sw-row__label" style={{ marginBottom: "var(--space-2)" }}>Get more extensions</span>
           <div className="sw-row__desc" style={{ margin: 0 }}>
             Download extensions from the Chrome Web Store, extract them to a folder, then click &ldquo;Load Extension&rdquo; and pick the unpacked folder (the one with manifest.json).
           </div>
         </div>
-        <button className="sw-btn" onClick={openStore} style={{ flexShrink: 0, marginLeft: 8 }}>
+        <button className="sw-btn" onClick={openStore} style={{ flexShrink: 0, marginLeft: "var(--space-8)" }}>
           Open Chrome Web Store
         </button>
       </div>
 
-      {error && <div style={{ color: "#e06c75", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ color: "var(--error-muted)", fontSize: "var(--fs-body)", marginBottom: "var(--space-10)" }}>{error}</div>}
 
       {loading ? (
-        <div style={{ color: "#555", fontSize: 12 }}>Loading...</div>
+        <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-body)" }}>Loading...</div>
       ) : list.length === 0 ? (
-        <div style={{ color: "#555", fontSize: 12, padding: 16, border: "1px dashed #333", borderRadius: 6 }}>
+        <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-body)", padding: "var(--space-16)", border: "var(--space-1) dashed var(--border)", borderRadius: "var(--radius-lg)" }}>
           No extensions installed. Click "Load Extension" and pick an unpacked extension folder
           (e.g. a folder with manifest.json), or use File &rarr; Load Extension&hellip; from the main window.
         </div>
@@ -101,13 +101,13 @@ const ExtensionsPage = () => {
             style={{ opacity: ext.enabled ? 1 : 0.55, alignItems: "center" }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
-              <span className="sw-row__label" style={{ marginBottom: 2 }}>{ext.name}</span>
+              <span className="sw-row__label" style={{ marginBottom: "var(--space-2)" }}>{ext.name}</span>
               <div className="sw-row__desc" style={{ margin: 0 }}>
                 v{ext.version} &middot; {ext.id}
                 {ext.description ? ` — ${ext.description.slice(0, 90)}` : ""}
               </div>
               {ext.path && (
-                <div className="sw-row__desc" style={{ margin: 0, color: "#777", fontSize: 10, wordBreak: "break-all" }}>
+                <div className="sw-row__desc" style={{ margin: 0, color: "var(--icon-muted)", fontSize: "var(--fs-tiny)", wordBreak: "break-all" }}>
                   {ext.path}
                 </div>
               )}
@@ -133,7 +133,7 @@ const ExtensionsPage = () => {
               className="sw-btn sw-btn--danger"
               onClick={() => removeExt(ext)}
               disabled={busyId === ext.id}
-              style={{ flexShrink: 0, marginLeft: 8 }}
+              style={{ flexShrink: 0, marginLeft: "var(--space-8)" }}
             >
               Remove
             </button>

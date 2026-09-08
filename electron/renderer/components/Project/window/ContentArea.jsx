@@ -54,10 +54,10 @@ const PreviewIcon = ({ entry, showPreview, size }) => {
   }, [entry.path, showPreview, entry.isDir]);
   if (!showPreview || entry.isDir || !preview) return <VscodeIcon name={entry.name} isDir={entry.isDir} size={size} />;
   if (preview.type === "image" && preview.data) {
-    return <img src={preview.data} width={size} height={size} alt="" style={{ objectFit: "contain", display: "block", borderRadius: 2 }} />;
+    return <img src={preview.data} width={size} height={size} alt="" style={{ objectFit: "contain", display: "block", borderRadius: "var(--radius-xs)" }} />;
   }
   if (preview.type === "video") {
-    return <Video size={size} style={{ display: "block", color: "#999" }} />;
+    return <Video size={size} style={{ display: "block", color: "var(--text-secondary)" }} />;
   }
   return <VscodeIcon name={entry.name} isDir={entry.isDir} size={size} />;
 };
