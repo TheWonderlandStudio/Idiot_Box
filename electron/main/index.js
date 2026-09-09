@@ -809,6 +809,42 @@ ipcMain.handle("dialog:confirm", async (event, message) => {
   return response === 1;
 });
 
+// ─── Media Viewer: edited image save (binary dataURL → file) ───────────────
+function parseImageDataUrl(dataUrl) {
+  const m = String(dataUrl || "").match(/^data:(image\/(?:png|jpeg|webp));base64,([\s\S]+)$/);
+  if (!m) return null;
+  return { mime: m[1], buf: Buffer.from(m[2], "base64") };
+}
+ipcMain.handle("media:saveImage", async (_e, { filePath, dataUrl }) => {
+  try {
+    const p = parseImageDataUrl(dataUrl);
+    if (!filePath || !p) return { ok: false, error: "Bad image data" };
+    fs.writeFileSync(toLongPath(filePath), p.buf);
+    return { ok: true, path: filePath };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle("media:saveImageAs", async (event, { filePath, dataUrl, defaultName }) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const p = parseImageDataUrl(dataUrl);
+  if (!p) return { ok: false, error: "Bad image data" };
+  const ext = p.mime === "image/png" ? "png" : p.mime === "image/webp" ? "webp" : "jpg";
+  const { canceled, filePath: newPath } = await dialog.showSaveDialog(win, {
+    title: "Save Image As",
+    defaultPath: defaultName || (filePath ? filePath.replace(/.*[\\/]/, "") : `image.${ext}`),
+    filters: [
+      { name: "PNG Image", extensions: ["png"] },
+      { name: "JPEG Image", extensions: ["jpg", "jpeg"] },
+      { name: "WebP Image", extensions: ["webp"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+  });
+  if (canceled || !newPath) return { canceled: true };
+  try {
+    fs.writeFileSync(toLongPath(newPath), p.buf);
+    return { canceled: false, ok: true, path: newPath };
+  } catch (err) { return { canceled: false, ok: false, error: err.message }; }
+});
+
 // 3-way unsaved-changes guard for editor tab close (Save / Don't Save / Cancel)
 ipcMain.handle("dialog:confirmSave", async (event, fileName) => {
   const win = BrowserWindow.fromWebContents(event.sender);
@@ -2686,6 +2722,107 @@ ipcMain.handle("terminal:close", async (event, { tabId }) => {
   return { ok: true };
 });
 
+// ─── Run & Debug v1: Run engine (one-shot pty process per run) ─────────────
+// Terminal shells se alag: har run apna pty + runId pata hai. Output renderer
+// me Output panel ke "Run" channel me jata hai. Debug adapters (DAP) phase 2.
+const runProcesses = new Map(); // runId -> { pty, sender, startedAt, label }
+function runKey(sender, runId) { return `${sender.id}:${runId}`; }
+function cleanRunCwd(cwd) {
+  try {
+    if (cwd && typeof cwd === "string" && fs.existsSync(cwd) && fs.statSync(cwd).isDirectory()) return cwd;
+  } catch {}
+  return process.cwd();
+}
+ipcMain.handle("run:start", async (event, { runId, cmd, args, cwd, label }) => {
+  if (!pty) return { ok: false, error: "node-pty not available — run `npm install`" };
+  if (!runId || typeof cmd !== "string" || !cmd.trim()) return { ok: false, error: "Bad run request" };
+  const argList = Array.isArray(args) ? args.filter((a) => typeof a === "string").slice(0, 50) : [];
+  const key = runKey(event.sender, String(runId));
+  try {
+    const old = runProcesses.get(key);
+    if (old) { try { old.pty.kill(); } catch {} runProcesses.delete(key); }
+  } catch {}
+  const bin = cmd.trim();
+  const spawnOpts = {
+    name: "xterm-256color",
+    cols: 120,
+    rows: 30,
+    cwd: cleanRunCwd(cwd),
+    env: { ...process.env },
+  };
+  // Windows: npm/npx jaise shims .cmd hote hain — CreateProcess ko extension
+  // chahiye. Koi bhi spawn failure par .cmd retry karo (sirf ENOENT text par
+  // nahi — node-pty "error code: 2" bhi deta hai).
+  const candidates = (process.platform === "win32" && !/\.(exe|cmd|bat|com|ps1)$/i.test(bin))
+    ? [bin, `${bin}.cmd`]
+    : [bin];
+  let p = null;
+  let lastErr = null;
+  for (const c of candidates) {
+    try { p = pty.spawn(c, argList, spawnOpts); break; }
+    catch (err) { lastErr = err; }
+  }
+  if (!p) {
+    return { ok: false, error: `Could not start (${cmd}): ${lastErr?.message || lastErr}` };
+  }
+  const startedAt = Date.now();
+  runProcesses.set(key, { pty: p, sender: event.sender, startedAt, label: String(label || cmd) });
+  try { logOutput("Run", `$ ${cmd} ${argList.join(" ")}`.trim() + `  [${cleanRunCwd(cwd)}]`); } catch {}
+  p.onData((data) => {
+    try {
+      const sender = runProcesses.get(key)?.sender || event.sender;
+      if (!sender.isDestroyed()) sender.send("run:data", { runId: String(runId), data });
+    } catch {}
+  });
+  p.onExit(({ exitCode, signal }) => {
+    if (runProcesses.get(key)?.pty === p) runProcesses.delete(key);
+    const ms = Date.now() - startedAt;
+    try { logOutput("Run", `exit code ${exitCode}${signal ? ` (${signal})` : ""} in ${(ms / 1000).toFixed(1)}s — ${String(label || cmd)}`, exitCode === 0 ? "info" : "warn"); } catch {}
+    try {
+      if (!event.sender.isDestroyed()) event.sender.send("run:exit", { runId: String(runId), code: exitCode, signal, ms });
+    } catch {}
+  });
+  return { ok: true, runId: String(runId) };
+});
+ipcMain.handle("run:write", async (event, { runId, data }) => {
+  const e = runProcesses.get(runKey(event.sender, String(runId)));
+  if (!e) return { ok: false, error: "no such run" };
+  try { e.pty.write(String(data ?? "")); return { ok: true }; }
+  catch (err) { return { ok: false, error: err?.message || String(err) }; }
+});
+ipcMain.handle("run:stop", async (event, { runId, signal }) => {
+  const key = runKey(event.sender, String(runId));
+  const e = runProcesses.get(key);
+  if (!e) return { ok: true, alreadyExited: true };
+  try { e.pty.kill(signal || undefined); } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+  runProcesses.delete(key);
+  try { logOutput("Run", `stopped — ${e.label}`, "warn"); } catch {}
+  return { ok: true };
+});
+ipcMain.handle("run:probes", async () => {
+  // Best-effort runtime detection (node / python / php / go / npm)
+  const out = {};
+  const { execFile: ef } = require("child_process");
+  await Promise.all(Object.entries({
+    node: ["node", ["--version"]],
+    python: [process.platform === "win32" ? "py" : "python3", ["--version"]],
+    php: ["php", ["--version"]],
+    go: ["go", ["version"]],
+    npm: ["npm", ["--version"]],
+  }).map(([k, [c, a]]) => new Promise((resolve) => {
+    try {
+      ef(c, a, { timeout: 4000, windowsHide: true, encoding: "utf8" }, (err, stdout, stderr) => {
+        const s = String(stdout || stderr || "").trim().split("\n")[0] || "";
+        out[k] = err ? null : s.slice(0, 40);
+        resolve();
+      });
+    } catch { out[k] = null; resolve(); }
+  })));
+  return out;
+});
+
 ipcMain.handle("terminal:contextMenu", (event, { hasSelection }) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
@@ -3141,6 +3278,7 @@ ipcMain.handle("panel:addMenu", async (event) => {
       { label: "Browser", click: () => act("browser") },
       { label: "Terminal", click: () => act("terminal") },
       { label: "Output Panel", click: () => act("output") },
+      { label: "Run and Debug", click: () => act("runDebug") },
       { label: "AI Panel", click: () => act("ai") },
       { label: "Android Emulator", click: () => act("android") },
     ];
@@ -4312,6 +4450,15 @@ function buildMenu() {
         { type: "separator" },
         { label: "Clear Terminal", accelerator: "Ctrl+K", click: () => sendToRenderer("menu:clearTerminal", null) },
         { label: "Kill Terminal", click: () => sendToRenderer("menu:killTerminal", null) },
+      ],
+    },
+    {
+      // No accelerators on purpose — F5 / Ctrl+F5 belong to Browser refresh.
+      label: "Run", submenu: [
+        { label: "Run Auto-Detected Command", click: () => sendToRenderer("menu:runAuto", null) },
+        { label: "Stop", click: () => sendToRenderer("menu:runStop", null) },
+        { type: "separator" },
+        { label: "Open Run & Debug Panel", click: () => sendToRenderer("menu:openRunPanel", null) },
       ],
     },
     {

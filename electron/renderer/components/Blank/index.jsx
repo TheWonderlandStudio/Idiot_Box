@@ -1,5 +1,6 @@
 import React from "react";
 import { Actions } from "flexlayout-react";
+import { OutputIcon } from "../Output/index.jsx";
 import "./blank.css";
 
 // ── Panel icons (line-art: currentColor se panel accent milta hai;
@@ -65,6 +66,14 @@ const I = {
       <circle cx="24" cy="15.52" r="3.3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="32.48" cy="24" r="3.3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
       <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" d="M24 29.11V18.82" />
+    </svg>
+  ),
+  runDebug: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
+      <ellipse cx="12" cy="13.5" rx="5.5" ry="6" stroke="currentColor" />
+      <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V4.5M9.5 5 12 7.5 14.5 5" />
+      <path stroke="currentColor" strokeLinecap="round" d="M6.5 11H3M6.5 14.5H3M7 18l-3 1.5M17.5 11H21M17.5 14.5H21M17 18l3 1.5" />
+      <path fill="currentColor" stroke="none" d="M10.8 11.3v4.4l3.7-2.2z" />
     </svg>
   ),
   ports: (
@@ -169,6 +178,24 @@ const PANEL_TYPES = [
     description: "Errors and warnings from TypeScript and linter",
     accent: "var(--danger)",
     icon: I.problems,
+    config: {},
+  },
+  {
+    id: "output",
+    name: "Output",
+    component: "output",
+    description: "App, Git, Updater & Live Server logs",
+    accent: "var(--text-secondary)",
+    icon: <OutputIcon size={24} />,
+    config: {},
+  },
+  {
+    id: "runDebug",
+    name: "Run & Debug",
+    component: "runDebug",
+    description: "Run code with launch configs, runners & npm scripts",
+    accent: "var(--success)",
+    icon: I.runDebug,
     config: {},
   },
   {

@@ -32,10 +32,11 @@ const ProjectWindow = () => {
   const startWRef   = useRef(SIDEBAR_DEFAULT);
   const settingsRef = useRef({});
 
-  // ── Persist zoom & showHiddenFiles to settings + live sync ────────────────
+  // ── Persist zoom & bar toggles to settings + live sync ───────────────────
   // Previously zoom was read once and written via read→write (race), and
-  // showHidden was local-only (GeneralPage toggle did nothing). Now both are
-  // initialized from settings and stay in sync across windows via
+  // showHidden was local-only (GeneralPage toggle did nothing). Now zoom,
+  // showHiddenFiles, showFolders, showFiles, showPreview are all initialized
+  // from settings.json (app-data dir) and stay in sync across windows via
   // BroadcastChannel("app-settings") + IPC onSettingsUpdated (file:// fallback).
   useEffect(() => {
     window.electronAPI.readSettings().then((s) => {
@@ -43,11 +44,17 @@ const ProjectWindow = () => {
       settingsRef.current = data;
       if (Number.isFinite(data.zoom)) setZoom(data.zoom);
       if (typeof data.showHiddenFiles === "boolean") setShowHidden(!!data.showHiddenFiles);
+      if (typeof data.showFolders === "boolean") setShowFolders(!!data.showFolders);
+      if (typeof data.showFiles === "boolean") setShowFiles(!!data.showFiles);
+      if (typeof data.showPreview === "boolean") setShowPreview(!!data.showPreview);
     });
     const apply = (patch) => {
       if (!patch || typeof patch !== "object") return;
       if ("zoom" in patch && Number.isFinite(patch.zoom)) setZoom(patch.zoom);
       if ("showHiddenFiles" in patch) setShowHidden(!!patch.showHiddenFiles);
+      if ("showFolders" in patch) setShowFolders(!!patch.showFolders);
+      if ("showFiles" in patch) setShowFiles(!!patch.showFiles);
+      if ("showPreview" in patch) setShowPreview(!!patch.showPreview);
       settingsRef.current = { ...settingsRef.current, ...patch };
     };
     let bc;
@@ -65,15 +72,31 @@ const ProjectWindow = () => {
     window.electronAPI.writeSettings(next);
   }, []);
 
-  const handleToggleHidden = useCallback(() => {
-    setShowHidden((prev) => {
+  const persistToggle = useCallback((key, setFn) => {
+    setFn((prev) => {
       const nextVal = !prev;
-      const next = { ...settingsRef.current, showHiddenFiles: nextVal };
+      const next = { ...settingsRef.current, [key]: nextVal };
       settingsRef.current = next;
       window.electronAPI.writeSettings(next);
       return nextVal;
     });
   }, []);
+
+  const handleToggleHidden = useCallback(() => {
+    persistToggle("showHiddenFiles", setShowHidden);
+  }, [persistToggle]);
+
+  const handleToggleFolders = useCallback(() => {
+    persistToggle("showFolders", setShowFolders);
+  }, [persistToggle]);
+
+  const handleToggleFiles = useCallback(() => {
+    persistToggle("showFiles", setShowFiles);
+  }, [persistToggle]);
+
+  const handleTogglePreview = useCallback(() => {
+    persistToggle("showPreview", setShowPreview);
+  }, [persistToggle]);
 
   // ── Navigation history (back/forward) ────────────────────────────────────
   const navHistoryRef = useRef({ stack: [], cursor: -1 });
@@ -463,11 +486,11 @@ const ProjectWindow = () => {
           showHidden={showHidden}
           onToggleHidden={handleToggleHidden}
           showFolders={showFolders}
-          onToggleFolders={() => setShowFolders((v) => !v)}
+          onToggleFolders={handleToggleFolders}
           showFiles={showFiles}
-          onToggleFiles={() => setShowFiles((v) => !v)}
+          onToggleFiles={handleToggleFiles}
           showPreview={showPreview}
-          onTogglePreview={() => setShowPreview((v) => !v)}
+          onTogglePreview={handleTogglePreview}
         />
       </div>
       <StatusBar

@@ -20,7 +20,7 @@ export const OutputIcon = ({ size = 14, style } = {}) => (
   </svg>
 );
 
-export const OUTPUT_CHANNELS = ["App", "Git", "Updater", "Live Server"];
+export const OUTPUT_CHANNELS = ["App", "Git", "Updater", "Live Server", "Run"];
 const MAX_LINES = 1000;
 const BUFFER_CAP = 500;
 
@@ -59,7 +59,9 @@ if (typeof window !== "undefined" && !window.__outputLog) {
       window.addEventListener("unhandledrejection", (e) => {
         try {
           const r = e?.reason;
-          push(`Unhandled rejection: ${r?.message || String(r ?? "unknown")}`.slice(0, 300));
+          const stack = String(r?.stack || "").split("\n").slice(0, 4).join(" | ").slice(0, 400);
+          const base = `Unhandled rejection: ${r?.message || String(r ?? "unknown")}`.slice(0, 300);
+          push(stack ? `${base} — ${stack}` : base);
         } catch {}
       });
     } catch {}
@@ -220,7 +222,7 @@ const OutputPanel = () => {
           <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)", fontFamily: "sans-serif" }}>
             No output yet
             <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>
-              Git, Updater &amp; Live Server logs appear here — or log from anywhere via window.__outputLog
+              Git, Updater, Live Server &amp; Run logs appear here — or log from anywhere via window.__outputLog
             </div>
           </div>
         )}

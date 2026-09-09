@@ -2,7 +2,7 @@
   "name": "idiot-box",
   "version": "0.1.15",
   "private": true,
-  "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
+  "description": "Idiot Box - Code-OSS-backed desktop IDE built with Electron and React",
   "author": {
     "name": "TheWonderlandStudio",
     "email": "support@thewonderlandstudio.com",
@@ -92,7 +92,6 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.8.1",
-    "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-use-controllable-state": "^1.2.6",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
@@ -111,7 +110,6 @@
     "esbuild": "^0.25.6",
     "flexlayout-react": "^0.8.19",
     "lucide-react": "^1.34.0",
-    "monaco-editor": "^0.56.0",
     "motion": "^13.2.0",
     "nanoid": "^6.0.1",
     "node-pty": "^1.1.0",
@@ -208,7 +206,7 @@
       "icon": "electron/renderer/assets/idot_box.png",
       "category": "Development",
       "maintainer": "TheWonderlandStudio <support@thewonderlandstudio.com>",
-      "description": "Idiot Box - VS Code-like editor built with Electron, React and Monaco",
+      "description": "Idiot Box - Code-OSS-backed desktop IDE with an embedded extension host",
       "desktop": {
         "Name": "Idiot Box",
         "Comment": "Free open-source desktop IDE: code editor, terminal, browser and project map in one window",

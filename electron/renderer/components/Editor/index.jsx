@@ -87,6 +87,15 @@ import getLanguagesServiceOverride from "@codingame/monaco-vscode-languages-serv
 import getFileServiceOverride from "@codingame/monaco-vscode-files-service-override";
 import getExtensionsServiceOverride from "@codingame/monaco-vscode-extensions-service-override";
 import { registerExtension, ExtensionHostKind } from "@codingame/monaco-vscode-api/extensions";
+// Shared editor state (dirty flags, AI bridge, settings sync).
+import {
+  baseNames, dirtyFlags,
+  getActiveEditorPath, setActiveEditorPath,
+  isAutoSaveEnabled, setAutoSaveEnabled,
+  aiEditorTabs, aiNotifyContext,
+  updateTabName, setDirty,
+  getEditorSettings, getCachedEditorSettings, settingsListeners,
+} from "./shared.js";
 
 // ── Worker setup (bundled separately by esbuild) ───────────────────────────
 window.MonacoEnvironment = {
@@ -174,11 +183,18 @@ const ensureEditorReady = () => {
   return initPromise;
 };
 
-// Shared with Notebook cells: per-cell Monaco editors use the same
-// createConfiguredEditor + services, so expose the singleton init promise
-// here instead of calling initialize() a second time (re-init conflicts).
+// ── VS Code services init (once, shared by source files and notebooks) ───────
+// The singleton promise is shared so source files and notebook cells never
+// initialize duplicate language or extension services.
 // Rejected when services fail — consumers must fall back (plain textarea).
-try { window.__ibxEditorReady = ensureEditorReady(); } catch {}
+export const ensureMonacoReady = () => {
+  try {
+    if (!window.__ibxEditorReady) window.__ibxEditorReady = ensureEditorReady();
+    return window.__ibxEditorReady;
+  } catch (err) {
+    return Promise.reject(err);
+  }
+};
 
 const ext = (p) => { try { return p.slice(p.lastIndexOf(".")).toLowerCase(); } catch { return ""; } };
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
@@ -408,178 +424,14 @@ const getMonacoLanguage = async (filePath, text) => {
   }
 };
 
-// ── Shared editor state (all editor tabs in the app) ───────────────────────
-let activeEditorPath = null;
-let autoSaveEnabled  = false;
-const baseNames  = new Map();   // filePath -> tab base name
-const dirtyFlags = new Map();   // filePath -> dirty boolean
+// ── Shared editor state (engine-agnostic — see shared.js) ───────────────────
+// baseNames / dirtyFlags / AI bridge / settings sync ab shared.js me hain.
 // Shared Monaco models (same vscode instance, no Uri lookup): filePath -> { model, refcount }.
 // Lets split-tabs / duplicate tabs edit the SAME text live. Falls back to
 // per-tab models if sharing fails — content still loads either way.
 const sharedModels = new Map();
 
-// Exposed for the layout close-guard (index.jsx onAction): veto closing dirty tabs.
-window.__ibxIsDirty = (p) => { try { return !!dirtyFlags.get(p); } catch { return false; } };
-window.__ibxForgetDirty = (p) => { try { dirtyFlags.delete(p); baseNames.delete(p); } catch {} };
-
-// ── AI panel bridge (Vercel AI SDK chat) ───────────────────────────────────
-// Tracks live editor tabs so the AI panel can attach the current file /
-// selection as context (window.__aiGetEditorContext) and insert generated
-// code at the cursor ("ai:insert-code" event).
-const aiEditorTabs = new Map(); // nodeId -> { filePath, editorRef }
-let aiLastNotify = 0;
-const aiNotifyContext = (immediate) => {
-  try {
-    const now = Date.now();
-    if (!immediate && now - aiLastNotify < 2000) return;
-    aiLastNotify = now;
-    window.dispatchEvent(new CustomEvent("ai:context-changed"));
-  } catch { /* ignore */ }
-};
-window.__aiGetEditorContext = () => {
-  try {
-    // Prefer the focused/active editor, fall back to any live editor tab.
-    let entry = null;
-    if (activeEditorPath) {
-      for (const e of aiEditorTabs.values()) {
-        if (e.filePath === activeEditorPath && e.editorRef?.current) { entry = e; break; }
-      }
-    }
-    if (!entry) {
-      for (const e of aiEditorTabs.values()) {
-        if (e.filePath && e.editorRef?.current) { entry = e; break; }
-      }
-    }
-    if (!entry) return null;
-    const ed = entry.editorRef.current;
-    const model = ed.getModel?.();
-    const full = model?.getValue?.() ?? ed.getValue?.() ?? "";
-    let selection = null, startLine = null, endLine = null;
-    try {
-      const sel = ed.getSelection?.();
-      if (sel && sel.startLineNumber && sel.isEmpty?.() === false) {
-        selection = model?.getValueInRange?.(sel) ?? "";
-        startLine = sel.startLineNumber;
-        endLine = sel.endLineNumber;
-        if (selection && selection.length > 12000) {
-          selection = selection.slice(0, 12000) + "\n… (truncated)";
-        }
-      }
-    } catch { /* no selection */ }
-    const fp = entry.filePath;
-    return {
-      filePath: fp,
-      fileName: String(fp).split(/[\\/]/).pop() || fp,
-      selection: selection || null,
-      startLine,
-      endLine,
-      content: String(full || "").slice(0, 60000),
-    };
-  } catch { return null; }
-};
-if (!window.__aiInsertInstalled) {
-  window.__aiInsertInstalled = true;
-  window.addEventListener("ai:insert-code", (e) => {
-    const code = String(e.detail?.code ?? "");
-    if (!code) return;
-    try {
-      let ed = null;
-      if (activeEditorPath) {
-        for (const en of aiEditorTabs.values()) {
-          if (en.filePath === activeEditorPath && en.editorRef?.current) { ed = en.editorRef.current; break; }
-        }
-      }
-      if (!ed) {
-        for (const en of aiEditorTabs.values()) {
-          if (en.editorRef?.current) { ed = en.editorRef.current; break; }
-        }
-      }
-      if (!ed || typeof ed.executeEdits !== "function") return;
-      let range = null;
-      try {
-        const sel = ed.getSelection?.();
-        if (sel && sel.startLineNumber) {
-          range = sel.isEmpty?.() === false
-            ? sel
-            : { startLineNumber: sel.startLineNumber, startColumn: sel.startColumn, endLineNumber: sel.startLineNumber, endColumn: sel.startColumn };
-        }
-      } catch { /* ignore */ }
-      if (!range) {
-        const pos = ed.getPosition?.() || { lineNumber: 1, column: 1 };
-        range = { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column };
-      }
-      ed.executeEdits("ai-panel", [{ range, text: code, forceMoveMarkers: true }]);
-      try { ed.focus?.(); } catch {}
-      try { ed.revealLineInCenter?.(range.startLineNumber); } catch {}
-    } catch { /* ignore */ }
-  });
-}
-
-const updateTabName = (nodeId, path) => {
-  const m = window.__flexModel?.current;
-  if (!m) return;
-  const base = baseNames.get(path) || fileName(path) || path;
-  const dirty = !!dirtyFlags.get(path);
-  try {
-    m.doAction(Actions.updateNodeAttributes(nodeId, { name: dirty ? base + " ●" : base }));
-  } catch { /* node may be gone */ }
-};
-
-const setDirty = (nodeId, path, dirty) => {
-  dirtyFlags.set(path, dirty);
-  updateTabName(nodeId, path);
-};
-
-// ── Read initial editor settings (minimap / wordWrap) ─────────────────────
-// Defaults: minimap=true, wordWrap=true
-let _cachedEditorSettings = null;
-const getEditorSettings = async () => {
-  if (!_cachedEditorSettings) {
-    try {
-      const s = await window.electronAPI.readSettings();
-      _cachedEditorSettings = s ?? {};
-    } catch {
-      _cachedEditorSettings = {};
-    }
-  }
-  return _cachedEditorSettings;
-};
-
-// ── BroadcastChannel for live settings updates ────────────────────────────
-// Settings window and main window are separate BrowserWindows; we use a
-// BroadcastChannel so toggle changes in Settings propagate here instantly.
-const settingsListeners = new Set();
-const _broadcastHandler = (e) => {
-  if (e.data && typeof e.data === "object") {
-    // Merge into cached settings
-    _cachedEditorSettings = { ...(_cachedEditorSettings ?? {}), ...e.data };
-    settingsListeners.forEach((fn) => fn(e.data));
-  }
-};
-try {
-  const bc = new BroadcastChannel("editor-settings");
-  bc.onmessage = _broadcastHandler;
-} catch { /* BroadcastChannel unavailable */ }
-try {
-  const bc2 = new BroadcastChannel("app-settings");
-  bc2.onmessage = _broadcastHandler;
-} catch { /* BroadcastChannel unavailable */ }
-// Note: DO NOT listen to terminal/git/canvas channels here.
-// Terminal fontSize patches use {fontSize} on "terminal-settings" — if editor
-// listened there it would incorrectly apply terminal size to the Monaco editor
-// (bug: settings menu terminal slider changed editor size). Editor only cares
-// about "editor-settings" / "app-settings".
-// IPC fallback for settings sync across windows (file:// origins don't share BroadcastChannel)
-try {
-  window.electronAPI?.onSettingsUpdated?.((data) => {
-    if (data && typeof data === "object") {
-      _cachedEditorSettings = { ...(_cachedEditorSettings ?? {}), ...data };
-      settingsListeners.forEach((fn) => fn(data));
-    }
-  });
-} catch {}
-
-const EditorPanel = ({ config, nodeId }) => {
+const MonacoEditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
   // .ipynb renders the notebook cell UI INSIDE this editor tab (like a normal
   // file tab) instead of a Monaco text editor. config.forceText bypasses this
@@ -707,7 +559,7 @@ const EditorPanel = ({ config, nodeId }) => {
       setEditorTheme(th);
       if ("autoSave" in s) {
         const enabled = s.autoSave === true || s.autoSave === "afterDelay";
-        autoSaveEnabled = enabled;
+        setAutoSaveEnabled(enabled);
         setAutoSave(enabled);
         try { window.dispatchEvent(new CustomEvent("editor:autosave", { detail: { enabled } })); } catch {}
       } else {
@@ -729,21 +581,15 @@ const EditorPanel = ({ config, nodeId }) => {
       }
       if ("autoSave" in patch) {
         const enabled = patch.autoSave === true || patch.autoSave === "afterDelay";
-        autoSaveEnabled = enabled;
+        setAutoSaveEnabled(enabled);
         setAutoSave(enabled);
         try { window.dispatchEvent(new CustomEvent("editor:autosave", { detail: { enabled } })); } catch {}
       }
     };
     settingsListeners.add(handler);
-    // Also listen via IPC (BroadcastChannel doesn't work across file:// origins)
-    let unsubIpc = null;
-    try { unsubIpc = window.electronAPI?.onSettingsUpdated?.((data) => {
-      if (data && typeof data === "object") {
-        _cachedEditorSettings = { ...(_cachedEditorSettings ?? {}), ...data };
-        handler(data);
-      }
-    }); } catch {}
-    return () => { settingsListeners.delete(handler); try { unsubIpc?.(); } catch {} };
+    // IPC fallback shared.js me centrally lagta hai (settingsListeners fan-out),
+    // isliye yahan per-component IPC subscription ki zaroorat nahi.
+    return () => { settingsListeners.delete(handler); };
   }, []);
 
   // ── Git diff gutter CSS ──────────────────────────────────────────────────
@@ -1038,7 +884,7 @@ const EditorPanel = ({ config, nodeId }) => {
       updateTabName(nodeId, filePath);
 
       editorRef.current = editor;
-      activeEditorPath = filePath;
+      setActiveEditorPath(filePath);
 
       // Live sync with component/preview panels: announce the active editor
       // file and push its current source so previews update without a save.
@@ -1092,7 +938,7 @@ const EditorPanel = ({ config, nodeId }) => {
         const p = pathRef.current;
         if (p) {
           setDirty(nodeId, p, v !== originalRef.current);
-          if (autoSaveEnabled) {
+          if (isAutoSaveEnabled()) {
             clearTimeout(saveTimer.current);
             saveTimer.current = setTimeout(() => { doSave(); }, 800);
           }
@@ -1111,7 +957,7 @@ const EditorPanel = ({ config, nodeId }) => {
         });
       });
       focusSub = editor.onDidFocusEditorText(() => {
-        activeEditorPath = pathRef.current;
+        setActiveEditorPath(pathRef.current);
         aiNotifyContext(true);
         try {
           window.dispatchEvent(new CustomEvent("editor:fileActivated", { detail: { path: pathRef.current } }));
@@ -1369,7 +1215,7 @@ const EditorPanel = ({ config, nodeId }) => {
     // Format on Save (Settings → Editor → Format On Save, default off).
     // No-op when the language has no formatter registered.
     try {
-      const s = _cachedEditorSettings ?? await getEditorSettings().catch(() => ({}));
+      const s = getCachedEditorSettings() ?? await getEditorSettings().catch(() => ({}));
       if (s?.formatOnSave === true && editorRef.current) {
         try { await editorRef.current.getAction("editor.action.formatDocument")?.run(); } catch {}
       }
@@ -1421,7 +1267,7 @@ const EditorPanel = ({ config, nodeId }) => {
       const p = pathRef.current;
       // For save/saveAs the file must be loaded; for editor actions we just
       // need the editor to be the active one (path matches or no path given).
-      const target = e.detail?.path ?? activeEditorPath;
+      const target = e.detail?.path ?? getActiveEditorPath();
       const isActive = !target || p === target;
 
       // ── Save commands (require a loaded file) ──────────────────────────
@@ -1465,7 +1311,7 @@ const EditorPanel = ({ config, nodeId }) => {
   useEffect(() => {
     const onAuto = (e) => {
       const enabled = e.detail?.enabled === true;
-      autoSaveEnabled = enabled;
+      setAutoSaveEnabled(enabled);
       setAutoSave(enabled);
     };
     window.addEventListener("editor:autosave", onAuto);
@@ -1575,7 +1421,7 @@ const EditorPanel = ({ config, nodeId }) => {
                 <span>{statusMsg || `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
-                {(autoSave || autoSaveEnabled) && <span>AutoSave: On</span>}
+                {(autoSave || isAutoSaveEnabled()) && <span>AutoSave: On</span>}
                 <span>Spaces: {tabSize}</span>
                 <span>UTF-8</span>
                 <span
@@ -1667,4 +1513,17 @@ const EditorPanel = ({ config, nodeId }) => {
   );
 };
 
-export default EditorPanel;
+export { MonacoEditorPanel };
+
+// Code-OSS-backed editor factory. Notebook tabs retain their existing cell UI;
+// every source file uses the same VS Code language/editor/extension services.
+const EditorPanelSwitch = ({ config, nodeId }) => {
+  const filePath = config?.filePath || null;
+  const forceText = config?.forceText === true;
+  const isIpynb = !forceText && /\.ipynb$/i.test(filePath || "");
+
+  if (isIpynb) return <NotebookPanel config={config} nodeId={nodeId} />;
+  return <MonacoEditorPanel config={config} nodeId={nodeId} />;
+};
+
+export default EditorPanelSwitch;

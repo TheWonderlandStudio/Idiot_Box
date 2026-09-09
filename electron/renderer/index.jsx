@@ -20,6 +20,7 @@ import CommandPalette from "./components/CommandPalette/index.jsx";
 import QuickOpen from "./components/QuickOpen/index.jsx";
 import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
+import RunPanel from "./components/RunPanel/index.jsx";
 import OutputPanel, { OutputIcon } from "./components/Output/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
@@ -65,6 +66,7 @@ const DEFAULT_JSON = {
               { type: "tab", name: "Ports", component: "ports" },
               { type: "tab", name: "Problems", component: "problems" },
               { type: "tab", name: "Output", component: "output" },
+              { type: "tab", name: "Run & Debug", component: "runDebug" },
             ],
           },
         ],
@@ -92,6 +94,7 @@ const factory = (node) => {
     case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
     case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
   case "problems":          return <ProblemsPanel />;
+  case "runDebug":          return <RunPanel />;
   case "output":            return <OutputPanel />;
   case "gitPanel":          return <GitPanel nodeId={node.getId()} />;
   case "ports":             return <PortsPanel />;
@@ -345,7 +348,7 @@ const App = () => {
             // "notebook" stays allowed as a compat shim (interim builds saved
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","canvas","problems","output","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
@@ -409,7 +412,7 @@ const App = () => {
         const dedup = (node) => {
           if (!node || !node.children) return;
           node.children = node.children.filter((child) => {
-            if (child.type === "tab" && (child.component === "ports" || child.component === "problems" || child.component === "output")) {
+            if (child.type === "tab" && (child.component === "ports" || child.component === "problems" || child.component === "output" || child.component === "runDebug")) {
               if (!seen.has(child.component)) { seen.add(child.component); return true; }
               return false;
             }
@@ -443,7 +446,7 @@ const App = () => {
           };
           findTarget(json.layout);
           if (!target) return;
-          for (const comp of ["ports", "problems", "output"]) {
+          for (const comp of ["ports", "problems", "output", "runDebug"]) {
             const inTarget = target.children.some((c) => c.component === comp);
             if (inTarget) {
               const removeOutside = (node) => {
@@ -466,11 +469,11 @@ const App = () => {
               foundParent.children = foundParent.children.filter((c) => c !== found);
               target.children.push(found);
             } else {
-              const name = comp === "ports" ? "Ports" : comp === "output" ? "Output" : "Problems";
+              const name = comp === "ports" ? "Ports" : comp === "output" ? "Output" : comp === "runDebug" ? "Run & Debug" : "Problems";
               target.children.push({ type: "tab", name, component: comp });
             }
           }
-          const order = { projectPanel: 0, terminal: 1, ports: 2, problems: 3, output: 4 };
+          const order = { projectPanel: 0, terminal: 1, ports: 2, problems: 3, output: 4, runDebug: 5 };
           target.children.sort((a, b) => {
             const ao = order[a.component] !== undefined ? order[a.component] : 99;
             const bo = order[b.component] !== undefined ? order[b.component] : 99;
@@ -756,9 +759,9 @@ const App = () => {
     };
     const onOutput = (e) => {
       const m = modelRef.current;
-      // Prefer the bottom group (Terminal/Problems/Ports) so Output docks there
+      // Prefer the bottom group (Terminal/Problems/Ports/Output/Run) so Output docks there
       const findBottom = (node) => {
-        if (node.getType?.() === "tabset" && node.getChildren?.()?.some?.((c) => ["terminal", "problems", "ports", "output"].includes(c.getComponent?.()))) return node;
+        if (node.getType?.() === "tabset" && node.getChildren?.()?.some?.((c) => ["terminal", "problems", "ports", "output", "runDebug"].includes(c.getComponent?.()))) return node;
         const ch = node.getChildren?.();
         if (ch) for (const c of ch) { const r = findBottom(c); if (r) return r; }
         return null;
@@ -779,6 +782,31 @@ const App = () => {
         }
       }
       addPanel("output", "Output", {});
+    };
+    const onRunDebug = (e) => {
+      const m = modelRef.current;
+      const findBottom = (node) => {
+        if (node.getType?.() === "tabset" && node.getChildren?.()?.some?.((c) => ["terminal", "problems", "ports", "output", "runDebug"].includes(c.getComponent?.()))) return node;
+        const ch = node.getChildren?.();
+        if (ch) for (const c of ch) { const r = findBottom(c); if (r) return r; }
+        return null;
+      };
+      if (m) {
+        const findRun = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "runDebug") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findRun(c); if (r) return r; }
+          return null;
+        };
+        const existing = findRun(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+        const bottom = findBottom(m.getRoot());
+        if (bottom) {
+          try { m.doAction(Actions.addNode({ type: "tab", component: "runDebug", name: "Run & Debug", enableClose: true }, bottom.getId(), DockLocation.CENTER, -1, true)); } catch {}
+          return;
+        }
+      }
+      addPanel("runDebug", "Run & Debug", {});
     };
     const onGit = () => {
       const m = modelRef.current;
@@ -844,6 +872,7 @@ const App = () => {
     window.addEventListener("add-canvas-panel", onCanvas);
     window.addEventListener("add-ports-panel", onPorts);
     window.addEventListener("add-output-panel", onOutput);
+    window.addEventListener("add-run-panel", onRunDebug);
     window.addEventListener("add-git-panel", onGit);
     window.addEventListener("add-ai-panel", onAI);
     window.addEventListener("add-android-panel", onAndroid);
@@ -853,6 +882,7 @@ const App = () => {
       window.removeEventListener("add-canvas-panel", onCanvas);
       window.removeEventListener("add-ports-panel", onPorts);
       window.removeEventListener("add-output-panel", onOutput);
+      window.removeEventListener("add-run-panel", onRunDebug);
       window.removeEventListener("add-git-panel", onGit);
       window.removeEventListener("add-ai-panel", onAI);
       window.removeEventListener("add-android-panel", onAndroid);
@@ -901,6 +931,21 @@ const App = () => {
       window.dispatchEvent(new CustomEvent("add-android-panel"));
     });
     return unsub;
+  }, []);
+  // ── Native Run menu (title bar ke neeche) → Run panel actions ───────────
+  useEffect(() => {
+    const unsubs = [];
+    unsubs.push(window.electronAPI.onMenuEvent("menu:runAuto", () => {
+      try { window.__pendingAutoRun = { auto: true }; } catch {}
+      window.dispatchEvent(new CustomEvent("add-run-panel"));
+    }));
+    unsubs.push(window.electronAPI.onMenuEvent("menu:runStop", () => {
+      window.dispatchEvent(new CustomEvent("run:stopCurrent"));
+    }));
+    unsubs.push(window.electronAPI.onMenuEvent("menu:openRunPanel", () => {
+      window.dispatchEvent(new CustomEvent("add-run-panel"));
+    }));
+    return () => unsubs.forEach((u) => { try { u(); } catch {} });
   }, []);
   // ── Split Editor Right — clone the active editor tab to the right ────────
   // Both tabs share the same file:// Monaco model, so edits sync live.
@@ -1519,11 +1564,22 @@ const App = () => {
       onRenderTabSet={(node, renderValues) => {
         renderValues.buttons.push(
           <button key="add" className="flexlayout__tab_toolbar_button"
-            onClick={async () => {
+            onClick={() => {
+              // Left-click: seedha Blank panel — menu nahi.
               const m = modelRef.current;
               if (!m) return;
-              // New Panel menu (Browser / Terminal / Output / AI / Emulator).
-              // Dismiss ho to purana behavior: Blank tab.
+              try {
+                m.doAction(Actions.addNode({
+                  type: "tab", component: "blank", name: "New Panel", enableClose: true,
+                }, node.getId(), DockLocation.CENTER, -1, true));
+              } catch {}
+            }}
+            onContextMenu={async (e) => {
+              // Right-click: New Panel context menu (Browser / Terminal / Output / AI / Emulator).
+              e.preventDefault();
+              e.stopPropagation();
+              const m = modelRef.current;
+              if (!m) return;
               const blank = () => {
                 try {
                   m.doAction(Actions.addNode({
@@ -1538,10 +1594,12 @@ const App = () => {
                 if (action === "browser") window.dispatchEvent(new CustomEvent("add-browser-panel"));
                 else if (action === "terminal") window.dispatchEvent(new CustomEvent("add-terminal-panel"));
                 else if (action === "output") window.dispatchEvent(new CustomEvent("add-output-panel"));
+                else if (action === "runDebug") window.dispatchEvent(new CustomEvent("add-run-panel"));
                 else if (action === "ai") window.dispatchEvent(new CustomEvent("add-ai-panel"));
                 else if (action === "android") window.dispatchEvent(new CustomEvent("add-android-panel"));
+                else if (!action) { /* menu dismiss — kuch mat karo */ }
                 else blank();
-              } catch { blank(); }
+              } catch {}
             }}
             title="Add Panel"
           >

@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
    readFileAsDataUrl: (filePath) => ipcRenderer.invoke("fs:readFileAsDataUrl", filePath),
   bundleComponent: (source, filePath, projectRoot) => ipcRenderer.invoke("component:bundle", { source, filePath, projectRoot }),
   copyImageToClipboard: (filePath) => ipcRenderer.invoke("media:copyImage", filePath),
+  saveImage: (filePath, dataUrl) => ipcRenderer.invoke("media:saveImage", { filePath, dataUrl }),
+  saveImageAs: (filePath, dataUrl, defaultName) => ipcRenderer.invoke("media:saveImageAs", { filePath, dataUrl, defaultName }),
   onOpenFileInEditor: (callback) => {
     const handler = (_e, payload) => callback(payload);
     ipcRenderer.on("editor:openFile", handler);
@@ -76,6 +78,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showBrowserTabContextMenu: ()            => ipcRenderer.invoke("browser:tabContextMenu"),
   showBrowserWebviewContextMenu: (params) => ipcRenderer.invoke("browser:webviewContextMenu", params),
 
+  // ── Run & Debug v1: Run engine ─────────────────────────────────────────
+  runStart: (payload) => ipcRenderer.invoke("run:start", payload),
+  runWrite: (runId, data) => ipcRenderer.invoke("run:write", { runId, data }),
+  runStop:  (runId) => ipcRenderer.invoke("run:stop", { runId }),
+  runProbes: () => ipcRenderer.invoke("run:probes"),
+  onRunData: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("run:data", handler);
+    return () => ipcRenderer.removeListener("run:data", handler);
+  },
+  onRunExit: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("run:exit", handler);
+    return () => ipcRenderer.removeListener("run:exit", handler);
+  },
   // ── Output panel log bus (main → renderer) ─────────────────────────────
   // payload: { channel, message, level }. Renderer buffers + renders.
   onOutputLog: (callback) => {
@@ -108,7 +125,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:fullscreen",
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
       "menu:clearTerminal","menu:killTerminal",
-      "menu:openPorts","menu:openGit","menu:openAI","menu:openAndroid"
+      "menu:openPorts","menu:openGit","menu:openAI","menu:openAndroid",
+      "menu:runAuto","menu:runStop","menu:openRunPanel"
     ];
     if (!valid.includes(channel)) return () => {};
     const handler = (_e, payload) => callback(payload);

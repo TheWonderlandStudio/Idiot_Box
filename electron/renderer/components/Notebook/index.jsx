@@ -159,12 +159,13 @@ const awaitEditorReady = (timeoutMs) =>
     const p = window.__ibxEditorReady;
     const timer = setTimeout(() => reject(new Error("editor init timeout")), timeoutMs || 20000);
     const done = () => { clearTimeout(timer); resolve(true); };
+    const fail = (err) => { clearTimeout(timer); reject(err); };
     if (p && typeof p.then === "function") {
-      p.then(done, () => { clearTimeout(timer); reject(new Error("editor init failed")); });
-    } else {
-      // Editor module not evaluated yet — wait for its ready broadcast.
-      window.addEventListener("monaco:ready", done, { once: true });
+      p.then(done, () => fail(new Error("editor init failed")));
+      return;
     }
+    // Editor module not evaluated yet — wait for its ready broadcast.
+    window.addEventListener("monaco:ready", done, { once: true });
   });
 
 const nbWithMonoFallback = (f) => {

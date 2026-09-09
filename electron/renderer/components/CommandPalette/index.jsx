@@ -17,6 +17,7 @@ const COMMANDS = [
   { id: "add-canvas",     title: "Add Canvas Panel",       run: () => window.dispatchEvent(new CustomEvent("add-canvas-panel")) },
   { id: "add-ports",      title: "Add Ports Panel",        run: () => window.dispatchEvent(new CustomEvent("add-ports-panel")) },
   { id: "add-output",     title: "View: Show Output Panel", run: () => window.dispatchEvent(new CustomEvent("add-output-panel")) },
+  { id: "add-run",        title: "View: Show Run & Debug", run: () => window.dispatchEvent(new CustomEvent("add-run-panel")) },
   { id: "add-android",    title: "Open Android Emulator",  run: () => window.dispatchEvent(new CustomEvent("add-android-panel")) },
   { id: "add-git",        title: "Add Git Panel",          run: () => window.dispatchEvent(new CustomEvent("add-git-panel")) },
   { id: "add-ai",         title: "Open AI Panel",          run: () => window.dispatchEvent(new CustomEvent("add-ai-panel")) },
