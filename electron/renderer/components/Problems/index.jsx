@@ -1,52 +1,86 @@
-// Problems Panel — shows Monaco diagnostics (errors/warnings)
+// Problems Panel - VS Code diagnostics via monaco-vscode-api IMarkerService.
+// (window.monaco kabhi set nahi hota — Editor sirf monaco:ready dispatch karta
+// hai — isliye markers seedha service se padhte hain. Severity numbers monaco
+// jaisi hi hain: 8=Error, 4=Warning, 2=Info, 1=Hint.)
 import React, { useEffect, useState } from "react";
+import { getService, IMarkerService } from "@codingame/monaco-vscode-api";
+
+const toPlainMarker = (m) => {
+  let path = "", fsPath = "";
+  try {
+    const r = m?.resource;
+    if (typeof r === "string") { path = r; }
+    else if (r) { path = r.path || ""; fsPath = r.fsPath || ""; }
+  } catch {}
+  let code = "";
+  try { code = (m?.code && typeof m.code === "object") ? String(m.code.value ?? "") : String(m?.code ?? ""); } catch {}
+  return {
+    message: String(m?.message || ""),
+    severity: Number(m?.severity || 0),
+    source: m?.source ? String(m.source) : "",
+    code,
+    path,
+    fsPath,
+    startLineNumber: m?.startLineNumber || 1,
+    startColumn: m?.startColumn || 1,
+    endLineNumber: m?.endLineNumber || 1,
+    endColumn: m?.endColumn || 1,
+  };
+};
 
 const ProblemsPanel = () => {
   const [markers, setMarkers] = useState([]);
   const [filter, setFilter] = useState("all"); // all | error | warning
+  const [svcError, setSvcError] = useState(null);
 
   useEffect(() => {
-    let dispose = null;
+    let dead = false;
+    let disp = null;
     let interval = null;
 
-    const pollMarkers = () => {
+    const pollMarkers = async () => {
       try {
-        // Try to get monaco from global
-        const monaco = window.monaco;
-        if (!monaco || !monaco.editor) return;
-        const all = monaco.editor.getModelMarkers({});
+        // getService init ka wait khud karta hai — kabhi bhi call karo.
+        const svc = await getService(IMarkerService);
+        if (dead || !svc) return;
+        let all = [];
+        try { all = svc.read() || []; } catch (e) { if (!dead) setSvcError(e?.message || String(e)); return; }
+        if (dead) return;
+        setSvcError(null);
         // Deduplicate and sort by severity then file
-        const sorted = [...all].sort((a, b) => {
-          if (a.severity !== b.severity) return b.severity - a.severity;
-          return (a.resource?.path || "").localeCompare(b.resource?.path || "");
-        });
+        const seen = new Set();
+        const sorted = [...all]
+          .map(toPlainMarker)
+          .filter((m) => {
+            const k = `${m.path}:${m.startLineNumber}:${m.startColumn}:${m.message}`;
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          })
+          .sort((a, b) => {
+            if (a.severity !== b.severity) return b.severity - a.severity;
+            return (a.path || "").localeCompare(b.path || "");
+          });
         setMarkers(sorted);
-      } catch {}
-    };
-
-    const subscribe = () => {
-      try { dispose?.dispose?.(); } catch {}
-      dispose = null;
-      try {
-        const monaco = window.monaco;
-        if (monaco && monaco.editor && monaco.editor.onDidChangeMarkers) {
-          dispose = monaco.editor.onDidChangeMarkers(() => { if (!document.hidden) pollMarkers(); });
+        // Subscribe once — aage markers badalne par event aayega
+        if (!disp) {
+          try { disp = svc.onMarkerChanged(() => { if (!document.hidden) pollMarkers(); }); } catch {}
         }
       } catch {}
     };
 
-    // lightweight: event-driven, fallback poll only when visible
     pollMarkers();
-    subscribe();
-    interval = setInterval(() => { if (!document.hidden) pollMarkers(); }, 5000);
-    // Editor exposes window.monaco asynchronously — (re)subscribe when ready.
-    const onMonacoReady = () => { pollMarkers(); subscribe(); };
+    // Editor ready / TS worker late init ho tab dobara
+    const onMonacoReady = () => { pollMarkers(); };
     window.addEventListener("monaco:ready", onMonacoReady);
+    // Fallback poll — sirf visible tab me
+    interval = setInterval(() => { if (!document.hidden) pollMarkers(); }, 5000);
 
     return () => {
+      dead = true;
       if (interval) clearInterval(interval);
-      try { dispose?.dispose?.(); } catch {}
       window.removeEventListener("monaco:ready", onMonacoReady);
+      try { disp?.dispose?.(); } catch {}
     };
   }, []);
 
@@ -58,18 +92,15 @@ const ProblemsPanel = () => {
 
   const openMarker = (m) => {
     try {
-      const path = m.resource?.path || m.resource?.fsPath;
+      const raw = m.fsPath || m.path || "";
       // Convert vscode URI path to file path
-      let filePath = path;
+      let filePath = raw;
       if (filePath && filePath.startsWith("/")) {
         // On Windows, path may be like /C:/Users/...
         if (/^\/[A-Za-z]:\//.test(filePath)) filePath = filePath.slice(1);
       }
       // Try to dispatch open
       if (filePath) {
-        // Find the original file path from marker (may need to map)
-        const rel = filePath.replace(/\\/g, "/");
-        // Try to find matching file in project
         window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: filePath } }));
         // Also try to reveal line
         setTimeout(() => {
@@ -121,15 +152,18 @@ const ProblemsPanel = () => {
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-4)" }}>
-        {filtered.length === 0 && (
+        {svcError && (
+          <div style={{ padding: "var(--space-8)", color: "var(--danger)", fontSize: "var(--fs-small)" }}>Diagnostics error: {svcError}</div>
+        )}
+        {filtered.length === 0 && !svcError && (
           <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
             {markers.length === 0 ? "No problems — all good" : `No ${filter} problems`}
-            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>Diagnostics from Monaco (TS/JS) will appear here</div>
+            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>Diagnostics from the editor (TS/JS) appear here</div>
           </div>
         )}
         {filtered.map((m, i) => (
           <div
-            key={`${m.resource?.path}:${m.startLineNumber}:${m.startColumn}:${i}`}
+            key={`${m.path}:${m.startLineNumber}:${m.startColumn}:${i}`}
             onClick={() => openMarker(m)}
             style={{
               display: "flex", gap: "var(--space-8)", padding: "var(--space-6) var(--space-8)", cursor: "pointer",
@@ -142,7 +176,7 @@ const ProblemsPanel = () => {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: "var(--fs-body)", color: "var(--text-bright)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.message}</div>
               <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)", display: "flex", gap: "var(--space-8)" }}>
-                <span style={{ fontFamily: "var(--font-code)" }}>{m.resource?.path?.split("/").pop() || "unknown"}:{m.startLineNumber}:{m.startColumn}</span>
+                <span style={{ fontFamily: "var(--font-code)" }}>{(m.path || "unknown").split("/").pop()}:{m.startLineNumber}:{m.startColumn}</span>
                 <span style={{ color: "var(--text-placeholder)" }}>{m.source || ""}</span>
               </div>
             </div>

@@ -1021,6 +1021,25 @@ function gitExec(args, cwd, timeout = 4000) {
     });
   });
 }
+// gitExec wrapper jo Output panel ke Git channel me command + outcome log karta
+// hai. Sirf mutating handlers (commit/push/pull/...) isko use karte hain —
+// polled reads (status/diff/log) silent rehte hain taaki spam na ho.
+function gitRunLogged(rootPath, args, timeout = 6000) {
+  const short = (s) => String(s || "").trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  const cmd = "$ git " + args.map((a) => (/[\s"]/.test(a) ? `"${a}"` : a)).join(" ");
+  try { logOutput("Git", `${cmd} — ${String(rootPath || "").split(/[\\/]/).pop() || rootPath}`); } catch {}
+  return gitExec(args, rootPath, timeout).then(
+    (out) => {
+      const lines = short(out);
+      try { logOutput("Git", lines.length ? lines.slice(-3).join(" | ").slice(0, 300) : "ok"); } catch {}
+      return out;
+    },
+    (e) => {
+      try { logOutput("Git", `FAILED ${cmd}: ${humanGitError(e.stderr?.toString() || e.message || String(e))}`, "error"); } catch {}
+      throw e;
+    }
+  );
+}
 function humanGitError(raw) {
   const s = String(raw || "").toLowerCase();
   if (!s) return "Git operation failed";
@@ -1373,27 +1392,27 @@ ipcMain.handle("git:commit", async (_e, rootPath, message, opts) => {
   if (!rootPath || !message?.trim()) return { ok: false, error: "Empty message" };
   const amend = opts && opts.amend;
   try {
-    if (amend) await gitExec(["commit", "--amend", "-m", message.trim()], rootPath, 6000);
-    else await gitExec(["commit", "-m", message.trim()], rootPath, 6000);
+    if (amend) await gitRunLogged(rootPath, ["commit", "--amend", "-m", message.trim()], 6000);
+    else await gitRunLogged(rootPath, ["commit", "-m", message.trim()], 6000);
     gitCacheInvalidate(rootPath); return { ok: true };
   } catch (e) { return { ok: false, error: humanGitError(e.stderr?.toString() || e.message || String(e)) }; }
 });
 ipcMain.handle("git:commitAmend", async (_e, rootPath, message) => {
   if (!rootPath || !message?.trim()) return { ok: false, error: "Empty message" };
-  try { await gitExec(["commit", "--amend", "-m", message.trim()], rootPath, 6000); gitCacheInvalidate(rootPath); return { ok: true }; }
+  try { await gitRunLogged(rootPath, ["commit", "--amend", "-m", message.trim()], 6000); gitCacheInvalidate(rootPath); return { ok: true }; }
   catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 ipcMain.handle("git:push", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { const out = await gitExec(["push"], rootPath, 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+  try { const out = await gitRunLogged(rootPath, ["push"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 ipcMain.handle("git:pull", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { const out = await gitExec(["pull"], rootPath, 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+  try { const out = await gitRunLogged(rootPath, ["pull"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 ipcMain.handle("git:fetch", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
-  try { const out = await gitExec(["fetch"], rootPath, 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+  try { const out = await gitRunLogged(rootPath, ["fetch"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 
 // ─── Project config (tabs state + pin config) — stored in appData/projects/ ───
@@ -2347,26 +2366,6 @@ ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionTe
   });
 });
 
-// ── Browser guest user-agent — responsive/mobile preview ────────────────────
-// Renderer (Browser panel) switches UA per viewport preset so sites serve
-// their mobile layout instead of desktop + horizontal scrollbar.
-ipcMain.handle("browser:getGuestUA", (_event, wcId) => {
-  try {
-    const wc = require("electron").webContents.fromId(Number(wcId));
-    return wc ? wc.getUserAgent() : null;
-  } catch { return null; }
-});
-ipcMain.handle("browser:setGuestUA", (_event, { wcId, ua }) => {
-  try {
-    const wc = require("electron").webContents.fromId(Number(wcId));
-    // NOTE: hamesha explicit UA string aata hai — default restore ke liye
-    // renderer pehle getGuestUA se original capture karke wahi wapas bhejta hai.
-    if (!wc || typeof ua !== "string" || !ua.length || ua.length > 500) return false;
-    wc.setUserAgent(ua);
-    return true;
-  } catch { return false; }
-});
-
 // ─── Browser tab context menu ─────────────────────────────────────────────────
 ipcMain.handle("browser:tabContextMenu", (event) => {
   return new Promise((resolve) => {
@@ -3141,6 +3140,7 @@ ipcMain.handle("panel:addMenu", async (event) => {
     const items = [
       { label: "Browser", click: () => act("browser") },
       { label: "Terminal", click: () => act("terminal") },
+      { label: "Output Panel", click: () => act("output") },
       { label: "AI Panel", click: () => act("ai") },
       { label: "Android Emulator", click: () => act("android") },
     ];
@@ -3209,6 +3209,7 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
   if (liveServers.has(lsRoot)) {
     const { port } = liveServers.get(lsRoot);
     const rel = path.relative(lsRoot, lsFile).replace(/\\/g, "/");
+    try { logOutput("Live Server", `Reusing :${port} for ${String(lsRoot).split(/[\\/]/).pop()} → http://127.0.0.1:${port}/${rel}`); } catch {}
     return { url: `http://127.0.0.1:${port}/${rel}`, port };
   }
 
@@ -3325,6 +3326,7 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
   });
 
   const rel = path.relative(lsRoot, lsFile).replace(/\\/g, "/");
+  try { logOutput("Live Server", `Serving ${lsRoot} → http://127.0.0.1:${port}/${rel} (live reload on)`); } catch {}
   return { url: `http://127.0.0.1:${port}/${rel}`, port };
 });
 
@@ -3354,6 +3356,21 @@ function broadcastUpdater(channel, data) {
     try { if (!w.isDestroyed()) w.webContents.send(channel, data); } catch {}
   }
 }
+// ── Output panel log bus (main → renderer Output panel) ───────────────────
+// channel: App | Git | Updater | Live Server. Level: info | warn | error.
+function logOutput(channel, message, level = "info") {
+  try {
+    const payload = {
+      channel: String(channel || "App"),
+      message: String(message ?? ""),
+      level: level === "warn" || level === "error" ? level : "info",
+      ts: Date.now(),
+    };
+    for (const w of BrowserWindow.getAllWindows()) {
+      try { if (!w.isDestroyed()) w.webContents.send("output:log", payload); } catch {}
+    }
+  } catch {}
+}
 function setUpdaterState(s, data) {
   _updaterState = s;
   // also broadcast a generic state event if needed
@@ -3370,6 +3387,7 @@ async function checkForUpdatesViaGitHub(win) {
     _downloadProgress = null;
     broadcastUpdater("updater:checking", { version: current });
     console.log(`[updater] cycle: checking current=${current}`);
+    logOutput("Updater", `Checking for updates… (current v${current})`);
     // Use GitHub API directly — works in dev and packaged, no need for app-update.yml
     const res = await fetch("https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest", {
       headers: { "User-Agent": "IdiotBox-Updater", "Accept": "application/vnd.github.v3+json" },
@@ -3392,6 +3410,7 @@ async function checkForUpdatesViaGitHub(win) {
       _latestUpdateInfo = info;
       setUpdaterState("available");
       console.log("[updater] cycle: available", latestVersion);
+      logOutput("Updater", `Update available: v${latestVersion} (current v${current})`);
       broadcastUpdater("updater:available", info);
       // Prime autoUpdater so subsequent downloadUpdate() knows what to fetch (only when packaged)
       if (app.isPackaged && autoUpdater) {
@@ -3401,11 +3420,13 @@ async function checkForUpdatesViaGitHub(win) {
     } else {
       console.log("[updater] cycle: not-available");
       setUpdaterState("idle");
+      logOutput("Updater", `Up to date (v${current})`);
       broadcastUpdater("updater:not-available", { version: current });
       return null;
     }
   } catch (e) {
     console.warn("[updater] GitHub check failed:", e.message);
+    logOutput("Updater", `Check failed: ${e.message}`, "error");
     // Fallback to electron-updater's built-in check (needs latest.yml, only works when packaged)
     if (autoUpdater && app.isPackaged) {
       try {
@@ -3454,6 +3475,9 @@ function setupAutoUpdater(win) {
 
     autoUpdater.on("checking-for-update", () => {
       console.log("[updater] cycle: checking-for-update (autoUpdater)");
+      // GitHub check pehle available dhoondh chuka ho to use mat hatao —
+      // warna banner "Checking..." par atak jata hai (prime check race).
+      if (_updaterState === "available" || _updaterState === "downloading" || _updaterState === "downloaded") return;
       setUpdaterState("checking");
       broadcastUpdater("updater:checking", { version: app.getVersion() });
     });
@@ -3472,6 +3496,9 @@ function setupAutoUpdater(win) {
     });
     autoUpdater.on("error", (err) => {
       console.error("[updater] cycle: error", err?.message || err);
+      // Available/download progress ko error se mat clobber karo (feed me
+      // latest.yml na ho to ye aksar fail hota hai — GitHub path primary hai).
+      if (_updaterState === "available" || _updaterState === "downloading" || _updaterState === "downloaded") return;
       _isDownloading = false;
       _downloadProgress = null;
       setUpdaterState("error");
@@ -3489,6 +3516,7 @@ function setupAutoUpdater(win) {
     });
     autoUpdater.on("update-downloaded", (info) => {
       console.log("[updater] cycle: downloaded", info?.version);
+      logOutput("Updater", `Downloaded v${info?.version || ""} — restart to install`);
       _isDownloading = false;
       _downloadProgress = null;
       _latestUpdateInfo = info || _latestUpdateInfo;
@@ -3565,7 +3593,15 @@ ipcMain.handle("updater:getVersion", async () => {
   try { return { version: app.getVersion(), state: _updaterState, info: _latestUpdateInfo }; } catch (e) { return { error: e.message }; }
 });
 ipcMain.handle("updater:getState", async () => {
-  return { state: _updaterState, info: _latestUpdateInfo, progress: _downloadProgress, version: app.getVersion() };
+  const out = { state: _updaterState, info: _latestUpdateInfo, progress: _downloadProgress, version: app.getVersion() };
+  // Missed-broadcast safety: subscriber abhi juda hai — terminal state dobara
+  // bhejo taaki startup race me banner kabhi na chhoote.
+  try {
+    if (_updaterState === "available" && _latestUpdateInfo) broadcastUpdater("updater:available", _latestUpdateInfo);
+    else if (_updaterState === "downloaded") broadcastUpdater("updater:downloaded", _latestUpdateInfo);
+    else if (_updaterState === "downloading" && _downloadProgress) broadcastUpdater("updater:progress", _downloadProgress);
+  } catch {}
+  return out;
 });
 
 // ─── Port Manager — detect listening ports & manage forwarding ────────────────

@@ -44,21 +44,6 @@ export default function UpdaterBanner() {
   const autoInstallRef = React.useRef(false);
   const [manualModal, setManualModal] = useState(null); // null | "available" | "not-available"
 
-  useEffect(() => {
-    window.electronAPI?.updaterGetVersion?.().then((r) => {
-      if (r?.version) setCurrentVersion(r.version);
-    }).catch(() => {});
-    // Restore proper cycle state after reload (e.g., if download was in progress)
-    window.electronAPI?.updaterGetState?.().then((s) => {
-      if (!s || !s.state) return;
-      if (s.state !== "idle") {
-        setState(s.state);
-        if (s.info) setInfo(s.info);
-        if (s.progress) setProgress(s.progress);
-      }
-    }).catch(() => {});
-  }, []);
-
   const isManualRef = React.useRef(false);
   useEffect(() => {
     const unsubs = [];
@@ -102,6 +87,19 @@ export default function UpdaterBanner() {
       if (s.progress) setProgress(s.progress);
       if (s.state === "error" && s.error) setError(s.error);
     }));
+    // Restore AFTER subscribing — beech me aaya event miss na ho (startup race).
+    // (e.g., download chal raha tha, ya check pehle complete ho chuka tha)
+    window.electronAPI?.updaterGetVersion?.().then((r) => {
+      if (r?.version) setCurrentVersion(r.version);
+    }).catch(() => {});
+    window.electronAPI?.updaterGetState?.().then((s) => {
+      if (!s || !s.state) return;
+      if (s.state !== "idle") {
+        setState(s.state);
+        if (s.info) setInfo(s.info);
+        if (s.progress) setProgress(s.progress);
+      }
+    }).catch(() => {});
     return () => unsubs.forEach((u) => { try { u(); } catch {} });
   }, []);
 

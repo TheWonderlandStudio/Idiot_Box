@@ -1,43 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
-import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle, Smartphone, RotateCw, Maximize2, X } from "lucide-react";
-import "./browser-device.css";
+import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
 const LOCK_ICON   = "M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4zm-2 6V5a2 2 0 1 1 4 0v2H6z";
 const UNLOCK_ICON = "M8 1a4 4 0 0 1 4 4v1h-1V5a3 3 0 0 0-5.7-1.37l-.78-.62A4 4 0 0 1 8 1zm-5.65.09l12 14-.7.6L1.65 1.7zM6 7.49l-1.82.01a1 1 0 0 0-.18 0v3.85L2.35 9.7l-.7.6L4 13.2V14a1 1 0 0 0 1 1h6.15l-1-1H5v-4.5l1.85.01zm4.56-.57A1 1 0 0 1 12 7.5V8h1a1 1 0 0 1 1 1v3.15l-1-1V9h-1.44z";
 const LOCAL_ICON  = "M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 12.93A6 6 0 0 1 2 8c0-.33.03-.66.07-1H4v1h2v1H5v1h1v2l1 1zm5.1-3.83A4.9 4.9 0 0 0 13 8c0-2.5-1.83-4.55-4.2-4.96L9 4v1H7V4h-.44l3.55 5.1zm-9.4.14A5 5 0 0 1 2 8c0 1.72.87 3.23 2.2 4.14l.83-1.04z";
-
-// ── Responsive sizes (CSS px — webview ko EXACT yehi w/h milta hai) ─────────
-// webview resizing == real responsive preview (media queries respond).
-// Koi device mockup/frame nahi — sirf page-size control. Pages jinke paas
-// <meta viewport> nahi hai unme width=device-width auto-inject hota hai
-// (injectViewportMeta) taaki desktop-width render + h-scroll na aaye.
-// UA spoofing / touch emulation nahi hai — future scope.
-const DEVICE_PRESETS = [
-  { id: "iphone-14-pro", label: "iPhone 14 Pro", w: 393,  h: 852 },
-  { id: "iphone-se",     label: "iPhone SE",     w: 375,  h: 667 },
-  { id: "pixel-7",       label: "Pixel 7",       w: 412,  h: 915 },
-  { id: "ipad-air",      label: "iPad Air",      w: 820,  h: 1180 },
-  { id: "ipad-pro-11",   label: "iPad Pro 11",   w: 834,  h: 1194 },
-  { id: "desktop-hd",    label: "Desktop HD",    w: 1440, h: 900 },
-];
-const DEVICE_MIN = { w: 240, h: 320 };
-
-// ── Guest user-agents — preset ke hisaab se sites MOBILE layout serve karein
-// (desktop UA par Google jaise pages desktop-width render karke h-scroll dete hain)
-const GUEST_UAS = {
-  iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
-  android: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
-  ipad: "Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
-};
-// presetId -> UA family (desktop/custom = default desktop UA)
-const presetUA = (id) => {
-  if (id === "pixel-7") return "android";
-  if (id === "ipad-air" || id === "ipad-pro-11") return "ipad";
-  if (id === "iphone-14-pro" || id === "iphone-se") return "iphone";
-  return null;
-};
 
 // ── BrowserPanel ───────────────────────────────────────────────────────────────
 const WEBVIEW_PRELOAD = typeof window !== "undefined" && window.electronAPI?.getWebviewPreload
@@ -62,112 +30,7 @@ const BrowserPanel = (props) => {
   const [toast,        setToast]        = useState(null);
   const [hasProject,   setHasProject]   = useState(() => { try { return !!window.__currentProjectPath; } catch { return false; } });
 
-  // ── Responsive viewport size (custom — no extra deps) ───────────────────
-  const [deviceOn,  setDeviceOn]  = useState(false);
-  const [presetId,  setPresetId]  = useState(DEVICE_PRESETS[0].id);
-  const [devSize,   setDevSize]   = useState({ w: DEVICE_PRESETS[0].w, h: DEVICE_PRESETS[0].h });
-  const [fitOn,     setFitOn]     = useState(true);
-  const [railHidden, setRailHidden] = useState(false);
-  const [presetOpen, setPresetOpen] = useState(false);
-  const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
-  const stageRef = useRef(null);
-  const scaleRef = useRef(1);
-  const deviceOnRef = useRef(false);
-  // guest UA bridge (ref-indirection taaki hook order/TDZ issue na ho —
-  // asli impl showToast ke baad define hoti hai, calls hamesha post-render)
-  const guestUARef = useRef({ key: null, def: null });
-  const requestGuestUARef = useRef(null);
-  useEffect(() => { deviceOnRef.current = deviceOn; }, [deviceOn]);
-
-  // Responsive mode: pages WITHOUT <meta name="viewport"> render desktop-width
-  // inside a narrow view → horizontal scrollbar. Inject width=device-width when
-  // missing (sirf responsive mode me; normal browsing untouched rehta hai).
-  const injectViewportMeta = useCallback(async () => {
-    try {
-      await webviewRef.current?.executeJavaScript(`(() => {
-        try {
-          if (document.querySelector('meta[name="viewport"]')) return 'exists';
-          const m = document.createElement('meta');
-          m.name = 'viewport';
-          m.content = 'width=device-width, initial-scale=1';
-          (document.head || document.documentElement).appendChild(m);
-          return 'injected';
-        } catch (e) { return 'error'; }
-      })()`);
-    } catch {}
-  }, []);
-
-  // Stage measure → fit-to-panel scale (page viewport stays full device px)
-  useEffect(() => {
-    const el = stageRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      const r = entries[0]?.contentRect;
-      if (r) setStageSize({ w: Math.round(r.width), h: Math.round(r.height) });
-    });
-    ro.observe(el);
-    return () => { try { ro.disconnect(); } catch {} };
-  }, [deviceOn]);
-
-  const devScale = (() => {
-    if (!deviceOn || !fitOn || !stageSize.w || !stageSize.h) return 1;
-    const s = Math.min(1, (stageSize.w - 28) / devSize.w, (stageSize.h - 28) / devSize.h);
-    return Number.isFinite(s) && s > 0 ? s : 1;
-  })();
-  scaleRef.current = devScale;
-
-  const activePreset = DEVICE_PRESETS.find((p) => p.id === presetId) || null;
-
-  const applyPreset = useCallback((id) => {
-    const p = DEVICE_PRESETS.find((x) => x.id === id);
-    if (!p) return;
-    setPresetId(p.id);
-    setDevSize({ w: p.w, h: p.h });
-    setDeviceOn(true);
-    setPresetOpen(false);
-    // Already-loaded page par turant viewport fix lagao (dom-ready dobara nahi aayega)
-    setTimeout(() => injectViewportMeta(), 80);
-    // Mobile UA → site mobile layout serve kare (warna desktop + h-scroll)
-    try { requestGuestUARef.current?.(presetUA(id)); } catch {}
-  }, [injectViewportMeta]);
-
-  const handleRotate = useCallback(() => {
-    setDevSize((s) => ({ w: s.h, h: s.w }));
-    setPresetId("custom");
-  }, []);
-
-  // Free resize via corner handle (deltas ÷ scale, kyunki stage scaled hai)
-  const startDevResize = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const sx = e.clientX, sy = e.clientY;
-    let sw = 0, sh = 0;
-    setDevSize((s) => { sw = s.w; sh = s.h; return s; });
-    const k = scaleRef.current || 1;
-    let lastW = sw, lastH = sh;
-    const move = (ev) => {
-      const st = stageRef.current?.getBoundingClientRect();
-      const maxW = Math.max(DEVICE_MIN.w, Math.round((st?.width || 1400) - 20));
-      const maxH = Math.max(DEVICE_MIN.h, Math.round((st?.height || 900) - 20));
-      const nw = Math.round(Math.min(Math.max(sw + (ev.clientX - sx) / k, DEVICE_MIN.w), maxW));
-      const nh = Math.round(Math.min(Math.max(sh + (ev.clientY - sy) / k, DEVICE_MIN.h), maxH));
-      lastW = nw; lastH = nh;
-      setDevSize({ w: nw, h: nh });
-      setPresetId("custom");
-    };
-    const up = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-      // Drag-end par UA sync: desktop-chaudi (1024+) → desktop UA, warna mobile UA.
-      // (Sirf tab switch ho to reload — requestGuestUA andar guard karta hai.)
-      try {
-        if (lastW >= 1024) requestGuestUARef.current?.(null);
-        else if (lastW < 768) requestGuestUARef.current?.("iphone");
-      } catch {}
-    };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-  }, []);
+  const viewWrapRef = useRef(null);
   const editModeRef  = useRef(false);
   const toastTimerRef = useRef(null);
 
@@ -181,6 +44,30 @@ const BrowserPanel = (props) => {
   const actionListRef = useRef(null);
   const inputRef     = useRef(null);
 
+  // ── Page zoom (Ctrl+Scroll / Ctrl+Plus/Minus/0 — webview content zoom) ───
+  // Actual page content zoom hai (webview.setZoomFactor). 25%–300%, step 10%.
+  const [zoomFactor, setZoomFactor] = useState(1);
+  const zoomRef = useRef(1);
+  const bumpZoomRef = useRef(null);
+  const ZOOM_MIN = 0.25;
+  const ZOOM_MAX = 3;
+  const setZoomExact = useCallback((next) => {
+    const wv = webviewRef.current;
+    let n = Number(next);
+    if (!Number.isFinite(n)) return zoomRef.current;
+    n = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(n * 100) / 100));
+    zoomRef.current = n;
+    setZoomFactor(n);
+    try { wv?.setZoomFactor?.(n); } catch {}
+    return n;
+  }, []);
+  const bumpZoom = useCallback((dir) => {
+    const cur = Number.isFinite(zoomRef.current) ? zoomRef.current : 1;
+    const next = dir === "in" ? cur + 0.1 : cur - 0.1;
+    return setZoomExact(next);
+  }, [setZoomExact]);
+  bumpZoomRef.current = bumpZoom;
+
   const syncActionTab = useCallback(() => {
     try {
       const id = webviewRef.current?.getWebContentsId();
@@ -193,6 +80,26 @@ const BrowserPanel = (props) => {
   // Keep nodeIdRef current (nodeId itself doesn't change but keep defensive)
   useEffect(() => { nodeIdRef.current = nodeId; }, [nodeId]);
   useEffect(() => { editModeRef.current = editMode; }, [editMode]);
+
+  // ── Host Ctrl+Wheel zoom (view-wrap fallback) ─────────────────────────────
+  // Page ke ANDAR ka Ctrl+Wheel guest script pakadta hai (INJECT_SCRIPT →
+  // "__IBX_ZOOM__" title marker). Ye host listener wrap par wheel ko pakadta
+  // hai. passive:false zaroori hai taaki preventDefault kaam kare.
+  useEffect(() => {
+    const el = viewWrapRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      try {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const dir = e.deltaY < 0 ? "in" : "out";
+        try { bumpZoomRef.current?.(dir); } catch {}
+      } catch {}
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => { try { el.removeEventListener("wheel", onWheel); } catch {} };
+  }, []);
 
   // Track project open/close so banner can show VISUAL ONLY when unsavable
   useEffect(() => {
@@ -211,29 +118,6 @@ const BrowserPanel = (props) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(()=> setToast(null), 2800);
   }, []);
-
-  // ── Guest UA switch — UA sirf (re)load par lagta hai, isliye switch+reload ─
-  const requestGuestUA = useCallback(async (uaKey) => {
-    const wv = webviewRef.current;
-    if (!wv || !window.electronAPI?.setGuestUserAgent) return;
-    try {
-      const id = wv.getWebContentsId?.();
-      if (typeof id !== "number") return;
-      // Original desktop UA ek baar capture karo (restore ke liye)
-      if (!guestUARef.current.def && window.electronAPI?.getGuestUserAgent) {
-        try { guestUARef.current.def = await window.electronAPI.getGuestUserAgent(id); } catch {}
-      }
-      if (guestUARef.current.key === uaKey) return; // already on it — no reload
-      guestUARef.current.key = uaKey;
-      const target = uaKey ? GUEST_UAS[uaKey] : (guestUARef.current.def || navigator.userAgent);
-      const ok = await window.electronAPI.setGuestUserAgent(id, target);
-      if (ok) {
-        try { wv.reload(); } catch {}
-        showToast(uaKey ? "Mobile layout — page reloaded" : "Desktop layout restored — reloaded", uaKey ? "success" : "info");
-      }
-    } catch {}
-  }, [showToast]);
-  requestGuestUARef.current = requestGuestUA;
 
   const revertActiveInGuest = useCallback(async () => {
     try { await webviewRef.current?.executeJavaScript(`(() => { try{ if(window.__ibxRevertActive) return window.__ibxRevertActive(); if(window.__ibxCancelEdit) return window.__ibxCancelEdit(); }catch{} return false; })()`); } catch {}
@@ -356,8 +240,6 @@ const BrowserPanel = (props) => {
 
     wv.addEventListener("did-start-loading",    () => setIsLoading(true));
     wv.addEventListener("did-stop-loading",     () => setIsLoading(false));
-    // Har document load par viewport fix (responsive mode on ho to)
-    wv.addEventListener("dom-ready", () => { if (deviceOnRef.current) injectViewportMeta(); });
     wv.addEventListener("did-fail-load", (e) => {
       setIsLoading(false);
       // -3 = ERR_ABORTED (e.g. localhost dev server not running or navigation cancelled) — ignore silently
@@ -417,10 +299,35 @@ const BrowserPanel = (props) => {
     // The guest page cannot reach us directly, so we relay via a title marker
     // ("__IBX_NAV__b"/"__IBX_NAV__f") caught below in page-title-updated.
     // HTML file drag-and-drop → "__IBX_DROP__<path>" marker → opened via ibx-file://
+    // Ctrl+Wheel zoom → "__IBX_ZOOM__in/out:<ts>" marker → host bumpZoom().
+    // (webview wheel events host tak bubble NAHI hote, isliye guest me hi
+    //  pakadna padta hai. Marker me timestamp taaki har tick par
+    //  page-title-updated fire ho; turant prev title restore taaki page ka
+    //  asli title kharab na ho.)
     const INJECT_SCRIPT = `(() => {
       try {
         var mark = function(b){ try{ document.title="__IBX_NAV__"+b; }catch(e){} };
         try{ window.addEventListener("mouseup", function(e){ try{ if(e.button===3) mark("b"); else if(e.button===4) mark("f"); }catch(e){} }, true); }catch(e){}
+        try{
+          if(!window.__ibxZoomWheelInstalled){
+            window.__ibxZoomWheelInstalled = true;
+            window.__ibxLastZoomMark = 0;
+            window.addEventListener("wheel", function(e){
+              try{
+                if(!(e.ctrlKey || e.metaKey)) return;
+                try{ e.preventDefault(); }catch(err){}
+                try{ if(typeof e.stopPropagation==="function") e.stopPropagation(); }catch(err){}
+                var now = Date.now();
+                if(now - window.__ibxLastZoomMark < 60) return;
+                window.__ibxLastZoomMark = now;
+                var dir = e.deltaY < 0 ? "in" : "out";
+                var prev = document.title;
+                try{ document.title="__IBX_ZOOM__"+dir+":"+now; }catch(err){}
+                setTimeout(function(){ try{ if(String(document.title).indexOf("__IBX_ZOOM__")===0) document.title=prev; }catch(err){} }, 350);
+              }catch(err){}
+            }, {passive:false, capture:true});
+          }
+        }catch(e){}
         try{
           window.addEventListener("dragover", function(e){ try{ e.preventDefault(); }catch(e){} }, true);
           window.addEventListener("drop", function(e){
@@ -686,7 +593,15 @@ const BrowserPanel = (props) => {
           .catch(()=> setTimeout(()=> injectEditHelper(attempt+1), 250));
       } catch { setTimeout(()=> injectEditHelper(attempt+1), 250); }
     };
-    wv.addEventListener("dom-ready", () => { injectGuest(1); injectEditHelper(1); });
+    wv.addEventListener("dom-ready", () => {
+      injectGuest(1); injectEditHelper(1);
+      // Zoom persist rakho — navigation par WebContents zoom na khoye.
+      try { if (Number.isFinite(zoomRef.current) && zoomRef.current !== 1) wv.setZoomFactor(zoomRef.current); } catch {}
+      try {
+        const z = wv.getZoomFactor?.();
+        if (Number.isFinite(z) && z !== zoomRef.current) { zoomRef.current = z; setZoomFactor(z); }
+      } catch {}
+    });
 
     wv.addEventListener("page-title-updated", (e) => {
       const t = e.title || "";
@@ -695,6 +610,16 @@ const BrowserPanel = (props) => {
           const payload = JSON.parse(t.slice("__IBX_EDIT__".length));
           handleLiveEdit(payload);
         } catch {}
+        return;
+      }
+      // Ctrl+Wheel page zoom (guest INJECT_SCRIPT se) — title restore guest
+      // khud karta hai, yahan sirf zoom step lagao, tab title mat badlo.
+      if (t.startsWith("__IBX_ZOOM__in")) {
+        try { bumpZoomRef.current?.("in"); } catch {}
+        return;
+      }
+      if (t.startsWith("__IBX_ZOOM__out")) {
+        try { bumpZoomRef.current?.("out"); } catch {}
         return;
       }
       if (t.startsWith("__IBX_NAV__")) {
@@ -927,7 +852,11 @@ const BrowserPanel = (props) => {
 
   // Stable ref-callback — created ONCE so webview never remounts on re-render
   const webviewRefCb = useCallback((el) => {
-    if (el) { webviewRef.current = el; attachListenersRef.current(el); syncActionTab(); }
+    if (el) {
+      webviewRef.current = el; attachListenersRef.current(el); syncActionTab();
+      // Mount par existing page zoom wapas lagao (remount edge-case)
+      try { if (Number.isFinite(zoomRef.current) && zoomRef.current !== 1) el.setZoomFactor(zoomRef.current); } catch {}
+    }
     else    { attachedRef.current = false; webviewRef.current = null; }
   }, [syncActionTab]);
 
@@ -1010,25 +939,26 @@ const BrowserPanel = (props) => {
         return;
       }
       // Ctrl+0 → reset zoom, Ctrl+Plus/Ctrl+Minus → zoom (webview)
+      // (Ctrl+Scroll zoom guest INJECT_SCRIPT + host wheel listener se hota hai)
       if ((e.ctrlKey || e.metaKey) && (e.key === "0")) {
         e.preventDefault();
-        try { wv.setZoomFactor(1); } catch {}
+        try { bumpZoomRef.current ? setZoomExact(1) : wv.setZoomFactor(1); } catch { try { wv.setZoomFactor(1); } catch {} }
         return;
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+" )) {
         e.preventDefault();
-        try { const z = wv.getZoomFactor(); wv.setZoomFactor(Math.min(z + 0.1, 3)); } catch {}
+        try { bumpZoomRef.current?.("in"); } catch { try { const z = wv.getZoomFactor(); wv.setZoomFactor(Math.min(z + 0.1, 3)); } catch {} }
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "-") {
         e.preventDefault();
-        try { const z = wv.getZoomFactor(); wv.setZoomFactor(Math.max(z - 0.1, 0.2)); } catch {}
+        try { bumpZoomRef.current?.("out"); } catch { try { const z = wv.getZoomFactor(); wv.setZoomFactor(Math.max(z - 0.1, 0.2)); } catch {} }
         return;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isLoading]);
+  }, [isLoading, setZoomExact]);
 
   // ── Lock popup ─────────────────────────────────────────────────────────────
   const handleLockClick = useCallback((e) => {
@@ -1042,9 +972,7 @@ const BrowserPanel = (props) => {
     }
   }, [lockOpen]);
 
-  // ── ⋮ More menu — custom dropdown UI ─────────────────────────────────────
-  // Search bar ke baaju wale options grouped, extensions alag
-  // Outside click / Escape se band karo
+  // ── ⋮ More menu — outside click / Escape se band karo
   useEffect(() => {
     if (!moreOpen) return;
     const onDown = (e) => {
@@ -1177,26 +1105,7 @@ const BrowserPanel = (props) => {
             />
           </div>
 
-          {/* Responsive view toggle — custom page size */}
-          <button
-            className={`browser__btn${deviceOn ? " browser__btn--active" : ""}`}
-            onClick={() => {
-              if (!deviceOnRef.current) {
-                setTimeout(() => injectViewportMeta(), 80);
-                try { requestGuestUARef.current?.(presetUA(presetId)); } catch {}
-              } else {
-                // Wapas desktop browsing → desktop UA restore + reload
-                try { requestGuestUARef.current?.(null); } catch {}
-              }
-              setDeviceOn((v) => !v);
-            }}
-            title="Responsive view — custom page size"
-            style={deviceOn ? { background: "var(--teal-a18)", color: "var(--teal)", border: "1px solid var(--teal-a35)" } : undefined}
-          >
-            <Smartphone size={14} />
-          </button>
-
-          {/* ⋮ More options — custom dropdown (Edit mode / Inspect / Extensions / Hide toolbar). Extensions actions alag. */}
+          {/* ⋮ More options — zoom yahin hai (toolbar me nahi) */}
           <div ref={moreWrapRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
             <button
               ref={moreBtnRef}
@@ -1218,6 +1127,20 @@ const BrowserPanel = (props) => {
                   </span>
                   <span className="browser__more-label">{editMode ? "Done — exit edit mode" : "Edit mode"}</span>
                   {editMode && <span className="browser__more-badge">ON</span>}
+                </button>
+                {/* Page zoom — Ctrl+Scroll alternative */}
+                <button className="browser__more-item" onClick={() => { bumpZoom("in"); }} title="Zoom in (Ctrl++ / Ctrl+Scroll up)">
+                  <span className="browser__more-icon"><ZoomIn size={14} /></span>
+                  <span className="browser__more-label">Zoom in</span>
+                  <span className="browser__more-hint">{Math.round(zoomFactor * 100)}%</span>
+                </button>
+                <button className="browser__more-item" onClick={() => { bumpZoom("out"); }} title="Zoom out (Ctrl+- / Ctrl+Scroll down)">
+                  <span className="browser__more-icon"><ZoomOut size={14} /></span>
+                  <span className="browser__more-label">Zoom out</span>
+                </button>
+                <button className="browser__more-item" onClick={() => { setZoomExact(1); setMoreOpen(false); }} title="Reset zoom to 100% (Ctrl+0)">
+                  <span className="browser__more-icon"><Maximize2 size={14} /></span>
+                  <span className="browser__more-label">Reset zoom (100%)</span>
                 </button>
                 <button className="browser__more-item" onClick={handleToggleDevTools} title="Inspect Element / DevTools">
                   <span className="browser__more-icon"><Search size={14} /></span>
@@ -1309,103 +1232,18 @@ const BrowserPanel = (props) => {
         </>
       )}
 
-      {/* Webview — responsive size me bhi SAME element rehta hai (no remount, no reload).
-          True-fit: outer box scaled size ka hai (scroll nahi aata), inner box
-          full device px ka hai taaki page ko poora viewport mile. */}
-      <div
-        ref={stageRef}
-        className={`browser__view-wrap${deviceOn ? " browser__view-wrap--device" : ""}`}
-      >
-        <div
-          className={`browser__device${deviceOn ? "" : " browser__device--fill"}`}
-          style={deviceOn ? {
-            width: Math.max(1, Math.round(devSize.w * devScale)),
-            height: Math.max(1, Math.round(devSize.h * devScale)),
-          } : undefined}
-        >
-          <div
-            className="browser__device-screen"
-            style={deviceOn ? {
-              width: devSize.w,
-              height: devSize.h,
-              transform: devScale !== 1 ? `scale(${devScale})` : undefined,
-            } : undefined}
-          >
-            <webview
-              key="browser-webview"
-              className="browser__view"
-              ref={webviewRefCb}
-              src={navUrl}
-              preload={WEBVIEW_PRELOAD}
-              // webview is a custom Electron element - use string attrs to avoid React boolean warnings
-              allowpopups=""
-              allowFullScreen=""
-              style={deviceOn ? { width: "100%", height: "100%", flex: "none" } : undefined}
-            />
-          </div>
-          {deviceOn && (
-            <div
-              className="browser__resize-handle"
-              onMouseDown={startDevResize}
-              title={`Drag to resize viewport (now ${devSize.w}×${devSize.h})`}
-            />
-          )}
-        </div>
-        {deviceOn && (
-          <div className="browser__device-meta">
-            {activePreset ? activePreset.label : "Custom"} • {devSize.w}×{devSize.h}{devScale < 0.999 ? ` • ${Math.round(devScale * 100)}%` : ""}
-          </div>
-        )}
-        {/* Side rail — responsive controls (hideable) */}
-        {deviceOn && !railHidden && (
-          <div className="browser__siderail">
-            <button className="browser__btn" onClick={() => setPresetOpen((v) => !v)} title="Viewport size presets">
-              <Smartphone size={14} />
-            </button>
-            <button className="browser__btn" onClick={handleRotate} title="Rotate viewport">
-              <RotateCw size={13} />
-            </button>
-            <button
-              className={`browser__btn${fitOn ? " browser__btn--active" : ""}`}
-              onClick={() => setFitOn((v) => !v)}
-              title="Fit page in panel"
-            >
-              <Maximize2 size={13} />
-            </button>
-            <button className="browser__btn" onClick={() => { try { requestGuestUARef.current?.(null); } catch {} setDeviceOn(false); }} title="Exit responsive view">
-              <X size={13} />
-            </button>
-            <div className="browser__siderail-sep" />
-            <button className="browser__btn" onClick={() => setRailHidden(true)} title="Hide controls">
-              <ChevronLeft size={13} />
-            </button>
-          </div>
-        )}
-        {deviceOn && railHidden && (
-          <button className="browser__side-tab" onClick={() => setRailHidden(false)} title="Show responsive controls">
-            <ChevronRight size={13} />
-          </button>
-        )}
-        {/* Preset popup */}
-        {deviceOn && presetOpen && (
-          <>
-            <div className="browser__lock-overlay" onClick={() => setPresetOpen(false)} />
-            <div className="browser__more-menu browser__preset-pop" onClick={(e) => e.stopPropagation()}>
-              {presetId === "custom" && (
-                <div className="browser__more-item" style={{ cursor: "default", color: "var(--text-muted)" }}>
-                  <span className="browser__more-label">Custom — {devSize.w}×{devSize.h}</span>
-                  <span>✓</span>
-                </div>
-              )}
-              {DEVICE_PRESETS.map((p) => (
-                <button key={p.id} className="browser__more-item" onClick={() => applyPreset(p.id)} title={`${p.label} (${p.w}×${p.h})`}>
-                  <span className="browser__more-label">{p.label} — {p.w}×{p.h}</span>
-                  {presetId === p.id && <span style={{ color: "var(--teal)" }}>✓</span>}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+      {/* Webview — hamesha SAME element (no remount, no reload) */}
+      <div ref={viewWrapRef} className="browser__view-wrap">
+        <webview
+          key="browser-webview"
+          className="browser__view"
+          ref={webviewRefCb}
+          src={navUrl}
+          preload={WEBVIEW_PRELOAD}
+          // webview is a custom Electron element - use string attrs to avoid React boolean warnings
+          allowpopups=""
+          allowFullScreen=""
+        />
         {/* Edit mode overlay hint when bar hidden */}
         {editMode && barHidden && (
           <div style={{
