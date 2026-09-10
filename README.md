@@ -1,7 +1,8 @@
 <img src="https://files.catbox.moe/wpu6fh.png" width=200px>
+
 # Idiot Box
 
-A desktop IDE built on Electron + React + Code-OSS workbench services. Visual project map (Canvas), VS Code-grade editor with a real extension host, integrated terminal, browser panel, live component previews, and a full file manager — all in one window.
+Idiot Box is a modern, customizable desktop IDE designed to make development simpler, more flexible, and more enjoyable. Code, preview, terminal, browser, and developer tools, all in one workspace.
 
 ## Features
 
