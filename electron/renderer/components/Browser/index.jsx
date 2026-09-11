@@ -28,6 +28,15 @@ const BrowserPanel = (props) => {
   const [popupStyle,   setPopupStyle]   = useState({});
   const [editMode,     setEditMode]     = useState(false);
   const [toast,        setToast]        = useState(null);
+  // ── Find in page (webview.findInPage) ──
+  const [findOpen,     setFindOpen]     = useState(false);
+  const [findText,     setFindText]     = useState("");
+  const [findActive,   setFindActive]   = useState(0);
+  const [findMatches,  setFindMatches]  = useState(0);
+  const [findMatchCase, setFindMatchCase] = useState(false);
+  const findInputRef   = useRef(null);
+  const findDebounceRef = useRef(null);
+  const closeFindRef   = useRef(null);
   const [hasProject,   setHasProject]   = useState(() => { try { return !!window.__currentProjectPath; } catch { return false; } });
 
   const viewWrapRef = useRef(null);
@@ -67,6 +76,37 @@ const BrowserPanel = (props) => {
     return setZoomExact(next);
   }, [setZoomExact]);
   bumpZoomRef.current = bumpZoom;
+
+  // ── Find in page helpers (Electron webview.findInPage) ────────────────
+  const runFind = useCallback((text, { forward = true, findNext = false, matchCase = findMatchCase } = {}) => {
+    const wv = webviewRef.current;
+    if (!wv || !text) return;
+    try {
+      const r = wv.findInPage(text, { forward, findNext, matchCase });
+      if (r && typeof r.catch === "function") r.catch(() => {});
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [findMatchCase]);
+  const closeFind = useCallback(() => {
+    try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
+    setFindOpen(false); setFindText(""); setFindActive(0); setFindMatches(0);
+  }, []);
+  closeFindRef.current = closeFind;
+  const openFind = useCallback(() => {
+    setFindOpen(true);
+    setTimeout(() => { try { findInputRef.current?.focus(); findInputRef.current?.select(); } catch {} }, 60);
+  }, []);
+  const onFindChange = useCallback((text) => {
+    setFindText(text);
+    setFindActive(0); setFindMatches(0);
+    clearTimeout(findDebounceRef.current);
+    if (!text) {
+      try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
+      return;
+    }
+    findDebounceRef.current = setTimeout(() => runFind(text, { forward: true, findNext: false }), 120);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runFind]);
 
   const syncActionTab = useCallback(() => {
     try {
@@ -251,7 +291,17 @@ const BrowserPanel = (props) => {
         }
       }
     });
+    // Find matches → count badge (request se nahi, event se aata hai)
+    wv.addEventListener("found-in-page", (e) => {
+      try {
+        const r = e.result || {};
+        if (typeof r.activeMatchOrdinal === "number") setFindActive(r.activeMatchOrdinal);
+        if (typeof r.matches === "number") setFindMatches(r.matches);
+      } catch {}
+    });
     wv.addEventListener("did-navigate",         () => {
+      // Naya page → find bar band (hash-jump did-navigate-in-page par khula rehta hai)
+      try { closeFindRef.current?.(); } catch {}
       const cur = wv.getURL();
       setInputValue(cur); setDisplayUrl(cur);
       try { setCanGoBack(wv.canGoBack()); setCanGoForward(wv.canGoForward()); } catch {}
@@ -1031,6 +1081,32 @@ const BrowserPanel = (props) => {
     }
   }, []);
 
+  // ── Host Ctrl+F → find bar (sirf is panel ke host UI me) ──────────────
+  // Guest page ke keys host tak aate hi nahi, aur dusre panels (editor) apna
+  // Ctrl+F khud handle karte hain — target check se koi clash nahi.
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod || e.shiftKey || e.altKey) return;
+      if (String(e.key || "").toLowerCase() !== "f") return;
+      try {
+        const root = viewWrapRef.current?.closest?.(".browser");
+        if (!root || !(e.target instanceof Node) || !root.contains(e.target)) return;
+      } catch { return; }
+      e.preventDefault();
+      e.stopPropagation();
+      openFind();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [openFind]);
+
+  // ── Unmount: pending find roko ──
+  useEffect(() => () => {
+    clearTimeout(findDebounceRef.current);
+    try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
+  }, []);
+
   // ── Tab right-click ────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = async (e) => {
@@ -1085,6 +1161,9 @@ const BrowserPanel = (props) => {
           </button>
           <button className="browser__btn" onClick={() => webviewRef.current?.reload()} title="Refresh">
             <RefreshCw size={14} />
+          </button>
+          <button className="browser__btn" onClick={openFind} title="Find in page (Ctrl+F)">
+            <Search size={14} />
           </button>
 
           {/* URL bar */}
@@ -1145,6 +1224,11 @@ const BrowserPanel = (props) => {
                 <button className="browser__more-item" onClick={handleToggleDevTools} title="Inspect Element / DevTools">
                   <span className="browser__more-icon"><Search size={14} /></span>
                   <span className="browser__more-label">Inspect element</span>
+                </button>
+                <button className="browser__more-item" onClick={() => { setMoreOpen(false); openFind(); }} title="Find in page (Ctrl+F)">
+                  <span className="browser__more-icon"><Search size={14} /></span>
+                  <span className="browser__more-label">Find in page</span>
+                  <span className="browser__more-hint">Ctrl+F</span>
                 </button>
                 <button className="browser__more-item" onClick={handleManageExtensions} title="Manage extensions">
                   <span className="browser__more-icon"><Puzzle size={14} /></span>
@@ -1244,6 +1328,58 @@ const BrowserPanel = (props) => {
           allowpopups=""
           allowFullScreen=""
         />
+        {/* Find in page bar */}
+        {findOpen && (
+          <div
+            style={{
+              position: "absolute", top: 8, right: 12, zIndex: "var(--z-toast)",
+              display: "flex", alignItems: "center", gap: 4,
+              background: "var(--bg-vscode)", border: "1px solid var(--border-strong)",
+              borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-pop)",
+              padding: "4px 6px", maxWidth: "min(360px, 80%)",
+            }}
+            onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); closeFind(); } }}
+          >
+            <input
+              ref={findInputRef}
+              value={findText}
+              onChange={(e) => onFindChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); runFind(findText, { forward: !e.shiftKey, findNext: true }); }
+              }}
+              placeholder="Find in page"
+              spellCheck={false}
+              style={{
+                flex: 1, minWidth: 0,
+                background: "var(--bg-surface)", border: "1px solid var(--border-strong)",
+                borderRadius: "var(--radius-sm)", color: "var(--text-hover)",
+                fontSize: "var(--fs-body)", padding: "4px 8px", outline: "none",
+              }}
+              aria-label="Find in page"
+            />
+            <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)", minWidth: 40, textAlign: "right", userSelect: "none" }}>
+              {findText ? `${findActive}/${findMatches}` : ""}
+            </span>
+            <button
+              className="browser__btn" title={findMatchCase ? "Match case: on" : "Match case: off"}
+              onClick={() => {
+                const next = !findMatchCase;
+                setFindMatchCase(next);
+                if (findText) runFind(findText, { forward: true, findNext: false, matchCase: next });
+              }}
+              style={findMatchCase ? { background: "var(--select-blue)", color: "var(--text-inverse)" } : undefined}
+            >
+              <span style={{ fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)" }}>Aa</span>
+            </button>
+            <button className="browser__btn" title="Previous (Shift+Enter)" onClick={() => runFind(findText, { forward: false, findNext: true })}>
+              <ChevronUp size={14} />
+            </button>
+            <button className="browser__btn" title="Next (Enter)" onClick={() => runFind(findText, { forward: true, findNext: true })}>
+              <ChevronDown size={14} />
+            </button>
+            <button className="browser__btn" title="Close (Esc)" onClick={closeFind}>✕</button>
+          </div>
+        )}
         {/* Edit mode overlay hint when bar hidden */}
         {editMode && barHidden && (
           <div style={{
