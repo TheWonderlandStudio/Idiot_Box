@@ -44,6 +44,12 @@
 .nb-monaco { flex: 1; min-height: 46px; min-width: 0; background: var(--bg-surface); }
 .nb-monaco .cm-editor, .nb-monaco .cm-scroller,
 .nb-monaco .cm-gutters { background-color: var(--bg-surface); }
+.nb-monaco .cm-scroller { scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
+.nb-monaco .cm-scroller::-webkit-scrollbar { width: 10px; height: 10px; }
+.nb-monaco .cm-scroller::-webkit-scrollbar-track { background: transparent; }
+.nb-monaco .cm-scroller::-webkit-scrollbar-corner { background: transparent; }
+.nb-monaco .cm-scroller::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-xs); border: 2px solid transparent; background-clip: content-box; }
+.nb-monaco .cm-scroller::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); border: 2px solid transparent; background-clip: content-box; }
 .nb-md-view { padding: var(--space-8) var(--space-12); font-size: var(--fs-title); line-height: var(--lh-doc); cursor: text; }
 .nb-md-view h1, .nb-md-view h2, .nb-md-view h3, .nb-md-view h4 { color: var(--text-inverse); margin: var(--space-10) 0 var(--space-6); line-height: var(--lh-tight); }
 .nb-md-view h1 { font-size: var(--fs-hero); border-bottom: 1px solid var(--border); padding-bottom: var(--space-4); }

@@ -1091,7 +1091,18 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
           )}
         </>
       )}
-      <style>{`.cm-editor { height: 100%; } .cm-scroller { overflow: auto; }`}</style>
+      <style>{`
+        /* Height chain: container(100% via prop) > .cm-theme > .cm-editor > .cm-scroller.
+           .cm-theme par height nahi hogi to editor content-height par collapse karke
+           panel fill nahi karta (lambi files kat jati hain) — isliye teeno 100%. */
+        .cm-theme, .cm-editor { height: 100%; }
+        .cm-scroller { overflow: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
+        .cm-scroller::-webkit-scrollbar { width: 10px; height: 10px; }
+        .cm-scroller::-webkit-scrollbar-track { background: transparent; }
+        .cm-scroller::-webkit-scrollbar-corner { background: transparent; }
+        .cm-scroller::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-xs); border: 2px solid transparent; background-clip: content-box; }
+        .cm-scroller::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); border: 2px solid transparent; background-clip: content-box; }
+      `}</style>
     </div>
   );
 };
