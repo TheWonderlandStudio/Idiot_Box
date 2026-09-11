@@ -868,7 +868,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         </div>
       ) : (
         <>
-          <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
             {isIpynb ? (
               <NotebookPanel config={config} nodeId={nodeId} />
             ) : !filePath ? (
@@ -1092,10 +1092,12 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         </>
       )}
       <style>{`
-        /* Height chain: container(100% via prop) > .cm-theme > .cm-editor > .cm-scroller.
-           .cm-theme par height nahi hogi to editor content-height par collapse karke
-           panel fill nahi karta (lambi files kat jati hain) — isliye teeno 100%. */
-        .cm-theme, .cm-editor { height: 100%; }
+        /* Height chain: @uiw container (.cm-theme-none — height prop sirf editor
+           element par theme banata hai, is div par inline style NAHI aata) >
+           .cm-editor > .cm-scroller. Container auto raha to editor content-height
+           tak badhta hai, flex parent overflow:hidden me kat jata hai aur vertical
+           scroll marti hai — isliye container samet sab 100%. */
+        .cm-theme-none, .cm-theme, .cm-editor { height: 100%; }
         .cm-scroller { overflow: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
         .cm-scroller::-webkit-scrollbar { width: 10px; height: 10px; }
         .cm-scroller::-webkit-scrollbar-track { background: transparent; }
