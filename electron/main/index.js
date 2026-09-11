@@ -595,6 +595,90 @@ function scoreLiveEditContext(content, pos, outerSnippet, tagName, oldText) {
   } catch { return 0; }
 }
 
+// ── Live Edit file search (shared by apply/locate/html/revert callers) ───
+// needles: strings — file matches if it contains ANY of them (exact), else
+// the first needle's normalized-whitespace form. Pure fs/path (testable).
+// Returns { root, directPath, found: [{ path, content }], error }.
+function liveEditFindFiles({ projectRoot, url, needles = [], exts = LIVE_EDIT_EXTS } = {}) {
+  const clean = [];
+  for (const s of needles || []) {
+    const t = String(s || "");
+    if (t && t.trim() && clean.indexOf(t) === -1) clean.push(t);
+  }
+  if (!clean.length) return { root: null, directPath: null, found: [], error: "Empty search text" };
+  const normFirst = clean[0].trim().replace(/\s+/g, " ");
+  // 1) ibx-file direct path first
+  let directPath = null;
+  try {
+    const ibxPath = decodeIbxFileUrl(url);
+    if (ibxPath && fs.existsSync(toLongPath(ibxPath))) {
+      const st = fs.statSync(toLongPath(ibxPath));
+      if (st.isFile() && exts.has(path.extname(ibxPath).toLowerCase())) {
+        const contentCheck = fs.readFileSync(toLongPath(ibxPath), "utf8");
+        const hitExact = clean.some((t) => contentCheck.includes(t));
+        const hitNorm = !hitExact && normFirst.length >= 3 &&
+          contentCheck.replace(/\s+/g, " ").includes(normFirst);
+        if (hitExact || hitNorm) directPath = ibxPath;
+      }
+    }
+  } catch {}
+  if (directPath) {
+    let content = "";
+    try { content = fs.readFileSync(toLongPath(directPath), "utf8"); } catch {}
+    return { root: projectRoot || lastProjectPath, directPath, found: [{ path: directPath, content }] };
+  }
+  // 2) iterative project walk
+  const root = projectRoot || lastProjectPath;
+  if (!root || !fs.existsSync(toLongPath(root))) {
+    return { root, directPath: null, found: [], error: "No project open — open a project or load a project file via ibx-file" };
+  }
+  const stack = [path.resolve(root)];
+  const visited = new Set();
+  const found = [];
+  const limitFiles = 8000;
+  let scanned = 0;
+  while (stack.length && found.length < 80 && scanned < limitFiles) {
+    const dir = stack.pop();
+    let real = dir;
+    try { real = fs.realpathSync(toLongPath(dir)); } catch {}
+    if (visited.has(real)) continue;
+    visited.add(real);
+    let entries = [];
+    try { entries = fs.readdirSync(toLongPath(dir), { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (e.name.startsWith(".") && e.name !== ".env" && e.name !== ".env.example") continue;
+      if (LIVE_EDIT_IGNORE_DIRS.has(e.name)) continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        stack.push(full);
+      } else if (e.isFile()) {
+        const ext = path.extname(e.name).toLowerCase();
+        if (!exts.has(ext)) continue;
+        scanned++;
+        if (scanned > limitFiles) break;
+        try {
+          const st = fs.statSync(toLongPath(full));
+          if (st.size > 2 * 1024 * 1024) continue; // skip huge
+          const content = fs.readFileSync(toLongPath(full), "utf8");
+          if (clean.some((t) => content.includes(t))) {
+            found.push({ path: full, content });
+            if (found.length >= 80) break;
+          } else if (normFirst.length >= 3) {
+            // normalized whitespace fallback
+            const snippet = normFirst.slice(0, 60);
+            if (content.includes(snippet)) {
+              const normContent = content.replace(/\s+/g, " ");
+              if (normContent.includes(normFirst)) found.push({ path: full, content });
+            }
+          }
+        } catch {}
+        if (found.length >= 80) break;
+      }
+    }
+  }
+  return { root, directPath: null, found };
+}
+
 ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldText, newText, outerSnippet, tagName } = {}) => {
   try {
     const o = String(oldText || "");
@@ -604,84 +688,17 @@ ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldTex
     if (n.length > 5000) return { ok: false, error: "New text too long" };
     const oldTrim = o.trim();
     const newTrim = n.trim();
-    // Try ibx-file direct path first
-    const ibxPath = decodeIbxFileUrl(url);
+    // Shared finder: ibx-file direct path, else project walk.
+    const search = liveEditFindFiles({ projectRoot, url, needles: [oldTrim, o] });
+    if (search.error && !search.found.length) return { ok: false, error: search.error };
+    const found = search.found;
     let candidates = [];
-    let directPath = null;
-    if (ibxPath && fs.existsSync(toLongPath(ibxPath))) {
-      try {
-        const st = fs.statSync(toLongPath(ibxPath));
-        if (st.isFile() && LIVE_EDIT_EXTS.has(path.extname(ibxPath).toLowerCase())) {
-          const contentCheck = fs.readFileSync(toLongPath(ibxPath), "utf8");
-          if (contentCheck.includes(oldTrim) || contentCheck.includes(o)) {
-            directPath = ibxPath;
-          } else {
-            // try normalized whitespace match
-            const normOld = oldTrim.replace(/\s+/g, " ");
-            const normContent = contentCheck.replace(/\s+/g, " ");
-            if (normContent.includes(normOld)) directPath = ibxPath;
-          }
-        }
-      } catch {}
-      if (directPath) candidates = [directPath];
-    }
-    // If not direct, search project
-    if (!candidates.length) {
-      const root = projectRoot || lastProjectPath;
-      if (!root || !fs.existsSync(toLongPath(root))) {
-        return { ok: false, error: "No project open — open a project or load a project file via ibx-file" };
-      }
-      // iterative walk, collect files that contain oldTrim
-      const stack = [path.resolve(root)];
-      const visited = new Set();
-      const found = [];
-      const limitFiles = 8000;
-      let scanned = 0;
-      while (stack.length && found.length < 80 && scanned < limitFiles) {
-        const dir = stack.pop();
-        let real = dir;
-        try { real = fs.realpathSync(toLongPath(dir)); } catch {}
-        if (visited.has(real)) continue;
-        visited.add(real);
-        let entries = [];
-        try { entries = fs.readdirSync(toLongPath(dir), { withFileTypes: true }); } catch { continue; }
-        for (const e of entries) {
-          if (e.name.startsWith(".") && e.name !== ".env" && e.name !== ".env.example") continue;
-          if (LIVE_EDIT_IGNORE_DIRS.has(e.name)) continue;
-          const full = path.join(dir, e.name);
-          if (e.isDirectory()) {
-            stack.push(full);
-          } else if (e.isFile()) {
-            const ext = path.extname(e.name).toLowerCase();
-            if (!LIVE_EDIT_EXTS.has(ext)) continue;
-            scanned++;
-            if (scanned > limitFiles) break;
-            try {
-              const st = fs.statSync(toLongPath(full));
-              if (st.size > 2 * 1024 * 1024) continue; // skip huge
-              const content = fs.readFileSync(toLongPath(full), "utf8");
-              if (content.includes(oldTrim) || content.includes(o)) {
-                found.push({ path: full, content });
-                if (found.length >= 80) break;
-              } else {
-                // try normalized whitespace fallback — check if normalized version contains
-                const normOld = oldTrim.replace(/\s+/g, " ");
-                if (normOld.length >= 3) {
-                  const snippet = normOld.slice(0, 60);
-                  if (content.includes(snippet)) {
-                    // do more thorough normalized check
-                    const normContent = content.replace(/\s+/g, " ");
-                    if (normContent.includes(normOld)) found.push({ path: full, content });
-                  }
-                }
-              }
-            } catch {}
-            if (found.length >= 80) break;
-          }
-        }
-      }
+    if (search.directPath) {
+      candidates = [search.directPath];
+    } else {
       if (!found.length) {
-        return { ok: false, error: `Text "${oldTrim.slice(0, 40)}" not found in project (${path.basename(root)}). Auto detection searched html/js/jsx/ts/tsx.` };
+        const rname = search.root ? path.basename(search.root) : "(unknown)";
+        return { ok: false, error: `Text "${oldTrim.slice(0, 40)}" not found in project (${rname}). Auto detection searched html/js/jsx/ts/tsx.` };
       }
       if (found.length === 1) {
         candidates = [found[0].path];
@@ -795,7 +812,122 @@ ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldTex
         if (!win.isDestroyed()) win.webContents.send("liveEdit:fileChanged", { filePath: targetPath, rel, oldText: oldUsed, newText: newTrim });
       }
     } catch {}
-    return { ok: true, filePath: targetPath, rel, ext: path.extname(targetPath).toLowerCase() };
+    // replaced: exact slice jo file me tha (undo ke liye — whitespace-safe).
+    return { ok: true, filePath: targetPath, rel, ext: path.extname(targetPath).toLowerCase(), replaced: oldUsed };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
+// ── Live Edit: locate only (hover hint — koi write nahi) ────────────────
+// Returns { ok, filePath, rel, candidates } — best guess kahan patch hoga.
+ipcMain.handle("liveEdit:locate", async (_e, { projectRoot, url, oldText, outerSnippet, tagName } = {}) => {
+  try {
+    const needle = String(oldText || "").trim();
+    if (!needle) return { ok: false };
+    const search = liveEditFindFiles({ projectRoot, url, needles: [needle] });
+    if (!search.found.length) return { ok: false };
+    let best = search.directPath || search.found[0].path;
+    let bestScore = -1;
+    if (!search.directPath && search.found.length > 1) {
+      // Cheap rank: pehli occurrence par context score (cap 10 files).
+      for (const { path: fp, content } of search.found.slice(0, 10)) {
+        const pos = content.indexOf(needle);
+        if (pos === -1) continue;
+        let sc = 0;
+        try { sc = scoreLiveEditContext(content, pos, outerSnippet, tagName, needle); } catch {}
+        if (sc > bestScore) { bestScore = sc; best = fp; }
+      }
+    }
+    const root = search.root || projectRoot || lastProjectPath;
+    const rel = root ? path.relative(root, best).replace(/\\/g, "/") : path.basename(best);
+    return { ok: true, filePath: best, rel, candidates: search.found.length };
+  } catch {
+    return { ok: false };
+  }
+});
+
+// ── Live Edit: whole-element HTML replace (attributes / inline styles) ───
+// oldHtml: element ka ORIGINAL outerHTML; newHtml: edited outerHTML.
+// Whitespace-normalized matching (file formatting alag ho sakti hai).
+ipcMain.handle("liveEdit:applyHtmlChange", async (_e, { projectRoot, url, oldHtml, newHtml, tagName } = {}) => {
+  try {
+    const o = String(oldHtml || "");
+    const n = String(newHtml || "");
+    if (!o.trim() || !n.trim()) return { ok: false, error: "Empty element" };
+    if (o === n) return { ok: false, error: "No change" };
+    if (n.length > 20000) return { ok: false, error: "Element too large (20KB max)" };
+    const oTrim = o.trim();
+    const search = liveEditFindFiles({ projectRoot, url, needles: [oTrim] });
+    if (search.error && !search.found.length) return { ok: false, error: search.error };
+    if (!search.found.length) {
+      const rname = search.root ? path.basename(search.root) : "(unknown)";
+      return { ok: false, error: `Element not found in project (${rname})` };
+    }
+    // Rank candidates with the same context scorer (outerSnippet = new html).
+    let files = search.found;
+    if (!search.directPath && files.length > 1) {
+      const ranked = files.map(({ path: fp, content }) => {
+        const pos = content.indexOf(oTrim);
+        let sc = -1;
+        if (pos !== -1) {
+          try { sc = scoreLiveEditContext(content, pos, n.slice(0, 800), tagName, oTrim); } catch {}
+        }
+        return { fp, content, sc };
+      }).sort((a, b) => b.sc - a.sc);
+      files = ranked.map(({ fp, content }) => ({ path: fp, content }));
+    }
+    const targetPath = search.directPath || files[0].path;
+    let content = fs.readFileSync(toLongPath(targetPath), "utf8");
+    // 1) exact, 2) whitespace-normalized regex.
+    let pos = content.indexOf(oTrim);
+    let oldUsed = oTrim;
+    if (pos === -1) {
+      const esc = oTrim.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      try {
+        const m = content.match(new RegExp(esc.replace(/\s+/g, "\\s+")));
+        if (m && m.index !== undefined) { pos = m.index; oldUsed = m[0]; }
+      } catch {}
+    }
+    if (pos === -1) return { ok: false, error: `Element not found at expected location in ${path.basename(targetPath)}` };
+    const newContent = content.slice(0, pos) + n.trim() + content.slice(pos + oldUsed.length);
+    fs.writeFileSync(toLongPath(targetPath), newContent, "utf8");
+    const root = projectRoot || lastProjectPath;
+    const rel = root ? path.relative(root, targetPath).replace(/\\/g, "/") : path.basename(targetPath);
+    try {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send("liveEdit:fileChanged", { filePath: targetPath, rel, oldText: oldUsed.slice(0, 120), newText: n.trim().slice(0, 120) });
+      }
+    } catch {}
+    return { ok: true, filePath: targetPath, rel, ext: path.extname(targetPath).toLowerCase(), replaced: oldUsed };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
+// ── Live Edit: undo (applied text abhi bhi ho to wapas original likho) ───
+ipcMain.handle("liveEdit:revert", async (_e, { filePath, appliedText, originalText } = {}) => {
+  try {
+    const a = String(appliedText ?? "");
+    const o = String(originalText ?? "");
+    if (!filePath || !a || !o || a === o) return { ok: false, error: "Nothing to revert" };
+    if (!fs.existsSync(toLongPath(filePath))) return { ok: false, error: "File no longer exists" };
+    let content = fs.readFileSync(toLongPath(filePath), "utf8");
+    let pos = content.indexOf(a);
+    let used = a;
+    if (pos === -1) {
+      const t = a.trim();
+      if (t && t !== a) { pos = content.indexOf(t); if (pos !== -1) used = t; }
+    }
+    if (pos === -1) return { ok: false, error: "File changed since edit — revert manually in the editor" };
+    content = content.slice(0, pos) + o + content.slice(pos + used.length);
+    fs.writeFileSync(toLongPath(filePath), content, "utf8");
+    try {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send("liveEdit:fileChanged", { filePath, rel: path.basename(filePath), oldText: used.slice(0, 120), newText: o.slice(0, 120) });
+      }
+    } catch {}
+    return { ok: true, filePath };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
+import { EDIT_HELPER_SOURCE } from "./editHelper.js";
 import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
@@ -10,6 +11,20 @@ const LOCAL_ICON  = "M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 12.93A6 6 0 0 1 2 8c0
 // ── BrowserPanel ───────────────────────────────────────────────────────────────
 const WEBVIEW_PRELOAD = typeof window !== "undefined" && window.electronAPI?.getWebviewPreload
   ? window.electronAPI.getWebviewPreload() : undefined;
+
+// Guest base64 payloads decode karo (document.title whitespace collapse karta
+// hai — plain JSON me double-space/tabs/newlines toot jate). TextDecoder path
+// taaki unicode bhi sahi aaye.
+const decodeB64 = (b) => {
+  try {
+    const bin = atob(String(b || ""));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+};
 
 const BrowserPanel = (props) => {
   const { nodeId, config } = props || {};
@@ -193,12 +208,51 @@ const BrowserPanel = (props) => {
     } catch { return false; }
   }, []);
 
+  // ── Live-edit undo stack (is panel se applied edits; cap 20) ─────────
+  const undoStackRef = useRef([]);
+  const [undoCount, setUndoCount] = useState(0);
+  const pushUndo = useCallback((entry) => {
+    try {
+      undoStackRef.current.push(entry);
+      if (undoStackRef.current.length > 20) undoStackRef.current.shift();
+      setUndoCount(undoStackRef.current.length);
+    } catch {}
+  }, []);
+  const undoLiveEdit = useCallback(async () => {
+    const top = undoStackRef.current[undoStackRef.current.length - 1];
+    if (!top) return;
+    try {
+      const res = await window.electronAPI.liveEditRevert({
+        filePath: top.filePath,
+        appliedText: top.appliedText,
+        originalText: top.originalText,
+      });
+      if (res?.ok) {
+        undoStackRef.current.pop();
+        setUndoCount(undoStackRef.current.length);
+        showToast(`Undone — ${top.rel}`, "success");
+      } else {
+        showToast(`Undo failed: ${res?.error || "unknown"}`, "error");
+      }
+    } catch { showToast("Undo failed", "error"); }
+  }, [showToast]);
+
   const handleLiveEdit = useCallback(async (data) => {
-    const oldText = String(data?.oldText || "").trim();
-    const newText = String(data?.newText || "").trim();
-    if (!oldText || !newText || oldText === newText) { await revertActiveInGuest(); showToast("No change — reverted", "info"); return; }
-    if (!newText) { await revertActiveInGuest(); showToast("Empty text not allowed — reverted", "error"); return; }
-    if (newText.length > 2000) { await revertActiveInGuest(); showToast("Text too long (2000 max) — reverted", "error"); return; }
+    const mode = data?.mode === "html" ? "html" : "text";
+    // ── Validate per mode ──
+    let oldText = "", newText = "", oldHtml = "", newHtml = "";
+    if (mode === "html") {
+      oldHtml = String(data?.oldHtml || "");
+      newHtml = String(data?.newHtml || "");
+      if (!oldHtml.trim() || !newHtml.trim() || oldHtml === newHtml) { await revertActiveInGuest(); showToast("No change — reverted", "info"); return; }
+      if (newHtml.length > 20000) { await revertActiveInGuest(); showToast("Element too large — reverted", "error"); return; }
+    } else {
+      oldText = String(data?.oldText || "").trim();
+      newText = String(data?.newText || "").trim();
+      if (!oldText || !newText || oldText === newText) { await revertActiveInGuest(); showToast("No change — reverted", "info"); return; }
+      if (!newText) { await revertActiveInGuest(); showToast("Empty text not allowed — reverted", "error"); return; }
+      if (newText.length > 2000) { await revertActiveInGuest(); showToast("Text too long (2000 max) — reverted", "error"); return; }
+    }
     try {
       const projectRoot = window.__currentProjectPath || null;
       const url = data?.url || webviewRef.current?.getURL?.() || displayUrl;
@@ -210,18 +264,34 @@ const BrowserPanel = (props) => {
         return;
       }
       showToast("Updating source…", "info");
-      const res = await window.electronAPI.liveEditApply({
-        projectRoot,
-        url,
-        oldText,
-        newText,
-        outerSnippet: String(data?.outerSnippet || "").slice(0, 800),
-        tagName: String(data?.tagName || ""),
-      });
+      const res = mode === "html"
+        ? await window.electronAPI.liveEditApplyHtml({
+            projectRoot,
+            url,
+            oldHtml,
+            newHtml,
+            tagName: String(data?.tagName || ""),
+          })
+        : await window.electronAPI.liveEditApply({
+            projectRoot,
+            url,
+            oldText,
+            newText,
+            outerSnippet: String(data?.outerSnippet || "").slice(0, 800),
+            tagName: String(data?.tagName || ""),
+          });
       if (res?.ok) {
         const rel = res.rel || res.filePath?.split(/[\\/]/).pop() || "file";
         showToast(`✓ Updated ${rel} (${res.ext||""})`, "success");
-        try { window.dispatchEvent(new CustomEvent("liveEdit:applied", { detail: { filePath: res.filePath, oldText, newText, rel } })); } catch {}
+        // Undo ke liye exact strings (main `replaced` bhejta hai — whitespace-safe).
+        try {
+          const applied = mode === "html" ? String(newHtml).trim() : newText;
+          const original = (typeof res.replaced === "string" && res.replaced) ? res.replaced : (mode === "html" ? String(oldHtml).trim() : oldText);
+          if (applied && original && applied !== original) {
+            pushUndo({ filePath: res.filePath, rel, appliedText: applied, originalText: original });
+          }
+        } catch {}
+        try { window.dispatchEvent(new CustomEvent("liveEdit:applied", { detail: { filePath: res.filePath, oldText: mode === "html" ? oldHtml.slice(0, 120) : oldText, newText: mode === "html" ? newHtml.slice(0, 120) : newText, rel } })); } catch {}
         // live code refresh: if ibx-file, reload webview after short delay
         try {
           const cur = webviewRef.current?.getURL?.() || "";
@@ -420,229 +490,8 @@ const BrowserPanel = (props) => {
         return true;
       } catch(e){ return true; }
     })()`;
-    // ── Live Edit helper: leaf-only, non-destructive inline editing ──
-    // Do NOT insert badge nodes into the page and do NOT touch position styles.
-    // Snapshot original outerHTML so cancel / failed save can fully restore markup.
-    const EDIT_HELPER_SCRIPT = `(() => {
-      try {
-        if (window.__ibxEditHelpersInstalled) return true;
-        window.__ibxEditHelpersInstalled = true;
-        window.__ibxEditEnabled = !!window.__ibxEditEnabled;
-        let hoverEl = null;
-        let activeEl = null;
-        let styleEl = null;
-        let prevTitle = document.title;
-        let committing = false;
-        function ensureStyle(){
-          if (styleEl) return;
-          styleEl = document.createElement('style');
-          styleEl.id = '__ibx-edit-style';
-          // NOTE: ye CSS *bahar ki website* me inject hota hai — wahan app ke
-          // var(--tokens) resolve NAHI hote, isliye literals rakhe hain.
-          // Values CENTRAL sheet ke barabar hain: --teal (#4ec9b0),
-          // --teal-a08, --teal-a14. Token badle to yahan bhi badlo.
-          styleEl.textContent = \`
-            .__ibx-edit-hover { outline: 2px dashed #4ec9b0 !important; outline-offset: 2px !important; cursor: text !important; background: rgba(78,201,176,0.08) !important; }
-            .__ibx-edit-active { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; background: rgba(78,201,176,0.14) !important; }
-          \`;
-          (document.head||document.documentElement).appendChild(styleEl);
-        }
-        function removeStyle(){ try{ if(styleEl) styleEl.remove(); }catch{} styleEl=null; try{ if(hoverEl) hoverEl.classList.remove('__ibx-edit-hover'); }catch{} hoverEl=null; }
-        function isSkippedTag(el){
-          if(!el || !el.tagName) return true;
-          const t=el.tagName.toLowerCase();
-          return ['script','style','noscript','iframe','canvas','svg','path','head','meta','link','input','textarea','select','button','video','audio','img','br','hr'].indexOf(t)!==-1 || el.isContentEditable;
-        }
-        function hasVisibleText(el){
-          try{
-            const txt=(el.innerText||'').trim();
-            if(!txt) return false;
-            if(txt.length>600) return false;
-            const st=window.getComputedStyle(el);
-            if(st && (st.display==='none' || st.visibility==='hidden' || parseFloat(st.opacity)===0)) return false;
-            return true;
-          }catch{ return false; }
-        }
-        function isLeafEditable(el){
-          if(!el || el.nodeType!==1 || !el.tagName) return false;
-          const t=el.tagName.toLowerCase();
-          const allowed=['p','h1','h2','h3','h4','h5','h6','span','a','li','td','th','label','strong','em','b','i','u','small','code','pre','blockquote','div','dt','dd','caption','figcaption'];
-          if(allowed.indexOf(t)===-1) return false;
-          if(isSkippedTag(el)) return false;
-          if(!hasVisibleText(el)) return false;
-          try{
-            const kids=el.children||[];
-            if(kids.length===0) return true;
-            if(kids.length===1 && kids[0].tagName && String(kids[0].tagName).toLowerCase()==='br') return true;
-            return false;
-          }catch{ return false; }
-        }
-        function findEditableTarget(start){
-          let el=start;
-          if(el && el.nodeType===3) el=el.parentElement;
-          let depth=0;
-          while(el && el!==document.body && el!==document.documentElement && depth<4){
-            if(el.nodeType===1 && isLeafEditable(el)) return el;
-            el=el.parentElement; depth++;
-          }
-          return null;
-        }
-        function clearHover(){ try{ if(hoverEl) hoverEl.classList.remove('__ibx-edit-hover'); }catch{} hoverEl=null; }
-        function onMouseOver(e){
-          if(!window.__ibxEditEnabled || activeEl) return;
-          let t=null; try{ t=findEditableTarget(e.target); }catch{}
-          if(t===hoverEl) return;
-          clearHover();
-          if(t){ hoverEl=t; try{ hoverEl.classList.add('__ibx-edit-hover'); }catch{} }
-        }
-        function onMouseOut(e){
-          if(!window.__ibxEditEnabled || activeEl) return;
-          try{ const rel=e.relatedTarget; if(hoverEl && rel && hoverEl.contains(rel)) return; }catch{}
-          clearHover();
-        }
-        function snapshot(el){
-          try{
-            if(el.__ibxOrigHTML==null) el.__ibxOrigHTML=String(el.outerHTML||'');
-            if(el.__ibxOldText==null) el.__ibxOldText=(el.innerText||'').trim();
-          }catch{}
-        }
-        function detachActiveListeners(el){
-          try{ el.removeEventListener('keydown', onEditKey); }catch{}
-          try{ el.removeEventListener('blur', onEditBlur); }catch{}
-        }
-        function restoreOriginal(el){
-          try{
-            const html=el.__ibxOrigHTML;
-            if(html!=null){ el.outerHTML=html; return true; }
-          }catch{}
-          return false;
-        }
-        function cleanupActive(cancel){
-          if(!activeEl) return;
-          const el=activeEl;
-          activeEl=null; committing=false;
-          detachActiveListeners(el);
-          try{
-            if(cancel){
-              restoreOriginal(el);
-            } else {
-              el.removeAttribute('contenteditable');
-              el.classList.remove('__ibx-edit-active');
-              el.style.outline='';
-            }
-          }catch{}
-        }
-        function commitEdit(){
-          if(!activeEl || committing) return;
-          committing=true;
-          const el=activeEl;
-          const oldText=String(el.__ibxOldText||'');
-          let newText='';
-          try{ newText=String(el.innerText||el.textContent||'').trim(); }catch{}
-          // Use ORIGINAL outerHTML for file matching (not the edited DOM)
-          let outerSnippet='';
-          try{ outerSnippet=String(el.__ibxOrigHTML||el.outerHTML||'').slice(0,300); }catch{ outerSnippet=''; }
-          const tagName=String(el.tagName||'');
-          if(!newText || newText===oldText.trim()){
-            // No change: restore original markup to undo any contenteditable damage
-            const r=el; activeEl=null; committing=false;
-            detachActiveListeners(r);
-            restoreOriginal(r);
-            clearHover();
-            return;
-          }
-          const payload={ oldText: String(oldText).trim(), newText: String(newText).trim(), outerSnippet: outerSnippet, tagName: tagName, url: location.href };
-          // Leave edited DOM in place; host reverts on failure via __ibxRevertActive.
-          // Detach without restoring so text stays visible while saving.
-          try{
-            detachActiveListeners(el);
-            el.removeAttribute('contenteditable');
-            el.classList.remove('__ibx-edit-active');
-            el.style.outline='';
-          }catch{}
-          activeEl=null; committing=false;
-          clearHover();
-          const prev=prevTitle;
-          try{ prevTitle=document.title; document.title="__IBX_EDIT__"+JSON.stringify(payload); setTimeout(()=>{ try{ if(String(document.title).startsWith("__IBX_EDIT__")) document.title=prevTitle; }catch{} }, 900); }catch{}
-          void prev;
-        }
-        window.__ibxCommitPendingEdit = function(){
-          try{ if(activeEl && !committing) commitEdit(); return true; }catch(e){ return false; }
-        };
-        window.__ibxRevertActive = function(){
-          try{
-            if(!activeEl) return true;
-            const el=activeEl; activeEl=null; committing=false;
-            detachActiveListeners(el);
-            restoreOriginal(el);
-            clearHover();
-            return true;
-          }catch(e){ return false; }
-        };
-        window.__ibxCancelEdit = function(){
-          try{
-            if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); restoreOriginal(el); }
-            clearHover();
-            return true;
-          }catch(e){ return false; }
-        };
-        window.__ibxIsEditing = function(){ try{ return !!activeEl; }catch{ return false; } };
-        function onEditKey(e){
-          if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{} cleanupActive(true); clearHover(); }
-          else if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{} try{ activeEl && activeEl.blur(); }catch{} }
-        }
-        function onEditBlur(){ setTimeout(()=>{ try{ if(activeEl && !committing) commitEdit(); }catch{} }, 80); }
-        function onClick(e){
-          if(!window.__ibxEditEnabled) return;
-          const t=findEditableTarget(e.target);
-          if(!t) return;
-          if(activeEl && activeEl.contains(e.target)) return;
-          e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{}
-          clearHover();
-          if(activeEl) cleanupActive(true);
-          activeEl=t;
-          try{
-            snapshot(activeEl);
-            activeEl.classList.add('__ibx-edit-active');
-            activeEl.setAttribute('contenteditable','true');
-            try{ activeEl.setAttribute('spellcheck','false'); }catch{}
-            activeEl.focus();
-            try{
-              const range=document.createRange(); range.selectNodeContents(activeEl); const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
-            }catch{}
-            activeEl.addEventListener('keydown', onEditKey);
-            activeEl.addEventListener('blur', onEditBlur);
-          }catch{}
-        }
-        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} }
-        window.__ibxSetEditMode = function(enabled){
-          window.__ibxEditEnabled = !!enabled;
-          if(window.__ibxEditEnabled){
-            ensureStyle();
-            try{ document.addEventListener('mouseover', onMouseOver, true); }catch{}
-            try{ document.addEventListener('mouseout', onMouseOut, true); }catch{}
-            try{ document.addEventListener('click', onClick, true); }catch{}
-            try{ window.addEventListener('pagehide', onPageHide); }catch{}
-            try{ if(document.body) document.body.style.cursor='text'; }catch{}
-            try{ prevTitle=document.title; }catch{}
-          } else {
-            try{ document.removeEventListener('mouseover', onMouseOver, true); }catch{}
-            try{ document.removeEventListener('mouseout', onMouseOut, true); }catch{}
-            try{ document.removeEventListener('click', onClick, true); }catch{}
-            try{ window.removeEventListener('pagehide', onPageHide); }catch{}
-            // Host already commits via __ibxCommitPendingEdit before disabling.
-            // Any leftover active edit here is stale — restore to avoid broken UI.
-            try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); restoreOriginal(el); } }catch{}
-            clearHover();
-            removeStyle();
-            try{ if(document.body) document.body.style.cursor=''; }catch{}
-          }
-          return true;
-        };
-        if(window.__ibxPendingEditMode) window.__ibxSetEditMode(true);
-        return true;
-      } catch(e){ return false; }
-    })()`;
+    // ── Live Edit helper (guest script — see ./editHelper.js) ──
+    const EDIT_HELPER_SCRIPT = EDIT_HELPER_SOURCE;
     const injectGuest = (attempt) => {
       if (attempt > 3) return;
       try {
@@ -678,10 +527,60 @@ const BrowserPanel = (props) => {
 
     wv.addEventListener("page-title-updated", (e) => {
       const t = e.title || "";
+      // Guest payloads base64 me aate hain (document.title whitespace collapse
+      // karta hai — plain JSON me "a  b"/tabs/newlines toot jate). Legacy
+      // plain-JSON markers bhi padhe jate hain (purana injected script ho to).
+      if (t.startsWith("__IBX_EDIT__B64__")) {
+        try {
+          const json = decodeB64(t.slice("__IBX_EDIT__B64__".length));
+          if (json) handleLiveEdit(JSON.parse(json));
+        } catch {}
+        return;
+      }
       if (t.startsWith("__IBX_EDIT__")) {
         try {
           const payload = JSON.parse(t.slice("__IBX_EDIT__".length));
           handleLiveEdit(payload);
+        } catch {}
+        return;
+      }
+      // Hover locate ping: `__IBX_LOCATE64__<id> <b64>` → file guess badge.
+      // Host kabhi block nahi hota (async), stale replies guest khud ignore karta hai.
+      const handleLocatePayload = (id, payload) => {
+        if (!Number.isFinite(id) || !payload || !payload.t) return;
+        (async () => {
+          try {
+            const projectRoot = window.__currentProjectPath || null;
+            const url = webviewRef.current?.getURL?.() || "";
+            const res = await window.electronAPI.liveEditLocate({
+              projectRoot, url,
+              oldText: String(payload.t || ""),
+              outerSnippet: String(payload.h || ""),
+              tagName: String(payload.tag || ""),
+            });
+            const label = res?.ok && res.filePath
+              ? (res.rel + (res.candidates > 1 ? ` (+${res.candidates - 1})` : ""))
+              : "";
+            try { await webviewRef.current?.executeJavaScript(`window.__ibxHintResult && window.__ibxHintResult(${id}, ${JSON.stringify(label)})`); } catch {}
+          } catch {}
+        })();
+      };
+      if (t.startsWith("__IBX_LOCATE64__")) {
+        try {
+          const rest = t.slice("__IBX_LOCATE64__".length);
+          const sp = rest.indexOf(" ");
+          const id = parseInt(rest.slice(0, sp), 10);
+          const json = decodeB64(rest.slice(sp + 1));
+          if (json) handleLocatePayload(id, JSON.parse(json));
+        } catch {}
+        return;
+      }
+      if (t.startsWith("__IBX_LOCATE__")) {
+        try {
+          const rest = t.slice("__IBX_LOCATE__".length);
+          const sp = rest.indexOf(" ");
+          const id = parseInt(rest.slice(0, sp), 10);
+          handleLocatePayload(id, JSON.parse(rest.slice(sp + 1)));
         } catch {}
         return;
       }
@@ -942,7 +841,7 @@ const BrowserPanel = (props) => {
       // also store pending flag for next navigation if helpers not yet installed
       try { wv.executeJavaScript(`window.__ibxPendingEditMode=${editMode?"true":"false"}`).catch(()=>{}); } catch {}
     }
-    if (editMode) showToast("Edit mode ON — click a single line of text (Enter to save, Esc to cancel)", "info");
+    if (editMode) showToast("Edit mode ON — click text, Alt+click attributes, Tab jumps (Enter saves, Esc cancels)", "info");
     else if (attachedRef.current) showToast("Edit mode OFF", "info");
   }, [editMode, showToast]);
 
@@ -1326,8 +1225,17 @@ const BrowserPanel = (props) => {
         }}>
           <Type size={12} />
           <span>{isVisualOnlyUrl
-            ? "EDIT MODE — VISUAL ONLY (no project open, saves revert) • Click a single line • Enter applies visually • Esc cancels"
-            : "EDIT MODE ON — Click a single line of text • Enter to save • Esc to cancel • Saves to html/js/jsx/ts/tsx"}</span>
+            ? "EDIT MODE — VISUAL ONLY (no project open, saves revert) • Click text • Enter applies visually • Esc cancels"
+            : "EDIT MODE ON — Click text • Alt+click attributes • Tab jumps • Ctrl+click follows links • Enter saves"}</span>
+          {undoCount > 0 && (
+            <button
+              onClick={undoLiveEdit}
+              title={`Undo last live edit (${undoCount} in stack)`}
+              style={{ marginLeft:"var(--space-4)", background:"transparent", color: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", border:`1px solid ${isVisualOnlyUrl ? "var(--warn-tint-a50)" : "var(--teal-a50)"}`, borderRadius:"var(--radius-sm)", padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", cursor:"pointer", whiteSpace: "nowrap" }}
+            >
+              ↩ Undo{undoCount > 1 ? ` (${undoCount})` : ""}
+            </button>
+          )}
           <span style={{ marginLeft:"auto", background: isVisualOnlyUrl ? "var(--warn-tint-a25)" : "var(--teal-a22)", padding:"var(--space-1) var(--space-6)", borderRadius:"var(--radius-sm)", fontSize:"var(--fs-tiny)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-bold)" }}>{isVisualOnlyUrl ? "VISUAL" : "LIVE"}</span>
           <button
             onClick={handleCancelEditMode}

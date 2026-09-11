@@ -288,6 +288,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Live Edit (Browser edit-mode) — text-only, auto detection html/js/jsx/ts/tsx ─
   liveEditApply: (payload) => ipcRenderer.invoke("liveEdit:applyTextChange", payload),
+  liveEditLocate: (payload) => ipcRenderer.invoke("liveEdit:locate", payload),
+  liveEditApplyHtml: (payload) => ipcRenderer.invoke("liveEdit:applyHtmlChange", payload),
+  liveEditRevert: (payload) => ipcRenderer.invoke("liveEdit:revert", payload),
   onLiveEditFileChanged: (callback) => {
     const handler = (_e, payload) => callback(payload);
     ipcRenderer.on("liveEdit:fileChanged", handler);
