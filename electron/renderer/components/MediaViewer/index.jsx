@@ -1130,41 +1130,8 @@ const MediaViewer = () => {
     }
   }, [filePath, type, handleZoomIn, handleZoomOut, handleResetZoom, handleFitScreen, handleRotateRight, handleRotateLeft, handleFlipH, handleFlipV, handleClose]);
 
-  // ── Keyboard Shortcuts ────────────────────────────────────────────────────
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!filePath) return;
-      if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
-
-      if ((e.ctrlKey || e.metaKey) && (e.key === "=" || e.key === "+")) {
-        e.preventDefault(); handleZoomIn();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "-") {
-        e.preventDefault(); handleZoomOut();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "0") {
-        e.preventDefault(); handleResetZoom();
-      } else if (e.key === "f" || e.key === "F") {
-        handleFitScreen();
-      } else if (e.key === "r" && !e.shiftKey) {
-        handleRotateRight();
-      } else if (e.key === "R" || (e.key === "r" && e.shiftKey)) {
-        handleRotateLeft();
-      } else if (e.key === "h" || e.key === "H") {
-        handleFlipH();
-      } else if (e.key === "v" || e.key === "V") {
-        handleFlipV();
-      } else if (e.key === "Escape") {
-        if (editing) {
-          e.preventDefault();
-          if (editTool) { openTool(editTool); } // tool band, preview revert
-          else exitEdit();
-        } else {
-          handleClose();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [filePath, handleZoomIn, handleZoomOut, handleResetZoom, handleFitScreen, handleRotateRight, handleRotateLeft, handleFlipH, handleFlipV, handleClose, editing, editTool, openTool, exitEdit]);
+  // NOTE: keyboard shortcuts intentionally nahi hain — sab kuch buttons +
+  // right-click menu se hota hai (keys dusre panels se takrati thin).
 
   // Transform CSS style calculation
   const mediaTransform = `translate(${pan.x}px, ${pan.y}px) rotate(${rotation}deg) scale(${flipH ? -1 : 1}, ${flipV ? -1 : 1}) scale(${zoom})`;
@@ -1257,7 +1224,7 @@ const MediaViewer = () => {
               <>
                 <button
                   onClick={handleZoomOut}
-                  title="Zoom Out (Ctrl+Minus)"
+                  title="Zoom Out"
                   style={btnStyle}
                 >
                   −
@@ -1271,7 +1238,7 @@ const MediaViewer = () => {
                 </button>
                 <button
                   onClick={handleZoomIn}
-                  title="Zoom In (Ctrl+Plus)"
+                  title="Zoom In"
                   style={btnStyle}
                 >
                   +
@@ -1280,7 +1247,7 @@ const MediaViewer = () => {
 
                 <button
                   onClick={handleFitScreen}
-                  title="Fit to Screen (F)"
+                  title="Fit to Screen"
                   style={{ ...btnStyle, background: fitMode ? "var(--bg-thumb)" : "transparent" }}
                 >
                   ⛶
@@ -1291,28 +1258,28 @@ const MediaViewer = () => {
                   <>
                     <button
                       onClick={handleRotateLeft}
-                      title="Rotate Left (Shift+R)"
+                      title="Rotate Left"
                       style={btnStyle}
                     >
                       ↶
                     </button>
                     <button
                       onClick={handleRotateRight}
-                      title="Rotate Right (R)"
+                      title="Rotate Right"
                       style={btnStyle}
                     >
                       ↷
                     </button>
                     <button
                       onClick={handleFlipH}
-                      title="Flip Horizontal (H)"
+                      title="Flip Horizontal"
                       style={{ ...btnStyle, background: flipH ? "var(--bg-thumb)" : "transparent" }}
                     >
                       ↔
                     </button>
                     <button
                       onClick={handleFlipV}
-                      title="Flip Vertical (V)"
+                      title="Flip Vertical"
                       style={{ ...btnStyle, background: flipV ? "var(--bg-thumb)" : "transparent" }}
                     >
                       ↕
@@ -1326,7 +1293,7 @@ const MediaViewer = () => {
             {type === "image" && (
               <button
                 onClick={() => (editing ? exitEdit() : enterEdit())}
-                title={editing ? "Exit edit mode (Esc)" : "Edit image — bg remover, filters, crop, resize"}
+                title={editing ? "Exit edit mode" : "Edit image — bg remover, filters, crop, resize"}
                 style={{
                   ...btnStyle,
                   background: editing ? "var(--teal-a18)" : "transparent",
@@ -1404,7 +1371,7 @@ const MediaViewer = () => {
             {/* Close Button */}
             <button
               onClick={handleClose}
-              title="Close File (Esc)"
+              title="Close File"
               style={{ ...btnStyle, color: "var(--error-short)" }}
             >
               ✕
@@ -1469,7 +1436,7 @@ const MediaViewer = () => {
           <button onClick={handleSaveAs} disabled={!!busy} title="Save as new file" style={{ ...btnStyle, fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)", background: "var(--teal)", color: "var(--ink-on-teal)", border: "none" }}>
             Save As
           </button>
-          <button onClick={exitEdit} title="Done (Esc)" style={{ ...btnStyle, fontSize: "var(--fs-small)" }}>
+          <button onClick={exitEdit} title="Done" style={{ ...btnStyle, fontSize: "var(--fs-small)" }}>
             Done
           </button>
         </div>
