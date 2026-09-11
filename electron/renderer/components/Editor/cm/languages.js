@@ -12,6 +12,10 @@
 // python java cpp php rust markdown sql xml yaml
 
 import { javascript, javascriptLanguage, jsxLanguage, typescriptLanguage, tsxLanguage } from "@codemirror/lang-javascript";
+// NOTE: javascript()/jsx/etc. LanguageSupport return karte hain — unpar .data
+// UNDEFINED hai. data.of() hamesha Language instance par lagao
+// (javascriptLanguage/jsxLanguage/...) warna TypeError (pehle silently
+// swallow ho raha tha aur JS/TS snippets gayab the).
 import { python, pythonLanguage } from "@codemirror/lang-python";
 import { java, javaLanguage } from "@codemirror/lang-java";
 import { cpp, cppLanguage } from "@codemirror/lang-cpp";
@@ -28,6 +32,7 @@ import { languages as cmRegistry } from "@codemirror/language-data";
 import { autocompletion } from "@codemirror/autocomplete";
 import { detectLanguageFromContent } from "../languageDetect.mjs";
 import { snippetSourceFor } from "./snippets.js";
+import { jsGlobalCompletion } from "./globals.js";
 
 export const CM_LANG_IDS = [
   "plaintext", "javascript", "jsx", "typescript", "tsx", "json",
@@ -148,34 +153,41 @@ export const displayNameFor = (cmId, filePath) =>
 // data.of({ autocomplete }) sirf wahan jahan Language instance hai —
 // sql aur yaml me koi Language instance export NAHI hota, isliye wahan
 // snippets language-swap ke sath plain source ki tarah lagte hain.
-const withSnippets = (lang, langId, useSnippets) => {
-  if (!useSnippets) return [lang];
+// langSupport: LanguageSupport, langObj: uska Language instance (data.of ke liye).
+const withSnippets = (langSupport, langObj, langId, useSnippets) => {
+  if (!useSnippets) return [langSupport];
   const src = snippetSourceFor(langId);
-  if (!src) return [lang];
+  if (!src || !langObj || typeof langObj.data?.of !== "function") return [langSupport];
   try {
-    return [lang, lang.data.of({ autocomplete: src })];
+    return [langSupport, langObj.data.of({ autocomplete: src })];
   } catch {
-    return [lang];
+    return [langSupport];
   }
+};
+
+// Chaaro JS dialects base javascriptLanguage ka data inherit karte hain,
+// isliye global scope ek baar yahin lagta hai (keywords/snippets ke sath merge).
+const withJsGlobals = (arr) => {
+  try {
+    const src = jsGlobalCompletion();
+    if (src) arr.push(javascriptLanguage.data.of({ autocomplete: src }));
+  } catch {}
+  return arr;
 };
 
 export const getLanguageSupport = (cmId, { useSnippets = true } = {}) => {
   switch (cmId) {
     case "javascript": {
-      const lang = javascript({ jsx: false, typescript: false });
-      return withSnippets(lang, "javascript", useSnippets);
+      return withJsGlobals(withSnippets(javascript({ jsx: false, typescript: false }), javascriptLanguage, "javascript", useSnippets));
     }
     case "jsx": {
-      const lang = javascript({ jsx: true });
-      return withSnippets(lang, "jsx", useSnippets);
+      return withJsGlobals(withSnippets(javascript({ jsx: true }), jsxLanguage, "jsx", useSnippets));
     }
     case "typescript": {
-      const lang = javascript({ typescript: true });
-      return withSnippets(lang, "typescript", useSnippets);
+      return withJsGlobals(withSnippets(javascript({ typescript: true }), typescriptLanguage, "typescript", useSnippets));
     }
     case "tsx": {
-      const lang = javascript({ jsx: true, typescript: true });
-      return withSnippets(lang, "tsx", useSnippets);
+      return withJsGlobals(withSnippets(javascript({ jsx: true, typescript: true }), tsxLanguage, "tsx", useSnippets));
     }
     case "json": {
       const lang = json();

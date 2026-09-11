@@ -1,7 +1,20 @@
 // cm/snippets.js — per-language snippet lists (snippetCompletion).
 //
+// POLICY: defaults first — jo language package khud deta hai (keywords,
+// snippets, tag/property completion) wo waisa hi rehta hai. Yahan SIRF gaps
+// hain: aise templates jo package me NAHI hain (duplicate labels nahi, taaki
+// popup me double entries na dikhen).
+//   js/ts   -> package snippets (function/for/if/class/import/interface/type)
+//              already included; yahan sirf extras (log/arrow/export/comp/...)
+//   html/css-> package tag+attribute / property completion already included;
+//              html customs poori tarah hata diye (label collide hote)
+//   python/java/cpp/php/rust/json/yaml -> package me koi snippets nahi;
+//              poori lists yahin hain
+//   sql     -> package keywords already included; yahan statement templates
+//   md/xml  -> package me sirf HTML-tag/schema completion; templates yahin
+//
 // Har list tabhi active hoti hai jab uski language active ho — attach
-// languages.js me language instance ke data.of({ autocomplete: src }) se hota
+// languages.js me language instance ke data.of({ autocomplete: source }) se hota
 // hai (built-in completions bache rehte hain, merge hota hai — replace nahi).
 // sql / yaml ke paas koi Language instance NAHI hai, isliye unke snippets
 // data.of se SKIP hote hain (languages.js me language-swap ke sath lagte hain).
@@ -12,14 +25,11 @@ const S = (template, label, detail, type) =>
   snippetCompletion(template, { label, detail, type: type || "snippet" });
 
 export const SNIPPETS = {
+  // Package dups hataye (function/for/if/try/import/class/interface/type) —
+  // sirf extras jo package me NAHI hain.
   javascript: [
     S("console.log(${value});", "log", "console.log()"),
-    S("function ${name}(${args}) {\n\t${body}\n}", "fn", "function"),
     S("const ${name} = (${args}) => {\n\t${body}\n};", "arrow", "arrow function"),
-    S("if (${cond}) {\n\t${body}\n}", "if", "if statement"),
-    S("for (let ${i} = 0; ${i} < ${n}; ${i}++) {\n\t${body}\n}", "for", "for loop"),
-    S("try {\n\t${body}\n} catch (${err}) {\n\t${handle}\n}", "try", "try/catch"),
-    S("import ${name} from \"${module}\";", "import", "import"),
     S("export default ${value};", "export", "export default"),
   ],
   jsx: [
@@ -27,15 +37,9 @@ export const SNIPPETS = {
     S("function ${Name}(${props}) {\n\treturn (\n\t\t${jsx}\n\t);\n}", "comp", "function component"),
     S("const [${state}, set${State}] = useState(${init});", "state", "useState"),
     S("useEffect(() => {\n\t${effect}\n\treturn () => {\n\t\t${cleanup}\n\t};\n}, [${deps}]);", "effect", "useEffect"),
-    S("import React from \"react\";", "react", "import React"),
   ],
   typescript: [
     S("console.log(${value});", "log", "console.log()"),
-    S("function ${name}(${args}): ${ret} {\n\t${body}\n}", "fn", "typed function"),
-    S("interface ${Name} {\n\t${prop}: ${type};\n}", "iface", "interface"),
-    S("type ${Name} = ${type};", "type", "type alias"),
-    S("if (${cond}) {\n\t${body}\n}", "if", "if statement"),
-    S("for (let ${i} = 0; ${i} < ${n}; ${i}++) {\n\t${body}\n}", "for", "for loop"),
   ],
   tsx: [
     S("function ${Name}(${props}: ${Props}) {\n\treturn (\n\t\t${jsx}\n\t);\n}", "comp", "typed component"),
@@ -43,7 +47,7 @@ export const SNIPPETS = {
     S("interface ${Props} {\n\t${prop}: ${type};\n}", "props", "props interface"),
   ],
   python: [
-    S("print(${value})", "print", "print()"),
+    // "print" hataya — package globalCompletion me builtin hai (double entry hoti)
     S("def ${name}(${args}):\n\t${body}", "def", "function"),
     S("class ${Name}:\n\tdef __init__(self${args}):\n\t\t${body}", "class", "class"),
     S("if ${cond}:\n\t${body}", "if", "if statement"),
@@ -66,13 +70,8 @@ export const SNIPPETS = {
     S("for (int ${i} = 0; ${i} < ${n}; ${i}++) {\n\t${body}\n}", "for", "for loop"),
     S("class ${Name} {\npublic:\n\t${body}\n};", "class", "class"),
   ],
-  html: [
-    S("<div${attrs}>\n\t${body}\n</div>", "div", "<div>"),
-    S("<${tag}${attrs}>${body}</${tag}>", "tag", "element"),
-    S("<a href=\"${url}\">${text}</a>", "a", "link"),
-    S("<img src=\"${src}\" alt=\"${alt}\" />", "img", "image"),
-    S("<button${attrs}>${text}</button>", "btn", "button"),
-  ],
+  // html: package tag+attribute completion already included — customs hataye
+  // (labels collide hote: div/a/img double dikhte). Isliye html key hi nahi hai.
   css: [
     S("${selector} {\n\t${prop}: ${value};\n}", "rule", "rule"),
     S("@media (${query}) {\n\t${body}\n}", "media", "@media"),
