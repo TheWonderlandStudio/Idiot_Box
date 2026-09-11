@@ -67,7 +67,7 @@ const FLAG_GROUPS = [
     flags: [
       ["autocompletion", "Autocompletion", "Suggest popup (Ctrl+Space)."],
       ["snippets", "Snippets", "Per-language snippet templates (built-ins ke sath merge)."],
-      ["tabAcceptsCompletion", "Tab = Autocomplete", "Tab: khula suggestion accept, band ho to popup kholo — aage (indent) nahi badhta. Band ho to Tab indent karega."],
+      ["tabAcceptsCompletion", "Tab Accepts Suggestion", "Tab: suggestion khula ho to accept, band ho to normal indent. (Popup ke turant baad ~75ms tak Tab indent karega — interaction guard.)"],
       ["lint", "Lint", "JSON validation + trailing-whitespace + TODO markers."],
       ["lintGutter", "Lint Gutter", "Errors/warnings ke gutter markers + Problems panel."],
     ],

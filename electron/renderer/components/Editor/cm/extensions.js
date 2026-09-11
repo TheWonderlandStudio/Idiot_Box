@@ -56,7 +56,6 @@ import {
   closeBracketsKeymap,
   completionKeymap,
   acceptCompletion,
-  startCompletion,
 } from "@codemirror/autocomplete";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { lintKeymap } from "@codemirror/lint";
@@ -78,23 +77,18 @@ const withMonoFallback = (f) => {
   return /monospace/i.test(s) ? s : `${s}, monospace`;
 };
 
-// Custom keys: Tab=autocomplete (accept-or-open), Mod-/=comment,
-// Mod-D=deleteLine, Alt-Up/Down=moveLine, Mod-F/Mod-H=custom find/replace bar.
-// (customKeys flag se gated; Tab alag se tabAcceptsCompletion flag se —
-// Prec.high me, warna indent jeet jata hai. Tab khula completion accept karta
-// hai, band ho to popup kholta hai, aur aage (indent/focus) nahi badhta.
-// acceptCompletion false par startCompletion true deta hai, isliye hamesha
-// yahin rukta hai. Mod-F bhi Prec.high me taaki searchKeymap ka default panel
+// Custom keys: Tab=acceptCompletion, Mod-/=comment, Mod-D=deleteLine,
+// Alt-Up/Down=moveLine, Mod-F/Mod-H=custom find/replace bar.
+// Tab: suggestion khula ho to accept (acceptCompletion), warna false return
+// karke normal indent par fall through — dono kaam ek key par.
+// Prec.high zaroori hai, warna default indent keymap jeet jata hai.
+// (customKeys flag se gated; Tab alag se tabAcceptsCompletion flag se.
+// NOTE: acceptCompletion popup khulne/update ke ~75ms andar (interactionDelay)
+// false deta hai taaki tez typing me galat accept na ho — us window me Tab
+// indent karega, thaharke dabao to accept. Yahan koi wrapper mat lagao:
+// startCompletion jaisa extra call timestamp reset karke accept ko lagatar
+// fail karta hai. Mod-F bhi Prec.high me taaki searchKeymap ka default panel
 // na khule — hum apna FindReplaceBar kholte hain.)
-const tabAutocomplete = (view) => {
-  try {
-    if (acceptCompletion(view)) return true; // khula hai -> accept
-  } catch {}
-  try {
-    return startCompletion(view); // band hai -> kholo (true milta hai)
-  } catch {}
-  return false;
-};
 const customKeymap = (tabAccepts, onOpenFind) => {
   const bindings = [
     { key: "Mod-/", run: toggleComment },
@@ -104,7 +98,7 @@ const customKeymap = (tabAccepts, onOpenFind) => {
   ];
   const out = [];
   if (tabAccepts) {
-    out.push(Prec.high(keymap.of([{ key: "Tab", run: tabAutocomplete }])));
+    out.push(Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])));
   }
   if (typeof onOpenFind === "function") {
     out.push(Prec.high(keymap.of([
