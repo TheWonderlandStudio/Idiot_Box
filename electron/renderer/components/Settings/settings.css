@@ -100,6 +100,17 @@ html, body, #settings-root {
   margin-bottom: var(--space-24);
 }
 
+.sw-section-title {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-bold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: var(--space-20) 0 var(--space-12);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-soft);
+}
+
 .sw-row__label {
   font-size: var(--fs-body);
   font-weight: var(--fw-semibold);

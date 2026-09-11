@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const esbuild = require('esbuild');
-const vscodeUrlFix = require('./vscode-url-fix.cjs');
 
 const ROOT = path.join(__dirname, '..');
 const OUTFILES = [
@@ -92,7 +91,6 @@ async function main() {
       'process.env.NODE_ENV': '"production"',
     },
     external: ['node:fs/promises', 'node:fs', 'node:path'],
-    plugins: [vscodeUrlFix],
     logLevel: 'info',
   });
   console.log(`[build:renderer] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

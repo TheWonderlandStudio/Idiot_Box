@@ -1,93 +1,27 @@
-// Editor panel — VS Code-style single-file editor backed by flexlayout tabs.
+// Editor panel — CodeMirror-based single-file editor backed by flexlayout tabs.
 // Each open file = one flexlayout tab (component "editor"); this component
 // renders exactly ONE file from `config.filePath`. Tab strip, tab closing and
 // tab renaming (dirty ● marker) are handled through flexlayout itself.
 //
-// Minimap and Word Wrap are controlled via Settings (not toolbar buttons).
+// Engine: @uiw/react-codemirror with basicSetup={false} — extensions array
+// ./cm/extensions.js me granular imports se banta hai (24 setup flags).
+// Details: ./cm/*.js (settings/languages/snippets/highlights/whitespace/
+// lint/lsp/format/extensions/bridge).
 
-// The extension host treats any non-"en" language as localized and tries to
-// fetch a translation bundle via a main-thread RPC ($fetchBuiltInBundleUri)
-// that the standalone API does not implement — which hangs extension loading.
-// Pin the NLS language to the default so localization is skipped entirely.
-globalThis._VSCODE_NLS_LANGUAGE = "en";
-
-// Single-name font picks (e.g. "Consolas") get a monospace tail so a missing
-// font on stock Linux can't silently switch Monaco to a proportional grid.
-const withMonoFallback = (f) => {
-  const s = String(f || "").trim();
-  if (!s) return s;
-  return /monospace/i.test(s) ? s : `${s}, monospace`;
-};
-
-// ── Side-effect imports: default VSCode extensions (grammars + themes) MUST be
-//    loaded before `initialize()` is called ─────────────────────────────────────
-import "@codingame/monaco-vscode-theme-defaults-default-extension";
-import "@codingame/monaco-vscode-typescript-basics-default-extension";
-import "@codingame/monaco-vscode-javascript-default-extension";
-import "@codingame/monaco-vscode-json-default-extension";
-import "@codingame/monaco-vscode-css-default-extension";
-import "@codingame/monaco-vscode-html-default-extension";
-import "@codingame/monaco-vscode-markdown-basics-default-extension";
-import "@codingame/monaco-vscode-python-default-extension";
-import "@codingame/monaco-vscode-yaml-default-extension";
-import "@codingame/monaco-vscode-php-default-extension";
-import "@codingame/monaco-vscode-rust-default-extension";
-import "@codingame/monaco-vscode-go-default-extension";
-import "@codingame/monaco-vscode-java-default-extension";
-import "@codingame/monaco-vscode-cpp-default-extension";
-import "@codingame/monaco-vscode-csharp-default-extension";
-import "@codingame/monaco-vscode-ruby-default-extension";
-import "@codingame/monaco-vscode-xml-default-extension";
-import "@codingame/monaco-vscode-sql-default-extension";
-import "@codingame/monaco-vscode-bat-default-extension";
-import "@codingame/monaco-vscode-powershell-default-extension";
-import "@codingame/monaco-vscode-shellscript-default-extension";
-import "@codingame/monaco-vscode-scss-default-extension";
-import "@codingame/monaco-vscode-less-default-extension";
-import "@codingame/monaco-vscode-ini-default-extension";
-import "@codingame/monaco-vscode-coffeescript-default-extension";
-import "@codingame/monaco-vscode-dart-default-extension";
-import "@codingame/monaco-vscode-fsharp-default-extension";
-import "@codingame/monaco-vscode-groovy-default-extension";
-import "@codingame/monaco-vscode-handlebars-default-extension";
-import "@codingame/monaco-vscode-julia-default-extension";
-import "@codingame/monaco-vscode-lua-default-extension";
-import "@codingame/monaco-vscode-objective-c-default-extension";
-import "@codingame/monaco-vscode-perl-default-extension";
-import "@codingame/monaco-vscode-r-default-extension";
-import "@codingame/monaco-vscode-razor-default-extension";
-import "@codingame/monaco-vscode-swift-default-extension";
-import "@codingame/monaco-vscode-vb-default-extension";
-import "@codingame/monaco-vscode-clojure-default-extension";
-import "@codingame/monaco-vscode-pug-default-extension";
-import "@codingame/monaco-vscode-diff-default-extension";
-import "@codingame/monaco-vscode-shaderlab-default-extension";
-import "@codingame/monaco-vscode-markdown-math-default-extension";
-import "@codingame/monaco-vscode-docker-default-extension";
-import "@codingame/monaco-vscode-make-default-extension";
-import "@codingame/monaco-vscode-log-default-extension";
-import "@codingame/monaco-vscode-restructuredtext-default-extension";
-
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Actions } from "flexlayout-react";
+import CodeMirror from "@uiw/react-codemirror";
+import { EditorView, Decoration, gutter, GutterMarker } from "@codemirror/view";
+import { EditorState, StateEffect, StateField, RangeSetBuilder } from "@codemirror/state";
+import {
+  undo, redo, selectAll, toggleComment, deleteLine,
+  moveLineUp, moveLineDown, copyLineDown, copyLineUp,
+} from "@codemirror/commands";
+import { findNext, findPrevious, gotoLine } from "@codemirror/search";
+import { lintGutter } from "@codemirror/lint";
 import NotebookPanel from "../Notebook/index.jsx";
-import { initialize, getService, IThemeService, ILanguageService, ICommandService, IExtensionService } from "@codingame/monaco-vscode-api";
-import { createConfiguredEditor } from "@codingame/monaco-vscode-api/monaco";
-// NOTE: "@codingame/monaco-vscode-api/monaco" does NOT export `Uri` or `editor`
-// (verified: it only exports createConfiguredEditor/createModelReference/etc).
-// The previous code did `import * as monaco ...` then used monaco.Uri /
-// monaco.editor — both undefined — while creating the editor with value:"",
-// so the file:// model swap was silently skipped and the editor stayed EMPTY
-// (data load nahi ho raha). We share models via the editor instance itself
-// (same vscode instance, no Uri lookup needed) and always create with
-// value:text so content loads even if sharing fails.
-import getTextMateServiceOverride from "@codingame/monaco-vscode-textmate-service-override";
-import getThemeServiceOverride from "@codingame/monaco-vscode-theme-service-override";
-import getLanguagesServiceOverride from "@codingame/monaco-vscode-languages-service-override";
-import getFileServiceOverride from "@codingame/monaco-vscode-files-service-override";
-import getExtensionsServiceOverride from "@codingame/monaco-vscode-extensions-service-override";
-import { registerExtension, ExtensionHostKind } from "@codingame/monaco-vscode-api/extensions";
-// Shared editor state (dirty flags, AI bridge, settings sync).
+import FindReplaceBar from "./FindReplaceBar.jsx";
+// Shared editor state (dirty flags, AI bridge, settings sync) — engine-agnostic.
 import {
   baseNames, dirtyFlags,
   getActiveEditorPath, setActiveEditorPath,
@@ -96,489 +30,213 @@ import {
   updateTabName, setDirty,
   getEditorSettings, getCachedEditorSettings, settingsListeners,
 } from "./shared.js";
+import { normalizeCmSettings, DEFAULT_CM_SETTINGS } from "./cm/settings.js";
+import { resolveCmLanguage, getLanguageSupport, displayNameFor, CM_LANG_IDS } from "./cm/languages.js";
+import { buildCmExtensions } from "./cm/extensions.js";
+import { makeCmLinter, diagnosticsToMarkers, publishDiagnostics } from "./cm/lint.js";
+import { createCmBridge, offsetToPos } from "./cm/bridge.js";
+import { formatCode, isFormattable } from "./cm/format.js";
+import {
+  autoConnectLspOnce, getLspExtension, getLspStatus, getLspError,
+  onLspStatus, retryLsp,
+} from "./cm/lsp.js";
 
-// ── Worker setup (bundled separately by esbuild) ───────────────────────────
-window.MonacoEnvironment = {
-  getWorker: (_moduleId, label) => {
-    if (label === "TextMateWorker") return new Worker("./textmate.worker.js");
-    if (label === "typescript" || label === "javascript") return new Worker("./ts.worker.js");
-    if (label === "json") return new Worker("./json.worker.js");
-    if (label === "html" || label === "handlebars" || label === "razor") return new Worker("./html.worker.js");
-    if (label === "css" || label === "scss" || label === "less") return new Worker("./css.worker.js");
-    return new Worker("./editor.worker.js");
-  },
-  getWorkerUrl: (_moduleId, label) => {
-    if (label === "webWorkerExtensionHostIframe") return "./worker/webWorkerExtensionHostIframe.html";
-    if (label === "extensionHostWorkerMain") {
-      return "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensionHost.worker.js";
-    }
-    return undefined;
-  },
-  getWorkerOptions: (_moduleId, label) => {
-    if (label === "extensionHostWorkerMain") return { type: "module" };
-    return undefined;
-  },
-};
-
-// ── Demo extension (proves the extension host pipeline) ────────────────────
-const demoExtension = registerExtension(
-  {
-    name: "demo-extension",
-    displayName: "Demo Extension",
-    description: "Test extension proving the extension host works",
-    version: "1.0.0",
-    publisher: "idiot-box",
-    license: "MIT",
-    engines: { vscode: "*" },
-    categories: ["Other"],
-    activationEvents: ["*"],
-    main: "./extension.js",
-    contributes: {
-      commands: [
-        { command: "demo.hello", title: "Demo: Hello from Extension", category: "Demo" },
-      ],
-    },
-  },
-  ExtensionHostKind.LocalWebWorker
-);
-const ibxExtRoot = "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension";
-demoExtension.registerFileUrl("/package.json", ibxExtRoot + "/package.json");
-demoExtension.registerFileUrl("/extension.js", ibxExtRoot + "/extension.js");
-
-// ── VS Code services init (once) ───────────────────────────────────────────
-let initPromise;
-const ensureEditorReady = () => {
-  if (!initPromise) {
-    initPromise = initialize(
-      {
-        ...getTextMateServiceOverride(),
-        ...getThemeServiceOverride(),
-        ...getLanguagesServiceOverride(),
-        ...getFileServiceOverride(),
-        ...getExtensionsServiceOverride({ enableWorkerExtensionHost: true }),
-      },
-      document.body
-    ).then(async () => {
-      try {
-        const themeService = await getService(IThemeService);
-        for (let attempt = 0; attempt < 20; attempt++) {
-          try {
-            themeService.setTheme("Dark+");
-            let applied = null;
-            try {
-              if (typeof themeService.getTheme === "function") applied = themeService.getTheme();
-              else if (typeof themeService.getColorTheme === "function") applied = themeService.getColorTheme();
-            } catch {}
-            if (applied && /dark/i.test(applied.id || applied.label || "")) break;
-            if (!applied) break; // setTheme succeeded, no verification available
-          } catch {}
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      } catch {}
-    }).catch((err) => {
-      initPromise = null;
-      throw err;
-    });
-  }
-  return initPromise;
-};
-
-// ── VS Code services init (once, shared by source files and notebooks) ───────
-// The singleton promise is shared so source files and notebook cells never
-// initialize duplicate language or extension services.
-// Rejected when services fail — consumers must fall back (plain textarea).
+// CodeMirror ko async init nahi chahiye — ready turant. Purane consumers
+// (koi bacha ho to) ke liye compat: resolved promise + ready events.
+if (!window.__ibxEditorReady) window.__ibxEditorReady = Promise.resolve(true);
 export const ensureMonacoReady = () => {
   try {
-    if (!window.__ibxEditorReady) window.__ibxEditorReady = ensureEditorReady();
+    if (!window.__ibxEditorReady) window.__ibxEditorReady = Promise.resolve(true);
     return window.__ibxEditorReady;
   } catch (err) {
     return Promise.reject(err);
   }
 };
+try {
+  queueMicrotask(() => {
+    try { window.dispatchEvent(new CustomEvent("codemirror:ready")); } catch {}
+    try { window.dispatchEvent(new CustomEvent("monaco:ready")); } catch {} // compat
+  });
+} catch {}
 
-const ext = (p) => { try { return p.slice(p.lastIndexOf(".")).toLowerCase(); } catch { return ""; } };
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
 
-// Language ids + content-based auto-detection live in languageDetect.mjs
-// (pure ESM, unit-tested via languageDetect.test.mjs).
-import { LANG_OPTIONS, detectLanguageFromContent, sniffCHeader } from "./languageDetect.mjs";
-
-window.__ibxProbes = [];
-window.addEventListener("message", (e) => {
-  if (e.data && e.data.probeType === "if") {
-    window.__ibxProbes.push(e.data);
-    if (window.__ibxProbes.length > 60) window.__ibxProbes.shift();
+// ── Git diff gutter (CodeMirror native) ──────────────────────────────
+// Hunk lines -> line backgrounds + gutter bars. StateField stable rehta hai
+// (component lifetime), diff aane par effect dispatch hota hai.
+const gitSetEffect = StateEffect.define();
+class GitMarker extends GutterMarker {
+  constructor(kind) { super(); this.kind = kind; }
+  eq(other) { return other instanceof GitMarker && other.kind === this.kind; }
+  toDOM() {
+    const el = document.createElement("div");
+    el.className = "cm-gitgutter-" + this.kind;
+    return el;
   }
-});
-
-// Self-check hook: run the demo extension's command over the ext-host RPC.
-ensureEditorReady()
-  .then(() => {
-window.__ibxExtCheck = async () => {
-      const body = async () => {
-        let info = {};
-        const mark = (s) => { info.step = s; window.__ibxDbg = { ...info }; };
-        mark("proto");
-        try {
-          const u = window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension/extension.js";
-          const res = await fetch("ibx-file://" + u);
-          info.protoStatus = res.status;
-          info.protoText = (await res.text()).slice(0, 60);
-        } catch (e) { info.protoErr = String(e); }
-        mark("protoWorker");
-        try {
-          const url = "ibx-file://" + window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/")) + "/extensions/demo-extension/extension.js";
-          info.protoWorker = await new Promise((resolve) => {
-            try {
-              const blob = new Blob([`fetch(${JSON.stringify(url)}).then(r => { self.postMessage({ status: r.status }); return r.text(); }).then(t => self.postMessage({ text: String(t).slice(0, 40) })).catch(e => self.postMessage({ err: String(e) }));`], { type: "application/javascript" });
-              const w = new Worker(URL.createObjectURL(blob), { type: "module" });
-              const to = setTimeout(() => { resolve({ timeout: true }); try { w.terminate(); } catch {} }, 6000);
-              w.onmessage = (e) => { clearTimeout(to); resolve(e.data); w.terminate(); };
-              w.onerror = (e) => { clearTimeout(to); resolve({ workerErr: e.message }); };
-            } catch (e) { resolve({ createErr: String(e) }); }
-          });
-        } catch (e) { info.protoWorkerErr = String(e); }
-        mark("blobTest");
-        try {
-          const wb = window.location.pathname.slice(0, window.location.pathname.lastIndexOf("/"));
-          info.blobTest = await new Promise(async (resolve) => {
-            const results = {};
-            for (const [tag, workerUrl] of [["file", "file://" + wb + "/extensionHost.worker.js"], ["ibx", "ibx-file://" + wb + "/extensionHost.worker.js"]]) {
-              results[tag] = await new Promise((r2) => {
-                try {
-                  const blob = new Blob([`await import(${JSON.stringify(workerUrl)});`], { type: "application/javascript" });
-                  const w = new Worker(URL.createObjectURL(blob), { type: "module", name: "t" + tag });
-                  const to = setTimeout(() => { r2({ timeout: true }); try { w.terminate(); } catch {} }, 8000);
-                  w.onmessage = (e) => { clearTimeout(to); r2({ msg: typeof e.data === "string" ? e.data.slice(0, 60) : "non-string" }); w.terminate(); };
-                  w.onerror = (e) => { clearTimeout(to); r2({ err: e.message }); };
-                } catch (e) { r2({ createErr: String(e) }); }
-              });
-            }
-            resolve(results);
-          });
-        } catch (e) { info.blobTestErr = String(e); }
-        mark("iframe");
-        try {
-          const f = document.querySelector('iframe[src*=webWorkerExtensionHostIframe]');
-          if (f) {
-            info.iframeInfo = { readyState: f.contentDocument && f.contentDocument.readyState, href: f.contentWindow ? String(f.contentWindow.location.href).slice(0, 120) : null, cw: !!f.contentWindow };
-            if (f.contentWindow) {
-              try {
-                f.contentWindow.eval("window.parent.postMessage({probeType:'if', step:'eval-injected'}, '*')");
-                info.iframeInfo.evalInjected = true;
-              } catch (e) { info.iframeInfo.evalErr = String(e); }
-              try {
-                const d = f.contentDocument;
-                const s = d.querySelector('script').textContent;
-                const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-                const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-                const meta = d.querySelector('meta[http-equiv="Content-Security-Policy"]').content;
-                info.iframeInfo.scriptHash = 'sha256-' + b64;
-                info.iframeInfo.hashMatches = meta.includes('sha256-' + b64);
-              } catch (e) { info.iframeInfo.hashErr = String(e); }
-            }
-          } else {
-            info.iframeInfo = { notFound: true };
-          }
-        } catch (e) { info.iframeInfo = { err: String(e) }; }
-        try {
-          mark("svc");
-          const extSvc = await getService(IExtensionService);
-          mark("exts");
-          info.extNames = (extSvc.extensions || []).map((e) => e.name);
-          info.extIds = (extSvc.extensions || []).map((e) => e.identifier?.value ?? e.id);
-          try {
-            mark("installed");
-            info.installed = await Promise.race([
-              extSvc.whenInstalledExtensionsRegistered(),
-              new Promise((resolve) => setTimeout(() => resolve("TIMEOUT"), 2000)),
-            ]);
-          } catch (err) {
-            info.installedErr = err?.message || String(err);
-          }
-          try {
-            mark("status");
-            const status = extSvc.getExtensionsStatus();
-            const d = status["idiot-box.demo-extension"] || status["ibx.demo-extension"];
-            info.demoStatus = d && {
-              activationErrors: d.activationErrors?.map((e) => e.message),
-              activationTimes: d.activationTimes,
-              kind: d.extensionHostKind,
-              messages: d.messages?.map((m) => m.type + ":" + (m.message || "").slice(0, 200)),
-            };
-          } catch (err) {
-            info.statusErr = err?.message || String(err);
-          }
-        } catch (err) {
-          info.extSvcError = err?.message || String(err);
-        }
-        mark("cmd");
-        const commandService = await getService(ICommandService);
-        let lastErr = null;
-        for (let i = 0; i < 30; i++) {
-          try {
-            const result = await commandService.executeCommand("demo.hello");
-            if (result !== undefined) return { ...info, commandResult: result };
-          } catch (err) {
-            lastErr = err?.message || String(err);
-          }
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-        return { ...info, commandResult: null, timeout: true, lastErr };
-      };
-      return await Promise.race([
-        body(),
-        new Promise((resolve) => setTimeout(() => resolve({ outerTimeout: true, dbg: window.__ibxDbg || null, probes: window.__ibxProbes || [] }), 9000)),
-      ]);
-    };
-  })
-  .catch(() => {});
-
-// Resolve the Monaco language for a file via the VS Code language service
-// (fed by the default-extension grammars), with a built-in fallback map.
-let _languageService = null;
-const getLanguageService = async () => {
-  if (!_languageService) {
-    try { _languageService = await getService(ILanguageService); } catch { _languageService = null; }
-  }
-  return _languageService;
-};
-
-const getMonacoLanguage = async (filePath, text) => {
-  const e = ext(filePath);
-  const base = fileName(filePath);
+}
+const buildGitDeco = (doc, added, modified) => {
   try {
-    const ls = await getLanguageService();
-    if (ls) {
-      const ids = ls.getRegisteredLanguageIds();
-      for (const id of ids) {
-        if (ls.getExtensions(id).some((x) => x && x.toLowerCase() === e)) return id;
-        if (ls.getFilenames(id).some((f) => f && f.toLowerCase() === base)) return id;
+    const builder = new RangeSetBuilder();
+    const marks = [];
+    for (const ln of added) {
+      if (ln >= 1 && ln <= doc.lines) {
+        try { marks.push({ from: doc.line(ln).from, deco: Decoration.line({ class: "cm-git-addedline" }) }); } catch {}
       }
     }
-  } catch { /* service unavailable — fall back */ }
-  // Extension-less well-known filenames (Dockerfile, Makefile, Jenkinsfile…).
-  const lowerBase = (base || "").toLowerCase();
-  if (lowerBase === "dockerfile" || lowerBase.startsWith("dockerfile.")) return "dockerfile";
-  if (lowerBase === "containerfile" || lowerBase.startsWith("containerfile.")) return "dockerfile";
-  if (lowerBase === "makefile" || lowerBase === "gnumakefile") return "makefile";
-  if (lowerBase === "jenkinsfile") return "groovy";
-  if (lowerBase === "vagrantfile" || lowerBase === "gemfile" || lowerBase === "rakefile" || lowerBase === "brewfile") return "ruby";
-  switch (e) {
-    case ".js": case ".mjs": case ".cjs": return "javascript";
-    case ".jsx": return "javascriptreact";
-    case ".ts": return "typescript";
-    case ".tsx": return "typescriptreact";
-    case ".html": case ".htm": return "html";
-    case ".vue": case ".svelte": return "html";
-    case ".css": return "css";
-    case ".scss": case ".sass": return "scss";
-    case ".less": return "less";
-    case ".json": case ".jsonc": return "json";
-    case ".ipynb": return "json"; // raw "Open as JSON" view (cell UI is default)
-    case ".md": case ".markdown": case ".mdown": return "markdown";
-    case ".rst": return "restructuredtext";
-    case ".log": return "log";
-    case ".diff": case ".patch": case ".rej": return "diff";
-    case ".py": return "python";
-    case ".rs": return "rust";
-    case ".go": return "go";
-    case ".c": return "c";
-    case ".h": return sniffCHeader(text);
-    case ".cpp": case ".hpp": case ".cc": return "cpp";
-    case ".cs": return "csharp";
-    case ".java": return "java";
-    case ".sql": return "sql";
-    case ".sh": case ".bash": return "shellscript";
-    case ".dockerfile": case ".containerfile": return "dockerfile";
-    case ".mk": case ".mak": return "makefile";
-    case ".coffee": case ".cson": case ".iced": return "coffeescript";
-    case ".dart": return "dart";
-    case ".fs": case ".fsi": case ".fsx": return "fsharp";
-    case ".groovy": case ".gvy": case ".gradle": return "groovy";
-    case ".hbs": case ".handlebars": return "handlebars";
-    case ".jl": return "julia";
-    case ".jmd": return "juliamarkdown";
-    case ".lua": return "lua";
-    case ".m": return "objective-c";
-    case ".mm": return "objective-cpp";
-    case ".pl": case ".pm": case ".pod": case ".t": return "perl";
-    case ".raku": case ".p6": case ".pm6": return "raku";
-    case ".r": return "r";
-    case ".cshtml": case ".razor": return "razor";
-    case ".swift": return "swift";
-    case ".vb": case ".vbs": case ".bas": return "vb";
-    case ".clj": case ".cljs": case ".cljc": case ".edn": return "clojure";
-    case ".pug": case ".jade": return "jade";
-    case ".shader": return "shaderlab";
-    case ".yaml": case ".yml": return "yaml";
-    case ".xml": case ".xsl": return "xml";
-    case ".php": return "php";
-    case ".rb": return "ruby";
-    case ".bat": case ".cmd": return "bat";
-    case ".ps1": return "powershell";
-    case ".ini": case ".cfg": case ".toml": return "ini";
-    case ".properties": return "properties";
-    case ".conf": case ".editorconfig": case ".gitattributes": case ".gitconfig": case ".gitmodules": return "ini";
-    default: return "plaintext";
+    for (const ln of modified) {
+      if (added.has(ln)) continue;
+      if (ln >= 1 && ln <= doc.lines) {
+        try { marks.push({ from: doc.line(ln).from, deco: Decoration.line({ class: "cm-git-modifiedline" }) }); } catch {}
+      }
+    }
+    marks.sort((a, b) => a.from - b.from);
+    for (const m of marks) builder.add(m.from, m.from, m.deco);
+    return builder.finish();
+  } catch {
+    return Decoration.none;
   }
 };
+const gitField = StateField.define({
+  create: () => ({ added: new Set(), modified: new Set(), removed: new Set(), deco: Decoration.none }),
+  update: (val, tr) => {
+    for (const e of tr.effects) {
+      if (e.is(gitSetEffect)) {
+        const { added, modified, removed } = e.value;
+        return { added, modified, removed, deco: buildGitDeco(tr.state.doc, added, modified) };
+      }
+    }
+    if (tr.docChanged) {
+      // Lines shift ho gayin — mapping best-effort: deco map karo, sets
+      // re-parse par refresh honge (save / interval / fs event).
+      try { return { ...val, deco: val.deco.map(tr.changes) }; } catch { return val; }
+    }
+    return val;
+  },
+  provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
+});
+const gitGutterMarkers = (view) => {
+  try {
+    const f = view.state.field(gitField, false);
+    if (!f) return [];
+    const out = [];
+    const pushLines = (set, kind) => {
+      for (const ln of set) {
+        if (ln < 1 || ln > view.state.doc.lines) continue;
+        try { out.push(new GitMarker(kind).range(view.state.doc.line(ln).from)); } catch {}
+      }
+    };
+    pushLines(f.added, "added");
+    pushLines(f.modified, "modified");
+    pushLines(f.removed, "removed");
+    return out;
+  } catch { return []; }
+};
+const gitGutterExt = gutter({ class: "cm-gitgutter", markers: gitGutterMarkers });
 
-// ── Shared editor state (engine-agnostic — see shared.js) ───────────────────
-// baseNames / dirtyFlags / AI bridge / settings sync ab shared.js me hain.
-// Shared Monaco models (same vscode instance, no Uri lookup): filePath -> { model, refcount }.
-// Lets split-tabs / duplicate tabs edit the SAME text live. Falls back to
-// per-tab models if sharing fails — content still loads either way.
-const sharedModels = new Map();
+// Hunk header parse: @@ -a[,b] +c[,d] @@ — sirf nayi-file side chahiye.
+const parseGitHunks = (diffText) => {
+  const added = new Set(), modified = new Set(), removed = new Set();
+  try {
+    for (const line of String(diffText || "").split("\n")) {
+      if (!line.startsWith("@@")) continue;
+      const m = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
+      if (!m) continue;
+      const start = parseInt(m[1], 10);
+      const count = m[2] ? parseInt(m[2], 10) : 1;
+      if (count === 0) removed.add(Math.max(1, start));
+      else {
+        for (let i = 0; i < count; i++) {
+          const ln = start + i;
+          if (line.includes("@@ -0,0")) added.add(ln);
+          else modified.add(ln);
+        }
+      }
+    }
+  } catch {}
+  return { added, modified, removed };
+};
 
-const MonacoEditorPanel = ({ config, nodeId }) => {
+const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
-  // .ipynb renders the notebook cell UI INSIDE this editor tab (like a normal
-  // file tab) instead of a Monaco text editor. config.forceText bypasses this
-  // ("Open as JSON" opens the raw notebook source as text).
+  // .ipynb yahan nahi — NotebookPanel cell UI dikhata hai (neeche switch me).
   const forceText = config?.forceText === true;
   const isIpynb = !forceText && /\.ipynb$/i.test(filePath || "");
 
-  // ── Project gate: editor is only usable when a project is open ───────────
+  // ── Project gate ──
   const [hasProject, setHasProject] = useState(!!window.__currentProjectPath);
-
   useEffect(() => {
-    // Sync with current state immediately
     setHasProject(!!window.__currentProjectPath);
-
-    const onOpen  = () => setHasProject(true);
+    const onOpen = () => setHasProject(true);
     const onClose = () => setHasProject(false);
-    window.addEventListener("project:opened",  onOpen);
-    window.addEventListener("project:closed",  onClose);
+    window.addEventListener("project:opened", onOpen);
+    window.addEventListener("project:closed", onClose);
     return () => {
-      window.removeEventListener("project:opened",  onOpen);
-      window.removeEventListener("project:closed",  onClose);
+      window.removeEventListener("project:opened", onOpen);
+      window.removeEventListener("project:closed", onClose);
     };
   }, []);
 
-  // ── AI bridge registration (current-file / selection context + insert) ──
-  useEffect(() => {
-    aiEditorTabs.set(nodeId, { filePath, editorRef });
-    aiNotifyContext(true);
-    return () => { aiEditorTabs.delete(nodeId); aiNotifyContext(true); };
-  }, [nodeId, filePath]);
+  const [doc, setDoc] = useState("");
+  const [languageId, setLanguageId] = useState("plaintext");
+  const [detected, setDetected] = useState(null);
+  const [langAuto, setLangAuto] = useState(false);
+  const [statusMsg, setStatusMsg] = useState(null);
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1, totalLines: 1 });
+  const [cmSettings, setCmSettings] = useState(() => ({ ...DEFAULT_CM_SETTINGS }));
+  const [autoSave, setAutoSave] = useState(false);
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const [langQuery, setLangQuery] = useState("");
+  const [binaryFile, setBinaryFile] = useState(false);
+  const [largeFile, setLargeFile] = useState(false);
+  const [lspStatus, setLspStatus] = useState(getLspStatus());
+  const [lspTick, setLspTick] = useState(0);
+  const [symbolOpen, setSymbolOpen] = useState(false);
+  const [symbolQuery, setSymbolQuery] = useState("");
 
-  const [content,         setContent]         = useState("");
-  const [originalContent, setOriginalContent] = useState("");
-  const [language,        setLanguage]        = useState("plaintext");
-  const [statusMsg,       setStatusMsg]       = useState(null);
-  const [cursorPos,       setCursorPos]       = useState({ line: 1, col: 1, totalLines: 1 });
-  const [ready,           setReady]           = useState(false);
-  const [initError,       setInitError]       = useState(null);
-  // minimap & wordWrap come from settings, not local toggle buttons
-  const [minimap,         setMinimap]         = useState(true);
-  const [wordWrap,        setWordWrap]        = useState("on");
-  const [lineNumbers,     setLineNumbers]     = useState("on");
-  const [fontSize,        setFontSize]        = useState(13);
-  // NOTE: Monaco ko REAL font string chahiye — var(--font-code) yahan resolve
-  // NAHI hota (JS API, CSS nahi). Isliye literal rakha hai, jo --font-code
-  // token ke barabar hai. Token badle to yahan bhi badlo.
-  const [fontFamily,      setFontFamily]      = useState('Consolas, "Courier New", monospace');
-  const [tabSize,         setTabSize]         = useState(2);
-  const [editorTheme,     setEditorTheme]     = useState("dark"); // default dark
-  const [autoSave,        setAutoSave]        = useState(false);
-  const [showLangMenu,    setShowLangMenu]    = useState(false);
-  const [langQuery,       setLangQuery]       = useState("");
-  const [detected,        setDetected]        = useState(null);  // { id, confidence, reason } from content sniffing
-  const [langAuto,        setLangAuto]        = useState(false); // true while the active mode came from auto-detection
-
-  const editorRef   = useRef(null);
-  const hostRef     = useRef(null);
-  const pathRef     = useRef(filePath);
+  const viewRef = useRef(null);
+  const bridgeRef = useRef(null);
+  const editorRef = useRef(null); // AI bridge ke liye (bridge object)
+  const pathRef = useRef(filePath);
   const originalRef = useRef("");
-  const loadedRef   = useRef(false);
-  const largeFileRef = useRef(false);
-  const saveTimer   = useRef(null);
+  const loadedRef = useRef(false);
+  const langRef = useRef("plaintext");
+  const docRef = useRef("");
+  const saveTimer = useRef(null);
   const lastSelfSaveRef = useRef(0);
+  const externalWriteRef = useRef(false);
+  const gitTimer = useRef(null);
+  const openFindRef = useRef(null); // keymap (extensions) -> openFind bridge
 
   pathRef.current = filePath;
+  langRef.current = languageId;
+  docRef.current = doc;
 
   const flashStatus = (msg) => {
     setStatusMsg(msg);
     setTimeout(() => { setStatusMsg(null); }, 3000);
   };
 
-  // ── Status-bar language switcher ─────────────────────────────────────────
-  const setEditorLanguage = useCallback((id, isAuto = false) => {
-    setShowLangMenu(false);
-    setLangQuery("");
-    if (!id) return;
-    setLanguage(id);
-    setLangAuto(!!isAuto);
-    try {
-      const model = editorRef.current?.getModel?.();
-      if (!model) return;
-      // Preferred: global monaco API (if a compatible instance is exposed).
-      if (window.monaco?.editor?.setModelLanguage) {
-        window.monaco.editor.setModelLanguage(model, id);
-        return;
-      }
-      // Fallback: vscode ITextModel exposes setLanguage directly.
-      if (typeof model.setLanguage === "function") {
-        model.setLanguage(id);
-        return;
-      }
-    } catch {}
-  }, []);
+  // ── AI bridge registration ──
+  useEffect(() => {
+    aiEditorTabs.set(nodeId, { filePath, editorRef });
+    aiNotifyContext(true);
+    return () => { aiEditorTabs.delete(nodeId); aiNotifyContext(true); };
+  }, [nodeId, filePath]);
 
-  // ── Re-run content detection on the live buffer (picker "Auto-detect") ───
-  // Useful after pasting a shebang / converting a plaintext scratch buffer.
-  const runAutoDetect = useCallback(() => {
-    try {
-      const v = editorRef.current?.getValue?.() ?? "";
-      const hit = detectLanguageFromContent(v);
-      if (hit && hit.id && hit.id !== "plaintext") {
-        setDetected(hit);
-        setEditorLanguage(hit.id, true);
-        flashStatus(`Auto-detected language: ${hit.id} (${hit.reason})`);
-      } else {
-        flashStatus("No language detected — pick one below");
-      }
-    } catch {
-      flashStatus("Detection failed — pick a language below");
-    }
-  }, [setEditorLanguage]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Load editor settings on mount ────────────────────────────────────────
+  // ── Settings load + live sync ──
   useEffect(() => {
     getEditorSettings().then((s) => {
-      setMinimap(s.minimap !== false);
-      setWordWrap(s.wordWrap !== false ? "on" : "off");
-      setLineNumbers(s.lineNumbers !== false ? "on" : "off");
-      if (Number.isFinite(s.fontSize)) setFontSize(Math.min(32, Math.max(8, s.fontSize)));
-      // single-name picks (e.g. "Consolas") get a monospace tail so a missing
-      // font (stock Linux) can't switch Monaco to a proportional grid
-      if (s.fontFamily) setFontFamily(withMonoFallback(s.fontFamily));
-      if (Number.isFinite(s.tabSize)) setTabSize(s.tabSize);
-      const th = s.editorTheme || s.theme || "dark";
-      setEditorTheme(th);
-      if ("autoSave" in s) {
+      setCmSettings(normalizeCmSettings(s));
+      if ("autoSave" in (s || {})) {
         const enabled = s.autoSave === true || s.autoSave === "afterDelay";
         setAutoSaveEnabled(enabled);
         setAutoSave(enabled);
         try { window.dispatchEvent(new CustomEvent("editor:autosave", { detail: { enabled } })); } catch {}
-      } else {
-        setAutoSave(false);
-      }
-    });
-
-    // Listen for live changes from the Settings window
+      } else setAutoSave(false);
+    }).catch(() => {});
     const handler = (patch) => {
-      if ("minimap"  in patch) setMinimap(patch.minimap !== false);
-      if ("wordWrap" in patch) setWordWrap(patch.wordWrap !== false ? "on" : "off");
-      if ("lineNumbers" in patch) setLineNumbers(patch.lineNumbers !== false ? "on" : "off");
-      if ("fontSize" in patch && Number.isFinite(patch.fontSize)) setFontSize(Math.min(32, Math.max(8, patch.fontSize)));
-      if ("fontFamily" in patch && patch.fontFamily) setFontFamily(withMonoFallback(patch.fontFamily));
-      if ("tabSize" in patch && Number.isFinite(patch.tabSize)) setTabSize(patch.tabSize);
-      if ("editorTheme" in patch || "theme" in patch) {
-        const th = patch.editorTheme || patch.theme;
-        if (th) setEditorTheme(th);
-      }
+      if (!patch || typeof patch !== "object") return;
+      setCmSettings((prev) => normalizeCmSettings({ ...prev, ...patch }));
       if ("autoSave" in patch) {
         const enabled = patch.autoSave === true || patch.autoSave === "afterDelay";
         setAutoSaveEnabled(enabled);
@@ -587,657 +245,256 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
       }
     };
     settingsListeners.add(handler);
-    // IPC fallback shared.js me centrally lagta hai (settingsListeners fan-out),
-    // isliye yahan per-component IPC subscription ki zaroorat nahi.
     return () => { settingsListeners.delete(handler); };
   }, []);
 
-  // ── Git diff gutter CSS ──────────────────────────────────────────────────
+  // ── Git gutter CSS (ek baar) ──
   useEffect(() => {
-    if (document.getElementById("git-diff-style")) return;
+    if (document.getElementById("cm-git-style")) return;
     const style = document.createElement("style");
-    style.id = "git-diff-style";
+    style.id = "cm-git-style";
     style.textContent = `
-      .git-diff-added { background: var(--git-added-a15) !important; }
-      .git-diff-added-glyph { border-left: 3px solid var(--git-added) !important; margin-left: var(--space-3); }
-      .git-diff-modified { background: var(--git-modified-a12) !important; }
-      .git-diff-modified-glyph { border-left: 3px solid var(--git-modified) !important; margin-left: var(--space-3); }
-      .git-diff-removed { background: var(--git-removed-a12) !important; }
+      .cm-gitgutter { width: 5px; }
+      .cm-gitgutter-added { border-left: 3px solid var(--git-added); margin-left: 2px; height: 100%; }
+      .cm-gitgutter-modified { border-left: 3px solid var(--git-modified); margin-left: 2px; height: 100%; }
+      .cm-gitgutter-removed { border-left: 3px solid var(--git-removed); margin-left: 2px; height: 100%; }
+      .cm-git-addedline { background: var(--git-added-a15); }
+      .cm-git-modifiedline { background: var(--git-modified-a12); }
     `;
     document.head.appendChild(style);
   }, []);
 
-  // ── Bootstrap VS Code services once ──────────────────────────────────────
+  // ── LSP status subscribe + ek baar auto-connect ──
   useEffect(() => {
-    ensureEditorReady()
-      .then(() => {
-        setReady(true);
-        // Notify Problems panel etc. that the editor stack is ready.
-        // NOTE: we deliberately do NOT set window.monaco to the
-        // "@codingame/monaco-vscode-api/monaco" wrapper — it has no
-        // `editor`/`Uri` namespace, and assigning it broke setModelLanguage
-        // / getModelMarkers consumers. Problems stays event-driven and will
-        // use whatever compatible monaco instance is available, if any.
-        try {
-          window.dispatchEvent(new CustomEvent("monaco:ready"));
-        } catch {}
-      })
-      .catch((err) => setInitError(err?.message || String(err)));
+    autoConnectLspOnce();
+    const unsub = onLspStatus((st) => {
+      setLspStatus(st);
+      setLspTick((t) => t + 1); // extensions rebuild (online aane par LSP jude)
+    });
+    const onEv = (e) => {
+      setLspStatus(e.detail?.status || getLspStatus());
+      setLspTick((t) => t + 1);
+    };
+    window.addEventListener("lsp:status", onEv);
+    return () => { try { unsub(); } catch {} window.removeEventListener("lsp:status", onEv); };
   }, []);
 
-  // ── Apply editor theme from settings (default dark) ───────────────────────
+  // ── File load ──
   useEffect(() => {
-    if (!ready) return;
-    let cancelled = false;
-    (async () => {
-      const map = {
-        dark: "Visual Studio Dark",
-        darkPlus: "Dark+",
-        darkModern: "Dark Modern",
-        dark2026: "Dark 2026",
-        light: "Visual Studio Light",
-        lightPlus: "Light+",
-        lightModern: "Light Modern",
-        light2026: "Light 2026",
-        hcDark: "Default High Contrast",
-        hcLight: "Default High Contrast Light",
-        "Visual Studio Dark": "Visual Studio Dark",
-        "Visual Studio Light": "Visual Studio Light",
-        "Dark+": "Dark+",
-        "Dark Modern": "Dark Modern",
-        "Dark 2026": "Dark 2026",
-        "Light+": "Light+",
-        "Light Modern": "Light Modern",
-        "Light 2026": "Light 2026",
-      };
-      const target = map[editorTheme] || map.dark;
-      // Retry loop — theme service may need a tick after initialize
-      for (let attempt = 0; attempt < 8; attempt++) {
-        if (cancelled) return;
-        try {
-          const ts = await getService(IThemeService);
-          if (!ts) throw new Error("theme service not ready");
-          if (typeof ts.setTheme !== "function") throw new Error("setTheme not available");
-          ts.setTheme(target);
-          await new Promise((r) => setTimeout(r, 80));
-          let applied = null;
-          try {
-            if (typeof ts.getTheme === "function") applied = ts.getTheme();
-            else if (typeof ts.getColorTheme === "function") applied = ts.getColorTheme();
-            else if (typeof ts.getThemeId === "function") applied = { id: ts.getThemeId() };
-          } catch {}
-          const id = applied?.id || applied?.label || target;
-          console.log(`[editor] theme ${editorTheme} -> ${target} applied: ${id} (attempt ${attempt+1})`);
-          if (id && target.toLowerCase() === id.toLowerCase()) break;
-          if (id && id.toLowerCase().includes(target.split(" ")[0].toLowerCase())) break;
-          if (applied && !/visual studio dark|dark\+|dark modern|dark 2026/i.test(id) && /dark/i.test(target)) {
-            try { ts.setTheme("Visual Studio Dark"); } catch {}
-          } else if (applied && !/visual studio light|light\+|light modern|light 2026/i.test(id) && /light/i.test(target)) {
-            try { ts.setTheme("Visual Studio Light"); } catch {}
-          }
-          break;
-        } catch (e) {
-          console.warn(`[editor] theme set failed attempt ${attempt+1}:`, e.message);
-          await new Promise((r) => setTimeout(r, 150));
-        }
-      }
-      // Note: monaco theme is managed via themeService, no direct monaco call needed
-    })();
-    return () => { cancelled = true; };
-  }, [ready, editorTheme]);
-
-  // ── Live apply settings via editor.updateOptions (no recreation) ──────────
-  useEffect(() => {
-    const ed = editorRef.current;
-    if (!ed) return;
-    try {
-      ed.updateOptions({
-        minimap: { enabled: minimap && !largeFileRef.current },
-        wordWrap: largeFileRef.current ? "off" : wordWrap,
-        lineNumbers: lineNumbers,
-        fontSize: fontSize,
-        fontFamily: fontFamily,
-        tabSize: tabSize,
-        detectIndentation: true,
-        glyphMargin: false,
-        lineDecorationsWidth: 12,
-        lineNumbersMinChars: 4,
-        folding: true,
-        foldingHighlight: true,
-        showFoldingControls: "mouseover",
-        stickyScroll: { enabled: !largeFileRef.current },
-        bracketPairColorization: { enabled: true },
-        guides: {
-          bracketPairs: true,
-          bracketPairsHorizontal: true,
-          highlightActiveBracketPair: true,
-          highlightActiveIndentation: true,
-        },
-        mouseWheelZoom: true,
-        renderWhitespace: "selection",
-        padding: { top: 8 },
-        cursorSmoothCaretAnimation: "on",
-        renderLineHighlight: "all",
-      });
-    } catch {}
-  }, [minimap, wordWrap, lineNumbers, fontSize, fontFamily, tabSize]);
-
-  // ── Create / swap the configured editor when the file changes ──────────────
-  // Skipped for .ipynb (NotebookPanel owns the tab content instead).
-  useEffect(() => {
-    if (!ready || !filePath || !hostRef.current || isIpynb) return;
+    if (!filePath || isIpynb) return;
     loadedRef.current = false;
-    largeFileRef.current = false;
+    setBinaryFile(false);
+    setLargeFile(false);
     let cancelled = false;
-    let disposed = false;
-    const fp = filePath;
-    let cleanup = () => {
-      if (disposed) return;
-      disposed = true;
-      clearTimeout(saveTimer.current);
-      window.removeEventListener("resize", onWinResize);
-      ro?.disconnect();
-      contentSub?.dispose();
-      cursorSub?.dispose();
-      focusSub?.dispose();
-      try { editor?.dispose(); } catch {}
-      if (editorRef.current === editor) editorRef.current = null;
-      // Release the shared model when the last tab for this file closes
-      // (otherwise models leak forever). Shared models all come from the
-      // same vscode instance via editor.getModel(), so plain dispose is enough.
-      try {
-        const entry = sharedModels.get(fp);
-        if (entry) {
-          entry.refcount -= 1;
-          if (entry.refcount <= 0) {
-            sharedModels.delete(fp);
-            // If this editor still holds the shared model, editor.dispose()
-            // above already detached it; dispose the model itself now — but
-            // only if no other live editor is still using it.
-            try {
-              const stillUsed = entry.model && editorRef.current?.getModel?.() === entry.model;
-              if (!stillUsed) entry.model?.dispose?.();
-            } catch {}
-          }
-        }
-      } catch {}
-    };
-    let editor = null, ro = null, contentSub = null, cursorSub = null, focusSub = null, onWinResize = null;
-
     (async () => {
       const text = await window.electronAPI.readTextFile(filePath);
-      if (cancelled || disposed || !hostRef.current) return;
-      const isBinaryExt = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".wasm"].some(ext => filePath.toLowerCase().endsWith(ext));
+      if (cancelled) return;
+      const isBinaryExt = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".wasm"].some((x) => filePath.toLowerCase().endsWith(x));
       if (text === null || isBinaryExt) {
-        loadedRef.current = false;
+        setBinaryFile(true);
         flashStatus(`Binary or unreadable file: ${fileName(filePath)}`);
-        const host = hostRef.current;
-        if (host) {
-          host.innerHTML = `<div style="padding:var(--space-24); color:var(--icon); text-align:center; font-family:sans-serif; font-size:var(--fs-title);">Binary or unsupported file type (${fileName(filePath)}).<br/>Editing is disabled to prevent corruption.</div>`;
-        }
         return;
       }
-
-      loadedRef.current = true;
+      const isLarge = text.length > 1024 * 1024;
+      const resolved = resolveCmLanguage(filePath, text);
       baseNames.set(filePath, fileName(filePath));
-
-      const lang = await getMonacoLanguage(filePath, text);
-      // ── Content-based auto-detection ───────────────────────────────────
-      // Filename said "plaintext" (unknown/missing extension) → sniff the text
-      // for shebangs, modelines and syntax fingerprints instead of leaving
-      // the file unhighlighted.
-      let finalLang = lang;
-      let detectedInfo = null;
-      if (lang === "plaintext") {
-        try {
-          const hit = detectLanguageFromContent(text);
-          if (hit && hit.id && hit.id !== "plaintext") {
-            finalLang = hit.id;
-            detectedInfo = hit;
-          }
-        } catch { /* detection never breaks file open */ }
-      }
-      // ── Large-file guard: >1MB → minimap/wordWrap/sticky off (perf) ──────
-      const isLargeFile = text.length > 1024 * 1024;
-      largeFileRef.current = isLargeFile;
-      if (isLargeFile) {
-        flashStatus(`Large file (${(text.length / 1048576).toFixed(1)} MB) — minimap & word wrap off for performance`);
-      } else if (detectedInfo) {
-        flashStatus(`Auto-detected language: ${detectedInfo.id} (${detectedInfo.reason})`);
-      }
-      setCursorPos({ line: 1, col: 1, totalLines: text.split("\n").length });
-
-      const host = hostRef.current;
-      host.innerHTML = "";
-
-      try {
-        editor = createConfiguredEditor(host, {
-          value: text,
-          language: finalLang,
-          automaticLayout: true,
-          minimap: { enabled: minimap && !isLargeFile },
-          wordWrap: isLargeFile ? "off" : wordWrap,
-          lineNumbers: lineNumbers,
-          fontSize: fontSize,
-          fontFamily: fontFamily,
-          smoothScrolling: true,
-          cursorBlink: "smooth",
-          cursorSmoothCaretAnimation: "on",
-          renderLineHighlight: "all",
-          scrollBeyondLastLine: false,
-          tabSize: tabSize,
-          detectIndentation: true,
-          glyphMargin: false,
-          lineDecorationsWidth: 12,
-          lineNumbersMinChars: 4,
-          folding: true,
-          foldingHighlight: true,
-          showFoldingControls: "mouseover",
-          stickyScroll: { enabled: !isLargeFile },
-          bracketPairColorization: { enabled: true },
-          guides: {
-            bracketPairs: true,
-            bracketPairsHorizontal: true,
-            highlightActiveBracketPair: true,
-            highlightActiveIndentation: true,
-          },
-          mouseWheelZoom: true,
-          renderWhitespace: "selection",
-          padding: { top: 8 },
-        });
-      } catch (err) {
-        setInitError(err?.message || String(err));
-        return;
-      }
-      if (cancelled || disposed) { try { editor.dispose(); } catch {} return; }
-
-      // ── Share one Monaco model across tabs of the same file ──────────────
-      // Same vscode instance via editor.getModel()/setModel() — no Uri lookup
-      // needed (the old monaco.Uri/monaco.editor path was undefined and left
-      // the editor empty). Another tab may hold unsaved edits — adopt those.
-      let finalValue = text;
-      try {
-        const freshModel = editor.getModel?.() || null;
-        const existing = sharedModels.get(filePath);
-        const existingAlive = existing?.model && (typeof existing.model.isDisposed !== "function" || !existing.model.isDisposed());
-        if (existingAlive) {
-          try { finalValue = existing.model.getValue(); } catch { finalValue = text; }
-          if (freshModel && freshModel !== existing.model) {
-            try { editor.setModel(existing.model); } catch {}
-            try { freshModel.dispose?.(); } catch {}
-          }
-          existing.refcount += 1;
-        } else if (freshModel) {
-          if (existing) sharedModels.delete(filePath);
-          sharedModels.set(filePath, { model: freshModel, refcount: 1 });
-        }
-      } catch { /* keep per-tab model with text — content still loads */ }
-
-      setContent(finalValue);
-      setOriginalContent(text);
-      setLanguage(finalLang);
-      setDetected(detectedInfo);
-      setLangAuto(!!detectedInfo);
       originalRef.current = text;
-      const isDirty = finalValue !== text;
-      dirtyFlags.set(filePath, isDirty);
+      loadedRef.current = true;
+      externalWriteRef.current = true;
+      setDoc(text);
+      setLanguageId(resolved.id);
+      setDetected(resolved.auto ? { id: resolved.id, reason: resolved.reason } : null);
+      setLangAuto(!!resolved.auto);
+      setLargeFile(isLarge);
+      if (isLarge) flashStatus(`Large file (${(text.length / 1048576).toFixed(1)} MB) — lint & wrap halka rakha gaya`);
+      else if (resolved.auto) flashStatus(`Auto-detected language: ${resolved.id} (${resolved.reason})`);
+      else setStatusMsg(null);
+      setCursorPos({ line: 1, col: 1, totalLines: text.split("\n").length });
+      dirtyFlags.set(filePath, false);
       updateTabName(nodeId, filePath);
-
-      editorRef.current = editor;
       setActiveEditorPath(filePath);
-
-      // Live sync with component/preview panels: announce the active editor
-      // file and push its current source so previews update without a save.
       try {
         window.dispatchEvent(new CustomEvent("editor:fileActivated", { detail: { path: filePath } }));
         window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } }));
-      } catch { /* ignore */ }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath, nodeId, hasProject, isIpynb]);
 
-      const layout = () => {
+  // ── Language support + lint + LSP + git memo ──
+  const languageSupport = useMemo(
+    () => getLanguageSupport(languageId, { useSnippets: cmSettings.snippets !== false }),
+    [languageId, cmSettings.snippets]
+  );
+
+  const lintExt = useMemo(() => {
+    if (largeFile || cmSettings.lint === false) return [];
+    try {
+      const pub = (diags) => {
         try {
-          // Pass the host's real size explicitly — using no args keeps Monaco's
-          // own (stuck 5x5) size when the editor was created in a hidden tab.
-          const rect = host.getBoundingClientRect();
-          editor.layout({
-            width: Math.max(Math.round(rect.width), 1),
-            height: Math.max(Math.round(rect.height), 1),
-          });
-        } catch { /* noop */ }
+          const view = viewRef.current;
+          if (!view) return;
+          const markers = diagnosticsToMarkers(pathRef.current, diags, view.state.doc);
+          publishDiagnostics(pathRef.current, markers);
+        } catch {}
       };
-      const rafId = requestAnimationFrame(layout);
-      const t1 = setTimeout(layout, 120);
-      const t2 = setTimeout(layout, 600);
-      onWinResize = layout;
-      window.addEventListener("resize", onWinResize);
-      try {
-        ro = new ResizeObserver(layout);
-        ro.observe(host);
-      } catch { /* ResizeObserver unavailable */ }
+      const getLang = () => langRef.current;
+      return [makeCmLinter(pathRef.current, getLang, pub)];
+    } catch { return []; }
+  }, [largeFile, cmSettings.lint, languageId]);
 
-      // Self-healing size check: ResizeObserver/rAF can be missed when the tab
-      // mounts while hidden (e.g. restored from session) or the page is
-      // backgrounded, which leaves monaco stuck at 5x5. Every 500ms compare the
-      // host's real size to the editor's and re-layout when they differ.
-      let lastW = 0, lastH = 0;
-      const sizeCheck = () => {
-        try {
-          const r = host.getBoundingClientRect();
-          const w = Math.max(Math.round(r.width), 1);
-          const h = Math.max(Math.round(r.height), 1);
-          if (w === lastW && h === lastH) return;
-          lastW = w; lastH = h;
-          const li = editor.getLayoutInfo();
-          if (li.width !== w || li.height !== h) editor.layout({ width: w, height: h });
-        } catch { /* noop */ }
-      };
-      const sizeIv = setInterval(sizeCheck, 500);
+  const lspExt = useMemo(
+    () => getLspExtension(filePath, languageId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lspTick, filePath, languageId]
+  );
 
-      contentSub = editor.onDidChangeModelContent(() => {
-        const v = editor.getValue();
-        setContent(v);
-        const p = pathRef.current;
-        if (p) {
-          setDirty(nodeId, p, v !== originalRef.current);
-          if (isAutoSaveEnabled()) {
-            clearTimeout(saveTimer.current);
-            saveTimer.current = setTimeout(() => { doSave(); }, 800);
-          }
-          // Live sync: push the in-memory source to component preview panels.
-          try {
-            window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: p, code: v } }));
-          } catch { /* ignore */ }
-          aiNotifyContext(false);
-        }
-      });
-      cursorSub = editor.onDidChangeCursorPosition((e) => {
-        setCursorPos({
-          line: e.position.lineNumber,
-          col: e.position.column,
-          totalLines: editor.getModel()?.getLineCount() || 1,
-        });
-      });
-      focusSub = editor.onDidFocusEditorText(() => {
+  // 64KB bucket: doc badhne par whitespace-gate fresh rahe, har keystroke
+  // par extensions rebuild na ho (reconfigure se bachne ke liye).
+  const wsBucket = Math.floor((doc?.length || 0) / 65536);
+  const extensions = useMemo(() => {
+    const eff = { ...cmSettings };
+    if (largeFile) {
+      // Badi file: bhari features off (perf) — settings mutate nahi hote.
+      eff.lint = false;
+      eff.lintGutter = false;
+      eff.highlightWhitespace = false;
+      eff.highlightSelectionMatches = false;
+      eff.lineWrapping = false;
+    }
+    const list = buildCmExtensions({
+      settings: eff,
+      languageSupport,
+      lspExtension: lspExt,
+      docSize: largeFile ? 2 * 1024 * 1024 : wsBucket * 65536,
+      onOpenFind: (replaceMode) => openFindRef.current?.(!!replaceMode),
+    });
+    if (eff.lint !== false) list.push(...lintExt);
+    if (eff.lint !== false && eff.lintGutter !== false) {
+      try { list.push(lintGutter()); } catch {}
+    }
+    list.push(gitField, gitGutterExt);
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cmSettings, languageSupport, lspExt, lintExt, largeFile, wsBucket]);
+
+  // ── onCreateEditor: view + bridge ──
+  const handleCreateEditor = useCallback((view) => {
+    viewRef.current = view;
+    const bridge = createCmBridge(() => viewRef.current);
+    bridgeRef.current = bridge;
+    editorRef.current = bridge;
+    setActiveEditorPath(pathRef.current);
+    aiNotifyContext(true);
+    try {
+      const pos = view.state.selection.main.head;
+      const p = offsetToPos(view.state.doc, pos);
+      setCursorPos({ line: p.lineNumber, col: p.column, totalLines: view.state.doc.lines });
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── onChange: doc + dirty + autosave + live sync ──
+  const handleChange = useCallback((value) => {
+    const fromExternal = externalWriteRef.current;
+    externalWriteRef.current = false;
+    setDoc(value);
+    const p = pathRef.current;
+    if (!p) return;
+    const dirty = value !== originalRef.current;
+    setDirty(nodeId, p, dirty);
+    if (!fromExternal && isAutoSaveEnabled()) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => { doSaveRef.current?.(); }, 800);
+    }
+    try {
+      window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: p, code: value } }));
+    } catch {}
+    aiNotifyContext(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId]);
+
+  // ── onUpdate: cursor + focus ──
+  const handleUpdate = useCallback((viewUpdate) => {
+    try {
+      if (viewUpdate.selectionSet || viewUpdate.docChanged) {
+        const head = viewUpdate.state.selection.main.head;
+        const p = offsetToPos(viewUpdate.state.doc, head);
+        setCursorPos({ line: p.lineNumber, col: p.column, totalLines: viewUpdate.state.doc.lines });
+      }
+      if (viewUpdate.focusChanged && viewUpdate.view.hasFocus) {
         setActiveEditorPath(pathRef.current);
         aiNotifyContext(true);
         try {
           window.dispatchEvent(new CustomEvent("editor:fileActivated", { detail: { path: pathRef.current } }));
-        } catch { /* ignore */ }
-      });
-
-      const done = (fn) => () => {
-        cancelAnimationFrame(rafId);
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearInterval(sizeIv);
-        fn?.();
-      };
-      const originalCleanup = cleanup;
-      cleanup = done(originalCleanup);
-    })();
-
-    return () => { cancelled = true; cleanup(); };
-  }, [ready, filePath, nodeId, hasProject, isIpynb]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Live reload: external edits (other apps / git / build tools) → auto-update
-  // Skipped for .ipynb (NotebookPanel watches the file itself).
-  useEffect(() => {
-    if (!filePath || isIpynb) return;
-    let timer = null;
-    const unsub = window.electronAPI.onFsChange((_dir, changedPath) => {
-      if (changedPath !== filePath) return;
-      if (Date.now() - lastSelfSaveRef.current < 1200) return; // our own save
-      if (dirtyFlags.get(filePath)) return; // unsaved local edits win
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(async () => {
-        const text = await window.electronAPI.readTextFile(filePath);
-        if (text === null) return;
-        const ed = editorRef.current;
-        if (!ed) return;
-        const model = ed.getModel();
-        const cur = model?.getValue() ?? "";
-        if (cur === text) return;
-        if (model) model.setValue(text);
-        originalRef.current = text;
-        setOriginalContent(text);
-        dirtyFlags.set(filePath, false);
-        updateTabName(nodeId, filePath);
-        setCursorPos((p) => ({ ...p, totalLines: text.split("\n").length }));
-        try {
-          window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } }));
-        } catch { /* ignore */ }
-        flashStatus("File changed on disk — reloaded");
-      }, 150);
-    });
-    return () => { unsub(); if (timer) clearTimeout(timer); };
-  }, [filePath, nodeId, isIpynb]);
-
-  // ── Live Edit from Browser (text-only) ───────────────────────────────────
-  // Skipped for .ipynb (cell UI is not a text buffer).
-  useEffect(() => {
-    if (!filePath || isIpynb) return;
-    const handler = async (e) => {
-      const p = e.detail?.filePath || e.detail?.path;
-      if (!p || p !== filePath) return;
-      try {
-        const text = await window.electronAPI.readTextFile(filePath);
-        if (text === null) return;
-        const ed = editorRef.current;
-        if (!ed) {
-          // no editor yet, just update refs
-          originalRef.current = text;
-          setOriginalContent(text);
-          setContent(text);
-          return;
-        }
-        const model = ed.getModel();
-        const cur = model?.getValue() ?? "";
-        if (cur === text) return;
-        // Preserve cursor/selection
-        let sel = null;
-        try { sel = ed.getSelection(); } catch {}
-        if (model) model.setValue(text);
-        originalRef.current = text;
-        setOriginalContent(text);
-        // mark dirty = false since disk is source of truth after live edit (unless user had unsaved changes, we still sync but keep dirty? prefer resync)
-        dirtyFlags.set(filePath, false);
-        updateTabName(nodeId, filePath);
-        setCursorPos((pr) => ({ ...pr, totalLines: text.split("\n").length }));
-        if (sel) try { ed.setSelection(sel); ed.revealLineInCenter(sel.positionLineNumber || 1); } catch {}
-        try { window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } })); } catch {}
-        flashStatus(`Live edit — updated from Browser (${e.detail?.rel || filePath.split(/[\\/]/).pop()})`);
-      } catch {}
-    };
-    const handlerMain = async (payload) => {
-      const p = payload?.filePath;
-      if (!p || p !== filePath) return;
-      // reuse same logic
-      try {
-        const text = await window.electronAPI.readTextFile(filePath);
-        if (text === null) return;
-        const ed = editorRef.current;
-        if (!ed) return;
-        const model = ed.getModel();
-        const cur = model?.getValue() ?? "";
-        if (cur === text) return;
-        let sel = null; try { sel = ed.getSelection(); }catch{}
-        if (model) model.setValue(text);
-        originalRef.current = text; setOriginalContent(text);
-        dirtyFlags.set(filePath, false); updateTabName(nodeId, filePath);
-        setCursorPos((pr)=> ({...pr, totalLines: text.split("\n").length}));
-        if(sel) try{ ed.setSelection(sel);}catch{}
-        try{ window.dispatchEvent(new CustomEvent("component:sourceChanged",{detail:{path:filePath,code:text}}));}catch{}
-        flashStatus(`Live edit — ${payload?.rel || "updated"}`);
-      } catch {}
-    };
-    window.addEventListener("liveEdit:applied", handler);
-    window.addEventListener("liveEdit:fileChanged", handler);
-    const unsub = window.electronAPI.onLiveEditFileChanged ? window.electronAPI.onLiveEditFileChanged(handlerMain) : () => {};
-    return () => {
-      window.removeEventListener("liveEdit:applied", handler);
-      window.removeEventListener("liveEdit:fileChanged", handler);
-      try{ unsub(); }catch{}
-    };
-  }, [filePath, nodeId, isIpynb]);
-
-  // ── Reveal line (from SearchPanel / Problems) ──────────────────────────────
-  useEffect(() => {
-    const handler = (e) => {
-      const p = e.detail?.path;
-      const line = e.detail?.line;
-      const col = e.detail?.column || 1;
-      if (!p || p !== filePath) return;
-      const ed = editorRef.current;
-      if (!ed) return;
-      try {
-        ed.revealLineInCenter(line || 1);
-        ed.setPosition({ lineNumber: line || 1, column: col });
-        ed.focus();
-      } catch {}
-    };
-    window.addEventListener("editor:revealLine", handler);
-    return () => window.removeEventListener("editor:revealLine", handler);
-  }, [filePath]);
-
-  // ── Git diff gutter ────────────────────────────────────────────────────────
-  // Skipped for .ipynb (no Monaco model to decorate).
-  useEffect(() => {
-    if (!filePath || !hasProject || isIpynb) return;
-    let cancelled = false;
-    let decorationIds = [];
-    const updateDiff = async () => {
-      if (document.hidden) return;
-      const ed = editorRef.current;
-      if (!ed || cancelled) return;
-      try {
-        const root = window.__currentProjectPath;
-        if (!root) return;
-        // Respect Git → Show Git Gutter (was dead — always showed)
-        try {
-          const s = await window.electronAPI.readSettings().catch(()=> ({}));
-          const g = s.git || {};
-          const showGutter = g.showGutter !== false && s.gitShowGutter !== false && g.enableGutter !== false && s.gitEnableGutter !== false;
-          if (!showGutter) {
-            try { decorationIds = ed.deltaDecorations(decorationIds, []); } catch {}
-            return;
-          }
         } catch {}
-        const diff = await window.electronAPI.gitDiff(root, filePath);
-        if (cancelled || !ed) return;
-        const model = ed.getModel();
-        if (!model) return;
-        // Parse unified diff with --unified=0 to get changed lines
-        const added = new Set();
-        const modified = new Set();
-        const removed = new Set();
-        for (const line of String(diff || "").split("\n")) {
-          if (line.startsWith("@@")) {
-            const m = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
-            if (m) {
-              const start = parseInt(m[1], 10);
-              const count = m[2] ? parseInt(m[2], 10) : 1;
-              if (count === 0) {
-                // Deletion
-                removed.add(start);
-              } else {
-                for (let i = 0; i < count; i++) {
-                  const ln = start + i;
-                  // Simple heuristic: if original had 0 lines, it's added
-                  if (line.includes("@@ -0,0")) added.add(ln);
-                  else modified.add(ln);
-                }
-              }
-            }
-          }
-        }
-        // Fallback: if diff is non-empty but parsing failed, mark all as modified
-        if (!added.size && !modified.size && !removed.size && String(diff).trim()) {
-          // Try to get changed lines via git diff --name-only and mark whole file?
-        }
-        const decorations = [];
-        for (const ln of added) {
-          decorations.push({ range: { startLineNumber: ln, startColumn: 1, endLineNumber: ln, endColumn: 1 }, options: { isWholeLine: true, linesDecorationsClassName: "git-diff-added", glyphMarginClassName: "git-diff-added-glyph" } });
-        }
-        for (const ln of modified) {
-          if (!added.has(ln)) decorations.push({ range: { startLineNumber: ln, startColumn: 1, endLineNumber: ln, endColumn: 1 }, options: { isWholeLine: true, linesDecorationsClassName: "git-diff-modified", glyphMarginClassName: "git-diff-modified-glyph" } });
-        }
-        for (const ln of removed) {
-          decorations.push({ range: { startLineNumber: ln, startColumn: 1, endLineNumber: ln, endColumn: 1 }, options: { isWholeLine: true, linesDecorationsClassName: "git-diff-removed" } });
-        }
-        // Apply decorations (monaco API)
-        try {
-          decorationIds = ed.deltaDecorations(decorationIds, decorations);
-        } catch {
-          try { decorationIds = model.deltaDecorations(decorationIds, decorations); } catch {}
-        }
-      } catch {}
-    };
-    updateDiff();
-    // Live gutter toggle
-    let bc;
-    try { bc = new BroadcastChannel("git-settings"); bc.onmessage = () => updateDiff(); } catch {}
-    let unsubSettings;
-    try { unsubSettings = window.electronAPI.onSettingsUpdated((patch)=>{ if(patch && (patch.git||"gitShowGutter" in patch||"gitEnableGutter" in patch||"showGutter" in patch||"enableGutter" in patch)) updateDiff(); }); } catch {}
-    const iv = setInterval(() => { if (!document.hidden) updateDiff(); }, 10000);
-    let fsDebounce = null;
-    const onFs = () => {
-      clearTimeout(fsDebounce);
-      fsDebounce = setTimeout(() => { if (!document.hidden) updateDiff(); }, 1200);
-    };
-    const onVis = () => { if (!document.hidden) updateDiff(); };
-    window.addEventListener("project:opened", onFs);
-    document.addEventListener("visibilitychange", onVis);
-    const unsub = window.electronAPI.onFsChange(onFs);
-    return () => {
-      cancelled = true;
-      try{ bc?.close(); }catch{}
-      try{ unsubSettings?.(); }catch{}
-      clearInterval(iv);
-      clearTimeout(fsDebounce);
-      window.removeEventListener("project:opened", onFs);
-      document.removeEventListener("visibilitychange", onVis);
-      unsub();
-      try {
-        const ed = editorRef.current;
-        if (ed && decorationIds.length) {
-          try { ed.deltaDecorations(decorationIds, []); } catch {}
-        }
-      } catch {}
-    };
-  }, [filePath, hasProject, content, isIpynb]);
+      }
+    } catch {}
+  }, []);
 
-  // ── Save / Save As ───────────────────────────────────────────────────────
-  // No-ops for .ipynb — NotebookPanel owns saving (it listens to the same
-  // editor:command events with the same path).
+  // ── Status-bar language switcher ──
+  const setEditorLanguage = useCallback((id, isAuto = false) => {
+    setShowLangMenu(false);
+    setLangQuery("");
+    if (!id) return;
+    setLanguageId(id);
+    setLangAuto(!!isAuto);
+    if (!isAuto) setDetected(null);
+  }, []);
+
+  const runAutoDetect = useCallback(() => {
+    try {
+      const v = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
+      const resolved = resolveCmLanguage(null, v);
+      if (resolved.id && resolved.id !== "plaintext") {
+        setDetected({ id: resolved.id, reason: resolved.reason });
+        setEditorLanguage(resolved.id, true);
+        flashStatus(`Auto-detected language: ${resolved.id} (${resolved.reason})`);
+      } else flashStatus("No language detected — pick one below");
+    } catch {
+      flashStatus("Detection failed — pick a language below");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setEditorLanguage]);
+
+  // ── Save / Save As (+ format on save via prettier) ──
   const doSave = useCallback(async () => {
     const p = pathRef.current;
     if (!p || isIpynb) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
-    // Format on Save (Settings → Editor → Format On Save, default off).
-    // No-op when the language has no formatter registered.
+    let text = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
     try {
       const s = getCachedEditorSettings() ?? await getEditorSettings().catch(() => ({}));
-      if (s?.formatOnSave === true && editorRef.current) {
-        try { await editorRef.current.getAction("editor.action.formatDocument")?.run(); } catch {}
+      if (s?.formatOnSave === true && isFormattable(langRef.current)) {
+        const r = await formatCode(langRef.current, text);
+        if (r.ok && typeof r.code === "string" && r.code !== text) {
+          text = r.code;
+          externalWriteRef.current = true;
+          setDoc(text);
+        } else if (!r.ok) flashStatus(`Format skipped: ${r.error}`);
       }
     } catch {}
-    const text = editorRef.current?.getValue() ?? content;
     const result = await window.electronAPI.writeFileText(p, text);
     if (result?.success) {
       lastSelfSaveRef.current = Date.now();
       originalRef.current = text;
-      setOriginalContent(text);
       setDirty(nodeId, p, false);
       flashStatus(`Saved: ${fileName(p)}`);
+      refreshGitGutter();
     } else {
       await window.electronAPI.showAlert(`Failed to save file:\n${result?.error || "Unknown error"}`);
     }
-  }, [nodeId, content, isIpynb]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId, isIpynb]);
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
 
   const doSaveAs = useCallback(async () => {
     const p = pathRef.current;
     if (!p || isIpynb) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
-    const text = editorRef.current?.getValue() ?? content;
+    const text = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
     const result = await window.electronAPI.saveFileAs(p, text);
     if (result?.canceled) return;
     if (result?.error) { await window.electronAPI.showAlert(`Save As failed:\n${result.error}`); return; }
@@ -1250,64 +507,156 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
     if (m) {
       try {
         m.doAction(Actions.updateNodeAttributes(nodeId, { name: fileName(newPath), config: { filePath: newPath } }));
-      } catch { /* node may be gone */ }
+      } catch {}
     }
     flashStatus(`Saved as: ${fileName(newPath)}`);
-  }, [nodeId, content, isIpynb]);
+  }, [nodeId, isIpynb]);
 
-  // ── File & Edit menu commands ────────────────────────────────────────────
-  // .ipynb tabs ignore everything here — the embedded NotebookPanel handles
-  // save itself (same event, same path) and has no Monaco instance.
+  const doFormat = useCallback(async () => {
+    const id = langRef.current;
+    if (!isFormattable(id)) { flashStatus(`No formatter for "${id}"`); return; }
+    const src = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
+    const r = await formatCode(id, src);
+    if (r.ok && typeof r.code === "string") {
+      if (r.code === src) { flashStatus("Already formatted"); return; }
+      externalWriteRef.current = true;
+      setDoc(r.code);
+      const p = pathRef.current;
+      if (p) setDirty(nodeId, p, r.code !== originalRef.current);
+      flashStatus("Formatted");
+    } else flashStatus(`Format failed: ${r.error}`);
+  }, [nodeId]);
+
+  // ── Find/replace bar state ──
+  const [findOpen, setFindOpen] = useState(false);
+  const [findSeed, setFindSeed] = useState("");
+  const [findReplaceMode, setFindReplaceMode] = useState(false);
+  const [findSession, setFindSession] = useState(0);
+
+  // Custom find bar kholo (selection se seed). Mod-F/Mod-H keymap + menu +
+  // command-palette sab yahin aate hain (extensions.js onOpenFind se).
+  const openFind = useCallback((replaceMode) => {
+    let seed = "";
+    try {
+      const view = viewRef.current;
+      const sel = view?.state.selection.main;
+      if (view && sel && !sel.empty) {
+        seed = view.state.doc.sliceString(sel.from, Math.min(sel.to, sel.from + 120));
+        const nl = seed.indexOf("\n");
+        if (nl >= 0) seed = seed.slice(0, nl);
+      }
+    } catch {}
+    setFindSeed(seed);
+    setFindReplaceMode(!!replaceMode);
+    setFindSession((n) => n + 1);
+    setFindOpen(true);
+  }, []);
+  openFindRef.current = openFind;
+
+  // ── Editor command executor (is tab ke view par; menu + events dono) ──
+  const execCommand = useCallback(async (cmd) => {
+    const view = viewRef.current;
+    if (!view || isIpynb) return;
+    try {
+      switch (cmd) {
+        case "undo": undo(view); break;
+        case "redo": redo(view); break;
+        case "cut": {
+          const sel = view.state.selection.main;
+          if (!sel.empty) {
+            const text = view.state.doc.sliceString(sel.from, sel.to);
+            try { await window.electronAPI.clipboardWrite(text); } catch {}
+            view.dispatch({ changes: { from: sel.from, to: sel.to, insert: "" } });
+            try { view.focus(); } catch {}
+          }
+          break;
+        }
+        case "copy": {
+          const sel = view.state.selection.main;
+          const text = sel.empty ? view.state.doc.toString() : view.state.doc.sliceString(sel.from, sel.to);
+          try { await window.electronAPI.clipboardWrite(text); } catch {}
+          break;
+        }
+        case "paste": {
+          try {
+            const text = await window.electronAPI.clipboardRead();
+            if (typeof text === "string" && text) {
+              const sel = view.state.selection.main;
+              view.dispatch({
+                changes: { from: sel.from, to: sel.to, insert: text },
+                selection: { anchor: sel.from + text.length },
+                scrollIntoView: true,
+              });
+              try { view.focus(); } catch {}
+            }
+          } catch {}
+          break;
+        }
+        case "selectAll": selectAll(view); break;
+        case "find": openFind(false); break;
+        case "findNext": findNext(view); break;
+        case "findPrevious": findPrevious(view); break;
+        case "replace": openFind(true); break;
+        case "format": doFormat(); break;
+        case "gotoLine": gotoLine(view); break;
+        case "gotoSymbol": setSymbolQuery(""); setSymbolOpen(true); break;
+        case "commentLine": toggleComment(view); break;
+        case "copyLineDown": copyLineDown(view); break;
+        case "copyLineUp": copyLineUp(view); break;
+        case "moveLineUp": moveLineUp(view); break;
+        case "moveLineDown": moveLineDown(view); break;
+        case "deleteLine": deleteLine(view); break;
+        default: break;
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doFormat, isIpynb, openFind]);
+
+  // ── File & Edit menu commands (sirf active tab react kare) ──
   useEffect(() => {
     if (isIpynb) return;
     const onCmd = async (e) => {
       const cmd = e.detail?.cmd;
       if (!cmd) return;
-
       const p = pathRef.current;
-      // For save/saveAs the file must be loaded; for editor actions we just
-      // need the editor to be the active one (path matches or no path given).
       const target = e.detail?.path ?? getActiveEditorPath();
       const isActive = !target || p === target;
-
-      // ── Save commands (require a loaded file) ──────────────────────────
-      if (cmd === "save")   { if (p && isActive) doSave();   return; }
+      if (cmd === "save") { if (p && isActive) doSave(); return; }
       if (cmd === "saveAs") { if (p && isActive) doSaveAs(); return; }
-
-      // ── Monaco editor actions (no file required, but must be active) ───
       if (!isActive) return;
-      const ed = editorRef.current;
-      if (!ed) return;
-
-      try {
-        switch (cmd) {
-          case "undo":         ed.trigger("menu", "undo",                    {}); break;
-          case "redo":         ed.trigger("menu", "redo",                    {}); break;
-          case "cut":          ed.trigger("menu", "editor.action.clipboardCutAction",   {}); break;
-          case "copy":         ed.trigger("menu", "editor.action.clipboardCopyAction",  {}); break;
-          case "paste":        ed.trigger("menu", "editor.action.clipboardPasteAction", {}); break;
-          case "selectAll":    ed.trigger("menu", "editor.action.selectAll",  {}); break;
-          case "find":         ed.trigger("menu", "actions.find",             {}); break;
-          case "findNext":     ed.trigger("menu", "editor.action.nextMatchFindAction",     {}); break;
-          case "findPrevious": ed.trigger("menu", "editor.action.previousMatchFindAction", {}); break;
-          case "replace":      ed.trigger("menu", "editor.action.startFindReplaceAction", {}); break;
-          case "format":       try { await ed.getAction("editor.action.formatDocument")?.run(); } catch {} break;
-          case "gotoLine":     try { await ed.getAction("editor.action.gotoLine")?.run(); } catch {} break;
-          case "gotoSymbol":   try { await ed.getAction("editor.action.quickOutline")?.run(); } catch {} break;
-          case "commentLine":  try { await ed.getAction("editor.action.commentLine")?.run(); } catch {} break;
-          case "copyLineDown": try { await ed.getAction("editor.action.copyLinesDownAction")?.run(); } catch {} break;
-          case "copyLineUp":   try { await ed.getAction("editor.action.copyLinesUpAction")?.run(); } catch {} break;
-          case "moveLineUp":   try { await ed.getAction("editor.action.moveLinesUpAction")?.run(); } catch {} break;
-          case "moveLineDown": try { await ed.getAction("editor.action.moveLinesDownAction")?.run(); } catch {} break;
-          default: break;
-        }
-      } catch { /* ignore if editor not ready */ }
+      await execCommand(cmd);
     };
     window.addEventListener("editor:command", onCmd);
     return () => window.removeEventListener("editor:command", onCmd);
-  }, [doSave, doSaveAs, isIpynb]);
+  }, [doSave, doSaveAs, execCommand, isIpynb]);
 
-  // ── AutoSave toggle ──────────────────────────────────────────────────────
+  // ── Right-click: native editor menu (main process) ──
+  const onEditorContextMenu = useCallback(async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const res = await window.electronAPI.showContextMenu("editor", filePath ? [filePath] : []);
+      const action = res?.action;
+      if (!action) return;
+      if (action === "copyPath") {
+        try {
+          if (filePath) {
+            await window.electronAPI.clipboardWrite(filePath);
+            flashStatus("Path copied");
+          }
+        } catch {}
+        return;
+      }
+      if (action === "reveal") {
+        try { if (filePath) await window.electronAPI.revealInExplorer(filePath); } catch {}
+        return;
+      }
+      await execCommand(action);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath, execCommand]);
+
+  // ── AutoSave toggle ──
   useEffect(() => {
     const onAuto = (e) => {
       const enabled = e.detail?.enabled === true;
@@ -1317,8 +666,167 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
     window.addEventListener("editor:autosave", onAuto);
     return () => window.removeEventListener("editor:autosave", onAuto);
   }, []);
-
   useEffect(() => () => { clearTimeout(saveTimer.current); }, []);
+
+  // ── Reveal line (SearchPanel / Problems) ──
+  useEffect(() => {
+    const handler = (e) => {
+      const p = e.detail?.path;
+      const line = e.detail?.line;
+      const col = e.detail?.column || 1;
+      if (!p || p !== filePath) return;
+      try {
+        bridgeRef.current?.setPosition({ lineNumber: line || 1, column: col });
+        bridgeRef.current?.revealLineInCenter(line || 1);
+        bridgeRef.current?.focus();
+      } catch {}
+    };
+    window.addEventListener("editor:revealLine", handler);
+    return () => window.removeEventListener("editor:revealLine", handler);
+  }, [filePath]);
+
+  // ── Live reload: external edits -> auto-update (dirty nahi ho to) ──
+  useEffect(() => {
+    if (!filePath || isIpynb) return;
+    let timer = null;
+    const unsub = window.electronAPI.onFsChange((_dir, changedPath) => {
+      if (changedPath !== filePath) return;
+      if (Date.now() - lastSelfSaveRef.current < 1200) return;
+      if (dirtyFlags.get(filePath)) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const text = await window.electronAPI.readTextFile(filePath);
+        if (text === null) return;
+        const cur = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
+        if (cur === text) return;
+        originalRef.current = text;
+        externalWriteRef.current = true;
+        setDoc(text);
+        dirtyFlags.set(filePath, false);
+        updateTabName(nodeId, filePath);
+        setCursorPos((pr) => ({ ...pr, totalLines: text.split("\n").length }));
+        try {
+          window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } }));
+        } catch {}
+        flashStatus("File changed on disk — reloaded");
+      }, 150);
+    });
+    return () => { unsub(); if (timer) clearTimeout(timer); };
+  }, [filePath, nodeId, isIpynb]);
+
+  // ── Live Edit from Browser ──
+  useEffect(() => {
+    if (!filePath || isIpynb) return;
+    const applyText = async (label) => {
+      try {
+        const text = await window.electronAPI.readTextFile(filePath);
+        if (text === null) return;
+        const cur = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
+        if (cur === text) return;
+        originalRef.current = text;
+        externalWriteRef.current = true;
+        setDoc(text);
+        dirtyFlags.set(filePath, false);
+        updateTabName(nodeId, filePath);
+        setCursorPos((pr) => ({ ...pr, totalLines: text.split("\n").length }));
+        try { window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } })); } catch {}
+        flashStatus(`Live edit — ${label}`);
+      } catch {}
+    };
+    const handler = async (e) => {
+      const p = e.detail?.filePath || e.detail?.path;
+      if (!p || p !== filePath) return;
+      await applyText(e.detail?.rel || filePath.split(/[\\/]/).pop());
+    };
+    const handlerMain = async (payload) => {
+      if (!payload || payload.filePath !== filePath) return;
+      await applyText(payload.rel || "updated");
+    };
+    window.addEventListener("liveEdit:applied", handler);
+    window.addEventListener("liveEdit:fileChanged", handler);
+    const unsub = window.electronAPI.onLiveEditFileChanged ? window.electronAPI.onLiveEditFileChanged(handlerMain) : () => {};
+    return () => {
+      window.removeEventListener("liveEdit:applied", handler);
+      window.removeEventListener("liveEdit:fileChanged", handler);
+      try { unsub(); } catch {}
+    };
+  }, [filePath, nodeId, isIpynb]);
+
+  // ── Git diff gutter refresh ──
+  const refreshGitGutter = useCallback(async () => {
+    const p = pathRef.current;
+    const view = viewRef.current;
+    if (!p || !view || isIpynb) return;
+    try {
+      const root = window.__currentProjectPath;
+      if (!root) return;
+      const diff = await window.electronAPI.gitDiff(root, p);
+      const { added, modified, removed } = parseGitHunks(diff);
+      view.dispatch({ effects: gitSetEffect.of({ added, modified, removed }) });
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isIpynb]);
+  useEffect(() => {
+    if (!filePath || isIpynb) return;
+    refreshGitGutter();
+    const iv = setInterval(() => { if (!document.hidden) refreshGitGutter(); }, 10000);
+    let fsDebounce = null;
+    const onFs = () => {
+      clearTimeout(fsDebounce);
+      fsDebounce = setTimeout(() => { if (!document.hidden) refreshGitGutter(); }, 1200);
+    };
+    const onVis = () => { if (!document.hidden) refreshGitGutter(); };
+    const onProj = () => onFs();
+    window.addEventListener("project:opened", onProj);
+    document.addEventListener("visibilitychange", onVis);
+    const unsub = window.electronAPI.onFsChange(onFs);
+    return () => {
+      clearInterval(iv);
+      clearTimeout(fsDebounce);
+      window.removeEventListener("project:opened", onProj);
+      document.removeEventListener("visibilitychange", onVis);
+      unsub();
+    };
+  }, [filePath, isIpynb, refreshGitGutter]);
+
+  // ── Unmount: diagnostics clear (Problems panel saaf rahe) ──
+  useEffect(() => {
+    const p = filePath;
+    return () => { try { if (p) publishDiagnostics(p, []); } catch {} };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath]);
+
+  // ── Go-to-symbol items ──
+  const symbolItems = useMemo(() => {
+    if (!symbolOpen) return [];
+    const items = [];
+    try {
+      const lines = String(docRef.current || "").split("\n");
+      const re = /^\s*(?:export\s+)?(?:async\s+)?(?:function\s+([A-Za-z_$][\w$]*)|class\s+([A-Za-z_$][\w$]*)|interface\s+([A-Za-z_$][\w$]*)|type\s+([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:\(|async|[^;]*=>)|def\s+([A-Za-z_]\w*)|fn\s+([A-Za-z_]\w*)|(#{1,6})\s+(.+)|<h\d[^>]*>([^<]+))/;
+      for (let i = 0; i < lines.length && items.length < 200; i++) {
+        const m = lines[i].match(re);
+        if (m) {
+          const label = m.slice(1).find((x) => x) || lines[i].trim().slice(0, 60);
+          items.push({ line: i + 1, label: String(label).slice(0, 80) });
+        }
+      }
+    } catch {}
+    const q = symbolQuery.trim().toLowerCase();
+    return q ? items.filter((it) => it.label.toLowerCase().includes(q)) : items;
+  }, [symbolOpen, symbolQuery, doc]);
+
+  const jumpToSymbol = (line) => {
+    setSymbolOpen(false);
+    try {
+      bridgeRef.current?.setPosition({ lineNumber: line, column: 1 });
+      bridgeRef.current?.revealLineInCenter(line);
+      bridgeRef.current?.focus();
+    } catch {}
+  };
+
+  const tabSize = Number.isFinite(cmSettings.tabSize) ? cmSettings.tabSize : 2;
+  const displayName = displayNameFor(languageId, filePath);
+  const lspLabel = lspStatus === "online" ? "LSP: online" : lspStatus === "connecting" ? "LSP: connecting…" : "LSP: offline";
 
   return (
     <div
@@ -1332,14 +840,13 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
         position: "relative",
       }}
     >
-      {/* ── No project gate ──────────────────────────────────────────────── */}
       {!hasProject ? (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center",
           height: "100%", flexDirection: "column", gap: "var(--space-14)",
         }}>
           <svg width="52" height="52" viewBox="0 0 16 16" fill="none">
-            <path style={{ fill: "var(--border-light)" }} d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z"/>
+            <path style={{ fill: "var(--border-light)" }} d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.086a1.5 1.5 0 0 1 1.06.44L7.56 3.5H13.5A1.5 1.5 0 0 1 15 5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9Z" />
           </svg>
           <span style={{ color: "var(--text-muted)", fontWeight: "var(--fw-semibold)", fontSize: "var(--fs-title)" }}>No project open</span>
           <span style={{ color: "var(--text-disabled)", fontSize: "var(--fs-small)", textAlign: "center", maxWidth: 220, lineHeight: "var(--lh-doc)" }}>
@@ -1355,53 +862,61 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
               borderRadius: "var(--radius-sm)", color: "var(--text-soft)",
               fontSize: "var(--fs-body)", cursor: "pointer",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-lift)"; e.currentTarget.style.borderColor = "var(--accent-light)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-active)"; e.currentTarget.style.borderColor = "var(--border-strong)"; }}
           >
             Open Folder…
           </button>
         </div>
       ) : (
         <>
-          {/* ── Editor Canvas ──────────────────────────────────────────────── */}
           <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
             {isIpynb ? (
-              // .ipynb opens in this editor tab like a normal file, but shows
-              // the notebook cell UI instead of a Monaco text editor.
               <NotebookPanel config={config} nodeId={nodeId} />
-            ) : !ready ? (
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                height: "100%", color: "var(--icon-muted)", fontSize: "var(--fs-title)", flexDirection: "column", gap: "var(--space-12)",
-              }}>
-                <span style={{ color: "var(--icon-hover)", fontWeight: "var(--fw-medium)" }}>Initializing VS Code editor…</span>
-              </div>
-            ) : initError ? (
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                height: "100%", color: "var(--danger)", fontSize: "var(--fs-title)", padding: "var(--space-20)", textAlign: "center",
-              }}>
-                Editor init error: {initError}
-              </div>
             ) : !filePath ? (
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 height: "100%", color: "var(--text-placeholder)", fontSize: "var(--fs-title)", flexDirection: "column", gap: "var(--space-12)",
               }}>
                 <svg style={{ fill: "var(--bg-thumb)" }} width="48" height="48" viewBox="0 0 16 16">
-                  <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4Zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5Z"/>
+                  <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4Zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5Z" />
                 </svg>
                 <span style={{ color: "var(--icon-muted)", fontWeight: "var(--fw-medium)" }}>Editor</span>
                 <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)" }}>
                   Single-click any file in Project Panel to edit
                 </span>
               </div>
+            ) : binaryFile ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--icon)", textAlign: "center", fontSize: "var(--fs-title)", padding: "var(--space-24)" }}>
+                Binary or unsupported file type ({fileName(filePath)}).<br />Editing is disabled to prevent corruption.
+              </div>
             ) : (
-              <div ref={hostRef} style={{ position: "absolute", inset: 0 }} />
+              <div
+                style={{ position: "absolute", inset: 0 }}
+                onContextMenu={onEditorContextMenu}
+              >
+                <CodeMirror
+                  value={doc}
+                  height="100%"
+                  basicSetup={false}
+                  theme="none"
+                  indentWithTab={true}
+                  extensions={extensions}
+                  onChange={handleChange}
+                  onUpdate={handleUpdate}
+                  onCreateEditor={handleCreateEditor}
+                />
+                {findOpen && (
+                  <FindReplaceBar
+                    key={`find-${findSession}-${findReplaceMode ? "r" : "f"}`}
+                    getView={() => viewRef.current}
+                    initialFind={findSeed}
+                    initialReplaceMode={findReplaceMode}
+                    onClose={() => setFindOpen(false)}
+                  />
+                )}
+              </div>
             )}
           </div>
 
-          {/* ── Bottom Status Bar (text files only — notebooks have their own toolbar) ── */}
           {filePath && !isIpynb && (
             <div
               style={{
@@ -1422,6 +937,22 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
                 {(autoSave || isAutoSaveEnabled()) && <span>AutoSave: On</span>}
+                <span
+                  onClick={() => { if (lspStatus !== "online" && lspStatus !== "connecting") retryLsp(); }}
+                  title={lspStatus === "online" ? "Language server connected" : `Language server offline (${getLspError() || "no server"}) — click to retry`}
+                  style={{ cursor: lspStatus === "online" ? "default" : "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <span style={{
+                    display: "inline-block", width: 7, height: 7, borderRadius: "50%",
+                    background: lspStatus === "online" ? "#4ade80" : lspStatus === "connecting" ? "#facc15" : "#f87171",
+                  }} />
+                  {lspLabel}{lspStatus === "offline" ? " ↻" : ""}
+                </span>
+                {isFormattable(languageId) && (
+                  <span onClick={doFormat} title="Format document (Prettier)" style={{ cursor: "pointer", fontWeight: "var(--fw-semibold)" }}>
+                    Format
+                  </span>
+                )}
                 <span>Spaces: {tabSize}</span>
                 <span>UTF-8</span>
                 <span
@@ -1433,13 +964,12 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
                     background: showLangMenu ? "var(--white-a25)" : "transparent",
                   }}
                 >
-                  {langAuto ? "✨ " : ""}{language}
+                  {langAuto ? "✨ " : ""}{displayName}
                 </span>
               </div>
             </div>
           )}
 
-          {/* ── Language picker popup (text files only) ──────────────────────── */}
           {showLangMenu && filePath && !isIpynb && (
             <>
               <div
@@ -1468,7 +998,7 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
                     color: "var(--text-hover)", fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", outline: "none",
                   }}
                 />
-                {detected && detected.id !== language && (
+                {detected && detected.id !== languageId && (
                   <div
                     onClick={() => setEditorLanguage(detected.id, true)}
                     title={`Detected from content: ${detected.reason}`}
@@ -1478,7 +1008,7 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
                       border: "1px solid var(--teal-a35)", marginBottom: "var(--space-4)",
                     }}
                   >
-                    ✨ Suggested: {detected.id}
+                    ✨ Suggested: {displayNameFor(detected.id, filePath)}
                     <span style={{ color: "var(--icon)", fontSize: "var(--fs-small)" }}> — {detected.reason}</span>
                   </div>
                 )}
@@ -1491,39 +1021,93 @@ const MonacoEditorPanel = ({ config, nodeId }) => {
                 >
                   ↻ Auto-detect from content
                 </div>
-                {LANG_OPTIONS.filter((id) => id.toLowerCase().includes(langQuery.trim().toLowerCase())).map((id) => (
+                {CM_LANG_IDS.filter((id) => (displayNameFor(id, filePath) + " " + id).toLowerCase().includes(langQuery.trim().toLowerCase())).map((id) => (
                   <div
                     key={id}
                     onClick={() => setEditorLanguage(id)}
                     style={{
                       fontSize: "var(--fs-body)", padding: "var(--space-3) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
-                      color: id === language ? "var(--text-inverse)" : "var(--text-bright)",
-                      background: id === language ? "var(--select-blue)" : "transparent",
+                      color: id === languageId ? "var(--text-inverse)" : "var(--text-bright)",
+                      background: id === languageId ? "var(--select-blue)" : "transparent",
                     }}
                   >
-                    {id}
+                    {displayNameFor(id, filePath)}
+                    <span style={{ opacity: 0.6, fontSize: "var(--fs-small)" }}> — {id}</span>
                   </div>
                 ))}
               </div>
             </>
           )}
+
+          {symbolOpen && (
+            <>
+              <div onClick={() => setSymbolOpen(false)} style={{ position: "absolute", inset: 0, zIndex: "var(--z-menu)" }} />
+              <div style={{
+                position: "absolute", left: "50%", top: 40, transform: "translateX(-50%)",
+                zIndex: "var(--z-menu-top)", width: "min(420px, 80%)",
+                background: "var(--bg-vscode)", border: "1px solid var(--border-strong)",
+                borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-pop)", padding: "var(--space-4)",
+              }}>
+                <input
+                  autoFocus
+                  value={symbolQuery}
+                  onChange={(e) => setSymbolQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && symbolItems.length) jumpToSymbol(symbolItems[0].line);
+                    if (e.key === "Escape") setSymbolOpen(false);
+                  }}
+                  placeholder="Go to symbol…"
+                  style={{
+                    width: "100%", boxSizing: "border-box",
+                    background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)",
+                    color: "var(--text-hover)", fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", outline: "none",
+                  }}
+                />
+                <div style={{ maxHeight: 240, overflowY: "auto", marginTop: "var(--space-4)" }}>
+                  {symbolItems.length === 0 && (
+                    <div style={{ padding: "var(--space-8)", color: "var(--text-disabled)", fontSize: "var(--fs-small)" }}>
+                      No symbols found
+                    </div>
+                  )}
+                  {symbolItems.slice(0, 60).map((it, i) => (
+                    <div
+                      key={i}
+                      onClick={() => jumpToSymbol(it.line)}
+                      style={{
+                        fontSize: "var(--fs-body)", padding: "var(--space-3) var(--space-8)",
+                        borderRadius: "var(--radius-sm)", cursor: "pointer", color: "var(--text-bright)",
+                        display: "flex", justifyContent: "space-between", gap: 8,
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-active)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.label}</span>
+                      <span style={{ opacity: 0.6 }}>:{it.line}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
+      <style>{`.cm-editor { height: 100%; } .cm-scroller { overflow: auto; }`}</style>
     </div>
   );
 };
 
-export { MonacoEditorPanel };
+// Compat alias (koi purana import toota na ho).
+export { CodeMirrorEditorPanel as MonacoEditorPanel };
 
-// Code-OSS-backed editor factory. Notebook tabs retain their existing cell UI;
-// every source file uses the same VS Code language/editor/extension services.
+// CodeMirror-backed editor factory. Notebook tabs retain their cell UI;
+// every source file uses the same CodeMirror stack.
 const EditorPanelSwitch = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
   const forceText = config?.forceText === true;
   const isIpynb = !forceText && /\.ipynb$/i.test(filePath || "");
 
   if (isIpynb) return <NotebookPanel config={config} nodeId={nodeId} />;
-  return <MonacoEditorPanel config={config} nodeId={nodeId} />;
+  return <CodeMirrorEditorPanel config={config} nodeId={nodeId} />;
 };
 
 export default EditorPanelSwitch;

@@ -2,9 +2,16 @@
 // No jupyter dependency: execution goes through main-process IPC
 // (notebook:execute) backed by a persistent per-file Python process,
 // so variables/imports survive across cells until Restart.
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Actions } from "flexlayout-react";
-import { createConfiguredEditor } from "@codingame/monaco-vscode-api/monaco";
+import CodeMirror from "@uiw/react-codemirror";
+import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { history, historyKeymap, defaultKeymap } from "@codemirror/commands";
+import { autocompletion } from "@codemirror/autocomplete";
+import { bracketMatching, indentOnInput } from "@codemirror/language";
+import { python } from "@codemirror/lang-python";
+import { vscodeDark, vscodeLight } from "@uiw/codemirror-theme-vscode";
+import { oneDark } from "@codemirror/theme-one-dark";
 import "./notebook.css";
 
 const uid = () => "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -132,53 +139,27 @@ if (!window.__ibxNotebookDirty) window.__ibxNotebookDirty = new Map();
 window.__ibxIsNotebookDirty = (p) => { try { return !!window.__ibxNotebookDirty.get(p); } catch { return false; } };
 window.__ibxForgetNotebookDirty = (p) => { try { window.__ibxNotebookDirty.delete(p); } catch {} };
 
-// ── Per-cell Monaco (python) ─────────────────────────────────────────────
-// Cells reuse the SAME vscode services + python grammar as the main Editor
-// (window.__ibxEditorReady from Editor/index.jsx) — no second initialize(),
-// no CDN loader. If services never become ready, cells fall back to a plain
-// textarea so the notebook stays usable.
-if (!window.MonacoEnvironment) {
-  window.MonacoEnvironment = {
-    getWorker: (_moduleId, label) => {
-      if (label === "TextMateWorker") return new Worker("./textmate.worker.js");
-      if (label === "typescript" || label === "javascript") return new Worker("./ts.worker.js");
-      if (label === "json") return new Worker("./json.worker.js");
-      if (label === "html" || label === "handlebars" || label === "razor") return new Worker("./html.worker.js");
-      if (label === "css" || label === "scss" || label === "less") return new Worker("./css.worker.js");
-      return new Worker("./editor.worker.js");
-    },
-    getWorkerUrl: (_moduleId, label) => {
-      if (label === "webWorkerExtensionHostIframe") return "./worker/webWorkerExtensionHostIframe.html";
-      return undefined;
-    },
-  };
-}
-
-const awaitEditorReady = (timeoutMs) =>
-  new Promise((resolve, reject) => {
-    const p = window.__ibxEditorReady;
-    const timer = setTimeout(() => reject(new Error("editor init timeout")), timeoutMs || 20000);
-    const done = () => { clearTimeout(timer); resolve(true); };
-    const fail = (err) => { clearTimeout(timer); reject(err); };
-    if (p && typeof p.then === "function") {
-      p.then(done, () => fail(new Error("editor init failed")));
-      return;
-    }
-    // Editor module not evaluated yet — wait for its ready broadcast.
-    window.addEventListener("monaco:ready", done, { once: true });
-  });
-
+// ── Per-cell CodeMirror (python) ─────────────────────────────────────────
+// CodeMirror ko koi async init / worker / extension-host nahi chahiye —
+// cells turant render hote hain. Render crash ho to plain textarea fallback
+// (neeche cmFailed state) notebook ko usable rakhta hai.
 const nbWithMonoFallback = (f) => {
   const s = String(f || "").trim();
   if (!s) return s;
   return /monospace/i.test(s) ? s : `${s}, monospace`;
 };
 
-// Mirror of the main Editor's font settings (live-synced). Theme itself flows
-// through the shared theme service, so cells always match the Editor theme.
-// NOTE: ye values Monaco cell editors me jati hain (JS API — var() resolve
-// NAHI hota). Isliye literals rakhe hain jo CENTRAL tokens ke barabar hain:
-// fontSize 13 == --fs-title, font stack == --font-code. Token badle to yahan bhi badlo.
+// Mirror of the main Editor's font + theme settings (live-synced).
+// NOTE: ye values CodeMirror cell editors me jati hain (JS API — var()
+// resolve NAHI hota). Isliye literals rakhe hain jo CENTRAL tokens ke
+// barabar hain: fontSize 13 == --fs-title, font stack == --font-code.
+// Token badle to yahan bhi badlo.
+const nbMigrateTheme = (v) => {
+  const s = String(v || "").toLowerCase();
+  if (s.includes("light")) return "light";
+  if (s === "onedark") return "oneDark";
+  return "dark";
+};
 const useNbEditorSettings = () => {
   const [s, setS] = useState({
     fontSize: 13,
@@ -186,6 +167,7 @@ const useNbEditorSettings = () => {
     tabSize: 4,
     wordWrap: "on",
     lineNumbers: "on",
+    theme: "dark",
   });
   useEffect(() => {
     let cancelled = false;
@@ -195,20 +177,25 @@ const useNbEditorSettings = () => {
         fontSize: Number.isFinite(all.fontSize) ? Math.min(32, Math.max(8, all.fontSize)) : 13,
         fontFamily: all.fontFamily ? nbWithMonoFallback(all.fontFamily) : 'Consolas, "Courier New", monospace',
         tabSize: Number.isFinite(all.tabSize) ? all.tabSize : 4,
-        wordWrap: all.wordWrap !== false ? "on" : "off",
+        wordWrap: (all.lineWrapping !== undefined ? all.lineWrapping : all.wordWrap) !== false ? "on" : "off",
         lineNumbers: all.lineNumbers !== false ? "on" : "off",
+        theme: nbMigrateTheme(all.theme || all.editorTheme || "dark"),
       });
     }).catch(() => {});
     const h = (patch) => {
       if (!patch || typeof patch !== "object") return;
-      if (!["fontSize", "fontFamily", "tabSize", "wordWrap", "lineNumbers", "minimap"].some((k) => k in patch)) return;
+      if (!["fontSize", "fontFamily", "tabSize", "wordWrap", "lineWrapping", "lineNumbers", "minimap", "theme", "editorTheme"].some((k) => k in patch)) return;
       setS((prev) => {
         const next = { ...prev };
         if ("fontSize" in patch && Number.isFinite(patch.fontSize)) next.fontSize = Math.min(32, Math.max(8, patch.fontSize));
         if ("fontFamily" in patch && patch.fontFamily) next.fontFamily = nbWithMonoFallback(patch.fontFamily);
         if ("tabSize" in patch && Number.isFinite(patch.tabSize)) next.tabSize = patch.tabSize;
-        if ("wordWrap" in patch) next.wordWrap = patch.wordWrap !== false ? "on" : "off";
+        if ("wordWrap" in patch || "lineWrapping" in patch) {
+          const v = "lineWrapping" in patch ? patch.lineWrapping : patch.wordWrap;
+          next.wordWrap = v !== false ? "on" : "off";
+        }
         if ("lineNumbers" in patch) next.lineNumbers = patch.lineNumbers !== false ? "on" : "off";
+        if ("theme" in patch || "editorTheme" in patch) next.theme = nbMigrateTheme(patch.theme || patch.editorTheme);
         return next;
       });
     };
@@ -221,128 +208,40 @@ const useNbEditorSettings = () => {
   return s;
 };
 
-const NB_MONACO_MAX_H = 480;
-const NB_MONACO_MIN_H = 46;
+const NB_CM_MAX_H = 480;
 
-// One Monaco instance per code cell. Created once (keyed by cell.id upstream);
-// value/settings sync via effects, never recreation. Reports text changes up;
-// Shift/Ctrl/Alt+Enter are intercepted by the wrapper (capture phase) so no
-// monaco keybinding constants are needed.
-const CodeCellEditor = ({ cellId, value, settings, onChange, onRunKey, onMonacoFailed, registerEditor, onFocusCell }) => {
-  const hostRef = useRef(null);
-  const editorRef = useRef(null);
+// One CodeMirror instance per code cell (python). @uiw controlled `value`
+// handles external sync (disk reload); extensions memo handles live settings.
+// Shift/Ctrl/Alt+Enter are intercepted by the wrapper (capture phase).
+// NOTE: `.nb-monaco` class name CSS se aata hai (notebook.css) — sirf styling,
+// engine se koi lena-dena nahi.
+const CodeCellEditor = ({ cellId, value, settings, onChange, onRunKey, onCmFailed, registerEditor, onFocusCell }) => {
+  const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onRunKeyRef = useRef(onRunKey);
   onRunKeyRef.current = onRunKey;
-  const onFailedRef = useRef(onMonacoFailed);
-  onFailedRef.current = onMonacoFailed;
 
-  // create once
-  useEffect(() => {
-    let cancelled = false;
-    let editor = null;
-    let contentSub = null, sizeSub = null;
-    let t1 = null, t2 = null;
-    const host = hostRef.current;
-    if (!host) return undefined;
-    const layoutToContent = () => {
-      try {
-        if (!editor || cancelled) return;
-        const h = Math.min(NB_MONACO_MAX_H, Math.max(NB_MONACO_MIN_H, editor.getContentHeight()));
-        host.style.height = h + "px";
-        editor.layout({ width: Math.max(host.clientWidth, 1), height: h });
-      } catch {}
-    };
-    (async () => {
-      try {
-        await awaitEditorReady(20000);
-      } catch {
-        if (!cancelled) { try { onFailedRef.current?.(); } catch {} }
-        return;
-      }
-      if (cancelled || !hostRef.current) return;
-      try {
-        editor = createConfiguredEditor(hostRef.current, {
-          value: value ?? "",
-          language: "python",
-          automaticLayout: true,
-          minimap: { enabled: false },
-          wordWrap: settings.wordWrap || "on",
-          lineNumbers: settings.lineNumbers || "on",
-          fontSize: settings.fontSize || 13,
-          fontFamily: settings.fontFamily || 'Consolas, "Courier New", monospace',
-          tabSize: settings.tabSize || 4,
-          insertSpaces: true,
-          detectIndentation: false,
-          scrollBeyondLastLine: false,
-          scrollbar: { vertical: "auto", horizontal: "auto", useShadows: false },
-          overviewRulerLanes: 0,
-          hideCursorInOverviewRuler: true,
-          glyphMargin: false,
-          folding: true,
-          lineDecorationsWidth: 4,
-          lineNumbersMinChars: 3,
-          padding: { top: 6, bottom: 6 },
-          renderLineHighlight: "none",
-          smoothScrolling: true,
-          renderWhitespace: "selection",
-          bracketPairColorization: { enabled: true },
-          stickyScroll: { enabled: false },
-          fixedOverflowWidgets: true,
-        });
-      } catch {
-        if (!cancelled) { try { onFailedRef.current?.(); } catch {} }
-        return;
-      }
-      if (cancelled) { try { editor.dispose(); } catch {} return; }
-      editorRef.current = editor;
-      try { registerEditor?.(cellId, editor); } catch {}
-      contentSub = editor.onDidChangeModelContent(() => {
-        try { onChangeRef.current?.(editor.getValue()); } catch {}
-      });
-      try { sizeSub = editor.onDidContentSizeChange(() => layoutToContent()); } catch {}
-      layoutToContent();
-      t1 = setTimeout(layoutToContent, 120);
-      t2 = setTimeout(layoutToContent, 500);
-    })();
-    return () => {
-      cancelled = true;
-      try { clearTimeout(t1); } catch {}
-      try { clearTimeout(t2); } catch {}
-      try { contentSub?.dispose(); } catch {}
-      try { sizeSub?.dispose(); } catch {}
-      try { registerEditor?.(cellId, null); } catch {}
-      try {
-        const m = editor?.getModel?.();
-        try { editor?.dispose(); } catch {}
-        try { m?.dispose?.(); } catch {}
-      } catch {}
-      editorRef.current = null;
-    };
+  const extensions = useMemo(() => {
+    const themeExt = settings.theme === "light" ? vscodeLight : settings.theme === "oneDark" ? oneDark : vscodeDark;
+    const list = [
+      themeExt,
+      EditorView.theme({
+        "&": { fontSize: `${Math.min(32, Math.max(8, settings.fontSize || 13))}px` },
+        ".cm-content, .cm-gutters": { fontFamily: settings.fontFamily || 'Consolas, "Courier New", monospace' },
+      }),
+      EditorView.lineWrapping,
+      python(),
+      history(),
+      autocompletion(),
+      indentOnInput(),
+      bracketMatching(),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+    ];
+    if ((settings.lineNumbers || "on") !== "off") list.push(lineNumbers());
+    return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cellId]);
-
-  // external value sync (disk reload) — no-op for own keystrokes (equal strings)
-  useEffect(() => {
-    try {
-      const ed = editorRef.current;
-      if (ed && value !== undefined && ed.getValue() !== value) ed.setValue(value ?? "");
-    } catch {}
-  }, [value]);
-
-  // live settings sync (no recreation)
-  useEffect(() => {
-    try {
-      editorRef.current?.updateOptions?.({
-        wordWrap: settings.wordWrap || "on",
-        lineNumbers: settings.lineNumbers || "on",
-        fontSize: settings.fontSize || 13,
-        fontFamily: settings.fontFamily || 'Consolas, "Courier New", monospace',
-        tabSize: settings.tabSize || 4,
-      });
-    } catch {}
-  }, [settings]);
+  }, [settings.theme, settings.fontSize, settings.fontFamily, settings.lineNumbers]);
 
   return (
     <div
@@ -357,7 +256,20 @@ const CodeCellEditor = ({ cellId, value, settings, onChange, onRunKey, onMonacoF
       }}
     >
       <div className="nb-codewrap__gutter" />
-      <div ref={hostRef} className="nb-monaco" style={{ height: NB_MONACO_MIN_H }} />
+      <div className="nb-monaco" style={{ maxHeight: NB_CM_MAX_H, overflow: "auto", width: "100%" }}>
+        <CodeMirror
+          value={value ?? ""}
+          basicSetup={false}
+          theme="none"
+          indentWithTab={true}
+          extensions={extensions}
+          onChange={(v) => { try { onChangeRef.current?.(v); } catch {} }}
+          onCreateEditor={(view) => {
+            viewRef.current = view;
+            try { registerEditor?.(cellId, { focus: () => { try { view.focus(); } catch {} } }); } catch {}
+          }}
+        />
+      </div>
     </div>
   );
 };
@@ -377,7 +289,7 @@ const NotebookPanel = ({ config, nodeId }) => {
   const [selectedId, setSelectedId] = useState(null);
   const [externalChange, setExternalChange] = useState(false);
   const [autoSave, setAutoSave] = useState(false);
-  const [monacoFailed, setMonacoFailed] = useState(false);
+  const [cmFailed, setCmFailed] = useState(false);
   const edSettings = useNbEditorSettings();
 
   const cellsRef = useRef([]);
@@ -437,7 +349,7 @@ const NotebookPanel = ({ config, nodeId }) => {
     return () => { window.removeEventListener("project:opened", onOpen); window.removeEventListener("project:closed", onClose); };
   }, []);
 
-  // ── Autosize plain textareas (Monaco cells size themselves) ──
+  // ── Autosize plain textareas (CodeMirror cells size themselves) ──
   const autosizeAll = useCallback(() => {
     try {
       for (const ta of taRefs.current.values()) {
@@ -680,7 +592,7 @@ const NotebookPanel = ({ config, nodeId }) => {
     setCells((prev) => prev.map((c, i) => (i === index ? { ...c, source } : c)));
     setTimeout(() => markDirty(true), 0);
     scheduleAutosave();
-    // grow the edited plain textarea immediately (Monaco sizes itself)
+    // grow the edited plain textarea immediately (CodeMirror sizes itself)
     requestAnimationFrame(() => {
       try {
         const list = cellsRef.current;
@@ -691,7 +603,7 @@ const NotebookPanel = ({ config, nodeId }) => {
     });
   }, [markDirty, scheduleAutosave]);
 
-  // Shared run-key behavior for Monaco cells AND the textarea fallback:
+  // Shared run-key behavior for CodeMirror cells AND the textarea fallback:
   // shift = run + advance (creates a cell at the end), ctrl = run in place,
   // alt = run + insert below.
   const handleCellRunKey = useCallback((index, mode) => {
@@ -797,7 +709,7 @@ const NotebookPanel = ({ config, nodeId }) => {
 
   return (
     <div className="nb-panel" onKeyDownCapture={(e) => {
-      // Capture (not bubble): a focused Monaco cell would otherwise consume
+      // Capture (not bubble): a focused CodeMirror cell would otherwise consume
       // Ctrl+S before it reaches us.
       if ((e.ctrlKey || e.metaKey) && String(e.key || "").toLowerCase() === "s") { e.preventDefault(); e.stopPropagation(); doSave(); }
     }}>
@@ -884,7 +796,7 @@ const NotebookPanel = ({ config, nodeId }) => {
                 </div>
 
                 {actualCode ? (
-                  !monacoFailed ? (
+                  !cmFailed ? (
                     <CodeCellEditor
                       key={cell.id}
                       cellId={cell.id}
@@ -892,7 +804,7 @@ const NotebookPanel = ({ config, nodeId }) => {
                       settings={edSettings}
                       onChange={(v) => setCellSource(i, v)}
                       onRunKey={(mode) => handleCellRunKey(i, mode)}
-                      onMonacoFailed={() => setMonacoFailed(true)}
+                      onCmFailed={() => setCmFailed(true)}
                       registerEditor={(id, ed) => {
                         try {
                           if (ed) editorRefs.current.set(id, ed);

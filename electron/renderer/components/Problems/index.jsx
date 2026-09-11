@@ -1,32 +1,10 @@
-// Problems Panel - VS Code diagnostics via monaco-vscode-api IMarkerService.
-// (window.monaco kabhi set nahi hota — Editor sirf monaco:ready dispatch karta
-// hai — isliye markers seedha service se padhte hain. Severity numbers monaco
-// jaisi hi hain: 8=Error, 4=Warning, 2=Info, 1=Hint.)
+// Problems Panel — CodeMirror lint diagnostics.
+//
+// Har CodeMirror editor apne lint run par `codemirror:diagnostics` window
+// event dispatch karta hai { path, markers }. Yahan per-file aggregate hota
+// hai. Severity numbers purane jaisi hi hain: 8=Error, 4=Warning, 2=Info,
+// 1=Hint (click -> open-file-in-editor + editor:revealLine, unchanged).
 import React, { useEffect, useState } from "react";
-import { getService, IMarkerService } from "@codingame/monaco-vscode-api";
-
-const toPlainMarker = (m) => {
-  let path = "", fsPath = "";
-  try {
-    const r = m?.resource;
-    if (typeof r === "string") { path = r; }
-    else if (r) { path = r.path || ""; fsPath = r.fsPath || ""; }
-  } catch {}
-  let code = "";
-  try { code = (m?.code && typeof m.code === "object") ? String(m.code.value ?? "") : String(m?.code ?? ""); } catch {}
-  return {
-    message: String(m?.message || ""),
-    severity: Number(m?.severity || 0),
-    source: m?.source ? String(m.source) : "",
-    code,
-    path,
-    fsPath,
-    startLineNumber: m?.startLineNumber || 1,
-    startColumn: m?.startColumn || 1,
-    endLineNumber: m?.endLineNumber || 1,
-    endColumn: m?.endColumn || 1,
-  };
-};
 
 const ProblemsPanel = () => {
   const [markers, setMarkers] = useState([]);
@@ -34,53 +12,44 @@ const ProblemsPanel = () => {
   const [svcError, setSvcError] = useState(null);
 
   useEffect(() => {
-    let dead = false;
-    let disp = null;
-    let interval = null;
-
-    const pollMarkers = async () => {
+    const byFile = new Map(); // path -> markers[]
+    const rebuild = () => {
       try {
-        // getService init ka wait khud karta hai — kabhi bhi call karo.
-        const svc = await getService(IMarkerService);
-        if (dead || !svc) return;
-        let all = [];
-        try { all = svc.read() || []; } catch (e) { if (!dead) setSvcError(e?.message || String(e)); return; }
-        if (dead) return;
-        setSvcError(null);
-        // Deduplicate and sort by severity then file
         const seen = new Set();
-        const sorted = [...all]
-          .map(toPlainMarker)
-          .filter((m) => {
+        const all = [];
+        for (const list of byFile.values()) {
+          for (const m of list) {
             const k = `${m.path}:${m.startLineNumber}:${m.startColumn}:${m.message}`;
-            if (seen.has(k)) return false;
+            if (seen.has(k)) continue;
             seen.add(k);
-            return true;
-          })
-          .sort((a, b) => {
-            if (a.severity !== b.severity) return b.severity - a.severity;
-            return (a.path || "").localeCompare(b.path || "");
-          });
-        setMarkers(sorted);
-        // Subscribe once — aage markers badalne par event aayega
-        if (!disp) {
-          try { disp = svc.onMarkerChanged(() => { if (!document.hidden) pollMarkers(); }); } catch {}
+            all.push(m);
+          }
         }
+        all.sort((a, b) => {
+          if (a.severity !== b.severity) return b.severity - a.severity;
+          return (a.path || "").localeCompare(b.path || "");
+        });
+        setMarkers(all);
+        setSvcError(null);
+      } catch (e) {
+        setSvcError(e?.message || String(e));
+      }
+    };
+    const onDiags = (e) => {
+      try {
+        const { path, markers: list } = e.detail || {};
+        if (!path) return;
+        if (Array.isArray(list) && list.length) byFile.set(path, list);
+        else byFile.delete(path);
+        if (!document.hidden) rebuild();
       } catch {}
     };
-
-    pollMarkers();
-    // Editor ready / TS worker late init ho tab dobara
-    const onMonacoReady = () => { pollMarkers(); };
-    window.addEventListener("monaco:ready", onMonacoReady);
-    // Fallback poll — sirf visible tab me
-    interval = setInterval(() => { if (!document.hidden) pollMarkers(); }, 5000);
-
+    const onVis = () => { if (!document.hidden) rebuild(); };
+    window.addEventListener("codemirror:diagnostics", onDiags);
+    document.addEventListener("visibilitychange", onVis);
     return () => {
-      dead = true;
-      if (interval) clearInterval(interval);
-      window.removeEventListener("monaco:ready", onMonacoReady);
-      try { disp?.dispose?.(); } catch {}
+      window.removeEventListener("codemirror:diagnostics", onDiags);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, []);
 
@@ -158,7 +127,7 @@ const ProblemsPanel = () => {
         {filtered.length === 0 && !svcError && (
           <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
             {markers.length === 0 ? "No problems — all good" : `No ${filter} problems`}
-            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>Diagnostics from the editor (TS/JS) appear here</div>
+            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>Diagnostics from the editor (lint) appear here</div>
           </div>
         )}
         {filtered.map((m, i) => (

@@ -40,10 +40,10 @@
 .nb-codewrap__gutter { width: 8px; background: var(--editor-blue); opacity: 0.55; flex-shrink: 0; }
 .nb-cell--running .nb-codewrap__gutter { background: var(--warning); opacity: 0.9; }
 .nb-textarea { flex: 1; background: var(--bg-surface); color: var(--text-highlight); border: none; outline: none; resize: none; overflow: hidden; font-family: var(--font-code); font-size: var(--fs-title); line-height: var(--lh-md); padding: var(--space-8) var(--space-10); min-height: 44px; white-space: pre; }
-/* ── Per-cell Monaco ── */
+/* ── Per-cell CodeMirror ── */
 .nb-monaco { flex: 1; min-height: 46px; min-width: 0; background: var(--bg-surface); }
-.nb-monaco .monaco-editor, .nb-monaco .monaco-editor-background,
-.nb-monaco .monaco-editor .margin { background-color: var(--bg-surface); }
+.nb-monaco .cm-editor, .nb-monaco .cm-scroller,
+.nb-monaco .cm-gutters { background-color: var(--bg-surface); }
 .nb-md-view { padding: var(--space-8) var(--space-12); font-size: var(--fs-title); line-height: var(--lh-doc); cursor: text; }
 .nb-md-view h1, .nb-md-view h2, .nb-md-view h3, .nb-md-view h4 { color: var(--text-inverse); margin: var(--space-10) 0 var(--space-6); line-height: var(--lh-tight); }
 .nb-md-view h1 { font-size: var(--fs-hero); border-bottom: 1px solid var(--border); padding-bottom: var(--space-4); }

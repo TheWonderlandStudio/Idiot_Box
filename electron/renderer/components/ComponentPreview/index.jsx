@@ -332,6 +332,8 @@ const ComponentPreview = ({ nodeId, config }) => {
   // the preview reflects unsaved keystrokes.
   const liveSourcesRef = useRef(new Map());
   const liveReloadTimerRef = useRef(null);
+  const fsReloadTimerRef = useRef(null);
+  const loadSeqRef = useRef(0); // stale bundle results discard karne ke liye
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
 
@@ -387,29 +389,111 @@ const ComponentPreview = ({ nodeId, config }) => {
     }
   }, [getIframeDoc, getIframeWin]);
 
+  // ── Preview CSS store (iframe reloads wipe <head>, so re-apply) ──────────
+  const [loadedCssFiles, setLoadedCssFiles] = useState([]);
+  const loadedCssRef = useRef(new Map()); // cssKey -> cssContent
+  const tailwindNeededRef = useRef(false);
+  const projectCssCacheRef = useRef({ root: null, globals: [], hasTailwind: false });
+
+  const TAILWIND_CDN = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4";
+
+  const isTailwindCss = useCallback((css) => {
+    if (!css || typeof css !== "string") return false;
+    return /@tailwind\b|@import\s+["']tailwindcss["']|@apply\b|@theme\b|@custom-variant\b|@config\b/i.test(css);
+  }, []);
+
+  // Tailwind browser build compiles <style type="text/tailwindcss"> live.
+  // Plain <style> me @tailwind/@apply dead rehte hain — isliye type switch.
+  const ensureTailwindScript = useCallback((doc) => {
+    if (!doc || !doc.head) return;
+    try {
+      if (doc.head.querySelector('script[data-tailwind-browser]')) return;
+      const s = doc.createElement("script");
+      s.src = TAILWIND_CDN;
+      s.setAttribute("data-tailwind-browser", "1");
+      s.async = true;
+      doc.head.appendChild(s);
+    } catch {}
+  }, []);
+
   // ── Helper to inject CSS into the iframe's document head ───────────────────
-  const injectPreviewCss = useCallback((cssKey, cssContent) => {
+  // Equality guard: same content dobara likhne se Tailwind browser build har
+  // baar recompile karta hai (MutationObserver storm) — CPU/OOM se app band
+  // ho sakti hai. Isliye badla hua ho tabhi DOM touch karo.
+  const injectPreviewCss = useCallback((cssKey, cssContent, opts = {}) => {
     if (!cssKey) return;
+    const next = cssContent || "";
+    const prev = loadedCssRef.current.get(cssKey);
+    loadedCssRef.current.set(cssKey, next);
+    const needsTw = opts.tailwind ?? isTailwindCss(next);
+    if (needsTw) tailwindNeededRef.current = true;
     const doc = getIframeDoc();
     if (!doc) return;
     const head = doc.head;
     if (!head) return;
-    const styleId = `preview-css-${cssKey.replace(/[^a-zA-Z0-9_]/g, "_")}`;
-    let el = head.querySelector(`#${styleId}`);
+    if (tailwindNeededRef.current) ensureTailwindScript(doc);
+    const styleId = `preview-css-${String(cssKey).replace(/[^a-zA-Z0-9_]/g, "_").slice(-120)}`;
+    let el = null;
+    try { el = head.querySelector(`#${CSS.escape ? CSS.escape(styleId) : styleId}`); } catch { el = head.querySelector(`[data-preview-css="${String(cssKey).slice(-80)}"]`); }
     if (!el) {
       el = doc.createElement("style");
       el.id = styleId;
-      el.setAttribute("data-preview-css", cssKey);
+      el.setAttribute("data-preview-css", String(cssKey).slice(-160));
       head.appendChild(el);
     }
-    el.textContent = cssContent || "";
-  }, [getIframeDoc]);
+    const wantType = needsTw ? "text/tailwindcss" : null;
+    const hasType = el.getAttribute("type");
+    if (prev === next && (hasType === wantType || (!hasType && !wantType))) return; // kuch nahi badla
+    if (needsTw) el.setAttribute("type", "text/tailwindcss");
+    else el.removeAttribute("type");
+    el.textContent = next;
+  }, [getIframeDoc, isTailwindCss, ensureTailwindScript]);
 
-  // Drop all styles injected for a previously previewed component.
-  const clearPreviewCss = useCallback(() => {
+  // Re-apply cached styles after srcDoc reload (head wipe ho jata hai).
+  const reapplyPreviewCss = useCallback(() => {
     const doc = getIframeDoc();
     if (!doc || !doc.head) return;
-    doc.head.querySelectorAll("style[data-preview-css]").forEach((el) => el.remove());
+    if (tailwindNeededRef.current) ensureTailwindScript(doc);
+    for (const [key, content] of loadedCssRef.current.entries()) {
+      try {
+        const styleId = `preview-css-${String(key).replace(/[^a-zA-Z0-9_]/g, "_").slice(-120)}`;
+        let el = null;
+        try { el = doc.head.querySelector(`#${CSS.escape ? CSS.escape(styleId) : styleId}`); } catch { el = null; }
+        if (!el) {
+          el = doc.createElement("style");
+          el.id = styleId;
+          el.setAttribute("data-preview-css", String(key).slice(-160));
+          doc.head.appendChild(el);
+        }
+        const wantTw = isTailwindCss(content);
+        const wantType = wantTw ? "text/tailwindcss" : null;
+        if (el.textContent === (content || "") && el.getAttribute("type") === wantType) continue;
+        if (wantTw) el.setAttribute("type", "text/tailwindcss");
+        else el.removeAttribute("type");
+        el.textContent = content || "";
+      } catch {}
+    }
+  }, [getIframeDoc, ensureTailwindScript, isTailwindCss]);
+
+  // Drop all styles injected for a previously previewed component.
+  const clearPreviewCss = useCallback((onlyBundle = false) => {
+    if (onlyBundle) {
+      for (const k of [...loadedCssRef.current.keys()]) {
+        if (String(k).startsWith("__bundle__")) loadedCssRef.current.delete(k);
+      }
+    } else {
+      loadedCssRef.current.clear();
+      tailwindNeededRef.current = false;
+    }
+    const doc = getIframeDoc();
+    if (!doc || !doc.head) return;
+    try {
+      doc.head.querySelectorAll("style[data-preview-css]").forEach((el) => {
+        if (!onlyBundle) { el.remove(); return; }
+        // bundle key ka styleId `preview-css-__bundle__...` se shuru hota hai
+        if ((el.id || "").includes("__bundle__")) el.remove();
+      });
+    } catch {}
   }, [getIframeDoc]);
 
   // ── Find all .jsx / .tsx files in current project ─────────────────────────
@@ -469,8 +553,18 @@ const ComponentPreview = ({ nodeId, config }) => {
 
   // Listen for project open/close events
   useEffect(() => {
-    const onOpen = () => refreshFileList();
-    const onClose = () => { setSampleMode(false); setFilePath(null); setProjectFiles([]); setComponentToRender(null); setPreviewCode(null); };
+    const onOpen = () => {
+      projectCssCacheRef.current = { root: null, globals: [], hasTailwind: false };
+      refreshFileList();
+    };
+    const onClose = () => {
+      setSampleMode(false); setFilePath(null); setProjectFiles([]);
+      setComponentToRender(null); setPreviewCode(null);
+      setLoadedCssFiles([]);
+      loadedCssRef.current.clear();
+      tailwindNeededRef.current = false;
+      projectCssCacheRef.current = { root: null, globals: [], hasTailwind: false };
+    };
     window.addEventListener("project:opened", onOpen);
     window.addEventListener("project:closed", onClose);
     return () => {
@@ -492,73 +586,286 @@ const ComponentPreview = ({ nodeId, config }) => {
     return () => window.removeEventListener("open-file-in-editor", onOpenFile);
   }, []);
 
-  // ── Helper to resolve relative file paths ─────────────────────────────────
-  const resolvePath = (baseFile, relativePath) => {
-    if (!baseFile || !relativePath) return null;
-    const parts = baseFile.replace(/\\/g, "/").split("/");
-    parts.pop(); // remove base filename, keeping directory
-    const relParts = relativePath.replace(/\\/g, "/").split("/");
-    for (const p of relParts) {
-      if (p === "." || p === "") continue;
-      if (p === "..") { parts.pop(); }
-      else { parts.push(p); }
+  // ── Project-aware CSS auto-detect ─────────────────────────────────────────
+  // NOTE: component ke import kiye CSS (relative / package / @import chain)
+  // bundler khud resolve karke `res.css` me deta hai (neeche inject hota hai).
+  // Yahan GLOBAL stylesheets auto-detect hoti hain jo import me nahi hain —
+  // project structure ke hisaab se:
+  //  1. sibling same-name (App.jsx -> App.css / App.module.css)
+  //  2. component dir se project root tak walk-up (index.css, globals.css…)
+  //  3. root conventions (src/index.css, app/globals.css, output.css…)
+  //  4. entry files (main/index/App) ke `import './x.css'`
+  //  5. index.html ke <link rel=stylesheet>
+  //  6. framework dist (bootstrap/bulma) + tailwind browser fallback
+  const toPosix = (p) => String(p || "").replace(/\\/g, "/");
+  const posixNorm = (p) => {
+    const parts = toPosix(p).split("/");
+    const out = [];
+    for (const seg of parts) {
+      if (!seg || seg === ".") continue;
+      if (seg === "..") { if (out.length && out[out.length - 1] !== ".." && !/^[A-Za-z]:$/.test(out[out.length - 1])) out.pop(); else out.push(seg); }
+      else out.push(seg);
     }
-    return parts.join("/");
+    let s = out.join("/");
+    if (/^[A-Za-z]:/.test(toPosix(p).slice(0, 2)) && !/^[A-Za-z]:\//.test(s)) s = s.replace(/^([A-Za-z]:)/, "$1/");
+    if (toPosix(p).startsWith("/") && !s.startsWith("/")) s = "/" + s;
+    return s;
+  };
+  const posixDir = (p) => { const s = toPosix(p); const i = s.lastIndexOf("/"); return i <= 0 ? s.slice(0, i + 1) : s.slice(0, i); };
+  const stripRoot = (root, p) => {
+    const r = toPosix(root).replace(/\/$/, "");
+    const s = toPosix(p);
+    if (s === r) return ".";
+    if (s.startsWith(r + "/")) return s.slice(r.length + 1);
+    return null;
   };
 
-  // ── Scan and inject associated CSS files ──────────────────────────────────
-  const loadAssociatedCss = useCallback(async (targetFilePath, sourceCode) => {
-    if (!targetFilePath) return;
+  const tryRead = async (p) => {
+    try {
+      const t = await window.electronAPI?.readTextFile(p);
+      return typeof t === "string" ? t : null;
+    } catch { return null; }
+  };
 
-    // 1. Direct CSS import matches in source code: import "./styles.css" / require("./app.css")
-    const cssImportRegex = /(?:import|require)\s*\(?['"]([^'"]+\.(?:css|scss|less|pcss))['"]\)?/gi;
-    let match;
-    while ((match = cssImportRegex.exec(sourceCode)) !== null) {
-      const relCssPath = match[1];
-      const fullCssPath = resolvePath(targetFilePath, relCssPath);
-      if (fullCssPath) {
-        try {
-          const cssContent = await window.electronAPI.readTextFile(fullCssPath);
-          if (cssContent !== null) {
-            injectPreviewCss(fullCssPath, cssContent);
-          }
-        } catch {}
+  // Global CSS ke @import "..." ko inline resolve karo (relative chain).
+  // "tailwindcss" / http / package imports ko chhodo — bundler/CDN sambhalega.
+  const resolveCssImports = useCallback(async (css, baseDirPosix, seen = new Set(), depth = 0) => {
+    if (!css || depth > 4) return css;
+    const re = /@import\s+(?:url\(\s*["']?([^"')]+)["']?\s*\)|["']([^"']+)["'])\s*[^;]*;/g;
+    let out = css;
+    let m;
+    const jobs = [];
+    while ((m = re.exec(css))) {
+      const raw = (m[1] || m[2] || "").trim();
+      if (!raw || raw.startsWith("http") || raw.startsWith("data:") || raw.startsWith("blob:") || raw === "tailwindcss") continue;
+      const clean = raw.split("?")[0].split("#")[0];
+      if (!/\.css$/i.test(clean)) continue;
+      let abs = null;
+      if (clean.startsWith("./") || clean.startsWith("../") || !clean.includes(":") && !clean.startsWith("@") && !clean.startsWith("~")) {
+        abs = posixNorm(`${baseDirPosix}/${clean}`);
+      } else if (clean.startsWith("~/")) {
+        continue;
+      } else continue;
+      if (!abs || seen.has(abs.toLowerCase())) continue;
+      seen.add(abs.toLowerCase());
+      jobs.push({ full: m[0], abs });
+    }
+    for (const j of jobs) {
+      const inner = await tryRead(j.abs);
+      if (inner == null) continue;
+      const resolved = await resolveCssImports(inner, posixDir(j.abs), seen, depth + 1);
+      out = out.split(j.full).join(`/* @import ${j.abs} */\n${resolved}`);
+    }
+    return out;
+  }, []);
+
+  const readPackageInfo = useCallback(async (rootPosix) => {
+    try {
+      const raw = await tryRead(`${rootPosix}/package.json`);
+      if (!raw) return null;
+      const pkg = JSON.parse(raw);
+      return pkg || null;
+    } catch { return null; }
+  }, []);
+
+  const loadAssociatedCss = useCallback(async (targetFilePath, opts = {}) => {
+    if (!targetFilePath) return;
+    const { force = false, isLive = false } = opts || {};
+    const targetPosix = toPosix(targetFilePath);
+    const rootRaw = window.__currentProjectPath || null;
+    const rootPosix = rootRaw ? toPosix(rootRaw).replace(/\/$/, "") : posixDir(targetPosix);
+
+    // Live typing (har keystroke) par disk rescan mat karo — cache reuse.
+    const cache = projectCssCacheRef.current;
+    if (isLive && !force && cache.root === rootPosix && cache.globals?.length) {
+      clearPreviewCss(true); // sirf purana bundle css hatao, globals re-apply
+      for (const g of cache.globals) injectPreviewCss(g.key, g.content);
+      setLoadedCssFiles(cache.globals.map((g) => g.key));
+      return;
+    }
+
+    const seen = new Set(); // lowercased abs -> dedupe
+    const orderedKeys = [];
+    const contents = new Map(); // key -> raw css
+    const mark = (key) => {
+      const k = posixNorm(key);
+      const lk = k.toLowerCase();
+      if (seen.has(lk)) return null;
+      seen.add(lk);
+      orderedKeys.push(k);
+      return k;
+    };
+
+    // ── 1. sibling same-name ──
+    const siblingBase = targetPosix.replace(/\.(jsx|tsx|js|ts)$/i, "");
+    for (const cand of [`${siblingBase}.css`, `${siblingBase}.module.css`]) {
+      if (cand === targetPosix) continue;
+      mark(cand);
+    }
+
+    // ── 2. walk-up: component dir -> root ──
+    const COMMON = ["index.css", "styles.css", "style.css", "globals.css", "global.css", "main.css", "app.css", "App.css", "output.css"];
+    try {
+      let dir = posixDir(targetPosix);
+      let guard = 0;
+      while (dir && guard++ < 10) {
+        for (const n of COMMON) mark(`${dir}/${n}`);
+        if (toPosix(dir).toLowerCase() === rootPosix.toLowerCase()) break;
+        if (!stripRoot(rootPosix, dir) && toPosix(dir).toLowerCase() !== rootPosix.toLowerCase()) {
+          // root ke bahar nikal gaye (target root ke bahar?) — ek level aur bas
+          if (guard > 3 && !toPosix(dir).startsWith(rootPosix.slice(0, 3))) break;
+        }
+        const parent = posixDir(dir);
+        if (!parent || parent === dir) break;
+        dir = parent;
+        if (dir.length < rootPosix.length - 1 && !rootPosix.toLowerCase().startsWith(dir.toLowerCase())) break;
+      }
+    } catch {}
+
+    // ── 3. root conventions (framework-agnostic) ──
+    const ROOT_CANDS = [
+      "src/index.css", "src/globals.css", "src/global.css", "src/styles.css",
+      "src/style.css", "src/main.css", "src/App.css", "src/output.css",
+      "src/index.tailwind.css", "app/globals.css", "styles/globals.css",
+      "styles/global.css", "styles/main.css", "public/styles.css",
+      "public/global.css", "assets/style.css", "renderer/globals.css",
+    ];
+    for (const rel of ROOT_CANDS) mark(`${rootPosix}/${rel}`);
+
+    // ── package.json (framework detect) ──
+    let pkg = null;
+    try { pkg = await readPackageInfo(rootPosix); } catch {}
+    const deps = { ...((pkg && pkg.dependencies) || {}), ...((pkg && pkg.devDependencies) || {}) };
+    const hasTailwind = !!deps.tailwindcss || !!deps["@tailwindcss/vite"] || !!deps["@tailwindcss/postcss"];
+    let hasTwConfig = false;
+    if (hasTailwind) {
+      for (const f of [`${rootPosix}/tailwind.config.js`, `${rootPosix}/tailwind.config.ts`, `${rootPosix}/tailwind.config.cjs`]) {
+        const t = await tryRead(f);
+        if (t != null) { hasTwConfig = true; break; }
+      }
+    }
+    if (hasTailwind && !hasTwConfig) {
+      // tailwind v4 (CSS-based, bina config) — globals me @import "tailwindcss" hi kaafi
+      hasTwConfig = true;
+    }
+
+    // ── 4. entry files ke css imports ──
+    const ENTRIES = ["src/main.jsx", "src/main.tsx", "src/main.js", "src/main.ts", "src/index.jsx", "src/index.tsx", "src/index.js", "src/index.ts", "src/App.jsx", "src/App.tsx", "src/App.js", "src/App.ts"];
+    const importRe = /import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+\.css(?:\?[^'"]*)?)['"]|require\s*\(\s*['"]([^'"]+\.css(?:\?[^'"]*)?)['"]\s*\)/g;
+    for (const rel of ENTRIES) {
+      const abs = `${rootPosix}/${rel}`;
+      let text = null;
+      try { text = await tryRead(abs); } catch {}
+      if (!text) continue;
+      let im;
+      importRe.lastIndex = 0;
+      while ((im = importRe.exec(text))) {
+        let imp = (im[1] || im[2] || "").split("?")[0];
+        if (!imp) continue;
+        if (imp.startsWith("http") || imp.startsWith("data:")) continue;
+        let resolved = null;
+        if (imp.startsWith("@/")) resolved = posixNorm(`${rootPosix}/src/${imp.slice(2)}`);
+        else if (imp.startsWith("~/")) resolved = posixNorm(`${rootPosix}/${imp.slice(2)}`);
+        else if (imp.startsWith("/") && !imp.startsWith("//")) resolved = posixNorm(`${rootPosix}${imp}`);
+        else if (imp.startsWith(".")) resolved = posixNorm(`${posixDir(abs)}/${imp}`);
+        else resolved = posixNorm(`${rootPosix}/node_modules/${imp}`); // bare package css
+        mark(resolved);
       }
     }
 
-    // 2. Sibling CSS file with same name (e.g. App.jsx -> App.css)
-    const sameNameCss = targetFilePath.replace(/\.(jsx|tsx)$/i, ".css");
-    if (sameNameCss !== targetFilePath) {
+    // ── 5. index.html <link rel=stylesheet> ──
+    for (const hrel of ["index.html", "public/index.html", "src/index.html"]) {
+      const habs = `${rootPosix}/${hrel}`;
+      let html = null;
+      try { html = await tryRead(habs); } catch {}
+      if (!html) continue;
+      const linkRe = /<link\b[^>]*href\s*=\s*["']([^"']+\.css[^"']*)["'][^>]*>/gi;
+      let lm;
+      while ((lm = linkRe.exec(html))) {
+        let href = (lm[1] || "").split("?")[0].split("#")[0].trim();
+        if (!href || href.startsWith("http") || href.startsWith("data:") || href.startsWith("blob:")) continue;
+        if (href.startsWith("/")) mark(posixNorm(`${rootPosix}${href}`));
+        else mark(posixNorm(`${posixDir(habs)}/${href}`));
+      }
+    }
+
+    // ── 6. framework dist css (deps ke hisaab se) ──
+    if (deps.bootstrap) mark(`${rootPosix}/node_modules/bootstrap/dist/css/bootstrap.min.css`);
+    if (deps.bulma) mark(`${rootPosix}/node_modules/bulma/css/bulma.min.css`);
+    if (deps["foundation-sites"]) mark(`${rootPosix}/node_modules/foundation-sites/dist/css/foundation.min.css`);
+    if (deps.antd) mark(`${rootPosix}/node_modules/antd/dist/antd.min.css`);
+    if (deps["semantic-ui-css"]) mark(`${rootPosix}/node_modules/semantic-ui-css/semantic.min.css`);
+
+    // ── 7. build output css (vite/cra dist) — pehla chhota bundle ──
+    for (const drel of ["dist", "build"]) {
       try {
-        const cssContent = await window.electronAPI.readTextFile(sameNameCss);
-        if (cssContent !== null) {
-          injectPreviewCss(sameNameCss, cssContent);
+        const entries = await window.electronAPI?.readDirAll(`${rootPosix}/${drel}`);
+        if (Array.isArray(entries)) {
+          for (const e of entries.slice(0, 40)) {
+            if (!e || e.isDir) continue;
+            if (/\.css$/i.test(e.name || e.path || "")) mark(e.path || `${rootPosix}/${drel}/${e.name}`);
+            if (orderedKeys.length > 60) break;
+          }
+          // dist/assets me aksar hashed css hota hai
+          const assets = (entries || []).find((e) => e && e.isDir && e.name === "assets");
+          if (assets) {
+            try {
+              const inner = await window.electronAPI?.readDirAll(assets.path);
+              for (const f of (inner || []).slice(0, 20)) {
+                if (f && !f.isDir && /\.css$/i.test(f.name || "")) mark(f.path);
+              }
+            } catch {}
+          }
         }
       } catch {}
     }
 
-    // 3. Common project CSS files in same directory or project root
-    const dirParts = targetFilePath.replace(/\\/g, "/").split("/");
-    dirParts.pop();
-    const dirPath = dirParts.join("/");
-    const commonNames = ["index.css", "style.css", "styles.css", "App.css", "global.css", "main.css"];
-    for (const name of commonNames) {
-      const commonPath = `${dirPath}/${name}`;
-      try {
-        const cssContent = await window.electronAPI.readTextFile(commonPath);
-        if (cssContent !== null) {
-          injectPreviewCss(commonPath, cssContent);
-        }
-      } catch {}
+    // ── read + inject (order preserved, cap 12 files / 600KB total / 500KB per file) ──
+    // Bahut badi single stylesheet (MBs) iframe me lagatar inject hona OOM ka
+    // reason ban sakta hai — isliye per-file cap.
+    clearPreviewCss();
+    const loaded = [];
+    let bytes = 0;
+    for (const key of orderedKeys.slice(0, 40)) {
+      if (loaded.length >= 12 || bytes > 600 * 1024) break;
+      let raw = null;
+      try { raw = await tryRead(key); } catch {}
+      if (raw == null || !raw.trim()) continue;
+      if (raw.length > 500 * 1024) {
+        try { console.warn(`[preview] skip oversize css (${Math.round(raw.length / 1024)}KB): ${key}`); } catch {}
+        continue;
+      }
+      let finalCss = raw;
+      try { finalCss = await resolveCssImports(raw, posixDir(key)); } catch {}
+      bytes += (finalCss || "").length;
+      contents.set(key, finalCss);
+      injectPreviewCss(key, finalCss);
+      // chhota display name: root-relative agar andar hai
+      const rel = stripRoot(rootPosix, key);
+      loaded.push(rel ? (rel === "." ? key : rel) : key);
     }
-  }, [injectPreviewCss]);
+    // tailwind dep hai par koi tailwind css nahi mila -> browser CDN ready rakho
+    if (hasTailwind && ![...contents.values()].some((c) => isTailwindCss(c))) {
+      tailwindNeededRef.current = true;
+      try { ensureTailwindScript(getIframeDoc()); } catch {}
+    }
+    projectCssCacheRef.current = {
+      root: rootPosix,
+      globals: [...contents.entries()].map(([key, content]) => ({ key, content })),
+      hasTailwind,
+    };
+    setLoadedCssFiles(loaded);
+  }, [injectPreviewCss, clearPreviewCss, resolveCssImports, readPackageInfo, getIframeDoc, ensureTailwindScript, isTailwindCss]);
 
   // ── Transpile & Load Component ────────────────────────────────────────────
   // Stronger origin isolation: bundle in main, evaluate & mount INSIDE iframe's realm
-  const loadAndTranspile = useCallback(async (path, sourceOverride) => {
+  const loadAndTranspile = useCallback(async (path, sourceOverride, opts = {}) => {
     if (!path) return;
+    const mySeq = ++loadSeqRef.current;
     setTranspileError(null);
 
+    const isLive = sourceOverride != null;
+    const forceCss = !!opts.forceCss;
     let source = sourceOverride;
     if (source == null) {
       source = liveSourcesRef.current.get(path);
@@ -573,8 +880,8 @@ const ComponentPreview = ({ nodeId, config }) => {
       return;
     }
 
-    clearPreviewCss();
-    await loadAssociatedCss(path, source);
+    // Globals: full rescan on file switch/save, cache-reuse on live typing.
+    await loadAssociatedCss(path, { isLive: isLive && !forceCss, force: forceCss });
 
     let codeToTranspile = source;
     if (!/export\s+default|function|const|class/i.test(source) && /^\s*</.test(source.trim())) {
@@ -603,11 +910,31 @@ const ComponentPreview = ({ nodeId, config }) => {
       return;
     }
 
+    // Stale guard: tez typing/save me purana bundle naya state overwrite na kare.
+    if (mySeq !== loadSeqRef.current || path !== filePathRef.current) return;
+
     // Store CJS bundle for iframe to evaluate independently (isolated realm)
+    // + bundler-resolved CSS (saare CSS imports — relative / package /
+    // @import / CSS modules — resolve hokar ek stylesheet me)
+    if (res.css) {
+      injectPreviewCss(`__bundle__${path}`, res.css);
+    } else {
+      // pichhli file ka bundle-css yahan leak na ho
+      try {
+        const k = `__bundle__${path}`;
+        if (loadedCssRef.current.has(k)) {
+          loadedCssRef.current.delete(k);
+          const doc = getIframeDoc();
+          doc?.head?.querySelectorAll("style[data-preview-css]")?.forEach((el) => {
+            if ((el.id || "").includes("__bundle__")) el.remove();
+          });
+        }
+      } catch {}
+    }
     setPreviewCode(res.code);
     setComponentToRender(null);
     setLastUpdateKey((k) => k + 1);
-  }, [loadAssociatedCss, clearPreviewCss]);
+  }, [loadAssociatedCss, clearPreviewCss, injectPreviewCss, getIframeDoc]);
 
   useEffect(() => {
     // A pending live-reload from a previous file must not render here.
@@ -663,29 +990,56 @@ const ComponentPreview = ({ nodeId, config }) => {
 
   // Watch for filesystem changes to auto-update live preview (authoritative
   // disk content after a save — drop any stale in-memory live source).
+  // CSS save par cache invalidate taaki nayi global styles turant lagen.
   useEffect(() => {
     const root = window.__currentProjectPath;
     if (!root) return;
-    const unsub = window.electronAPI.onFsChange(() => {
-      if (filePath) {
-        liveSourcesRef.current.delete(filePath);
-        loadAndTranspile(filePath);
-      }
+    const unsub = window.electronAPI.onFsChange((_dir, changedPath) => {
+      if (!filePath) return;
+      // Har fs event par reload nahi — dev-server (vite HMR) dist/build me
+      // lagatar likhta hai; har event par full rescan+bundle = overload/crash.
+      try {
+        const cp = String(changedPath || "").replace(/\\/g, "/");
+        if (!cp) return;
+        // build outputs / deps / vcs ignore
+        if (/(^|\/)(dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.parcel-cache|node_modules|\.git)(\/|$)/i.test(cp)) return;
+        const isSelf = cp.toLowerCase() === String(filePath).replace(/\\/g, "/").toLowerCase();
+        const isCss = /\.css$/i.test(cp);
+        const isCode = /\.(jsx|tsx|js|ts|json)$/i.test(cp);
+        const isAsset = /\.(png|jpe?g|gif|webp|svg|woff2?|ttf|eot|otf)$/i.test(cp);
+        if (!isSelf && !isCss && !isCode && !isAsset) return; // md/log/tmp etc.
+        if (isCss) {
+          projectCssCacheRef.current = { root: null, globals: [], hasTailwind: false };
+        }
+        // self-file change par stale live-source hatao; doosri file par nahi
+        if (isSelf) liveSourcesRef.current.delete(filePath);
+        if (fsReloadTimerRef.current) clearTimeout(fsReloadTimerRef.current);
+        fsReloadTimerRef.current = setTimeout(() => {
+          fsReloadTimerRef.current = null;
+          if (filePathRef.current !== filePath) return;
+          loadAndTranspile(filePath, undefined, { forceCss: isCss || isSelf });
+        }, 600);
+      } catch {}
     });
-    return () => unsub();
+    return () => {
+      try { unsub(); } catch {}
+      if (fsReloadTimerRef.current) { clearTimeout(fsReloadTimerRef.current); fsReloadTimerRef.current = null; }
+    };
   }, [filePath, loadAndTranspile]);
 
   // ── Iframe onLoad: mark ready, inject React, and trigger mount ──────────
   const handleIframeLoad = useCallback(() => {
     if (iframeReadyRef.current && getIframeWin()?.__previewMount) {
       setupIframeGuard();
+      try { reapplyPreviewCss(); } catch {}
       return;
     }
     iframeReadyRef.current = true;
     setupIframeGuard();
+    try { reapplyPreviewCss(); } catch {}
     // Defer mount to ensure iframe's internal script has set __previewMount
     setTimeout(() => setLastUpdateKey(k => k + 1), 0);
-  }, [setupIframeGuard, getIframeWin, getIframeDoc]);
+  }, [setupIframeGuard, getIframeWin, reapplyPreviewCss]);
 
   // ── Listen for navigation / errors forwarded from iframe ───────────────────
   useEffect(() => {
@@ -711,6 +1065,8 @@ const ComponentPreview = ({ nodeId, config }) => {
     const doc = getIframeDoc();
     if (!win || !doc) return;
     setupIframeGuard();
+    // srcDoc reload head wipe kar deta hai — cached CSS wapas lagao
+    try { reapplyPreviewCss(); } catch {}
     // Ensure React is available inside iframe
     if (!win.__previewMount) {
       // iframe script not yet ready, retry
@@ -738,7 +1094,7 @@ const ComponentPreview = ({ nodeId, config }) => {
       // Never let iframe mount failure affect parent UI
       console.error("Preview mount failed (isolated):", e);
     }
-  }, [sampleMode, transpileError, filePath, previewCode, zoom, bgMode, lastUpdateKey, getIframeWin, getIframeDoc, getMount, setupIframeGuard]);
+  }, [sampleMode, transpileError, filePath, previewCode, zoom, bgMode, lastUpdateKey, getIframeWin, getIframeDoc, getMount, setupIframeGuard, reapplyPreviewCss]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -860,10 +1216,18 @@ const ComponentPreview = ({ nodeId, config }) => {
             </button>
           </div>
 
+          {/* Auto CSS indicator */}
+          <span
+            title={loadedCssFiles.length ? `Auto-loaded CSS (${loadedCssFiles.length}):\n${loadedCssFiles.join("\n")}` : "No global CSS detected — component imports (bundler) still apply"}
+            style={{ fontSize: "var(--fs-tiny)", color: loadedCssFiles.length ? "var(--teal)" : "var(--icon-muted)", background: loadedCssFiles.length ? "var(--teal-a15)" : "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-pill)", padding: "var(--space-2) var(--space-8)", whiteSpace: "nowrap", cursor: "default" }}
+          >
+            CSS {loadedCssFiles.length ? `· ${loadedCssFiles.length}` : "· auto"}
+          </span>
+
           {/* Refresh Button */}
           <button
-            onClick={() => { if (filePath) loadAndTranspile(filePath); }}
-            title="Reload Preview"
+            onClick={() => { if (filePath) loadAndTranspile(filePath, undefined, { forceCss: true }); }}
+            title="Reload Preview (rescan CSS)"
             style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-4)", fontSize: "var(--fs-body)" }}
           >
             ↻

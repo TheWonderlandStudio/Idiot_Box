@@ -150,11 +150,19 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
           ".jsx": "jsx",
           ".ts": "tsx",
           ".tsx": "tsx",
-          ".css": "empty", ".scss": "empty", ".less": "empty", ".pcss": "empty",
+          // CSS imports bundle hokar ALAG css output me aate hain (renderer use
+          // iframe me inject karta hai) — "empty" karne par preview me koi
+          // stylesheet nahi lagti thi. scss/less compile nahi hote, empty hi.
+          ".css": "css", ".scss": "empty", ".less": "empty", ".pcss": "empty",
           ".png": "dataurl", ".jpg": "dataurl", ".jpeg": "dataurl", ".gif": "dataurl", ".webp": "dataurl", ".svg": "dataurl",
+          // CSS url() references (fonts) tootne na payen
+          ".woff": "dataurl", ".woff2": "dataurl", ".ttf": "dataurl", ".eot": "dataurl", ".otf": "dataurl",
         },
         external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
         absWorkingDir: projectRoot || path.dirname(filePath),
+        // CSS bundle output ke liye outdir chahiye (write:false — disk par
+        // kuch nahi likhta, sirf outputFiles ke naam ke liye)
+        outdir: "ibx-preview-out",
         write: false,
         logLevel: "silent",
         define: { "process.env.NODE_ENV": '"development"' },
@@ -209,8 +217,20 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
           throw aliasErr;
         }
       }
-      if (!result.outputFiles?.[0]) throw new Error("Empty bundle output");
-      return { ok: true, code: result.outputFiles[0].text };
+      if (!result.outputFiles?.length) throw new Error("Empty bundle output");
+      // JS ke saath CSS bundle bhi nikalo (outputFiles me .css entry) — taaki
+      // component ke saare CSS imports (relative / package / @import chain /
+      // CSS modules) preview me lag saken. Koi CSS na ho to "".
+      let jsText = "", cssText = "";
+      try {
+        for (const f of result.outputFiles || []) {
+          const p = f.path || "";
+          if (p.endsWith(".css")) { if (!cssText) cssText = f.text || ""; }
+          else if (!jsText) { jsText = f.text || ""; }
+        }
+      } catch {}
+      if (!jsText) throw new Error("Empty bundle output");
+      return { ok: true, code: jsText, css: cssText };
     } catch (err) {
       const e = err?.errors?.[0];
       const loc = e?.location;
@@ -2545,6 +2565,26 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
         sep,
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh") },
+      ];
+    } else if (type === "editor") {
+      // CodeMirror editor right-click — accelerators editor ke customKeys se match.
+      items = [
+        { label: "Cut",                     accelerator: "Ctrl+X",       click: () => act("cut") },
+        { label: "Copy",                    accelerator: "Ctrl+C",       click: () => act("copy") },
+        { label: "Paste",                   accelerator: "Ctrl+V",       click: () => act("paste") },
+        { label: "Select All",              accelerator: "Ctrl+A",       click: () => act("selectAll") },
+        sep,
+        { label: "Find",                    accelerator: "Ctrl+F",       click: () => act("find") },
+        { label: "Replace",                 accelerator: "Ctrl+H",       click: () => act("replace") },
+        { label: "Go to Line…",             accelerator: "Ctrl+G",       click: () => act("gotoLine") },
+        { label: "Go to Symbol…",           accelerator: "Ctrl+Shift+O", click: () => act("gotoSymbol") },
+        sep,
+        { label: "Format Document",                                     click: () => act("format") },
+        { label: "Toggle Line Comment",     accelerator: "Ctrl+/",       click: () => act("commentLine") },
+        { label: "Delete Line",             accelerator: "Ctrl+D",       click: () => act("deleteLine") },
+        sep,
+        { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
+        { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal") },
       ];
     } else if (type === "mediaViewer") {
       const filePath = selectedPaths?.[0] || "";
