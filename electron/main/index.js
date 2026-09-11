@@ -4765,6 +4765,37 @@ function createWindow() {
   };
   win.webContents.on("before-input-event", handleGlobalShortcuts);
 
+  // ── Browser guest shortcuts → owning tab ko forward ────────────────────
+  // Guest page ke keys host tak pahunchte hi nahi, isliye webview shortcuts
+  // yahin pakad kar host window ko bhejte hain. Renderer (BrowserPanel)
+  // wcId match karke sirf usi tab me chalata hai (baki tabs ignore).
+  // Zoom keys forward NAHI karte — View menu accelerators + guest content-zoom
+  // se double-step ho jayega (upar zoom note dekho).
+  const handleGuestBrowserShortcuts = (guestWc, hostWin) => (event, input) => {
+    try {
+      if (!input || input.type !== "keyDown") return;
+      const isCtrl = !!(input.control || input.meta);
+      const key = String(input.key || "").toLowerCase();
+      let action = null;
+      if (key === "f5" && !isCtrl && !input.shift && !input.alt) action = "reload";
+      else if (isCtrl && !input.shift && !input.alt) {
+        if (key === "r") action = "reload";
+        else if (key === "f") action = "find";
+        else if (key === "l") action = "focusUrl";
+        else if (key === "t") action = "newTab";
+      } else if (!isCtrl && !input.shift && input.alt) {
+        if (key === "arrowleft" || key === "left") action = "back";
+        else if (key === "arrowright" || key === "right") action = "forward";
+      }
+      if (!action) return;
+      try { event.preventDefault(); } catch {}
+      if (!hostWin || hostWin.isDestroyed()) return;
+      let wcId = null;
+      try { wcId = guestWc.id; } catch {}
+      try { hostWin.webContents.send("browser:shortcut", { action, wcId }); } catch {}
+    } catch {}
+  };
+
   // Register every browser webview as a chrome.tabs tab
   win.webContents.on("did-attach-webview", (_e, wc) => {
     lastGuestWc = wc; lastGuestWin = win;
@@ -4772,6 +4803,7 @@ function createWindow() {
     wc.on("did-navigate", () => { try { chromeExt?.selectTab(wc); } catch {} });
     wc.on("focus",       () => { try { chromeExt?.selectTab(wc); } catch {} });
     try { wc.on("before-input-event", handleGlobalShortcuts); } catch {}
+    try { wc.on("before-input-event", handleGuestBrowserShortcuts(wc, win)); } catch {}
     const pending = pendingCreateTabs.shift();
     if (pending) pending.resolve([wc, win]);
   });

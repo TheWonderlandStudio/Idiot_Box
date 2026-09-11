@@ -108,6 +108,29 @@ const BrowserPanel = (props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runFind]);
 
+  // ── Shortcut actions (guest IPC + host keys dono yahin aate hain) ───
+  const runBrowserAction = useCallback((action) => {
+    const wv = webviewRef.current;
+    switch (action) {
+      case "reload":   try { wv?.reload(); } catch {} break;
+      case "find":     openFind(); break;
+      case "focusUrl":
+        try { inputRef.current?.focus(); inputRef.current?.select(); } catch {}
+        break;
+      case "back":     try { if (wv?.canGoBack()) wv.goBack(); } catch {} break;
+      case "forward":  try { if (wv?.canGoForward()) wv.goForward(); } catch {} break;
+      case "newTab":
+        try {
+          const url = "https://www.google.com";
+          window.dispatchEvent(new CustomEvent("add-browser-panel", {
+            detail: { url, config: { type: "browser", title: "New Tab", url } },
+          }));
+        } catch {}
+        break;
+      default: break;
+    }
+  }, [openFind]);
+
   const syncActionTab = useCallback(() => {
     try {
       const id = webviewRef.current?.getWebContentsId();
@@ -1081,25 +1104,61 @@ const BrowserPanel = (props) => {
     }
   }, []);
 
-  // ── Host Ctrl+F → find bar (sirf is panel ke host UI me) ──────────────
-  // Guest page ke keys host tak aate hi nahi, aur dusre panels (editor) apna
-  // Ctrl+F khud handle karte hain — target check se koi clash nahi.
+  // ── Guest shortcuts (main forwards webview keys via IPC) ─────────────
+  // wcId match → sirf usi tab me chalo (baki tabs ignore). Fallback:
+  // focused guest ka activeElement webview element hota hai.
   useEffect(() => {
-    const onKey = (e) => {
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod || e.shiftKey || e.altKey) return;
-      if (String(e.key || "").toLowerCase() !== "f") return;
+    const unsub = window.electronAPI?.onBrowserShortcut?.((payload) => {
+      const { action, wcId } = payload || {};
+      if (!action) return;
+      let mine = false;
+      try {
+        const wv = webviewRef.current;
+        if (wv && typeof wcId === "number" && typeof wv.getWebContentsId === "function") {
+          try { mine = wv.getWebContentsId() === wcId; } catch {}
+        } else if (wv && document.activeElement) {
+          mine = document.activeElement === wv;
+        }
+      } catch {}
+      if (mine) runBrowserAction(action);
+    });
+    return () => { try { unsub?.(); } catch {} };
+  }, [runBrowserAction]);
+
+  // ── Host shortcuts (address bar / panel chrome me focus ho tab) ───────
+  // Guest page ke keys host tak aate hi nahi (wo IPC path se aate hain), aur
+  // dusre panels apne shortcuts khud handle karte hain — target check se clash nahi.
+  // Zoom keys yahan NAHI (View menu accelerators + page content-zoom se double-step).
+  useEffect(() => {
+    const inPanel = (e) => {
       try {
         const root = viewWrapRef.current?.closest?.(".browser");
-        if (!root || !(e.target instanceof Node) || !root.contains(e.target)) return;
-      } catch { return; }
+        return !!(root && e.target instanceof Node && root.contains(e.target));
+      } catch { return false; }
+    };
+    const onKey = (e) => {
+      if (!inPanel(e)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = String(e.key || "").toLowerCase();
+      let action = null;
+      if (key === "f5" && !mod && !e.shiftKey && !e.altKey) action = "reload";
+      else if (mod && !e.shiftKey && !e.altKey) {
+        if (key === "r") action = "reload";
+        else if (key === "f") action = "find";
+        else if (key === "l") action = "focusUrl";
+        else if (key === "t") action = "newTab";
+      } else if (!mod && !e.shiftKey && e.altKey) {
+        if (key === "arrowleft") action = "back";
+        else if (key === "arrowright") action = "forward";
+      }
+      if (!action) return;
       e.preventDefault();
       e.stopPropagation();
-      openFind();
+      runBrowserAction(action);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [openFind]);
+  }, [runBrowserAction]);
 
   // ── Unmount: pending find roko ──
   useEffect(() => () => {
@@ -1152,14 +1211,14 @@ const BrowserPanel = (props) => {
       {!barHidden && (
         <div className="browser__bar">
           <button className="browser__btn" disabled={!canGoBack}
-            onClick={() => webviewRef.current?.goBack()} title="Back">
+            onClick={() => webviewRef.current?.goBack()} title="Back (Alt+Left)">
             <ChevronLeft size={14} />
           </button>
           <button className="browser__btn" disabled={!canGoForward}
-            onClick={() => webviewRef.current?.goForward()} title="Forward">
+            onClick={() => webviewRef.current?.goForward()} title="Forward (Alt+Right)">
             <ChevronRight size={14} />
           </button>
-          <button className="browser__btn" onClick={() => webviewRef.current?.reload()} title="Refresh">
+          <button className="browser__btn" onClick={() => webviewRef.current?.reload()} title="Refresh (Ctrl+R)">
             <RefreshCw size={14} />
           </button>
           <button className="browser__btn" onClick={openFind} title="Find in page (Ctrl+F)">
@@ -1229,6 +1288,11 @@ const BrowserPanel = (props) => {
                   <span className="browser__more-icon"><Search size={14} /></span>
                   <span className="browser__more-label">Find in page</span>
                   <span className="browser__more-hint">Ctrl+F</span>
+                </button>
+                <button className="browser__more-item" onClick={() => { setMoreOpen(false); runBrowserAction("newTab"); }} title="New browser tab (Ctrl+T)">
+                  <span className="browser__more-icon"><span style={{ fontSize: 14, fontWeight: "bold" }}>+</span></span>
+                  <span className="browser__more-label">New tab</span>
+                  <span className="browser__more-hint">Ctrl+T</span>
                 </button>
                 <button className="browser__more-item" onClick={handleManageExtensions} title="Manage extensions">
                   <span className="browser__more-icon"><Puzzle size={14} /></span>

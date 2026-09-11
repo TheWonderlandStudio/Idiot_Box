@@ -77,6 +77,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Browser context menus ──────────────────────────────────────────────────
   showBrowserTabContextMenu: ()            => ipcRenderer.invoke("browser:tabContextMenu"),
   showBrowserWebviewContextMenu: (params) => ipcRenderer.invoke("browser:webviewContextMenu", params),
+  // ── Browser guest shortcuts (main forwards webview keys here) ─────────
+  // payload: { action, wcId }. Panel wcId match karke apne tab me chalata hai.
+  onBrowserShortcut: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("browser:shortcut", handler);
+    return () => ipcRenderer.removeListener("browser:shortcut", handler);
+  },
 
   // ── Run & Debug v1: Run engine ─────────────────────────────────────────
   runStart: (payload) => ipcRenderer.invoke("run:start", payload),
