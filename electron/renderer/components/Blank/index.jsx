@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { Actions } from "flexlayout-react";
+import { Search, X } from "lucide-react";
 import { OutputIcon } from "../Output/index.jsx";
 import "./blank.css";
 
@@ -237,6 +238,19 @@ const PANEL_TYPES = [
 ];
 
 const BlankPanel = ({ nodeId, config }) => {
+  const [query, setQuery] = useState("");
+  const searchRef = useRef(null);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return PANEL_TYPES;
+    return PANEL_TYPES.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.description.toLowerCase().includes(q) ||
+      p.id.toLowerCase().includes(q)
+    );
+  }, [query]);
+
   const handleSelect = (panelItem) => {
     const m = window.__flexModel?.current;
     if (m && nodeId) {
@@ -269,8 +283,42 @@ const BlankPanel = ({ nodeId, config }) => {
           Select a tool or view to open in this panel
         </div>
 
+        <div className="bp-search">
+          <Search size={14} className="bp-search__ico" />
+          <input
+            ref={searchRef}
+            className="bp-search__input"
+            type="text"
+            placeholder="Search panels… (e.g. terminal, git, browser)"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                if (query) setQuery("");
+                else searchRef.current?.blur();
+              }
+            }}
+            spellCheck={false}
+            aria-label="Search panels"
+          />
+          {query && (
+            <button
+              className="bp-search__clear"
+              title="Clear search (Esc)"
+              onClick={() => { setQuery(""); searchRef.current?.focus(); }}
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="bp-empty">
+            No panels match "{query.trim()}"
+          </div>
+        ) : (
         <div className="bp-grid">
-          {PANEL_TYPES.map((panel) => (
+          {filtered.map((panel) => (
             <button
               key={panel.id}
               className="bp-card"
@@ -286,6 +334,7 @@ const BlankPanel = ({ nodeId, config }) => {
             </button>
           ))}
         </div>
+        )}
       </div>
     </div>
   );
