@@ -6,13 +6,27 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, Download, ArrowLeft, Home, LayoutGrid, X, Monitor, RotateCw, Camera, Power, Volume1, Volume2, PictureInPicture2, Maximize2, Minimize2, ZoomIn, ZoomOut, Terminal } from "lucide-react";
 
 const FALLBACK_APIS = [
+  { api: 36, android: "Android 16" },
   { api: 35, android: "Android 15" },
   { api: 34, android: "Android 14" },
   { api: 33, android: "Android 13" },
+  { api: 32, android: "Android 12L" },
+  { api: 31, android: "Android 12" },
+  { api: 30, android: "Android 11" },
+];
+const FALLBACK_VARIANTS = [
+  { id: "google_apis", label: "Google APIs", desc: "Google services — no Play Store" },
+  { id: "google_apis_playstore", label: "Google APIs + Play Store", desc: "Play Store app samet (user build, no root)" },
 ];
 const FALLBACK_DEVICES = [
+  { id: "pixel_9", label: "Pixel 9" },
+  { id: "pixel_9_pro", label: "Pixel 9 Pro" },
+  { id: "pixel_8_pro", label: "Pixel 8 Pro" },
   { id: "pixel_8", label: "Pixel 8" },
+  { id: "pixel_fold", label: "Pixel Fold" },
+  { id: "pixel_tablet", label: "Pixel Tablet" },
   { id: "pixel_7", label: "Pixel 7" },
+  { id: "pixel_6_pro", label: "Pixel 6 Pro" },
   { id: "pixel_6", label: "Pixel 6" },
   { id: "pixel_5", label: "Pixel 5" },
 ];
@@ -40,7 +54,7 @@ const AndroidEmulatorPanel = () => {
   const [log, setLog] = useState([]);
   const [task, setTask] = useState(null); // active download/install: {op,message,percent,done,total}
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "Pixel_8", device: "pixel_8", api: 35 });
+  const [form, setForm] = useState({ name: "Pixel_8", device: "pixel_8", api: 35, variant: "google_apis" });
   // Embedded screen viewer: { avd, serial|null, booted } — headless emulator streamed here
   const [view, setView] = useState(null);
   const [full, setFull] = useState(false); // in-panel fullscreen: only screen + controls
@@ -508,13 +522,18 @@ const AndroidEmulatorPanel = () => {
     finally { setBusy(null); }
   }, [fetchState, showToast]);
 
+  const apis = state?.apiLevels?.length ? state.apiLevels : FALLBACK_APIS;
+  const variants = state?.imageVariants?.length ? state.imageVariants : FALLBACK_VARIANTS;
+  const devices = state?.devices?.length ? state.devices : FALLBACK_DEVICES;
+
   const handleCreate = useCallback(async () => {
     const name = String(form.name || "").trim();
     if (!/^[A-Za-z0-9_.\-]+$/.test(name)) { showToast("Name: letters, numbers, _, - and . only", true); return; }
+    const variantLabel = (variants.find((v) => v.id === form.variant)?.label) || form.variant;
     setBusy("create");
-    pushLog(`[create] Creating ${name} (device ${form.device}, API ${form.api}) — downloads image if needed…`);
+    pushLog(`[create] Creating ${name} (device ${form.device}, API ${form.api}, ${variantLabel}) — downloads image if needed…`);
     try {
-      const r = await window.electronAPI.androidCreateAvd({ name, device: form.device, api: parseInt(form.api, 10) });
+      const r = await window.electronAPI.androidCreateAvd({ name, device: form.device, api: parseInt(form.api, 10), variant: form.variant });
       if (r?.ok) {
         showToast(`${name} created`);
         pushLog(`[create:done] ${name} ready.`);
@@ -528,10 +547,8 @@ const AndroidEmulatorPanel = () => {
       showToast(e?.message || String(e), true);
       pushLog(`[create:error] ${e?.message || e}`);
     } finally { setBusy(null); }
-  }, [form, fetchState, pushLog, showToast]);
+  }, [form, variants, fetchState, pushLog, showToast]);
 
-  const apis = state?.apiLevels?.length ? state.apiLevels : FALLBACK_APIS;
-  const devices = state?.devices?.length ? state.devices : FALLBACK_DEVICES;
   const avds = state?.avds || [];
   const sdkMissing = state && !state.sdkInstalled;
 
@@ -633,7 +650,7 @@ const AndroidEmulatorPanel = () => {
             <span style={{ width: 8, height: 8, borderRadius: "var(--radius-round)", background: avd.running ? "var(--teal)" : "var(--text-placeholder)", flexShrink: 0 }} title={avd.running ? "Running" : "Stopped"} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-input)", fontSize: "var(--fs-body-plus)", overflow: "hidden", textOverflow: "ellipsis" }}>{(avd.device ? avd.device.replace(/\b\w/g, (c) => c.toUpperCase()) + " " : "") || ""}{avd.name.replace(/_/g, " ")}</div>
-              <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>{avd.android || "Android"} {avd.running ? <span style={{ color: "var(--teal)" }}>• running</span> : ""}</div>
+              <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>{avd.android || "Android"}{(avd.playStore || String(avd.image || "").includes("playstore")) && <span style={{ color: "var(--teal)" }}> • Play Store</span>} {avd.running ? <span style={{ color: "var(--teal)" }}>• running</span> : ""}</div>
             </span>
             {avd.running
               ? <button onClick={() => { const t = state?.tracked?.find((x) => x.avd === avd.name); openViewer(avd.name, { stream: !t || t.headless !== false }); }} title="Show screen in panel" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: view?.avd === avd.name ? "var(--teal)" : undefined }}><Monitor size={12} /></button>
@@ -674,6 +691,17 @@ const AndroidEmulatorPanel = () => {
                 {apis.map((a) => <option key={a.api} value={a.api}>{a.android} (API {a.api})</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label style={s.label}>System image</label>
+            <select value={form.variant} onChange={(e) => setForm((f) => ({ ...f, variant: e.target.value }))} style={s.select}>
+              {variants.map((v) => <option key={v.id} value={v.id} title={v.desc || v.label}>{v.label}</option>)}
+            </select>
+            {form.variant === "google_apis_playstore" && (
+              <div style={{ fontSize: "var(--fs-mini)", color: "var(--text-muted)", marginTop: "var(--space-4)" }}>
+                Play Store images are user builds — Store app included, but no root access.
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: "var(--space-6)" }}>
             <button onClick={handleCreate} disabled={busy === "create"} style={{ ...s.btn, opacity: busy === "create" ? 0.6 : 1 }}><Plus size={12} /> {busy === "create" ? "Creating… (downloads image)" : "Create"}</button>
