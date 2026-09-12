@@ -1,26 +1,24 @@
-// Editor panel — CodeMirror-based single-file editor backed by flexlayout tabs.
+// Editor panel — plain CodeMirror single-file editor, flexlayout tabs.
 // Each open file = one flexlayout tab (component "editor"); this component
-// renders exactly ONE file from `config.filePath`. Tab strip, tab closing and
-// tab renaming (dirty ● marker) are handled through flexlayout itself.
+// renders exactly ONE file from `config.filePath`. Tab strip, closing and
+// dirty ● markers go through flexlayout itself.
 //
-// Engine: @uiw/react-codemirror with basicSetup={false} — extensions array
-// ./cm/extensions.js me granular imports se banta hai (24 setup flags).
-// Details: ./cm/*.js (settings/languages/snippets/highlights/whitespace/
-// lint/lsp/format/extensions/bridge).
+// Plain by design: file load/save, highlighting, basic editing, AI bridge.
+// No LSP, lint, git gutter, vim, snippets merging, formatter, or custom
+// find UI — CodeMirror defaults (built-in search panel, indent-Tab).
+// Engine details: ./cm/extensions.js, ./cm/languages.js, ./cm/settings.js.
+// AI-panel contract: ./cm/bridge.js (getValue/getModel/getSelection/
+// getPosition/executeEdits/focus) — shared.js untouched.
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Actions } from "flexlayout-react";
 import CodeMirror from "@uiw/react-codemirror";
-import { EditorView, Decoration, gutter, GutterMarker } from "@codemirror/view";
-import { EditorState, StateEffect, StateField, RangeSetBuilder } from "@codemirror/state";
 import {
   undo, redo, selectAll, toggleComment, deleteLine,
   moveLineUp, moveLineDown, copyLineDown, copyLineUp,
 } from "@codemirror/commands";
-import { findNext, findPrevious, gotoLine } from "@codemirror/search";
-import { lintGutter } from "@codemirror/lint";
+import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/search";
 import NotebookPanel from "../Notebook/index.jsx";
-import FindReplaceBar from "./FindReplaceBar.jsx";
 // Shared editor state (dirty flags, AI bridge, settings sync) — engine-agnostic.
 import {
   baseNames, dirtyFlags,
@@ -28,21 +26,15 @@ import {
   isAutoSaveEnabled, setAutoSaveEnabled,
   aiEditorTabs, aiNotifyContext,
   updateTabName, setDirty,
-  getEditorSettings, getCachedEditorSettings, settingsListeners,
+  getEditorSettings, settingsListeners,
 } from "./shared.js";
 import { normalizeCmSettings, DEFAULT_CM_SETTINGS } from "./cm/settings.js";
 import { resolveCmLanguage, getLanguageSupport, displayNameFor, CM_LANG_IDS } from "./cm/languages.js";
 import { buildCmExtensions } from "./cm/extensions.js";
-import { makeCmLinter, diagnosticsToMarkers, publishDiagnostics } from "./cm/lint.js";
 import { createCmBridge, offsetToPos } from "./cm/bridge.js";
-import { formatCode, isFormattable } from "./cm/format.js";
-import {
-  autoConnectLspOnce, getLspExtension, getLspStatus, getLspError,
-  onLspStatus, retryLsp,
-} from "./cm/lsp.js";
 
-// CodeMirror ko async init nahi chahiye — ready turant. Purane consumers
-// (koi bacha ho to) ke liye compat: resolved promise + ready events.
+// CodeMirror needs no async init — ready immediately. Compat for any old
+// listeners: resolved promise + ready events.
 if (!window.__ibxEditorReady) window.__ibxEditorReady = Promise.resolve(true);
 export const ensureMonacoReady = () => {
   try {
@@ -61,104 +53,8 @@ try {
 
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
 
-// ── Git diff gutter (CodeMirror native) ──────────────────────────────
-// Hunk lines -> line backgrounds + gutter bars. StateField stable rehta hai
-// (component lifetime), diff aane par effect dispatch hota hai.
-const gitSetEffect = StateEffect.define();
-class GitMarker extends GutterMarker {
-  constructor(kind) { super(); this.kind = kind; }
-  eq(other) { return other instanceof GitMarker && other.kind === this.kind; }
-  toDOM() {
-    const el = document.createElement("div");
-    el.className = "cm-gitgutter-" + this.kind;
-    return el;
-  }
-}
-const buildGitDeco = (doc, added, modified) => {
-  try {
-    const builder = new RangeSetBuilder();
-    const marks = [];
-    for (const ln of added) {
-      if (ln >= 1 && ln <= doc.lines) {
-        try { marks.push({ from: doc.line(ln).from, deco: Decoration.line({ class: "cm-git-addedline" }) }); } catch {}
-      }
-    }
-    for (const ln of modified) {
-      if (added.has(ln)) continue;
-      if (ln >= 1 && ln <= doc.lines) {
-        try { marks.push({ from: doc.line(ln).from, deco: Decoration.line({ class: "cm-git-modifiedline" }) }); } catch {}
-      }
-    }
-    marks.sort((a, b) => a.from - b.from);
-    for (const m of marks) builder.add(m.from, m.from, m.deco);
-    return builder.finish();
-  } catch {
-    return Decoration.none;
-  }
-};
-const gitField = StateField.define({
-  create: () => ({ added: new Set(), modified: new Set(), removed: new Set(), deco: Decoration.none }),
-  update: (val, tr) => {
-    for (const e of tr.effects) {
-      if (e.is(gitSetEffect)) {
-        const { added, modified, removed } = e.value;
-        return { added, modified, removed, deco: buildGitDeco(tr.state.doc, added, modified) };
-      }
-    }
-    if (tr.docChanged) {
-      // Lines shift ho gayin — mapping best-effort: deco map karo, sets
-      // re-parse par refresh honge (save / interval / fs event).
-      try { return { ...val, deco: val.deco.map(tr.changes) }; } catch { return val; }
-    }
-    return val;
-  },
-  provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
-});
-const gitGutterMarkers = (view) => {
-  try {
-    const f = view.state.field(gitField, false);
-    if (!f) return [];
-    const out = [];
-    const pushLines = (set, kind) => {
-      for (const ln of set) {
-        if (ln < 1 || ln > view.state.doc.lines) continue;
-        try { out.push(new GitMarker(kind).range(view.state.doc.line(ln).from)); } catch {}
-      }
-    };
-    pushLines(f.added, "added");
-    pushLines(f.modified, "modified");
-    pushLines(f.removed, "removed");
-    return out;
-  } catch { return []; }
-};
-const gitGutterExt = gutter({ class: "cm-gitgutter", markers: gitGutterMarkers });
-
-// Hunk header parse: @@ -a[,b] +c[,d] @@ — sirf nayi-file side chahiye.
-const parseGitHunks = (diffText) => {
-  const added = new Set(), modified = new Set(), removed = new Set();
-  try {
-    for (const line of String(diffText || "").split("\n")) {
-      if (!line.startsWith("@@")) continue;
-      const m = line.match(/@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
-      if (!m) continue;
-      const start = parseInt(m[1], 10);
-      const count = m[2] ? parseInt(m[2], 10) : 1;
-      if (count === 0) removed.add(Math.max(1, start));
-      else {
-        for (let i = 0; i < count; i++) {
-          const ln = start + i;
-          if (line.includes("@@ -0,0")) added.add(ln);
-          else modified.add(ln);
-        }
-      }
-    }
-  } catch {}
-  return { added, modified, removed };
-};
-
 const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
-  // .ipynb yahan nahi — NotebookPanel cell UI dikhata hai (neeche switch me).
   const forceText = config?.forceText === true;
   const isIpynb = !forceText && /\.ipynb$/i.test(filePath || "");
 
@@ -178,8 +74,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
 
   const [doc, setDoc] = useState("");
   const [languageId, setLanguageId] = useState("plaintext");
-  const [detected, setDetected] = useState(null);
-  const [langAuto, setLangAuto] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1, totalLines: 1 });
   const [cmSettings, setCmSettings] = useState(() => ({ ...DEFAULT_CM_SETTINGS }));
@@ -187,15 +81,10 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [langQuery, setLangQuery] = useState("");
   const [binaryFile, setBinaryFile] = useState(false);
-  const [largeFile, setLargeFile] = useState(false);
-  const [lspStatus, setLspStatus] = useState(getLspStatus());
-  const [lspTick, setLspTick] = useState(0);
-  const [symbolOpen, setSymbolOpen] = useState(false);
-  const [symbolQuery, setSymbolQuery] = useState("");
 
   const viewRef = useRef(null);
+  const editorRef = useRef(null); // AI bridge (bridge object)
   const bridgeRef = useRef(null);
-  const editorRef = useRef(null); // AI bridge ke liye (bridge object)
   const pathRef = useRef(filePath);
   const originalRef = useRef("");
   const loadedRef = useRef(false);
@@ -204,8 +93,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const saveTimer = useRef(null);
   const lastSelfSaveRef = useRef(0);
   const externalWriteRef = useRef(false);
-  const gitTimer = useRef(null);
-  const openFindRef = useRef(null); // keymap (extensions) -> openFind bridge
 
   pathRef.current = filePath;
   langRef.current = languageId;
@@ -248,43 +135,11 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     return () => { settingsListeners.delete(handler); };
   }, []);
 
-  // ── Git gutter CSS (ek baar) ──
-  useEffect(() => {
-    if (document.getElementById("cm-git-style")) return;
-    const style = document.createElement("style");
-    style.id = "cm-git-style";
-    style.textContent = `
-      .cm-gitgutter { width: 5px; }
-      .cm-gitgutter-added { border-left: 3px solid var(--git-added); margin-left: 2px; height: 100%; }
-      .cm-gitgutter-modified { border-left: 3px solid var(--git-modified); margin-left: 2px; height: 100%; }
-      .cm-gitgutter-removed { border-left: 3px solid var(--git-removed); margin-left: 2px; height: 100%; }
-      .cm-git-addedline { background: var(--git-added-a15); }
-      .cm-git-modifiedline { background: var(--git-modified-a12); }
-    `;
-    document.head.appendChild(style);
-  }, []);
-
-  // ── LSP status subscribe + ek baar auto-connect ──
-  useEffect(() => {
-    autoConnectLspOnce();
-    const unsub = onLspStatus((st) => {
-      setLspStatus(st);
-      setLspTick((t) => t + 1); // extensions rebuild (online aane par LSP jude)
-    });
-    const onEv = (e) => {
-      setLspStatus(e.detail?.status || getLspStatus());
-      setLspTick((t) => t + 1);
-    };
-    window.addEventListener("lsp:status", onEv);
-    return () => { try { unsub(); } catch {} window.removeEventListener("lsp:status", onEv); };
-  }, []);
-
   // ── File load ──
   useEffect(() => {
     if (!filePath || isIpynb) return;
     loadedRef.current = false;
     setBinaryFile(false);
-    setLargeFile(false);
     let cancelled = false;
     (async () => {
       const text = await window.electronAPI.readTextFile(filePath);
@@ -295,20 +150,16 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         flashStatus(`Binary or unreadable file: ${fileName(filePath)}`);
         return;
       }
-      const isLarge = text.length > 1024 * 1024;
-      const resolved = resolveCmLanguage(filePath, text);
+      if (text.length > 1024 * 1024) {
+        flashStatus(`Large file (${(text.length / 1048576).toFixed(1)} MB)`);
+      } else setStatusMsg(null);
+      const lang = resolveCmLanguage(filePath);
       baseNames.set(filePath, fileName(filePath));
       originalRef.current = text;
       loadedRef.current = true;
       externalWriteRef.current = true;
       setDoc(text);
-      setLanguageId(resolved.id);
-      setDetected(resolved.auto ? { id: resolved.id, reason: resolved.reason } : null);
-      setLangAuto(!!resolved.auto);
-      setLargeFile(isLarge);
-      if (isLarge) flashStatus(`Large file (${(text.length / 1048576).toFixed(1)} MB) — lint & wrap halka rakha gaya`);
-      else if (resolved.auto) flashStatus(`Auto-detected language: ${resolved.id} (${resolved.reason})`);
-      else setStatusMsg(null);
+      setLanguageId(lang);
       setCursorPos({ line: 1, col: 1, totalLines: text.split("\n").length });
       dirtyFlags.set(filePath, false);
       updateTabName(nodeId, filePath);
@@ -322,62 +173,12 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath, nodeId, hasProject, isIpynb]);
 
-  // ── Language support + lint + LSP + git memo ──
-  const languageSupport = useMemo(
-    () => getLanguageSupport(languageId, { useSnippets: cmSettings.snippets !== false }),
-    [languageId, cmSettings.snippets]
-  );
-
-  const lintExt = useMemo(() => {
-    if (largeFile || cmSettings.lint === false) return [];
-    try {
-      const pub = (diags) => {
-        try {
-          const view = viewRef.current;
-          if (!view) return;
-          const markers = diagnosticsToMarkers(pathRef.current, diags, view.state.doc);
-          publishDiagnostics(pathRef.current, markers);
-        } catch {}
-      };
-      const getLang = () => langRef.current;
-      return [makeCmLinter(pathRef.current, getLang, pub)];
-    } catch { return []; }
-  }, [largeFile, cmSettings.lint, languageId]);
-
-  const lspExt = useMemo(
-    () => getLspExtension(filePath, languageId),
+  // ── Extensions (memo; reconfigure keeps history) ──
+  const extensions = useMemo(() => buildCmExtensions({
+    settings: cmSettings,
+    languageSupport: getLanguageSupport(languageId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lspTick, filePath, languageId]
-  );
-
-  // 64KB bucket: doc badhne par whitespace-gate fresh rahe, har keystroke
-  // par extensions rebuild na ho (reconfigure se bachne ke liye).
-  const wsBucket = Math.floor((doc?.length || 0) / 65536);
-  const extensions = useMemo(() => {
-    const eff = { ...cmSettings };
-    if (largeFile) {
-      // Badi file: bhari features off (perf) — settings mutate nahi hote.
-      eff.lint = false;
-      eff.lintGutter = false;
-      eff.highlightWhitespace = false;
-      eff.highlightSelectionMatches = false;
-      eff.lineWrapping = false;
-    }
-    const list = buildCmExtensions({
-      settings: eff,
-      languageSupport,
-      lspExtension: lspExt,
-      docSize: largeFile ? 2 * 1024 * 1024 : wsBucket * 65536,
-      onOpenFind: (replaceMode) => openFindRef.current?.(!!replaceMode),
-    });
-    if (eff.lint !== false) list.push(...lintExt);
-    if (eff.lint !== false && eff.lintGutter !== false) {
-      try { list.push(lintGutter()); } catch {}
-    }
-    list.push(gitField, gitGutterExt);
-    return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cmSettings, languageSupport, lspExt, lintExt, largeFile, wsBucket]);
+  }), [cmSettings, languageId]);
 
   // ── onCreateEditor: view + bridge ──
   const handleCreateEditor = useCallback((view) => {
@@ -402,8 +203,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     setDoc(value);
     const p = pathRef.current;
     if (!p) return;
-    const dirty = value !== originalRef.current;
-    setDirty(nodeId, p, dirty);
+    setDirty(nodeId, p, value !== originalRef.current);
     if (!fromExternal && isAutoSaveEnabled()) {
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => { doSaveRef.current?.(); }, 800);
@@ -433,55 +233,18 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     } catch {}
   }, []);
 
-  // ── Status-bar language switcher ──
-  const setEditorLanguage = useCallback((id, isAuto = false) => {
-    setShowLangMenu(false);
-    setLangQuery("");
-    if (!id) return;
-    setLanguageId(id);
-    setLangAuto(!!isAuto);
-    if (!isAuto) setDetected(null);
-  }, []);
-
-  const runAutoDetect = useCallback(() => {
-    try {
-      const v = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
-      const resolved = resolveCmLanguage(null, v);
-      if (resolved.id && resolved.id !== "plaintext") {
-        setDetected({ id: resolved.id, reason: resolved.reason });
-        setEditorLanguage(resolved.id, true);
-        flashStatus(`Auto-detected language: ${resolved.id} (${resolved.reason})`);
-      } else flashStatus("No language detected — pick one below");
-    } catch {
-      flashStatus("Detection failed — pick a language below");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setEditorLanguage]);
-
-  // ── Save / Save As (+ format on save via prettier) ──
+  // ── Save / Save As ──
   const doSave = useCallback(async () => {
     const p = pathRef.current;
     if (!p || isIpynb) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
-    let text = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
-    try {
-      const s = getCachedEditorSettings() ?? await getEditorSettings().catch(() => ({}));
-      if (s?.formatOnSave === true && isFormattable(langRef.current)) {
-        const r = await formatCode(langRef.current, text);
-        if (r.ok && typeof r.code === "string" && r.code !== text) {
-          text = r.code;
-          externalWriteRef.current = true;
-          setDoc(text);
-        } else if (!r.ok) flashStatus(`Format skipped: ${r.error}`);
-      }
-    } catch {}
+    const text = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
     const result = await window.electronAPI.writeFileText(p, text);
     if (result?.success) {
       lastSelfSaveRef.current = Date.now();
       originalRef.current = text;
       setDirty(nodeId, p, false);
       flashStatus(`Saved: ${fileName(p)}`);
-      refreshGitGutter();
     } else {
       await window.electronAPI.showAlert(`Failed to save file:\n${result?.error || "Unknown error"}`);
     }
@@ -512,48 +275,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     flashStatus(`Saved as: ${fileName(newPath)}`);
   }, [nodeId, isIpynb]);
 
-  const doFormat = useCallback(async () => {
-    const id = langRef.current;
-    if (!isFormattable(id)) { flashStatus(`No formatter for "${id}"`); return; }
-    const src = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
-    const r = await formatCode(id, src);
-    if (r.ok && typeof r.code === "string") {
-      if (r.code === src) { flashStatus("Already formatted"); return; }
-      externalWriteRef.current = true;
-      setDoc(r.code);
-      const p = pathRef.current;
-      if (p) setDirty(nodeId, p, r.code !== originalRef.current);
-      flashStatus("Formatted");
-    } else flashStatus(`Format failed: ${r.error}`);
-  }, [nodeId]);
-
-  // ── Find/replace bar state ──
-  const [findOpen, setFindOpen] = useState(false);
-  const [findSeed, setFindSeed] = useState("");
-  const [findReplaceMode, setFindReplaceMode] = useState(false);
-  const [findSession, setFindSession] = useState(0);
-
-  // Custom find bar kholo (selection se seed). Mod-F/Mod-H keymap + menu +
-  // command-palette sab yahin aate hain (extensions.js onOpenFind se).
-  const openFind = useCallback((replaceMode) => {
-    let seed = "";
-    try {
-      const view = viewRef.current;
-      const sel = view?.state.selection.main;
-      if (view && sel && !sel.empty) {
-        seed = view.state.doc.sliceString(sel.from, Math.min(sel.to, sel.from + 120));
-        const nl = seed.indexOf("\n");
-        if (nl >= 0) seed = seed.slice(0, nl);
-      }
-    } catch {}
-    setFindSeed(seed);
-    setFindReplaceMode(!!replaceMode);
-    setFindSession((n) => n + 1);
-    setFindOpen(true);
-  }, []);
-  openFindRef.current = openFind;
-
-  // ── Editor command executor (is tab ke view par; menu + events dono) ──
+  // ── Editor command executor (is tab ke view par) ──
   const execCommand = useCallback(async (cmd) => {
     const view = viewRef.current;
     if (!view || isIpynb) return;
@@ -593,24 +315,22 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
           break;
         }
         case "selectAll": selectAll(view); break;
-        case "find": openFind(false); break;
+        case "find": openSearchPanel(view); break;
         case "findNext": findNext(view); break;
         case "findPrevious": findPrevious(view); break;
-        case "replace": openFind(true); break;
-        case "format": doFormat(); break;
+        case "replace": openSearchPanel(view); break;
         case "gotoLine": gotoLine(view); break;
-        case "gotoSymbol": setSymbolQuery(""); setSymbolOpen(true); break;
         case "commentLine": toggleComment(view); break;
         case "copyLineDown": copyLineDown(view); break;
         case "copyLineUp": copyLineUp(view); break;
         case "moveLineUp": moveLineUp(view); break;
         case "moveLineDown": moveLineDown(view); break;
         case "deleteLine": deleteLine(view); break;
-        default: break;
+        default: break; // format / gotoSymbol retired with the plain editor
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doFormat, isIpynb, openFind]);
+  }, [isIpynb]);
 
   // ── File & Edit menu commands (sirf active tab react kare) ──
   useEffect(() => {
@@ -752,81 +472,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     };
   }, [filePath, nodeId, isIpynb]);
 
-  // ── Git diff gutter refresh ──
-  const refreshGitGutter = useCallback(async () => {
-    const p = pathRef.current;
-    const view = viewRef.current;
-    if (!p || !view || isIpynb) return;
-    try {
-      const root = window.__currentProjectPath;
-      if (!root) return;
-      const diff = await window.electronAPI.gitDiff(root, p);
-      const { added, modified, removed } = parseGitHunks(diff);
-      view.dispatch({ effects: gitSetEffect.of({ added, modified, removed }) });
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isIpynb]);
-  useEffect(() => {
-    if (!filePath || isIpynb) return;
-    refreshGitGutter();
-    const iv = setInterval(() => { if (!document.hidden) refreshGitGutter(); }, 10000);
-    let fsDebounce = null;
-    const onFs = () => {
-      clearTimeout(fsDebounce);
-      fsDebounce = setTimeout(() => { if (!document.hidden) refreshGitGutter(); }, 1200);
-    };
-    const onVis = () => { if (!document.hidden) refreshGitGutter(); };
-    const onProj = () => onFs();
-    window.addEventListener("project:opened", onProj);
-    document.addEventListener("visibilitychange", onVis);
-    const unsub = window.electronAPI.onFsChange(onFs);
-    return () => {
-      clearInterval(iv);
-      clearTimeout(fsDebounce);
-      window.removeEventListener("project:opened", onProj);
-      document.removeEventListener("visibilitychange", onVis);
-      unsub();
-    };
-  }, [filePath, isIpynb, refreshGitGutter]);
-
-  // ── Unmount: diagnostics clear (Problems panel saaf rahe) ──
-  useEffect(() => {
-    const p = filePath;
-    return () => { try { if (p) publishDiagnostics(p, []); } catch {} };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filePath]);
-
-  // ── Go-to-symbol items ──
-  const symbolItems = useMemo(() => {
-    if (!symbolOpen) return [];
-    const items = [];
-    try {
-      const lines = String(docRef.current || "").split("\n");
-      const re = /^\s*(?:export\s+)?(?:async\s+)?(?:function\s+([A-Za-z_$][\w$]*)|class\s+([A-Za-z_$][\w$]*)|interface\s+([A-Za-z_$][\w$]*)|type\s+([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:\(|async|[^;]*=>)|def\s+([A-Za-z_]\w*)|fn\s+([A-Za-z_]\w*)|(#{1,6})\s+(.+)|<h\d[^>]*>([^<]+))/;
-      for (let i = 0; i < lines.length && items.length < 200; i++) {
-        const m = lines[i].match(re);
-        if (m) {
-          const label = m.slice(1).find((x) => x) || lines[i].trim().slice(0, 60);
-          items.push({ line: i + 1, label: String(label).slice(0, 80) });
-        }
-      }
-    } catch {}
-    const q = symbolQuery.trim().toLowerCase();
-    return q ? items.filter((it) => it.label.toLowerCase().includes(q)) : items;
-  }, [symbolOpen, symbolQuery, doc]);
-
-  const jumpToSymbol = (line) => {
-    setSymbolOpen(false);
-    try {
-      bridgeRef.current?.setPosition({ lineNumber: line, column: 1 });
-      bridgeRef.current?.revealLineInCenter(line);
-      bridgeRef.current?.focus();
-    } catch {}
-  };
-
   const tabSize = Number.isFinite(cmSettings.tabSize) ? cmSettings.tabSize : 2;
-  const displayName = displayNameFor(languageId, filePath);
-  const lspLabel = lspStatus === "online" ? "LSP: online" : lspStatus === "connecting" ? "LSP: connecting…" : "LSP: offline";
+  const displayName = displayNameFor(languageId);
 
   return (
     <div
@@ -904,15 +551,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                   onUpdate={handleUpdate}
                   onCreateEditor={handleCreateEditor}
                 />
-                {findOpen && (
-                  <FindReplaceBar
-                    key={`find-${findSession}-${findReplaceMode ? "r" : "f"}`}
-                    getView={() => viewRef.current}
-                    initialFind={findSeed}
-                    initialReplaceMode={findReplaceMode}
-                    onClose={() => setFindOpen(false)}
-                  />
-                )}
               </div>
             )}
           </div>
@@ -937,34 +575,18 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
                 {(autoSave || isAutoSaveEnabled()) && <span>AutoSave: On</span>}
-                <span
-                  onClick={() => { if (lspStatus !== "online" && lspStatus !== "connecting") retryLsp(); }}
-                  title={lspStatus === "online" ? "Language server connected" : `Language server offline (${getLspError() || "no server"}) — click to retry`}
-                  style={{ cursor: lspStatus === "online" ? "default" : "pointer", display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <span style={{
-                    display: "inline-block", width: 7, height: 7, borderRadius: "50%",
-                    background: lspStatus === "online" ? "#4ade80" : lspStatus === "connecting" ? "#facc15" : "#f87171",
-                  }} />
-                  {lspLabel}{lspStatus === "offline" ? " ↻" : ""}
-                </span>
-                {isFormattable(languageId) && (
-                  <span onClick={doFormat} title="Format document (Prettier)" style={{ cursor: "pointer", fontWeight: "var(--fw-semibold)" }}>
-                    Format
-                  </span>
-                )}
                 <span>Spaces: {tabSize}</span>
                 <span>UTF-8</span>
                 <span
                   onClick={() => { setShowLangMenu((v) => !v); setLangQuery(""); }}
-                  title={detected && langAuto ? `Auto-detected: ${detected.reason} — click to change` : "Change language mode"}
+                  title="Change language mode"
                   style={{
                     textTransform: "uppercase", fontWeight: "var(--fw-semibold)", cursor: "pointer",
                     padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)",
                     background: showLangMenu ? "var(--white-a25)" : "transparent",
                   }}
                 >
-                  {langAuto ? "✨ " : ""}{displayName}
+                  {displayName}
                 </span>
               </div>
             </div>
@@ -998,105 +620,27 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                     color: "var(--text-hover)", fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", outline: "none",
                   }}
                 />
-                {detected && detected.id !== languageId && (
-                  <div
-                    onClick={() => setEditorLanguage(detected.id, true)}
-                    title={`Detected from content: ${detected.reason}`}
-                    style={{
-                      fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
-                      color: "var(--teal)", background: "var(--teal-a12)",
-                      border: "1px solid var(--teal-a35)", marginBottom: "var(--space-4)",
-                    }}
-                  >
-                    ✨ Suggested: {displayNameFor(detected.id, filePath)}
-                    <span style={{ color: "var(--icon)", fontSize: "var(--fs-small)" }}> — {detected.reason}</span>
-                  </div>
-                )}
-                <div
-                  onClick={runAutoDetect}
-                  style={{
-                    fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
-                    color: "var(--code-cyan)", marginBottom: "var(--space-4)",
-                  }}
-                >
-                  ↻ Auto-detect from content
-                </div>
-                {CM_LANG_IDS.filter((id) => (displayNameFor(id, filePath) + " " + id).toLowerCase().includes(langQuery.trim().toLowerCase())).map((id) => (
+                {CM_LANG_IDS.filter((id) => (displayNameFor(id) + " " + id).toLowerCase().includes(langQuery.trim().toLowerCase())).map((id) => (
                   <div
                     key={id}
-                    onClick={() => setEditorLanguage(id)}
+                    onClick={() => { setShowLangMenu(false); setLangQuery(""); if (id) setLanguageId(id); }}
                     style={{
                       fontSize: "var(--fs-body)", padding: "var(--space-3) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
                       color: id === languageId ? "var(--text-inverse)" : "var(--text-bright)",
                       background: id === languageId ? "var(--select-blue)" : "transparent",
                     }}
                   >
-                    {displayNameFor(id, filePath)}
+                    {displayNameFor(id)}
                     <span style={{ opacity: 0.6, fontSize: "var(--fs-small)" }}> — {id}</span>
                   </div>
                 ))}
               </div>
             </>
           )}
-
-          {symbolOpen && (
-            <>
-              <div onClick={() => setSymbolOpen(false)} style={{ position: "absolute", inset: 0, zIndex: "var(--z-menu)" }} />
-              <div style={{
-                position: "absolute", left: "50%", top: 40, transform: "translateX(-50%)",
-                zIndex: "var(--z-menu-top)", width: "min(420px, 80%)",
-                background: "var(--bg-vscode)", border: "1px solid var(--border-strong)",
-                borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-pop)", padding: "var(--space-4)",
-              }}>
-                <input
-                  autoFocus
-                  value={symbolQuery}
-                  onChange={(e) => setSymbolQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && symbolItems.length) jumpToSymbol(symbolItems[0].line);
-                    if (e.key === "Escape") setSymbolOpen(false);
-                  }}
-                  placeholder="Go to symbol…"
-                  style={{
-                    width: "100%", boxSizing: "border-box",
-                    background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)",
-                    color: "var(--text-hover)", fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", outline: "none",
-                  }}
-                />
-                <div style={{ maxHeight: 240, overflowY: "auto", marginTop: "var(--space-4)" }}>
-                  {symbolItems.length === 0 && (
-                    <div style={{ padding: "var(--space-8)", color: "var(--text-disabled)", fontSize: "var(--fs-small)" }}>
-                      No symbols found
-                    </div>
-                  )}
-                  {symbolItems.slice(0, 60).map((it, i) => (
-                    <div
-                      key={i}
-                      onClick={() => jumpToSymbol(it.line)}
-                      style={{
-                        fontSize: "var(--fs-body)", padding: "var(--space-3) var(--space-8)",
-                        borderRadius: "var(--radius-sm)", cursor: "pointer", color: "var(--text-bright)",
-                        display: "flex", justifyContent: "space-between", gap: 8,
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-active)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.label}</span>
-                      <span style={{ opacity: 0.6 }}>:{it.line}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
         </>
       )}
       <style>{`
-        /* Height chain: @uiw container (.cm-theme-none — height prop sirf editor
-           element par theme banata hai, is div par inline style NAHI aata) >
-           .cm-editor > .cm-scroller. Container auto raha to editor content-height
-           tak badhta hai, flex parent overflow:hidden me kat jata hai aur vertical
-           scroll marti hai — isliye container samet sab 100%. */
+        /* Height chain: @uiw container > .cm-editor > .cm-scroller. */
         .cm-theme-none, .cm-theme, .cm-editor { height: 100%; }
         .cm-scroller { overflow: auto; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }
         .cm-scroller::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -1112,8 +656,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
 // Compat alias (koi purana import toota na ho).
 export { CodeMirrorEditorPanel as MonacoEditorPanel };
 
-// CodeMirror-backed editor factory. Notebook tabs retain their cell UI;
-// every source file uses the same CodeMirror stack.
+// Plain CodeMirror editor factory. Notebook tabs keep their cell UI.
 const EditorPanelSwitch = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
   const forceText = config?.forceText === true;

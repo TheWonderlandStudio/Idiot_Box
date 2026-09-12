@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import * as ReactDOMPkg from "react-dom";
 import * as ReactJSXRuntime from "react/jsx-runtime";
+import { prepareHtmlDocument } from "../shared/previewCss.js";
 
 // Error Boundary to catch runtime errors inside previewed user components
 class PreviewErrorBoundary extends React.Component {
@@ -243,7 +244,7 @@ const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>htm
         const root=ensureRoot(); if(!root) return;
         try{
           const R=window.React;
-          root.render(R.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:"var(--space-10)",color:'var(--text-muted)',fontSize:"var(--fs-title)"}}, R.createElement('div',null,'Select a .jsx or .tsx file to render live preview')));
+          root.render(R.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:"var(--space-10)",color:'var(--text-muted)',fontSize:"var(--fs-title)"}}, R.createElement('div',null,'Select a .jsx, .tsx or .html file to render live preview')));
         }catch(e){ showError(String(e)); }
         return;
       }
@@ -321,6 +322,8 @@ const ComponentPreview = ({ nodeId, config }) => {
   const [ComponentToRender, setComponentToRender] = useState(null); // legacy, not used in iframe isolated mode
   const [lastUpdateKey, setLastUpdateKey] = useState(0);
   const [sampleMode, setSampleMode] = useState(false);
+  // HTML docs: bundler nahi — raw doc (+<base>) seedha srcDoc me jata hai.
+  const [htmlDoc, setHtmlDoc] = useState(null);
 
   // Iframe sandbox — full isolation from main window navigation (allow-scripts + allow-same-origin + allow-forms, but NO allow-top-navigation / allow-popups)
   const iframeRef = useRef(null);
@@ -508,9 +511,9 @@ const ComponentPreview = ({ nodeId, config }) => {
           const sub = await scanProjectFiles(entry.path);
           results = results.concat(sub);
           if (results.length > 400) break; // cap to avoid huge lists
-        } else if (/\.(jsx|tsx|js|ts)$/i.test(entry.name)) {
+        } else if (/\.(jsx|tsx|js|ts|html|htm)$/i.test(entry.name)) {
           // only keep js/ts that likely contain JSX/component (quick peek: contains < or React)
-          if (/\.(jsx|tsx)$/i.test(entry.name)) {
+          if (/\.(jsx|tsx|html|htm)$/i.test(entry.name)) {
             results.push(entry.path);
           } else {
             // for .js/.ts, peek first 4k for jsx-ish content to avoid flooding list with non-components
@@ -532,7 +535,7 @@ const ComponentPreview = ({ nodeId, config }) => {
     if (root) {
       const files = await scanProjectFiles(root);
       // ensure currently selected file stays in list
-      if (filePath && !files.includes(filePath) && /\.(jsx|tsx|js|ts)$/i.test(filePath)) {
+      if (filePath && !files.includes(filePath) && /\.(jsx|tsx|js|ts|html|htm)$/i.test(filePath)) {
         files.unshift(filePath);
       }
       setProjectFiles(files);
@@ -577,7 +580,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   useEffect(() => {
     const onOpenFile = (e) => {
       const path = e.detail?.path || e.detail?.filePath;
-      if (path && /\.(jsx|tsx)$/i.test(path)) {
+      if (path && /\.(jsx|tsx|html|htm)$/i.test(path)) {
         setSampleMode(false);
         setFilePath(path);
       }
@@ -880,6 +883,24 @@ const ComponentPreview = ({ nodeId, config }) => {
       return;
     }
 
+    // ── HTML docs: no bundling — raw doc (+<base> for relative assets) ──
+    if (/\.html?$/i.test(path)) {
+      if (mySeq !== loadSeqRef.current || path !== filePathRef.current) return;
+      setPreviewCode(null);
+      setComponentToRender(null);
+      setTranspileError(null);
+      clearPreviewCss();
+      setLoadedCssFiles([]);
+      try {
+        const { html } = prepareHtmlDocument(source, path);
+        setHtmlDoc(html);
+      } catch {
+        setHtmlDoc(source);
+      }
+      return;
+    }
+    setHtmlDoc(null);
+
     // Globals: full rescan on file switch/save, cache-reuse on live typing.
     await loadAssociatedCss(path, { isLive: isLive && !forceCss, force: forceCss });
 
@@ -971,7 +992,7 @@ const ComponentPreview = ({ nodeId, config }) => {
     };
     const onFileActivated = (e) => {
       const p = e.detail?.path;
-      if (p && /\.(jsx|tsx)$/i.test(p)) {
+      if (p && /\.(jsx|tsx|html|htm)$/i.test(p)) {
         setSampleMode(false);
         setFilePath(p);
       }
@@ -1005,7 +1026,7 @@ const ComponentPreview = ({ nodeId, config }) => {
         if (/(^|\/)(dist|build|out|\.next|\.nuxt|coverage|\.turbo|\.parcel-cache|node_modules|\.git)(\/|$)/i.test(cp)) return;
         const isSelf = cp.toLowerCase() === String(filePath).replace(/\\/g, "/").toLowerCase();
         const isCss = /\.css$/i.test(cp);
-        const isCode = /\.(jsx|tsx|js|ts|json)$/i.test(cp);
+        const isCode = /\.(jsx|tsx|js|ts|json|html|htm)$/i.test(cp);
         const isAsset = /\.(png|jpe?g|gif|webp|svg|woff2?|ttf|eot|otf)$/i.test(cp);
         if (!isSelf && !isCss && !isCode && !isAsset) return; // md/log/tmp etc.
         if (isCss) {
@@ -1065,6 +1086,8 @@ const ComponentPreview = ({ nodeId, config }) => {
     const doc = getIframeDoc();
     if (!win || !doc) return;
     setupIframeGuard();
+    // HTML docs already live in srcDoc — React mount ki zaroorat nahi.
+    if (!sampleMode && htmlDoc) return;
     // srcDoc reload head wipe kar deta hai — cached CSS wapas lagao
     try { reapplyPreviewCss(); } catch {}
     // Ensure React is available inside iframe
@@ -1094,7 +1117,7 @@ const ComponentPreview = ({ nodeId, config }) => {
       // Never let iframe mount failure affect parent UI
       console.error("Preview mount failed (isolated):", e);
     }
-  }, [sampleMode, transpileError, filePath, previewCode, zoom, bgMode, lastUpdateKey, getIframeWin, getIframeDoc, getMount, setupIframeGuard, reapplyPreviewCss]);
+  }, [sampleMode, transpileError, filePath, previewCode, zoom, bgMode, lastUpdateKey, htmlDoc, getIframeWin, getIframeDoc, getMount, setupIframeGuard, reapplyPreviewCss]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -1164,7 +1187,7 @@ const ComponentPreview = ({ nodeId, config }) => {
             }}
           >
             {projectFiles.length === 0 ? (
-              <option value="">{filePath ? fileName : "No JSX files found"}</option>
+              <option value="">{filePath ? fileName : "No previewable files found"}</option>
             ) : (
               <>
                 {filePath && !projectFiles.includes(filePath) && (
@@ -1252,7 +1275,7 @@ const ComponentPreview = ({ nodeId, config }) => {
           ref={iframeRef}
           title="Component Preview"
           sandbox="allow-scripts allow-same-origin allow-forms"
-          srcDoc={IFRAME_HTML}
+          srcDoc={!sampleMode && htmlDoc ? htmlDoc : IFRAME_HTML}
           onLoad={handleIframeLoad}
           style={{ width: "100%", height: "100%", border: "none", display: "block", background: "transparent" }}
         />

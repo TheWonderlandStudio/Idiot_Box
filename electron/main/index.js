@@ -1703,7 +1703,7 @@ ipcMain.handle("fs:writePinConfig", async (_e, rootPath, data) => {
 });
 
 // ─── Canvas (Visual Project Map) ──────────────────────────────────────────────
-const CANVAS_EXT_RE        = /\.(jsx|tsx|js|ts|vue|svelte|html)$/i;
+const CANVAS_EXT_RE        = /\.(jsx|tsx|js|ts|vue|svelte|html?)$/i;
 const CANVAS_EXCLUDE_DIRS  = new Set(["node_modules", "dist", "build", ".git", ".next", ".nuxt", ".output", ".cache", "coverage", "out"]);
 const CANVAS_SCAN_NAMES    = ["pages", "components", "views", "widgets", "features", "ui"];
 // Legacy dir/file for migration — new location is userData/projects/<hash>/canvas-layout.json
@@ -1754,6 +1754,45 @@ const scanCanvasDir = (rootAbs, rootRel) => {
   return root;
 };
 
+// Root-level + public/ HTML files (index.html, landing pages, docs) — ye
+// pages/components/... ke bahar rehte hain, isliye alag se scan hote hain.
+// Pure fs (testable): returns child entries [{ name, relPath, absPath, ext }].
+function scanRootHtmlFiles(rootPath) {
+  const out = [];
+  const seen = new Set();
+  const pushFile = (abs, rel) => {
+    try {
+      const st = fs.statSync(toLongPath(abs));
+      if (!st.isFile()) return;
+      const key = String(abs).toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      const nm = String(abs).split(/[\\/]/).pop() || "";
+      if (!/\.(html?)$/i.test(nm)) return;
+      out.push({ name: nm, relPath: rel, absPath: abs, ext: nm.slice(nm.lastIndexOf(".")) });
+    } catch {}
+  };
+  try {
+    if (!rootPath || !fs.existsSync(toLongPath(rootPath))) return out;
+    let entries = [];
+    try { entries = fs.readdirSync(toLongPath(rootPath), { withFileTypes: true }); } catch {}
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      if (!/\.(html?)$/i.test(e.name)) continue;
+      pushFile(path.join(rootPath, e.name), e.name);
+    }
+    const pubDir = path.join(rootPath, "public");
+    let pubEntries = [];
+    try { pubEntries = fs.readdirSync(toLongPath(pubDir), { withFileTypes: true }); } catch {}
+    for (const e of pubEntries) {
+      if (!e.isFile()) continue;
+      if (!/\.(html?)$/i.test(e.name)) continue;
+      pushFile(path.join(pubDir, e.name), `public/${e.name}`);
+    }
+  } catch {}
+  return out;
+}
+
 ipcMain.handle("canvas:scan", async (_e, rootPath) => {
   try {
     if (!rootPath || !fs.existsSync(rootPath)) return null;
@@ -1764,6 +1803,13 @@ ipcMain.handle("canvas:scan", async (_e, rootPath) => {
       const final = srcExists && !fs.existsSync(cand) ? path.join(rootPath, name) : cand;
       if (fs.existsSync(final)) roots.push(scanCanvasDir(final, path.relative(rootPath, final).replace(/\\/g, "/")));
     }
+    // Standalone HTML (root + public) — "html" group me taaki sidebar me dikhe.
+    try {
+      const htmlKids = scanRootHtmlFiles(rootPath);
+      if (htmlKids.length) {
+        roots.push({ name: "html", relPath: "", absPath: rootPath, groups: [], children: htmlKids });
+      }
+    } catch {}
     let count = 0;
     const tally = (n) => { count += n.children.length; n.groups.forEach(tally); };
     roots.forEach(tally);

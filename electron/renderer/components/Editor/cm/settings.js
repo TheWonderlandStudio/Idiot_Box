@@ -1,21 +1,10 @@
-// cm/settings.js — CodeMirror settings source-of-truth.
+// cm/settings.js — editor settings (defaults + validation).
 //
-// Ye JSON hi source-of-truth hai (toggles + Settings page ka JSON box isi se
-// sync hote hain). Persist do jagah hota hai:
-//   1. settings.json (main process, existing IPC flow — editor live-updates via
-//      BroadcastChannel/IPC, Notebook bhi wahi padhta hai).
-//   2. localStorage mirror { v, settings } — versioning ke sath, taaki purani
-//      cached settings future versions se takrayein nahi.
-//
-// Compat keys (purane Monaco-IDE settings.json se):
-//   wordWrap (bool)  <-> lineWrapping (bool)   — dono sync me rehte hain
-//   editorTheme/theme (10 old values) -> theme ("dark" | "light" | "oneDark")
-//   fontFamily / autoSave / formatOnSave — passthrough (save pipeline use karta hai)
+// Keys settings.json me rehte hain (existing IPC flow). Purani settings.json
+// files se aane wali extra/unknown keys tolerate hoti hain; galat types par
+// default lagta hai (fail-open). Purane Monaco-era values migrate hote hain:
+// 10 theme values -> dark/light/oneDark, wordWrap <-> lineWrapping sync.
 
-export const CM_SETTINGS_VERSION = 1;
-export const CM_STORAGE_KEY = "ibx.codemirror.settings";
-
-// ── Source-of-truth defaults (spec JSON) ─────────────────────────────
 export const DEFAULT_CM_SETTINGS = {
   lineNumbers: true,
   highlightActiveLineGutter: true,
@@ -76,12 +65,11 @@ export const migrateTheme = (v) => {
   if (THEME_VALUES.includes(v)) return v;
   const s = String(v || "").toLowerCase();
   if (s.includes("light")) return "light";
-  return "dark"; // dark/darkPlus/darkModern/dark2026/hcDark/unknown sab -> dark
+  return "dark";
 };
 
-// Kisi bhi object (settings.json / localStorage / JSON box) ko validate +
-// normalize karke { settings, errors } do. Unknown keys passthrough (compat:
-// minimap, fontFamily, autoSave, formatOnSave, ...).
+// Kisi bhi object ko validate + normalize karke settings do.
+// Unknown keys passthrough (compat: fontFamily, autoSave, formatOnSave, ...).
 export const validateCmSettings = (raw) => {
   const errors = [];
   const out = { ...DEFAULT_CM_SETTINGS };
@@ -120,9 +108,7 @@ export const validateCmSettings = (raw) => {
     out.lineWrapping = raw.wordWrap !== false;
   }
   out.wordWrap = out.lineWrapping !== false;
-  // Passthrough compat keys (editor save pipeline / notebook inhe padhte hain).
-  // NOTE: lineNumbers BOOL_KEYS me validated hai — yahan dobara raw assign
-  // mat karo (galat type validated value ko overwrite kar dega).
+  // Passthrough compat keys (save pipeline / notebook inhe padhte hain)
   for (const k of ["fontFamily", "autoSave", "formatOnSave", "minimap"]) {
     if (k in raw) out[k] = raw[k];
   }
@@ -131,28 +117,3 @@ export const validateCmSettings = (raw) => {
 
 // Poora settings.json blob -> normalized cm settings (editor consumption).
 export const normalizeCmSettings = (all) => validateCmSettings(all || {}).settings;
-
-// ── localStorage versioned mirror ────────────────────────────────────
-export const loadStoredCmSettings = () => {
-  try {
-    const raw = localStorage.getItem(CM_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    if (parsed.v !== CM_SETTINGS_VERSION) return null; // purana version — ignore
-    const { settings, errors } = validateCmSettings(parsed.settings);
-    if (errors.length) return { settings, errors, stale: false };
-    return { settings, errors: [], stale: false };
-  } catch {
-    return null;
-  }
-};
-
-export const saveStoredCmSettings = (settings) => {
-  try {
-    localStorage.setItem(CM_STORAGE_KEY, JSON.stringify({ v: CM_SETTINGS_VERSION, settings }));
-    return true;
-  } catch {
-    return false;
-  }
-};

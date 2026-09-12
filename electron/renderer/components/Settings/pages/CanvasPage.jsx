@@ -13,7 +13,11 @@ const CanvasPage = ({ settings, onSave }) => {
   };
   const theme = pick("theme", "canvasTheme", "auto"); // auto | dark | light
   const autosave = pick("autosave", "canvasAutosave", true) !== false; // default true
-  const gridMode = pick("gridMode", "canvasGridMode", false) === true; // default false
+  // Background: black | white | grid (purana gridMode toggle migrate: true -> grid).
+  let bgMode = pick("bgMode", "canvasBgMode", null);
+  if (!["black", "white", "grid"].includes(bgMode)) {
+    bgMode = pick("gridMode", "canvasGridMode", false) === true ? "grid" : "white";
+  }
 
   const updateCanvas = async (patch) => {
     const nextCanvas = { ...c, ...patch };
@@ -21,6 +25,7 @@ const CanvasPage = ({ settings, onSave }) => {
     if ("theme" in patch) flat.canvasTheme = patch.theme;
     if ("autosave" in patch) flat.canvasAutosave = patch.autosave;
     if ("gridMode" in patch) flat.canvasGridMode = patch.gridMode;
+    if ("bgMode" in patch) flat.canvasBgMode = patch.bgMode;
     await onSave({ canvas: nextCanvas, ...flat });
     try {
       const bc = new BroadcastChannel("canvas-settings");
@@ -69,24 +74,22 @@ const CanvasPage = ({ settings, onSave }) => {
         </label>
       </div>
 
-      {/* ── Grid ───────────────────────────────────────────────────────── */}
+      {/* ── Background ─────────────────────────────────────────────────── */}
       <div className="sw-row">
-        <span className="sw-row__label">Grid Mode</span>
+        <span className="sw-row__label">Background</span>
         <span className="sw-row__desc">
-          Show a grid background on the drawing canvas.
+          Drawing canvas background: solid black, solid white, or grid. Toolbar me bhi badal sakte ho.
         </span>
-        <label className="sw-toggle-row">
-          <span className="sw-toggle-label">{gridMode ? "Enabled" : "Disabled"}</span>
-          <button
-            className={`sw-toggle-btn${gridMode ? " sw-toggle-btn--on" : ""}`}
-            onClick={() => updateCanvas({ gridMode: !gridMode })}
-            aria-checked={gridMode}
-            role="switch"
-            aria-label="Toggle canvas grid"
-          >
-            <span className="sw-toggle-thumb" />
-          </button>
-        </label>
+        <select
+          className="sw-select"
+          value={bgMode}
+          onChange={(e) => updateCanvas({ bgMode: e.target.value })}
+          aria-label="Canvas background"
+        >
+          <option value="black">Black</option>
+          <option value="white">White</option>
+          <option value="grid">Grid</option>
+        </select>
       </div>
 
       {/* ── Storage note ───────────────────────────────────────────────── */}

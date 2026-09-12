@@ -8,6 +8,7 @@ import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import "./canvas.css";
 import { cssVar } from "../shared/theme.js";
+import { findGlobalCssFiles, inlineCssImports, posixDir, scopeCssForShadow, prepareHtmlDocument } from "../shared/previewCss.js";
 
 // ── Canvas (Excalidraw drawing surface) ─────────────────────────────────────
 // Replaces the old project-map canvas. Drawings persist as JSON / .excalidraw:
@@ -200,7 +201,7 @@ class EmbedErrorBoundary extends React.Component {
 // overlay for an embeddable element (renderEmbeddable). Bundles the real
 // source through main-process esbuild (component:bundle) and mounts it in a
 // shadow root so the component's CSS can't leak into the app (or vice versa).
-function ComponentEmbed({ element }) {
+export function ComponentEmbed({ element }) {
   const custom = element?.customData || {};
   const relPath = custom.relPath || relFromEmbedLink(element?.link);
   const hostRef = useRef(null);
@@ -219,7 +220,82 @@ function ComponentEmbed({ element }) {
     return null;
   }, [custom.absPath, relPath]);
 
-  const isHtml = /\.html$/i.test(absPath || relPath || "");
+  const isHtml = /\.html?$/i.test(absPath || relPath || "");
+
+  // ── Embed CSS (shadow DOM): globals + bundler css, equality-guarded ──
+  // Preview panel jaisa pipeline, shadow-host ke liye: bundler `res.css`
+  // (saare imports resolve) LAST me taaki jeete; usse pehle project globals
+  // (sibling same-name, walk-up, root conventions, entry imports, index.html
+  // links, framework dist). scss/less compile nahi hote — sirf .css.
+  const cssKeysRef = useRef([]); // is load me lage style keys (live-css match)
+  const seqRef = useRef(0);
+  const liveTimerRef = useRef(null);
+  const injectEmbedCss = useCallback((key, css) => {
+    try {
+      const host = hostRef.current;
+      if (!host?.shadowRoot || !host.__stylesHost || !key) return;
+      const id = `ce-${String(key).replace(/[^a-zA-Z0-9_]/g, "_").slice(-100)}`;
+      let el = null;
+      try { el = host.__stylesHost.querySelector(`#${id}`); } catch {}
+      if (!el) {
+        el = document.createElement("style");
+        el.id = id;
+        host.__stylesHost.appendChild(el);
+      }
+      const next = css || "";
+      if (el.textContent === next) return; // unchanged — DOM mat chhedo
+      el.textContent = next;
+    } catch {}
+  }, []);
+  const clearEmbedCss = useCallback(() => {
+    try {
+      const host = hostRef.current;
+      host?.__stylesHost?.querySelectorAll("style[id^='ce-']")?.forEach((el) => {
+        try { el.remove(); } catch {}
+      });
+    } catch {}
+    cssKeysRef.current = [];
+  }, []);
+  const loadEmbedCss = useCallback(async (targetAbs, seq, bundleCss) => {
+    // Returns loaded keys (live-css match ke liye). Stale load beech me
+    // ruk jaye to [] (caller seq check karta hai).
+    const done = [];
+    try {
+      const keys = await findGlobalCssFiles({
+        targetAbsPath: targetAbs,
+        projectRoot: window.__currentProjectPath || null,
+        readTextFile: (p) => window.electronAPI?.readTextFile(p),
+        readDirAll: (p) => window.electronAPI?.readDirAll(p),
+      });
+      let bytes = 0;
+      // Saare candidates try karo (missing files saste me skip hote hain) —
+      // sirf EXISTING files caps me gini jati hain, taaki aakhiri keys
+      // (dist output, framework dist) kabhi starve na hon.
+      for (const key of keys) {
+        if (seq !== seqRef.current) return [];
+        if (done.length >= 12 || bytes > 600 * 1024) break;
+        let raw = null;
+        try { raw = await window.electronAPI?.readTextFile(key); } catch {}
+        if (typeof raw !== "string" || !raw.trim()) continue;
+        if (raw.length > 300 * 1024) continue; // oversize skip (OOM guard)
+        let finalCss = raw;
+        try {
+          finalCss = await inlineCssImports(raw, posixDir(key), (p) => window.electronAPI?.readTextFile(p));
+        } catch {}
+        // Shadow me body/html/:root/#root match nahi hote — :host par map karo.
+        try { finalCss = scopeCssForShadow(finalCss); } catch {}
+        bytes += (finalCss || "").length;
+        injectEmbedCss(key, finalCss);
+        done.push(key);
+      }
+      // Bundler css LAST (highest precedence — component ke apne imports).
+      if (seq === seqRef.current && bundleCss) {
+        injectEmbedCss("__bundle__", bundleCss);
+        done.push("__bundle__");
+      }
+    } catch {}
+    return done;
+  }, [injectEmbedCss]);
 
   // Shadow DOM shell (once per mount) for CSS isolation.
   useEffect(() => {
@@ -244,115 +320,182 @@ function ComponentEmbed({ element }) {
     };
   }, []);
 
-  // Bundle the component source (or load raw HTML).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setStatus("loading");
-      setError(null);
-      setComp(null);
-      setHtml(null);
-      if (!absPath) {
-        if (!cancelled) {
-          setStatus("error");
-          setError(`Cannot resolve path for ${relPath || "component"}`);
-        }
-        return;
-      }
-      let source = null;
+  // ── Load component: source + full CSS (globals, then bundler css LAST).
+  // CSS order: project globals pehle, bundler `res.css` (saare imports
+  // resolve — relative/package/@import/CSS-modules) LAST me taaki jeete.
+  // NOTE: purana regex-import reader hataya — wo scss/less RAW inject karta
+  // tha (broken CSS) aur package/import-chain resolve nahi karta tha.
+  const loadEmbed = useCallback(async (targetAbs, sourceOverride, opts = {}) => {
+    const mySeq = ++seqRef.current;
+    const stillCurrent = () => mySeq === seqRef.current && !cancelledRef.current;
+    const { cssOnly = false } = opts || {};
+    if (!targetAbs) {
+      setStatus("error");
+      setError(`Cannot resolve path for ${relPath || "component"}`);
+      return;
+    }
+    // CSS-only refresh (css file save): rebundle nahi, sirf styles re-read.
+    if (cssOnly) {
       try {
-        source = await window.electronAPI.readTextFile(absPath);
+        await loadEmbedCss(targetAbs, mySeq, null);
       } catch {}
-      if (cancelled) return;
-      if (source == null) {
-        setStatus("error");
-        setError(`Could not read ${name}`);
-        return;
-      }
-      if (isHtml) {
+      return;
+    }
+    setStatus("loading");
+    setError(null);
+    setComp(null);
+    setHtml(null);
+    clearEmbedCss();
+    let source = sourceOverride != null ? sourceOverride : null;
+    try {
+      if (source == null) source = await window.electronAPI.readTextFile(targetAbs);
+    } catch {}
+    if (!stillCurrent()) return;
+    if (source == null) {
+      setStatus("error");
+      setError(`Could not read ${name}`);
+      return;
+    }
+    if (isHtml) {
+      // Standalone HTML: <base> inject karo taaki relative <link>/img/script
+      // file ke folder se resolve hon (srcDoc ka koi base URL nahi hota).
+      try {
+        const { html } = prepareHtmlDocument(source, targetAbs);
+        setHtml(html);
+      } catch {
         setHtml(source);
-        setStatus("ready");
+      }
+      setStatus("ready");
+      return;
+    }
+    // Globals pehle (bundler css baad me LAST aayega).
+    let cssKeys = [];
+    try {
+      cssKeys = await loadEmbedCss(targetAbs, mySeq, null);
+    } catch {}
+    if (!stillCurrent()) return;
+    cssKeysRef.current = cssKeys;
+    let codeToBundle = source;
+    if (!/export\s+default|function|const|class/i.test(source) && /^\s*</.test(source.trim())) {
+      codeToBundle = `export default function PreviewSnippet() { return (\n${source}\n); }`;
+    }
+    if (!window.electronAPI?.bundleComponent) {
+      setStatus("error");
+      setError("Preview bundler not available — restart the app after `npm install`");
+      return;
+    }
+    let res;
+    try {
+      res = await window.electronAPI.bundleComponent(codeToBundle, targetAbs, window.__currentProjectPath);
+    } catch (e) {
+      if (stillCurrent()) {
+        setStatus("error");
+        setError(e?.message || String(e) || "Bundling failed");
+      }
+      return;
+    }
+    if (!stillCurrent()) return;
+    if (!res?.ok) {
+      setStatus("error");
+      setError(res?.error || "Bundling failed");
+      return;
+    }
+    // Bundler css LAST (highest precedence — component ke apne imports).
+    try {
+      if (res.css) {
+        let scoped = res.css;
+        try { scoped = scopeCssForShadow(res.css); } catch {}
+        injectEmbedCss("__bundle__", scoped);
+        if (!cssKeysRef.current.includes("__bundle__")) cssKeysRef.current = [...cssKeysRef.current, "__bundle__"];
+      }
+    } catch {}
+    if (!stillCurrent()) return;
+    try {
+      const evaluated = runBundledComponent(res.code);
+      if (!evaluated) {
+        setStatus("error");
+        setError("No default export or component found");
         return;
       }
-      // Associated CSS: same-name file + imported css files.
-      try {
-        const host = hostRef.current;
-        const inject = (key, css) => {
-          if (!host?.shadowRoot || !host.__stylesHost || !key) return;
-          const id = `ce-${key.replace(/[^a-zA-Z0-9_]/g, "_")}`;
-          let el = host.__stylesHost.querySelector(`#${id}`);
-          if (!el) {
-            el = document.createElement("style");
-            el.id = id;
-            host.__stylesHost.appendChild(el);
-          }
-          el.textContent = css || "";
-        };
-        const cssImportRe = /(?:import|require)\s*\(?['"]([^'"]+\.(?:css|scss|less|pcss))['"\)]/gi;
-        let m;
-        while ((m = cssImportRe.exec(source)) !== null) {
-          const full = resolveEmbedPath(absPath, m[1]);
-          if (full) {
-            try {
-              const css = await window.electronAPI.readTextFile(full);
-              if (cancelled) return;
-              if (css != null) inject(full, css);
-            } catch {}
-          }
-        }
-        const sameName = absPath.replace(/\.(jsx|tsx|js|ts|vue|svelte)$/i, ".css");
-        if (sameName !== absPath) {
+      setComp(() => evaluated);
+      setStatus("ready");
+    } catch (err) {
+      setStatus("error");
+      setError(err?.message || String(err));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHtml, name, relPath, injectEmbedCss, loadEmbedCss, clearEmbedCss]);
+
+  const cancelledRef = useRef(false);
+  useEffect(() => {
+    cancelledRef.current = false;
+    if (absPath) loadEmbed(absPath, null);
+    return () => { cancelledRef.current = true; };
+  }, [absPath, loadEmbed, reloadKey]);
+
+  // ── Live sync: editor typing (no save) + css-file saves ──────────────
+  // Code path match -> in-memory source se rebundle (html: re-process);
+  // loaded css match -> sirf styles refresh (rebundle nahi).
+  // Debounced (multi-card overload nahi).
+  useEffect(() => {
+    if (!absPath) return undefined;
+    const norm = (p) => String(p || "").replace(/\\/g, "/").toLowerCase();
+    const want = norm(absPath);
+    if (isHtml) {
+      const handler = (e) => {
+        const p = e.detail?.path;
+        const code = e.detail?.code;
+        if (!p || typeof p !== "string" || typeof code !== "string") return;
+        if (norm(p) !== want) return;
+        if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+        liveTimerRef.current = setTimeout(() => {
+          liveTimerRef.current = null;
           try {
-            const css = await window.electronAPI.readTextFile(sameName);
-            if (cancelled) return;
-            if (css != null) inject(sameName, css);
-          } catch {}
+            const { html } = prepareHtmlDocument(code, absPath);
+            setHtml(html);
+          } catch {
+            setHtml(code);
+          }
+        }, 500);
+      };
+      window.addEventListener("component:sourceChanged", handler);
+      return () => {
+        window.removeEventListener("component:sourceChanged", handler);
+        if (liveTimerRef.current) { clearTimeout(liveTimerRef.current); liveTimerRef.current = null; }
+      };
+    }
+    const handler = (e) => {
+      const p = e.detail?.path;
+      const code = e.detail?.code;
+      if (!p || typeof p !== "string") return;
+      const np = norm(p);
+      if (np === want && typeof code === "string") {
+        if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+        liveTimerRef.current = setTimeout(() => {
+          liveTimerRef.current = null;
+          loadEmbed(absPath, code);
+        }, 500);
+        return;
+      }
+      // Loaded css files me se koi badla -> styles refresh only.
+      try {
+        const keys = cssKeysRef.current || [];
+        const hit = keys.some((k) => k !== "__bundle__" && norm(k) === np);
+        if (hit) {
+          if (liveTimerRef.current) clearTimeout(liveTimerRef.current);
+          liveTimerRef.current = setTimeout(() => {
+            liveTimerRef.current = null;
+            loadEmbed(absPath, null, { cssOnly: true });
+          }, 500);
         }
       } catch {}
-      if (cancelled) return;
-      let codeToBundle = source;
-      if (!/export\s+default|function|const|class/i.test(source) && /^\s*</.test(source.trim())) {
-        codeToBundle = `export default function PreviewSnippet() { return (\n${source}\n); }`;
-      }
-      if (!window.electronAPI?.bundleComponent) {
-        setStatus("error");
-        setError("Preview bundler not available — restart the app after `npm install`");
-        return;
-      }
-      let res;
-      try {
-        res = await window.electronAPI.bundleComponent(codeToBundle, absPath, window.__currentProjectPath);
-      } catch (e) {
-        if (!cancelled) {
-          setStatus("error");
-          setError(e?.message || String(e) || "Bundling failed");
-        }
-        return;
-      }
-      if (cancelled) return;
-      if (!res?.ok) {
-        setStatus("error");
-        setError(res?.error || "Bundling failed");
-        return;
-      }
-      try {
-        const evaluated = runBundledComponent(res.code);
-        if (!evaluated) {
-          setStatus("error");
-          setError("No default export or component found");
-          return;
-        }
-        setComp(() => evaluated);
-        setStatus("ready");
-      } catch (err) {
-        setStatus("error");
-        setError(err?.message || String(err));
-      }
-    })();
-    return () => {
-      cancelled = true;
     };
-  }, [absPath, isHtml, name, relPath, reloadKey]);
+    window.addEventListener("component:sourceChanged", handler);
+    return () => {
+      window.removeEventListener("component:sourceChanged", handler);
+      if (liveTimerRef.current) { clearTimeout(liveTimerRef.current); liveTimerRef.current = null; }
+    };
+  }, [absPath, isHtml, loadEmbed]);
 
   // Mount the bundled component into the shadow root (stable node, no remount).
   // Teardown happens only in the unmount effect below — never here, so a
@@ -391,6 +534,8 @@ function ComponentEmbed({ element }) {
 
   // Full cleanup when the element is deleted from the scene.
   useEffect(() => () => {
+    if (liveTimerRef.current) { clearTimeout(liveTimerRef.current); liveTimerRef.current = null; }
+    seqRef.current += 1; // pending loads stale ho jayen
     const host = hostRef.current;
     const root = host?.__root;
     if (host) host.__root = null;
@@ -425,6 +570,8 @@ function ComponentEmbed({ element }) {
   );
 }
 
+const BG_MODES = ["black", "white", "grid"];
+
 const getCanvasSettings = (settings = {}) => {
   const c = settings.canvas || {};
   const pick = (key, flatKey, fallback) => {
@@ -432,12 +579,26 @@ const getCanvasSettings = (settings = {}) => {
     if (settings[flatKey] !== undefined) return settings[flatKey];
     return fallback;
   };
+  // Background: black | white | grid. Purana gridMode toggle migrate hota
+  // hai (true -> grid), taaki existing users ka look na badle (default white).
+  let bgMode = pick("bgMode", "canvasBgMode", null);
+  if (!BG_MODES.includes(bgMode)) {
+    bgMode = pick("gridMode", "canvasGridMode", false) === true ? "grid" : "white";
+  }
   return {
     // "auto" follows the app theme (documentElement data-theme), else forced.
     theme: pick("theme", "canvasTheme", "auto"),
     autosave: pick("autosave", "canvasAutosave", true) !== false,
     gridMode: pick("gridMode", "canvasGridMode", false) === true,
+    bgMode,
   };
+};
+
+// bgMode -> Excalidraw scene background. Grid ka bg paper (theme-aware).
+const bgForMode = (mode) => {
+  if (mode === "black") return "#000000";
+  if (mode === "grid") return cssVar("--paper", "#ffffff");
+  return "#ffffff"; // white default
 };
 
 const resolveTheme = (themeSetting) => {
@@ -529,7 +690,7 @@ const CanvasPanel = ({ config }) => {
     window.electronAPI.readSettings().then(applyThemeSetting).catch(() => {});
     const onPatch = (patch) => {
       if (!patch || typeof patch !== "object") return;
-      if (!["canvas", "theme", "canvasTheme", "canvasAutosave", "canvasGridMode", "autosave", "gridMode", "editorTheme"].some((k) => k in patch)) return;
+      if (!["canvas", "theme", "canvasTheme", "canvasAutosave", "canvasGridMode", "autosave", "gridMode", "bgMode", "canvasBgMode", "editorTheme"].some((k) => k in patch)) return;
       window.electronAPI.readSettings().then(applyThemeSetting).catch(() => {});
     };
     let bc;
@@ -798,14 +959,45 @@ const CanvasPanel = ({ config }) => {
 
   const handleClear = useCallback(() => {
     try {
-      // Paper color CENTRAL sheet se (Excalidraw ko real color chahiye).
-      excalidrawAPI?.updateScene({ elements: [], appState: { viewBackgroundColor: cssVar("--paper", "#ffffff") } });
+      // Current background mode rakho (Excalidraw ko real color chahiye).
+      excalidrawAPI?.updateScene({ elements: [], appState: { viewBackgroundColor: bgForMode(opts.bgMode) } });
     } catch {}
     elementsRef.current = [];
     filesRef.current = {};
     setDirty(true);
     scheduleSave();
-  }, [excalidrawAPI, scheduleSave]);
+  }, [excalidrawAPI, scheduleSave, opts.bgMode]);
+
+  // ── Background mode (Black / White / Grid) ──────────────────────────
+  // Persist settings me (canvas.bgMode + flat canvasBgMode); scene bg
+  // updateScene se lagta hai (agla autosave use drawing me rakhta hai).
+  // Sirf tab update karo jab scene ka bg alag ho — warna har mount par
+  // spurious dirty+save hota.
+  const setBgMode = useCallback(async (mode) => {
+    if (!BG_MODES.includes(mode)) return;
+    try {
+      const cur = (await window.electronAPI.readSettings().catch(() => ({}))) || {};
+      const next = { ...cur, canvas: { ...(cur.canvas || {}), bgMode: mode }, canvasBgMode: mode };
+      await window.electronAPI.writeSettings(next);
+      try {
+        const bc = new BroadcastChannel("canvas-settings");
+        bc.postMessage({ bgMode: mode });
+        bc.close();
+      } catch {}
+      setOpts((prev) => ({ ...prev, bgMode: mode }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const api = excalidrawAPI;
+    if (!api) return;
+    try {
+      const want = bgForMode(opts.bgMode);
+      let cur = null;
+      try { cur = api.getAppState?.()?.viewBackgroundColor ?? null; } catch {}
+      if (cur !== want) api.updateScene({ appState: { viewBackgroundColor: want } });
+    } catch {}
+  }, [opts.bgMode, excalidrawAPI, theme]);
 
   // Custom overlay for our component embeds. Anything else (e.g. a pasted
   // YouTube link) returns null so Excalidraw falls back to its iframe.
@@ -875,6 +1067,28 @@ const CanvasPanel = ({ config }) => {
         <button className="excalidraw-toolbar__btn" onClick={handleClear} disabled={loading} title="Clear the canvas">
           Clear
         </button>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: "var(--fs-small)", color: "var(--icon)", marginRight: 2 }}>BG:</span>
+          {[
+            ["black", "Black background"],
+            ["white", "White background"],
+            ["grid", "Grid background"],
+          ].map(([mode, label]) => {
+            const on = (opts.bgMode || "white") === mode;
+            return (
+              <button
+                key={mode}
+                className="excalidraw-toolbar__btn"
+                onClick={() => setBgMode(mode)}
+                title={label}
+                aria-pressed={on}
+                style={on ? { background: "var(--select-blue)", color: "var(--text-inverse)", borderColor: "transparent" } : undefined}
+              >
+                {mode === "black" ? "Black" : mode === "white" ? "White" : "Grid"}
+              </button>
+            );
+          })}
+        </span>
       </div>
 
       <div className="excalidraw-body">
@@ -952,7 +1166,7 @@ const CanvasPanel = ({ config }) => {
                 initialData={initialData}
                 onChange={handleChange}
                 theme={theme}
-                gridModeEnabled={opts.gridMode === true}
+                gridModeEnabled={opts.bgMode === "grid"}
                 autoFocus
                 validateEmbeddable
                 renderEmbeddable={renderEmbed}

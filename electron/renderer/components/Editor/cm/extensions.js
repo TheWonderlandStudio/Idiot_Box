@@ -1,23 +1,11 @@
-// cm/extensions.js — @uiw/react-codemirror ke liye extensions array.
+// cm/extensions.js — plain CodeMirror extensions (@uiw basicSetup={false}).
 //
-// basicSetup={false} rakho — ye array khud banao. `codemirror` package ka
-// basicSetup use NAHI hota; 24 setup flags granular imports se bante hain:
-//   view         -> lineNumbers / highlightActiveLineGutter /
-//                   highlightSpecialChars / drawSelection / dropCursor /
-//                   rectangularSelection / crosshairCursor / highlightActiveLine
-//   state        -> EditorState.allowMultipleSelections (+ tabSize facet)
-//   commands     -> history (+ historyKeymap / defaultKeymap)
-//   language     -> indentOnInput / syntaxHighlighting (defaultHighlightStyle +
-//                   fallback) / bracketMatching / foldGutter (+ foldKeymap,
-//                   indentUnit)
-//   autocomplete -> autocompletion / closeBrackets (+ closeBracketsKeymap /
-//                   completionKeymap)
-//   search       -> highlightSelectionMatches (VIEW me NAHI hai — gotcha) +
-//                   searchKeymap
-//   lint         -> lintKeymap
-// Keymaps keymap.of([...flat]) me jodte hain. Tab-accept Prec.high me lapete
-// hain (warna default indent keymap jeet jata hai); acceptCompletion false
-// return kare to indent par fall-through hota hai.
+// Fixed sensible set; sirf chand flags settings se aate hain (theme, font,
+// tabSize, indentUnit, lineNumbers, lineWrapping, autocompletion,
+// tabAcceptsCompletion). Koi LSP, lint, vim, custom highlights,
+// whitespace-dots ya snippet-merging nahi — language package jo deta hai
+// wahi milta hai. Find = CodeMirror ka built-in search panel
+// (openSearchPanel); Tab = suggestion accept (khula ho to), warna indent.
 
 import { EditorState, Prec } from "@codemirror/state";
 import {
@@ -58,12 +46,8 @@ import {
   acceptCompletion,
 } from "@codemirror/autocomplete";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { lintKeymap } from "@codemirror/lint";
 import { vscodeDark, vscodeLight } from "@uiw/codemirror-theme-vscode";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { vim } from "@replit/codemirror-vim";
-import { customHighlightsFor } from "./highlights.js";
-import { whitespaceDots } from "./whitespace.js";
 
 export const themeExtensionFor = (theme) => {
   if (theme === "light") return vscodeLight;
@@ -77,50 +61,11 @@ const withMonoFallback = (f) => {
   return /monospace/i.test(s) ? s : `${s}, monospace`;
 };
 
-// Custom keys: Tab=acceptCompletion, Mod-/=comment, Mod-D=deleteLine,
-// Alt-Up/Down=moveLine, Mod-F/Mod-H=custom find/replace bar.
-// Tab: suggestion khula ho to accept (acceptCompletion), warna false return
-// karke normal indent par fall through — dono kaam ek key par.
-// Prec.high zaroori hai, warna default indent keymap jeet jata hai.
-// (customKeys flag se gated; Tab alag se tabAcceptsCompletion flag se.
-// NOTE: acceptCompletion popup khulne/update ke ~75ms andar (interactionDelay)
-// false deta hai taaki tez typing me galat accept na ho — us window me Tab
-// indent karega, thaharke dabao to accept. Yahan koi wrapper mat lagao:
-// startCompletion jaisa extra call timestamp reset karke accept ko lagatar
-// fail karta hai. Mod-F bhi Prec.high me taaki searchKeymap ka default panel
-// na khule — hum apna FindReplaceBar kholte hain.)
-const customKeymap = (tabAccepts, onOpenFind) => {
-  const bindings = [
-    { key: "Mod-/", run: toggleComment },
-    { key: "Mod-D", run: deleteLine },
-    { key: "Alt-ArrowUp", run: moveLineUp },
-    { key: "Alt-ArrowDown", run: moveLineDown },
-  ];
-  const out = [];
-  if (tabAccepts) {
-    out.push(Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])));
-  }
-  if (typeof onOpenFind === "function") {
-    out.push(Prec.high(keymap.of([
-      { key: "Mod-f", run: () => { onOpenFind(false); return true; } },
-      { key: "Mod-h", run: () => { onOpenFind(true); return true; } },
-    ])));
-  }
-  out.push(keymap.of(bindings));
-  return out;
-};
-
-export const buildCmExtensions = ({
-  settings,
-  languageSupport = [],
-  lspExtension = [],
-  docSize = 0,
-  onOpenFind = null,
-}) => {
+export const buildCmExtensions = ({ settings, languageSupport = [] }) => {
   const s = settings || {};
   const ext = [];
 
-  // ── Theme + font (font theme BAAD me taaki font jeete) ──
+  // ── Theme + font ──
   ext.push(themeExtensionFor(s.theme));
   try {
     const fs = Number.isFinite(s.fontSize) ? Math.min(32, Math.max(8, s.fontSize)) : 14;
@@ -141,79 +86,61 @@ export const buildCmExtensions = ({
     ext.push(indentUnit.of(typeof s.indentUnit === "string" && s.indentUnit ? s.indentUnit : "  "));
   } catch {}
 
-  // ── Language support (grammar + merged snippets) ──
+  // ── Language ──
   if (Array.isArray(languageSupport) && languageSupport.length) ext.push(...languageSupport);
 
-  // ── view flags ──
+  // ── Gutter / view (lineNumbers + wrapping settings se, baaki fixed on) ──
   if (s.lineNumbers !== false) ext.push(lineNumbers());
-  if (s.highlightActiveLineGutter !== false) ext.push(highlightActiveLineGutter());
-  if (s.highlightSpecialChars !== false) ext.push(highlightSpecialChars());
-  if (s.drawSelection !== false) ext.push(drawSelection());
-  if (s.dropCursor !== false) ext.push(dropCursor());
-  if (s.rectangularSelection !== false) ext.push(rectangularSelection());
-  if (s.crosshairCursor !== false) ext.push(crosshairCursor());
-  if (s.highlightActiveLine !== false) ext.push(highlightActiveLine());
-  // highlightSelectionMatches @codemirror/search me hai (view me NAHI).
-  if (s.highlightSelectionMatches !== false) {
-    try { ext.push(highlightSelectionMatches()); } catch {}
-  }
+  ext.push(highlightActiveLineGutter());
+  ext.push(highlightSpecialChars());
+  ext.push(drawSelection());
+  ext.push(dropCursor());
+  ext.push(rectangularSelection());
+  ext.push(crosshairCursor());
+  ext.push(highlightActiveLine());
+  try { ext.push(highlightSelectionMatches()); } catch {}
 
-  // ── state flags ──
-  if (s.allowMultipleSelections !== false) {
-    try { ext.push(EditorState.allowMultipleSelections.of(true)); } catch {}
-  }
-
-  // ── language flags ──
-  if (s.indentOnInput !== false) ext.push(indentOnInput());
-  if (s.syntaxHighlighting !== false) {
-    if (s.customHighlights !== false) ext.push(customHighlightsFor(s.theme));
-    else {
-      try { ext.push(syntaxHighlighting(defaultHighlightStyle, { fallback: true })); }
-      catch { ext.push(syntaxHighlighting(defaultHighlightStyle)); }
-    }
-  }
-  if (s.bracketMatching !== false) ext.push(bracketMatching());
-  if (s.foldGutter !== false) ext.push(foldGutter());
-
-  // ── autocomplete flags ──
+  // ── Editing ──
+  ext.push(EditorState.allowMultipleSelections.of(true));
+  ext.push(indentOnInput());
+  try { ext.push(syntaxHighlighting(defaultHighlightStyle, { fallback: true })); }
+  catch { ext.push(syntaxHighlighting(defaultHighlightStyle)); }
+  ext.push(bracketMatching());
+  ext.push(foldGutter());
   if (s.autocompletion !== false) ext.push(autocompletion());
-  if (s.closeBrackets !== false) ext.push(closeBrackets());
-
-  // ── commands flags ──
-  if (s.history !== false) ext.push(history());
-
-  // ── Wrapping ──
+  ext.push(closeBrackets());
+  ext.push(history());
   if (s.lineWrapping !== false) ext.push(EditorView.lineWrapping);
 
-  // ── Whitespace dots (custom all-spaces; stock highlightWhitespace NAHI) ──
-  ext.push(...whitespaceDots(s.highlightWhitespace === true, docSize));
-
-  // ── Base search: match highlighting + F3/gotoLine state. Default panel
-  // kabhi nahi khulta (openSearchPanel call hi nahi hota) — find UI apna
-  // FindReplaceBar hai. Hamesha loaded (halka: state field + highlighter).
+  // ── Base search (built-in panel + F3 + gotoLine state) ──
   try { ext.push(search()); } catch {}
 
-  // ── Keymaps: sab ek keymap.of([...flat]) me ──
-  const keys = [];
-  if (s.defaultKeymap !== false) keys.push(...defaultKeymap);
-  if (s.searchKeymap !== false) keys.push(...searchKeymap);
-  if (s.historyKeymap !== false) keys.push(...historyKeymap);
-  if (s.foldKeymap !== false) keys.push(...foldKeymap);
-  if (s.completionKeymap !== false) keys.push(...completionKeymap);
-  if (s.lintKeymap !== false) keys.push(...lintKeymap);
-  if (s.closeBracketsKeymap !== false) keys.push(...closeBracketsKeymap);
-  if (keys.length) ext.push(keymap.of(keys));
+  // ── Keymaps, ek me flat ──
+  ext.push(keymap.of([
+    ...defaultKeymap,
+    ...searchKeymap,
+    ...historyKeymap,
+    ...foldKeymap,
+    ...completionKeymap,
+    ...closeBracketsKeymap,
+  ]));
 
-  // ── Custom keys (Tab accept + Mod-F/Mod-H Prec.high me) ──
-  if (s.customKeys !== false) ext.push(...customKeymap(s.tabAcceptsCompletion !== false, onOpenFind));
-
-  // ── Vim (toggleable, sabse end me) ──
-  if (s.vim === true) {
-    try { ext.push(vim()); } catch {}
+  // ── Tab: suggestion khula ho to accept, warna false return karke normal
+  // indent par fall through — dono kaam ek key par. Prec.high zaroori hai,
+  // warna default indent keymap jeet jata hai. (tabAcceptsCompletion flag se
+  // on/off. NOTE: seedha acceptCompletion — koi wrapper mat lagao; wrapper
+  // interaction-timestamp reset karke accept ko fail karta hai.)
+  if (s.tabAcceptsCompletion !== false) {
+    ext.push(Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])));
   }
 
-  // ── LSP (online ho tabhi aata hai, warna [] — offline local completions) ──
-  if (Array.isArray(lspExtension) && lspExtension.length) ext.push(...lspExtension);
+  // ── Custom keys (comment / delete-line / move-line) ──
+  ext.push(keymap.of([
+    { key: "Mod-/", run: toggleComment },
+    { key: "Mod-D", run: deleteLine },
+    { key: "Alt-ArrowUp", run: moveLineUp },
+    { key: "Alt-ArrowDown", run: moveLineDown },
+  ]));
 
   return ext;
 };
