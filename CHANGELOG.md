@@ -3,6 +3,22 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.17] - 2026-09-12
+
+### Added
+- **New Panel search** — the Blank "New Panel" launcher now has a search
+  bar; type to filter panels by name or description (Esc clears, × resets,
+  friendly empty state when nothing matches).
+- **More Android emulator variants** — the AVD create form now offers
+  Android 11–16 (API 30–36) and a **System image** picker: Google APIs or
+  Google APIs + Play Store (Play Store images are user builds — Store app
+  included, no root). The device list grows to 12 (Pixel 9 / 9 Pro, 8 Pro,
+  Fold, Tablet, 6 Pro, …), and AVDs built on a Play Store image get a
+  "• Play Store" badge in the emulator list.
+- **Native file drag-out** — drag files/folders from the sidebar or content
+  area straight into Explorer / Desktop / VS Code via an OS-level drag;
+  dropping them back into the app moves instead of copying.
+
 ## [0.1.16] - 2026-09-12
 
 ### Added

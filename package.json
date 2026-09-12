@@ -1,6 +1,6 @@
 {
   "name": "idiot-box",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "description": "Idiot Box - Code-OSS-backed desktop IDE built with Electron and React",
   "author": {
