@@ -4335,15 +4335,36 @@ function sniffPortsFromTerminalOutput(data) {
 }
 
 // ─── Native file drag ──────────────────────────────────────────────────────────
-const dragIcon = nativeImage.createFromDataURL(
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAMlJREFUOE9jZBi4gBEDDxg/fvz4f/78+f+BGJQHU3MAiPkfKH6AiYH0AB8U/AfEDED8n5mB9ABGqHj8B+L/QMz7nxwXUJYF/xlI9wEzA+kBdFAA4gdENSHVBUxAg/8C8X8GBtIDiC4gxYVMFEQAy3+g4xmY6O8Coh2Ay4VMDAR4wZvk5QJqBAAjIwVcAAwW5v+BiQivCygNAHo4UCMAkIEB5QISTcCXCxguIDkEKB0AlAYA5VwAGn1UhwE12YDqAqTUC6gJAOq7gHQTMDXQ0gUA7VlTtGxCBnQAAAAASUVORK5CYII="
-);
+const dragIcon = nativeImage.createFromPath(
+  path.join(__dirname, "../renderer/assets/idot_box.png")
+).resize({ width: 32, height: 32 });
+
+try {
+  const s = dragIcon.isEmpty() ? "EMPTY!" : JSON.stringify(dragIcon.getSize());
+  console.log("[drag] native icon:", s);
+  console.log("[drag] native out-drag ready (expects { file, files, icon })");
+} catch (err) {
+  console.error("[drag] icon check failed:", err);
+}
 
 ipcMain.on("drag:startNative", (event, paths) => {
   try {
-    if (paths?.length) {
-      event.sender.startDrag({ files: paths, icon: dragIcon });
+    const list = (Array.isArray(paths) ? paths : [paths])
+      .filter((p) => typeof p === "string" && p);
+    // startDrag throws / misbehaves for missing paths — keep only existing ones.
+    const existing = list.filter((p) => { try { return fs.existsSync(toLongPath(p)); } catch { return false; } });
+    if (!existing.length) {
+      console.error("[drag:startNative] no existing files, ignoring:", list);
+      return;
     }
+    console.log("[drag:startNative] dragging out", existing.length, "item(s)");
+    // NOTE: `file` (singular) is a REQUIRED field in the native Item struct —
+    // passing only `files` makes startDrag throw/ignore. `files` overrides
+    // `file` for multi-select, so pass both.
+    event.sender.startDrag({ file: existing[0], files: existing, icon: dragIcon });
+    // startDrag blocks on Windows until the drop finishes — reaching here
+    // proves the native drag actually engaged.
+    console.log("[drag:startNative] native drag finished");
   } catch (err) {
     console.error("startDrag failed:", err);
   }

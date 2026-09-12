@@ -54,6 +54,8 @@ const PreviewIcon = ({ entry, showPreview, size }) => {
   }, [entry.path, showPreview, entry.isDir]);
   if (!showPreview || entry.isDir || !preview) return <VscodeIcon name={entry.name} isDir={entry.isDir} size={size} />;
   if (preview.type === "image" && preview.data) {
+    // NOTE: kept natively draggable — browser image drag-out is currently
+    // the only out-drag path proven to work; locking it would remove that.
     return <img src={preview.data} width={size} height={size} alt="" style={{ objectFit: "contain", display: "block", borderRadius: "var(--radius-xs)" }} />;
   }
   if (preview.type === "video") {
@@ -669,11 +671,32 @@ const ContentArea = ({
     const toDrag = sel.size > 0 && sel.has(entry.path) ? [...sel] : [entry.path];
     window.__ibxDragPaths = toDrag;
     const uris = toDrag.map((p) => `file:///${p.replace(/\\/g, "/").replace(/^\//, "")}`).join("\n");
-    e.dataTransfer.effectAllowed = "move";
+    // "copyMove" keeps internal move working (drop handlers pick "move" for
+    // non-File drags) while also letting the OS offer Copy on outside drops.
+    e.dataTransfer.effectAllowed = "copyMove";
     e.dataTransfer.setData("application/ibx-paths", JSON.stringify(toDrag));
     e.dataTransfer.setData("text/uri-list", uris);
     e.dataTransfer.setData("text/plain", toDrag.join("\n"));
+    // ── Out-to-OS native drag attempt (app → Explorer/Desktop/…) ─────────
+    // Fires synchronously inside dragstart; main calls
+    // webContents.startDrag({ file, files, icon }). Cancel the HTML5 drag so
+    // Chromium does not compete with the OS-level drag session. Native
+    // self-drops re-enter as Files and matchSelfDrop() routes them to move.
+    e.preventDefault();
+    try {
+      if (window.electronAPI.startNativeDrag) {
+        window.electronAPI.startNativeDrag(toDrag);
+        try { console.debug("[ibx] native out-drag kicked", toDrag); } catch {}
+      }
+    } catch {}
   }, [renamingPath]);
+
+  // ── DragEnd — clear stale fallback so a cancelled drag can't poison the
+  // next external drop (drop handlers null it on consume; dragend always
+  // fires after drop, so clearing here is safe).
+  const handleDragEnd = useCallback(() => {
+    window.__ibxDragPaths = null;
+  }, []);
 
   // ── External file drop helper ────────────────────────────────────────────
   const getExternalPaths = useCallback((e) => {
@@ -724,6 +747,21 @@ const ContentArea = ({
     return copied;
   }, [alertErr]);
 
+  // ── Native self-drop matcher ──────────────────────────────────────────
+  // Our own out-drag (preventDefault + startDrag) re-enters as a native
+  // Files drop. Treat it as INTERNAL only when every dropped path belongs
+  // to the pending drag (case-insensitive for Windows). Anything else is a
+  // genuine external drop — or a stale cache, which must not match.
+  const matchSelfDrop = useCallback((e) => {
+    const pending = window.__ibxDragPaths;
+    if (!pending?.length) return null;
+    const dropped = getExternalPaths(e);
+    if (!dropped?.length) return null;
+    const set = new Set(pending.map((p) => String(p).toLowerCase()));
+    if (!dropped.every((p) => set.has(String(p).toLowerCase()))) return null;
+    return pending;
+  }, [getExternalPaths]);
+
   const handleContentAreaDragOver = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -741,15 +779,25 @@ const ContentArea = ({
     let paths;
     let isInternal = true;
     try { paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); } catch {}
-    if (!paths?.length && window.__ibxDragPaths?.length) {
+    if (!paths?.length && window.__ibxDragPaths?.length && !e.dataTransfer?.types?.includes("Files")) {
+      // Classic in-app HTML5 drag (carries no native Files payload).
       paths = window.__ibxDragPaths;
       window.__ibxDragPaths = null;
     }
     if (!paths?.length) {
-      const externalPaths = getExternalPaths(e);
-      if (externalPaths) {
-        paths = externalPaths;
-        isInternal = false;
+      // Native Files drop: ours coming back → internal move, else external copy.
+      const selfPaths = matchSelfDrop(e);
+      if (selfPaths) {
+        paths = selfPaths;
+        window.__ibxDragPaths = null;
+      } else {
+        const externalPaths = getExternalPaths(e);
+        if (externalPaths) {
+          paths = externalPaths;
+          isInternal = false;
+          // A genuine foreign drop proves no self-drag is in flight → drop stale cache.
+          window.__ibxDragPaths = null;
+        }
       }
     }
     if (!paths?.length) return;
@@ -775,7 +823,7 @@ const ContentArea = ({
     invalidateCache(cp);
     onSetSelectedItems(new Set());
     await loadEntries();
-  }, [invalidateCache, loadEntries, onSetSelectedItems, getExternalPaths, copyExternalFiles]);
+  }, [invalidateCache, loadEntries, onSetSelectedItems, getExternalPaths, copyExternalFiles, matchSelfDrop]);
 
   // ── Breadcrumb drop targets ─────────────────────────────────────────────
   const crumbsTimerRef = useRef(null);
@@ -804,17 +852,21 @@ const ContentArea = ({
     if (crumbsTimerRef.current) { clearTimeout(crumbsTimerRef.current); crumbsTimerRef.current = null; }
     crumbsHoverRef.current = null;
 
-    // Resolve paths
+    // Resolve paths: classic HTML5 → own native Files drop → foreign files
     let paths;
     let isInternal = true;
     try { paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); } catch {}
-    if (!paths?.length && window.__ibxDragPaths?.length) {
+    if (!paths?.length && window.__ibxDragPaths?.length && !e.dataTransfer?.types?.includes("Files")) {
       paths = window.__ibxDragPaths;
       window.__ibxDragPaths = null;
     }
     if (!paths?.length) {
-      const externalPaths = getExternalPaths(e);
-      if (externalPaths) { paths = externalPaths; isInternal = false; }
+      const selfPaths = matchSelfDrop(e);
+      if (selfPaths) { paths = selfPaths; window.__ibxDragPaths = null; }
+      else {
+        const externalPaths = getExternalPaths(e);
+        if (externalPaths) { paths = externalPaths; isInternal = false; window.__ibxDragPaths = null; }
+      }
     }
     if (!paths?.length) return;
 
@@ -841,7 +893,7 @@ const ContentArea = ({
     invalidateCache(path);
     onSetSelectedItems(new Set());
     onNavigate(path);
-  }, [invalidateCache, onNavigate, onSetSelectedItems, alertErr, getExternalPaths, copyExternalFiles]);
+  }, [invalidateCache, onNavigate, onSetSelectedItems, alertErr, getExternalPaths, copyExternalFiles, matchSelfDrop]);
 
   // ── Content-area drop target (folder items) ──────────────────────────────
   const [dropTargetPath, setDropTargetPath] = useState(null);
@@ -877,17 +929,21 @@ const ContentArea = ({
     setDropTargetPath(null);
     if (expandTimerRef.current) { clearTimeout(expandTimerRef.current); expandTimerRef.current = null; }
 
-    // Resolve paths
+    // Resolve paths: classic HTML5 → own native Files drop → foreign files
     let paths;
     let isInternal = true;
     try { paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); } catch {}
-    if (!paths?.length && window.__ibxDragPaths?.length) {
+    if (!paths?.length && window.__ibxDragPaths?.length && !e.dataTransfer?.types?.includes("Files")) {
       paths = window.__ibxDragPaths;
       window.__ibxDragPaths = null;
     }
     if (!paths?.length) {
-      const externalPaths = getExternalPaths(e);
-      if (externalPaths) { paths = externalPaths; isInternal = false; }
+      const selfPaths = matchSelfDrop(e);
+      if (selfPaths) { paths = selfPaths; window.__ibxDragPaths = null; }
+      else {
+        const externalPaths = getExternalPaths(e);
+        if (externalPaths) { paths = externalPaths; isInternal = false; window.__ibxDragPaths = null; }
+      }
     }
     if (!paths?.length) return;
 
@@ -914,7 +970,7 @@ const ContentArea = ({
     invalidateCache(entry.path);
     onSetSelectedItems(new Set());
     onNavigate(entry.path);
-  }, [invalidateCache, onNavigate, onSetSelectedItems, alertErr, getExternalPaths, copyExternalFiles]);
+  }, [invalidateCache, onNavigate, onSetSelectedItems, alertErr, getExternalPaths, copyExternalFiles, matchSelfDrop]);
 
   // ── Context menus ─────────────────────────────────────────────────────────
   const handleBlankContextMenu = useCallback(async (e) => {
@@ -995,6 +1051,7 @@ const ContentArea = ({
                   title={isRenaming ? undefined : entry.name}
                   draggable={!isRenaming}
                   onDragStart={(e) => handleDragStart(e, entry)}
+                  onDragEnd={handleDragEnd}
                   onDragOver={(e) => handleDragOver(e, entry)}
                   onDragLeave={(e) => handleDragLeave(e, entry)}
                   onDrop={(e) => handleContentDrop(e, entry)}

@@ -21,6 +21,7 @@ const TreeRow = ({
   label, iconEl, depth, hasChildren, isOpen, isSelected, isDropTarget, isCut,
   onClick, onDoubleClick, onArrowClick, onDragEnter, onDragOver, onDragLeave, onDrop, onContextMenu,
   gitStatus,
+  draggable, onDragStart, onDragEnd,
 }) => {
   const gitColor = gitStatus ? (
     String(gitStatus).includes("M") ? "var(--git-modified)" :
@@ -40,6 +41,9 @@ const TreeRow = ({
     style={{ paddingLeft: `${6 + depth * 14}px` }}
     onClick={onClick}
     onDoubleClick={onDoubleClick}
+    draggable={draggable}
+    onDragStart={onDragStart}
+    onDragEnd={onDragEnd}
     onDragEnter={onDragEnter}
     onDragOver={onDragOver}
     onDragLeave={onDragLeave}
@@ -66,6 +70,32 @@ const TreeRow = ({
   </div>
 );
 };
+
+// ── Out-to-OS native drag (sidebar → Explorer/Desktop/VS Code/…) ───────────
+// Mirrors ContentArea.handleDragStart: keeps the internal HTML5 payload
+// (application/ibx-paths + __ibxDragPaths) intact so in-app move is
+// unaffected, and additionally kicks webContents.startDrag via preload.
+// Must run synchronously inside dragstart.
+const startSidebarOutDrag = (e, paths) => {
+  window.__ibxDragPaths = paths;
+  try {
+    const uris = paths.map((p) => `file:///${String(p).replace(/\\/g, "/").replace(/^\//, "")}`).join("\n");
+    e.dataTransfer.effectAllowed = "copyMove";
+    e.dataTransfer.setData("application/ibx-paths", JSON.stringify(paths));
+    e.dataTransfer.setData("text/uri-list", uris);
+    e.dataTransfer.setData("text/plain", paths.join("\n"));
+  } catch {}
+  // Let Electron own the drag session instead of competing with Chromium's
+  // HTML5 drag implementation.
+  e.preventDefault();
+  try {
+    if (window.electronAPI.startNativeDrag) {
+      window.electronAPI.startNativeDrag(paths);
+      try { console.debug("[ibx] native out-drag kicked (sidebar)", paths); } catch {}
+    }
+  } catch {}
+};
+const clearSidebarOutDrag = () => { window.__ibxDragPaths = null; };
 
 // ── Recursive folder node ─────────────────────────────────────────────────────
 const FolderNode = ({
@@ -131,8 +161,10 @@ const FolderNode = ({
     e.preventDefault(); e.stopPropagation(); setDropTarget(null);
     if (expandTimerRef.current) { clearTimeout(expandTimerRef.current); expandTimerRef.current = null; }
     expandHoverRef.current = null;
-    // Internal native drag (from startDrag) fallback
-    if (window.__ibxDragPaths?.length) {
+    // Classic in-app HTML5 drag (carries no native Files payload).
+    // Native self-drops (with Files) fall through to onExternalDrop, which
+    // matches them against the pending drag and routes them to move.
+    if (window.__ibxDragPaths?.length && !e.dataTransfer?.types?.includes("Files")) {
       const paths = window.__ibxDragPaths; window.__ibxDragPaths = null;
       onDrop(entry.path, paths); return;
     }
@@ -156,6 +188,9 @@ const FolderNode = ({
         onClick={() => onSelect(entry.path)}
         onDoubleClick={() => onToggle(entry.path)}
         onArrowClick={() => onToggle(entry.path)}
+        draggable
+        onDragStart={(e) => startSidebarOutDrag(e, [entry.path])}
+        onDragEnd={clearSidebarOutDrag}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -204,6 +239,9 @@ const FolderNode = ({
           onClick={() => onFileClick?.(child.path)}
           onDoubleClick={() => onFileDblClick?.(child.path)}
           onArrowClick={() => {}}
+          draggable
+          onDragStart={(e) => startSidebarOutDrag(e, [child.path])}
+          onDragEnd={clearSidebarOutDrag}
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDropTarget(entry.path); }}
           onDragLeave={(e) => { e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setDropTarget((p) => p === entry.path ? null : p); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDrop(e); }}
@@ -315,15 +353,13 @@ const SidebarTree = ({
 
   const rootName = rootPath ? rootPath.split(/[\\/]/).filter(Boolean).pop() : "";
 
-  const handleExternalDrop = useCallback(async (e, targetDir) => {
-    // Internal native drag (from our app) should use move, not copy
-    if (window.__ibxDragPaths?.length) return false;
+  // Resolve real OS paths from a native Files drop (null when none).
+  const getDroppedFilePaths = useCallback((e) => {
     const dt = e.dataTransfer;
-    if (!dt) return false;
-    const hasFiles = dt.types?.includes("Files");
-    if (!hasFiles) return false;
+    if (!dt) return null;
+    if (!dt.types?.includes("Files")) return null;
     const getPath = window.electronAPI.getPathForFile;
-    if (!getPath) return false;
+    if (!getPath) return null;
     const paths = [];
     const items = dt.items;
     if (items?.length) {
@@ -350,10 +386,37 @@ const SidebarTree = ({
         }
       }
     }
-    if (!paths.length) return false;
+    return paths.length ? paths : null;
+  }, []);
+
+  // Our own out-drag re-enters as a native Files drop — match it against the
+  // pending drag (case-insensitive for Windows) so it takes the move path.
+  const matchPendingSelfDrop = useCallback((e) => {
+    const pending = window.__ibxDragPaths;
+    if (!pending?.length) return null;
+    const dropped = getDroppedFilePaths(e);
+    if (!dropped?.length) return null;
+    const set = new Set(pending.map((p) => String(p).toLowerCase()));
+    if (!dropped.every((p) => set.has(String(p).toLowerCase()))) return null;
+    return pending;
+  }, [getDroppedFilePaths]);
+
+  const handleExternalDrop = useCallback(async (e, targetDir) => {
+    const dropped = getDroppedFilePaths(e);
+    if (!dropped) return false;
+    // Self native-drop coming back → internal MOVE (with undo), not copy.
+    const selfPaths = matchPendingSelfDrop(e);
+    if (selfPaths) {
+      window.__ibxDragPaths = null;
+      onDrop(targetDir, selfPaths);
+      return true;
+    }
+    // Genuine foreign files → copy (existing behavior). A foreign drop proves
+    // no self-drag is in flight, so any pending cache is stale → clear it.
+    window.__ibxDragPaths = null;
     const failed = [];
     let copied = false;
-    for (const src of paths) {
+    for (const src of dropped) {
       try {
         await window.electronAPI.copyItem(src, targetDir);
         copied = true;
@@ -362,7 +425,7 @@ const SidebarTree = ({
     if (failed.length) await window.electronAPI.showAlert(`Cannot import:\n${failed.join(", ")}`);
     if (copied) { invalidateCache(targetDir); setLocalRefresh((k) => k + 1); }
     return true;
-  }, [invalidateCache]);
+  }, [getDroppedFilePaths, matchPendingSelfDrop, onDrop, invalidateCache]);
 
   // ── Root row drag handlers ────────────────────────────────────────────────
   const handleRootDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = e.dataTransfer.types?.includes("Files") ? "copy" : "move"; setDropTarget(rootPath); };
@@ -370,12 +433,13 @@ const SidebarTree = ({
   const handleRootDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDropTarget((p) => p === rootPath ? null : p); };
   const handleRootDrop      = async (e) => {
     e.preventDefault(); e.stopPropagation(); setDropTarget(null);
-    // Internal native drag (from startDrag) fallback
-    if (window.__ibxDragPaths?.length) {
+    // Classic in-app HTML5 drag (carries no native Files payload).
+    // Native self-drops (with Files) fall through to handleExternalDrop.
+    if (window.__ibxDragPaths?.length && !e.dataTransfer?.types?.includes("Files")) {
       const paths = window.__ibxDragPaths; window.__ibxDragPaths = null;
       onDrop(rootPath, paths); return;
     }
-    // External files
+    // External files (or our own native out-drag coming back)
     if (await handleExternalDrop(e, rootPath)) return;
     // Internal drag
     try { const paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); if (paths?.length) onDrop(rootPath, paths); } catch {}
@@ -393,10 +457,11 @@ const SidebarTree = ({
     if (!rootPath) return;
     e.preventDefault();
     e.stopPropagation();
-    // External file drop onto blank sidebar area
+    // External file drop onto blank sidebar area (or our own native
+    // out-drag coming back — handleExternalDrop routes it to move)
     if (await handleExternalDrop(e, rootPath)) return;
-    // Internal drag onto blank area → move to root
-    if (window.__ibxDragPaths?.length) {
+    // Classic internal HTML5 drag onto blank area → move to root
+    if (window.__ibxDragPaths?.length && !e.dataTransfer?.types?.includes("Files")) {
       const paths = window.__ibxDragPaths; window.__ibxDragPaths = null;
       onDrop(rootPath, paths); return;
     }
@@ -1060,6 +1125,9 @@ const SidebarTree = ({
                     onClick={() => onSelect(fullPath)}
                     onDoubleClick={() => onToggle(fullPath)}
                     onArrowClick={() => {}}
+                    draggable
+                    onDragStart={(e) => startSidebarOutDrag(e, [fullPath])}
+                    onDragEnd={clearSidebarOutDrag}
                     onDragOver={() => {}}
                     onDragLeave={() => {}}
                     onDrop={() => {}}
@@ -1188,6 +1256,9 @@ const SidebarTree = ({
             onClick={() => onSelect(rootPath)}
             onDoubleClick={() => onToggle(rootPath)}
             onArrowClick={() => onToggle(rootPath)}
+            draggable
+            onDragStart={(e) => startSidebarOutDrag(e, [rootPath])}
+            onDragEnd={clearSidebarOutDrag}
             onDragEnter={handleRootDragEnter}
             onDragOver={handleRootDragOver}
             onDragLeave={handleRootDragLeave}
@@ -1237,6 +1308,9 @@ const SidebarTree = ({
               onClick={() => handleFileClick(entry.path)}
               onDoubleClick={() => handleFileDoubleClick(entry.path)}
               onArrowClick={() => {}}
+              draggable
+              onDragStart={(e) => startSidebarOutDrag(e, [entry.path])}
+              onDragEnd={clearSidebarOutDrag}
               onDragOver={() => {}}
               onDragLeave={() => {}}
               onDrop={() => {}}
