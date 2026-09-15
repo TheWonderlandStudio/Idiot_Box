@@ -1,5 +1,15 @@
 // Preload script entry point
 const { contextBridge, ipcRenderer, webUtils, clipboard } = require("electron");
+const { createTitlebarOnDOMContentLoaded, TitlebarColor } = require("custom-electron-titlebar");
+
+createTitlebarOnDOMContentLoaded({
+  menuPosition: "left",
+  containerOverflow: "visible",
+  backgroundColor: TitlebarColor.fromHex("#171717"),
+  menuBarBackgroundColor: TitlebarColor.fromHex("#171717"),
+  itemBackgroundColor: TitlebarColor.fromHex("#2a2d2e"),
+  shadow: true,
+}).catch(() => {});
 
 contextBridge.exposeInMainWorld("electronAPI", {
   // ── Native file drag (outgoing to OS/external apps) ────────────────────
@@ -32,6 +42,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Directory access ───────────────────────────────────────────────────────
   openFolder:  ()      => ipcRenderer.invoke("dialog:openFolder"),
+  showAppMenu: (id)    => ipcRenderer.invoke("menu:popup", id),
   readDir:     (dir)   => ipcRenderer.invoke("fs:readDir",    dir),
   readDirAll:  (dir)   => ipcRenderer.invoke("fs:readDirAll", dir),
   stat:        (p)     => ipcRenderer.invoke("fs:stat",       p),
@@ -77,6 +88,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Browser context menus ──────────────────────────────────────────────────
   showBrowserTabContextMenu: ()            => ipcRenderer.invoke("browser:tabContextMenu"),
   showBrowserWebviewContextMenu: (params) => ipcRenderer.invoke("browser:webviewContextMenu", params),
+  showTabContextMenu: (details)          => ipcRenderer.invoke("tab:contextMenu", details),
   // ── Browser guest shortcuts (main forwards webview keys here) ─────────
   // payload: { action, wcId }. Panel wcId match karke apne tab me chalata hai.
   onBrowserShortcut: (callback) => {

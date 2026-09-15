@@ -129,6 +129,7 @@ const RunPanel = () => {
   const termRef = useRef(null);
   const fitRef = useRef(null);
   const lastCwdRef = useRef(null);
+  const browserOpenedRef = useRef(false);
 
   const out = useCallback((msg, level) => {
     try { window.__outputLog?.("Run", msg, level || "info"); } catch {}
@@ -222,6 +223,13 @@ const RunPanel = () => {
         if (!runningRef.current || String(runId) !== String(runningRef.current.runId)) return;
         termWrite(data);
         const clean = stripAnsi(data);
+        if (!browserOpenedRef.current) {
+          const browserUrl = clean.match(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s\u001b]*)?/i)?.[0];
+          if (browserUrl) {
+            browserOpenedRef.current = true;
+            window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url: browserUrl } }));
+          }
+        }
         const lines = clean.split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => l.length > 0).slice(0, 200);
         for (const l of lines) out(l);
       } catch {}
@@ -491,6 +499,7 @@ const RunPanel = () => {
         termRef.current?.writeln(`\x1b[90m$ ${run.cmd} ${(args || []).join(" ")}\x1b[0m`);
       } catch {}
       lastCwdRef.current = cwd || null;
+      browserOpenedRef.current = false;
       setRunning({ runId, label, startedAt: Date.now(), cwd: cwd || null });
       try { window.dispatchEvent(new CustomEvent("add-output-panel")); } catch {}
       out(`—— ${label} ——`);
@@ -520,6 +529,10 @@ const RunPanel = () => {
   const doRunRef = useRef(null);
   doRunRef.current = doRun;
   useEffect(() => {
+    const onRunRequest = () => {
+      window.__pendingAutoRun = null;
+      try { doRunRef.current?.({ id: "__auto__", auto: true }); } catch {}
+    };
     const iv = setInterval(() => {
       try {
         if (window.__pendingAutoRun) {
@@ -536,8 +549,13 @@ const RunPanel = () => {
       } catch {}
     }, 700);
     const onStopReq = () => { try { doStop(); } catch {} };
+    window.addEventListener("run:request", onRunRequest);
     window.addEventListener("run:stopCurrent", onStopReq);
-    return () => { clearInterval(iv); window.removeEventListener("run:stopCurrent", onStopReq); };
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener("run:request", onRunRequest);
+      window.removeEventListener("run:stopCurrent", onStopReq);
+    };
   }, [out, doStop]);
   useEffect(() => {
     try {

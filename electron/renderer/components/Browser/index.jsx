@@ -1077,8 +1077,15 @@ const BrowserPanel = (props) => {
         default: break;
       }
     };
+    const refreshHandler = (e) => {
+      if (e.detail?.nodeId === nodeId) webviewRef.current?.reload();
+    };
     window.addEventListener("browser:tabContextMenu", handler);
-    return () => window.removeEventListener("browser:tabContextMenu", handler);
+    window.addEventListener("browser:refresh", refreshHandler);
+    return () => {
+      window.removeEventListener("browser:tabContextMenu", handler);
+      window.removeEventListener("browser:refresh", refreshHandler);
+    };
   }, [nodeId]);
 
   // ── Render ──────────────────────────────────────────────────────────────────

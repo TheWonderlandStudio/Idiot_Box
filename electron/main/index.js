@@ -4,6 +4,7 @@ const path    = require("path");
 const fs      = require("fs");
 const { pathToFileURL } = require("url");
 const { spawn, execFile } = require("child_process");
+const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
 let chokidar = null;
 try { chokidar = require("chokidar"); } catch (e) { console.warn("[main] chokidar not available:", e.message); }
 let pty = null;
@@ -2614,6 +2615,34 @@ ipcMain.handle("browser:tabContextMenu", (event) => {
   });
 });
 
+// ─── FlexLayout tab context menu ────────────────────────────────────────────
+ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, filePath = null } = {}) => {
+  return new Promise((resolve) => {
+    const act = (action) => resolve({ action });
+    const sep = { type: "separator" };
+    const items = [];
+    if (canClose) items.push({ label: "Close", click: () => act("close") });
+    if (canClose) items.push({ label: "Close Others", click: () => act("closeOthers") });
+    if (canClose) items.push({ label: "Close All", click: () => act("closeAll") });
+    if (canClose) items.push(sep);
+    if (canDuplicate) items.push({ label: "Duplicate", click: () => act("duplicate") });
+    items.push({ label: "Split Right", click: () => act("splitRight") });
+    if (isBrowser) {
+      items.push(sep);
+      items.push({ label: "Refresh", click: () => act("refresh") });
+      items.push({ label: "Settings", click: () => act("settings") });
+    }
+    if (filePath) {
+      items.push(sep);
+      items.push({ label: "Copy Path", click: () => act("copyPath") });
+      items.push({ label: "Reveal in File Explorer", click: () => act("reveal") });
+    }
+    const menu = Menu.buildFromTemplate(items);
+    const win = BrowserWindow.fromWebContents(event.sender);
+    menu.popup({ window: win, callback: () => resolve(null) });
+  });
+});
+
 // ─── Context menu ─────────────────────────────────────────────────────────────
 ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboardPaths = null }) => {
   return new Promise((resolve) => {
@@ -4520,6 +4549,14 @@ function openSettingsWindow(initialPage) {
 }
 
 ipcMain.handle("settings:openWindow", (_e, initialPage) => openSettingsWindow(initialPage));
+ipcMain.handle("menu:popup", (event, menuId) => {
+  const menu = Menu.getApplicationMenu();
+  const item = menu?.getMenuItemById(String(menuId || ""));
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!item?.submenu || !window) return false;
+  item.submenu.popup({ window });
+  return true;
+});
 
 // ─── App menu ─────────────────────────────────────────────────────────────────
 let autoSaveEnabled = false;
@@ -4557,7 +4594,7 @@ function clearRecentProjects() {
 function buildMenu() {
   const template = [
     {
-      label: "File", submenu: [
+      id: "menu-file", label: "File", submenu: [
         { label: "Open Project…", accelerator: "CmdOrCtrl+O", click: async () => { const r = await dialog.showOpenDialog({ title: "Open Project", properties: ["openDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:openProject", r.filePaths[0]); } } },
         { label: "Open File…", accelerator: "CmdOrCtrl+Shift+O", click: async () => { const r = await dialog.showOpenDialog({ title: "Open File", properties: ["openFile"] }); if (!r.canceled && r.filePaths.length) { const fp = r.filePaths[0]; const lastWin = BrowserWindow.getAllWindows()[0]; if (lastWin) lastWin.webContents.send("editor:openFile", { filePath: fp }); } } },
         { label: "New Project…",  accelerator: "CmdOrCtrl+N", click: async () => { const r = await dialog.showOpenDialog({ title: "Select folder for new project", properties: ["openDirectory","createDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:newProject", r.filePaths[0]); } } },
@@ -4586,7 +4623,7 @@ function buildMenu() {
       ],
     },
     {
-      label: "Edit", submenu: [
+      id: "menu-edit", label: "Edit", submenu: [
         { label: "Undo",  accelerator: "CmdOrCtrl+Z", click: () => sendToRenderer("menu:undo", null) },
         { label: "Redo",  accelerator: "CmdOrCtrl+Y", click: () => sendToRenderer("menu:redo", null) },
         { label: "Redo (Alt)",  accelerator: "CmdOrCtrl+Shift+Z", click: () => sendToRenderer("menu:redo", null) },
@@ -4617,7 +4654,7 @@ function buildMenu() {
       ],
     },
     {
-      label: "View", submenu: [
+      id: "menu-view", label: "View", submenu: [
         { label: "Command Palette…", accelerator: "CmdOrCtrl+Shift+P", click: () => sendToRenderer("menu:commandPalette", null) },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+P", click: () => sendToRenderer("menu:commandPalette", null) },
         { type: "separator" },
@@ -4667,7 +4704,7 @@ function buildMenu() {
       ],
     },
     {
-      label: "Git", submenu: [
+      id: "menu-git", label: "Git", submenu: [
         { label: "Refresh Status", accelerator: "CmdOrCtrl+Shift+G", click: () => sendToRenderer("git:refresh", null) },
         { type: "separator" },
         { label: "Commit…", accelerator: "CmdOrCtrl+Enter", click: () => sendToRenderer("git:commit", null) },
@@ -4682,7 +4719,7 @@ function buildMenu() {
       ],
     },
     {
-      label: "Terminal", submenu: [
+      id: "menu-terminal", label: "Terminal", submenu: [
         { label: "New Terminal", accelerator: "Ctrl+`", click: () => sendToRenderer("menu:newTerminal", null) },
         { label: "Split Terminal Right", accelerator: "Ctrl+Shift+5", click: () => sendToRenderer("menu:splitTerminalRight", null) },
         { label: "Split Terminal Down", accelerator: "Ctrl+Shift+\\", click: () => sendToRenderer("menu:splitTerminalDown", null) },
@@ -4693,7 +4730,7 @@ function buildMenu() {
     },
     {
       // No accelerators on purpose — F5 / Ctrl+F5 belong to Browser refresh.
-      label: "Run", submenu: [
+      id: "menu-run", label: "Run", submenu: [
         { label: "Run Auto-Detected Command", click: () => sendToRenderer("menu:runAuto", null) },
         { label: "Stop", click: () => sendToRenderer("menu:runStop", null) },
         { type: "separator" },
@@ -4701,7 +4738,7 @@ function buildMenu() {
       ],
     },
     {
-      label: "Storage", submenu: [
+      id: "menu-storage", label: "Storage", submenu: [
         { label: "Current Project Storage…", enabled: false },
         { label: "Reveal Project Storage Folder", click: async () => {
           const rp = lastProjectPath;
@@ -4887,12 +4924,17 @@ function createWindow() {
     minWidth: 640,
     minHeight: 480,
     backgroundColor: "#0d0d0d",
+    titleBarStyle: "hidden",
     icon: path.join(__dirname, "../renderer/assets/idot_box.png"),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload-bundle.cjs"),
       contextIsolation: true, nodeIntegration: false, webviewTag: true,
     },
+  });
+  win.setMenuBarVisibility(false);
+  setupTitlebarAndAttachToWindow(win).catch((error) => {
+    console.warn("[main] custom titlebar setup failed:", error?.message || error);
   });
 
   // Ensure window is not off-screen after display config change

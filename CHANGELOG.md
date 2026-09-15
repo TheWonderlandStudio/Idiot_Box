@@ -3,6 +3,38 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.18] - 2026-09-15
+
+### Added
+- **Custom Electron titlebar** — frameless window (`titleBarStyle: hidden`,
+  native menu bar hidden) with `custom-electron-titlebar` in dark theme
+  (`#171717`, left-aligned menu, shadow). Title in `index.html` cleared
+  since the custom titlebar owns it.
+- **FlexLayout tab context menus** — right-click any tab for **Close**,
+  **Close Others**, **Close All**, **Duplicate**, **Split Right**; Browser
+  tabs add **Refresh** / **Settings**, file tabs add **Copy Path** /
+  **Reveal in File Explorer** (IPC `tab:contextMenu` + `menu:popup` for
+  app menu).
+- **Run & Debug status button in titlebar** — centered **Run/Stop** pill
+  (green → red while running) with dropdown arrow: Run, Debug, Run with
+  Options, Run Configuration. Single click triggers auto-detected run
+  (`npm dev/start`, `python`, etc.), opens Run & Debug panel and fires
+  `run:request`; while running it stops the current task.
+- **Auto Browser on localhost URL** — `RunPanel` watches ANSI-stripped
+  terminal output for `http://localhost|127.0.0.1` and auto-dispatches
+  `add-browser-panel` once per run (guard `browserOpenedRef`).
+
+### Changed
+- **Browser tab refresh** — `BrowserPanel` listens for `browser:refresh`
+  custom event (dispatched by tab menu) and calls `webview.reload()`.
+- **Menu bar IDs** — `File`, `Edit`, `View`, `Git`, `Terminal`, `Run`,
+  `Storage` menus now carry stable `id` (`menu-file`, `menu-run`, …)
+  so the custom titlebar can pop them via `showAppMenu`.
+- **Status bar** — removed "Idiot Box" text label (branding now in titlebar).
+
+### Dependencies
+- Added `custom-electron-titlebar@4.4.1`.
+
 ## [0.1.17] - 2026-09-12
 
 ### Added

@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom/client";
+import { createPortal } from "react-dom";
+import { Play, ChevronDown, Bug, PlayCircle, Settings2 } from "lucide-react";
 import { Layout, Model, Actions, DockLocation } from "flexlayout-react";
 import "./variables.css";
 import "flexlayout-react/style/dark.css";
@@ -136,6 +138,143 @@ const UpdaterNavButton = () => {
   return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", border:"none", borderRadius:"var(--radius-md)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-10)", cursor:"pointer", display:"flex", alignItems:"center", gap:"var(--space-4)", animation:"pulse 1.5s infinite", boxShadow:"0 var(--space-2) var(--space-8) var(--teal-a32)"}}>⬇ Update v{info?.version||"new"}</button>;
 };
 
+// ── Run status-bar button — visual replacement for the menu-bar Run menu ──
+// Main click → Run Auto-Detected Command (opens Run & Debug + fires auto-run).
+// Dropdown caret → Stop current run / Open Run & Debug Panel.
+const RunStatusButton = () => {
+  const [open, setOpen] = React.useState(false);
+  const [running, setRunning] = React.useState(false);
+  const [runLabel, setRunLabel] = React.useState("");
+  const [hovered, setHovered] = React.useState(false);
+  const wrapRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const onStatus = (event) => {
+      const detail = event?.detail || {};
+      setRunning(!!detail.running);
+      setRunLabel(detail.label || "");
+    };
+    window.addEventListener("run:status", onStatus);
+    return () => window.removeEventListener("run:status", onStatus);
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => {
+      try { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); } catch {}
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const dispatch = (channel) => {
+    setOpen(false);
+    try {
+      if (channel === "runAuto") {
+        if (running) {
+          window.dispatchEvent(new CustomEvent("run:stopCurrent"));
+          return;
+        }
+        window.__pendingAutoRun = { auto: true };
+        window.dispatchEvent(new CustomEvent("add-run-panel"));
+        window.dispatchEvent(new CustomEvent("run:request"));
+        return;
+      }
+      window.dispatchEvent(new CustomEvent(channel));
+    } catch {}
+  };
+
+  const base = {
+    background: hovered ? "#3caf55" : "#2f9e44",
+    border: "1px solid #267a37", color: "#fff", fontSize: 12, letterSpacing: 0,
+    height: 28, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
+    transition: "background 140ms ease, box-shadow 140ms ease",
+    boxShadow: hovered ? "0 0 0 1px rgba(255,255,255,.12), 0 2px 8px rgba(0,0,0,.3)" : "0 1px 2px rgba(0,0,0,.25)",
+  };
+  const stopBase = running ? {
+    ...base,
+    background: hovered ? "#dc4c4c" : "#c83b3b",
+    borderColor: "#9f2d2d",
+  } : base;
+  const menuItem = {
+    height: 36, display: "flex", alignItems: "center", gap: 10, width: "100%",
+    padding: "0 10px", border: 0, borderRadius: 5, background: "transparent",
+    color: "#d1d1d1", fontSize: 13, textAlign: "left", cursor: "pointer",
+    WebkitAppRegion: "no-drag",
+  };
+
+  return (
+    <span ref={wrapRef} style={{ position: "absolute", left: "50%", top: 2, transform: "translateX(-50%)", display: "inline-flex", zIndex: 100, borderRadius: 5 }}>
+      <button
+        onClick={() => dispatch("runAuto")}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        title={running ? `Stop ${runLabel || "current run"}` : "Run & Debug — Run Auto-Detected Command (detect npm dev/start, python, etc.)"}
+        aria-label={running ? "Stop current run" : "Run auto-detected command"}
+        style={{
+          ...stopBase,
+          borderTopLeftRadius: 5, borderBottomLeftRadius: 5, borderRight: "none",
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "0 8px", fontWeight: 600,
+        }}
+      >
+        {running ? <span style={{ width: 11, height: 11, background: "currentColor", borderRadius: 1 }} /> : <Play size={12} strokeWidth={2.4} fill="currentColor" />}
+        {running ? "Stop" : "Run"}
+      </button>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        title="Run menu — Stop, Open Run & Debug Panel"
+        aria-label="Run actions"
+        style={{
+          ...stopBase,
+          borderTopRightRadius: 5, borderBottomRightRadius: 5,
+          borderLeft: "1px solid rgba(255,255,255,.2)",
+          display: "inline-flex", alignItems: "center", padding: "0 6px",
+        }}
+      >
+        <ChevronDown size={12} strokeWidth={2} />
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 7px)", right: 0, zIndex: "var(--z-menu)",
+          background: "#1b1b1b", border: "1px solid #343434", borderRadius: 8,
+          boxShadow: "0 12px 35px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25)",
+          minWidth: 220, padding: 5, overflow: "hidden", display: "flex", flexDirection: "column",
+        }}>
+          <button
+            onClick={() => dispatch("runAuto")}
+            style={menuItem}
+            title="Run"
+          >
+            <Play size={15} strokeWidth={1.8} fill="currentColor" /> <span>{running ? "Stop" : "Run"}</span>
+          </button>
+          <button
+            onClick={() => { setOpen(false); dispatch("runAuto"); }}
+            style={menuItem}
+            title="Debug"
+          >
+            <Bug size={15} strokeWidth={1.8} /> <span>Debug</span>
+          </button>
+          <button onClick={() => { setOpen(false); dispatch("runAuto"); }} style={menuItem} title="Run with Options">
+            <PlayCircle size={15} strokeWidth={1.8} /> <span>Run with Options</span>
+          </button>
+          <div style={{ height: 1, background: "#303030", margin: "5px 4px" }} />
+          <button onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent("add-run-panel")); }} style={menuItem} title="Run Configuration">
+            <Settings2 size={15} strokeWidth={1.8} /> <span>Run Configuration</span>
+          </button>
+        </div>
+      )}
+    </span>
+  );
+};
+
 // ── Helpers to walk the flex model tree ────────────────────────────────────
 // NOTE: no isNotebookPath helper here on purpose — .ipynb files open as
 // plain editor tabs (EditorPanel embeds the notebook cell UI itself), so all
@@ -195,6 +334,19 @@ const App = () => {
   const saveTabsTimer     = useRef(null);
   const lastBrowserTabsetRef = useRef(null); // last group where a Browser was opened
   const [, setTick] = useState(0);
+  const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
+
+  useEffect(() => {
+    let attempts = 0;
+    let timer = null;
+    const findTitlebarMenu = () => {
+      const host = document.querySelector(".cet-titlebar .cet-menubar");
+      if (host) { setTitlebarMenuHost(host); return; }
+      if (attempts++ < 40) timer = setTimeout(findTitlebarMenu, 50);
+    };
+    findTitlebarMenu();
+    return () => { if (timer) clearTimeout(timer); };
+  }, []);
 
   // ── Theme handling (default dark) ──────────────────────────────────────
   useEffect(() => {
@@ -1485,6 +1637,8 @@ const App = () => {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
       <UpdaterBanner />
+      {titlebarMenuHost && createPortal(<RunStatusButton />, titlebarMenuHost)}
+
       <div style={{ flex: 1, minHeight: 0 }}>
         <Layout
       model={modelRef.current}
@@ -1535,6 +1689,50 @@ const App = () => {
       onRenderTab={(node, renderValues) => {
         const cfg = node.getConfig();
         const isBrowser = cfg?.type === "browser" || node.getComponent() === "panel3";
+        const tabId = node.getId();
+        const filePath = cfg?.filePath || null;
+        const duplicateable = node.getComponent() === "editor" || node.getComponent() === "notebook" || isBrowser;
+        const runTabAction = async (action) => {
+          const m = modelRef.current;
+          if (!m) return;
+          const current = m.getNodeById(tabId);
+          if (!current) return;
+          const parent = current.getParent?.();
+          const tabs = parent?.getChildren?.() || [];
+          try {
+            if (action === "close") m.doAction(Actions.deleteTab(tabId));
+            else if (action === "closeOthers") tabs.filter((tab) => tab.getId() !== tabId).forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
+            else if (action === "closeAll") tabs.forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
+            else if (action === "duplicate" && duplicateable && parent) {
+              m.doAction(Actions.addNode({
+                type: "tab", component: current.getComponent(), name: current.getName(), enableClose: true,
+                config: { ...(current.getConfig?.() || {}) },
+              }, parent.getId(), DockLocation.CENTER, -1, true));
+            } else if (action === "splitRight" && parent) {
+              m.doAction(Actions.addNode({
+                type: "tab", component: current.getComponent(), name: current.getName(), enableClose: true,
+                config: { ...(current.getConfig?.() || {}) },
+              }, parent.getId(), DockLocation.RIGHT, -1, true));
+            } else if (action === "copyPath" && filePath) window.electronAPI?.clipboardWrite?.(filePath);
+            else if (action === "reveal" && filePath) window.electronAPI?.revealInExplorer?.(filePath);
+            scheduleSaveProjectTabs();
+          } catch {}
+        };
+        const onTabContextMenu = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          try {
+            const result = await window.electronAPI?.showTabContextMenu?.({
+              canClose: node.getEnableClose?.() !== false,
+              canDuplicate: duplicateable,
+              isBrowser,
+              filePath,
+            });
+            if (result?.action === "refresh") window.dispatchEvent(new CustomEvent("browser:refresh", { detail: { nodeId: tabId } }));
+            else if (result?.action === "settings") window.dispatchEvent(new CustomEvent("browser:openSettings"));
+            else if (result?.action) await runTabAction(result.action);
+          } catch {}
+        };
         if (isBrowser) {
           const title = cfg?.title || "Browser";
           const favicon = cfg?.favicon;
@@ -1542,11 +1740,7 @@ const App = () => {
           renderValues.content = (
             <div
               style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", overflow: "hidden" }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent("browser:tabContextMenu", { detail: { nodeId: nId } }));
-              }}
+              onContextMenu={onTabContextMenu}
             >
               {favicon ? (
                 <img src={favicon} width={14} height={14} style={{ flexShrink: 0 }}
@@ -1558,6 +1752,12 @@ const App = () => {
               )}
               <span title={title} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-body)" }}>{title.length > 14 ? title.slice(0, 12) + "…" : title}</span>
             </div>
+          );
+        } else {
+          renderValues.content = (
+            <span onContextMenu={onTabContextMenu} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {node.getName()}
+            </span>
           );
         }
       }}
@@ -1623,7 +1823,6 @@ const App = () => {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)", flex: 1, minWidth: 0, overflow: "hidden" }}>
-          <span style={{ opacity: 0.92, fontWeight: "var(--fw-semibold)", letterSpacing: "0.02em" }}>Idiot Box</span>
           <span id="pw-hostbar-left" style={{ display: "flex", alignItems: "center", gap: "var(--space-10)", minWidth: 0, overflow: "hidden" }} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)" }}>
