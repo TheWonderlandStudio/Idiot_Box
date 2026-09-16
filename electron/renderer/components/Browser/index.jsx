@@ -1,12 +1,159 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
 import { EDIT_HELPER_SOURCE } from "./editHelper.js";
-import { ChevronLeft, ChevronRight, RefreshCw, Lock, Unlock, Globe, Eye, Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical, Puzzle, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
+  Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical,
+  Puzzle, Maximize2, ZoomIn, ZoomOut, Unplug, RotateCw, ExternalLink
+} from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
 const LOCK_ICON   = "M8 1a4 4 0 0 0-4 4v2H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4zm-2 6V5a2 2 0 1 1 4 0v2H6z";
 const UNLOCK_ICON = "M8 1a4 4 0 0 1 4 4v1h-1V5a3 3 0 0 0-5.7-1.37l-.78-.62A4 4 0 0 1 8 1zm-5.65.09l12 14-.7.6L1.65 1.7zM6 7.49l-1.82.01a1 1 0 0 0-.18 0v3.85L2.35 9.7l-.7.6L4 13.2V14a1 1 0 0 0 1 1h6.15l-1-1H5v-4.5l1.85.01zm4.56-.57A1 1 0 0 1 12 7.5V8h1a1 1 0 0 1 1 1v3.15l-1-1V9h-1.44z";
 const LOCAL_ICON  = "M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 12.93A6 6 0 0 1 2 8c0-.33.03-.66.07-1H4v1h2v1H5v1h1v2l1 1zm5.1-3.83A4.9 4.9 0 0 0 13 8c0-2.5-1.83-4.55-4.2-4.96L9 4v1H7V4h-.44l3.55 5.1zm-9.4.14A5 5 0 0 1 2 8c0 1.72.87 3.23 2.2 4.14l.83-1.04z";
+
+// ── Chrome-style minimal error pages ──────────────────────────────────────────
+const getErrorInfo = (code, url) => {
+  const c = Number(code);
+  let host = "";
+  try {
+    const u = new URL(url);
+    host = u.host || u.hostname;
+  } catch {
+    host = String(url || "").replace(/^https?:\/\//i, "").split("/")[0] || "";
+  }
+  const cleanHost = String(host || "the server").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  if (c === -105 || c === -109) {
+    return {
+      title: "This site can’t be reached",
+      lines: [
+        `Check if there is a typo in ${cleanHost}.`,
+        `If spelling is correct, try checking your network connection.`
+      ],
+      code: c === -109 ? "ERR_ADDRESS_UNREACHABLE" : "ERR_NAME_NOT_RESOLVED"
+    };
+  }
+
+  if (c === -102) {
+    return {
+      title: "This site can’t be reached",
+      lines: [
+        `<strong>${cleanHost}</strong> refused to connect.`,
+        `Try checking the connection or verifying that your server is running.`
+      ],
+      code: "ERR_CONNECTION_REFUSED"
+    };
+  }
+
+  if (c === -100 || c === -101) {
+    return {
+      title: "This site can’t be reached",
+      lines: [
+        `The connection was reset.`,
+        `Try checking the connection or reloading the page.`
+      ],
+      code: c === -100 ? "ERR_CONNECTION_CLOSED" : "ERR_CONNECTION_RESET"
+    };
+  }
+
+  if (c === -7 || c === -110 || c === -118) {
+    return {
+      title: "This site can’t be reached",
+      lines: [
+        `<strong>${cleanHost}</strong> took too long to respond.`,
+        `Try checking the connection or proxy settings.`
+      ],
+      code: c === -7 ? "ERR_TIMED_OUT" : "ERR_CONNECTION_TIMED_OUT"
+    };
+  }
+
+  if (c === -107 || c === -200 || c === -201 || c === -202 || c === -501) {
+    return {
+      title: "Your connection is not private",
+      lines: [
+        `Attackers might be trying to steal your information from <strong>${cleanHost}</strong> (for example, passwords, messages, or credit cards).`,
+        `If developing locally, try using http:// instead of https://.`
+      ],
+      code: c === -107 ? "ERR_SSL_PROTOCOL_ERROR" : "ERR_CERT_COMMON_NAME_INVALID"
+    };
+  }
+
+  if (c === -106) {
+    return {
+      title: "No internet",
+      lines: [
+        `Try checking the network cables, modem, and router or reconnecting to Wi-Fi.`
+      ],
+      code: "ERR_INTERNET_DISCONNECTED"
+    };
+  }
+
+  if (c === -6) {
+    return {
+      title: "Your file couldn’t be accessed",
+      lines: [
+        `It may have been moved, edited, or deleted.`,
+        `Check if the file exists at the specified path.`
+      ],
+      code: "ERR_FILE_NOT_FOUND"
+    };
+  }
+
+  if (c === -10 || c === -20 || c === -21) {
+    return {
+      title: "This request was blocked",
+      lines: [
+        `An extension or security policy blocked access to this page.`
+      ],
+      code: "ERR_BLOCKED_BY_CLIENT"
+    };
+  }
+
+  return {
+    title: "This page couldn’t be loaded",
+    lines: [
+      `An unexpected error occurred while loading this page.`
+    ],
+    code: "ERR_FAILED"
+  };
+};
+
+const buildErrorHtml = (info) => {
+  const linesHtml = (info.lines || []).map((l) => `<p class="ln">${l}</p>`).join("");
+  const dark = typeof document !== "undefined"
+    ? !(/\b(light|theme-light)\b/i.test(document.documentElement?.className || "") || window.__ibxLightTheme)
+    : true;
+
+  const bg   = dark ? "#1a1a1a" : "#fafafa";
+  const fg   = dark ? "#d4d4d4" : "#1a1a1a";
+  const sub  = dark ? "#6b6b6b" : "#888";
+  const btn  = dark ? "#2a2a2a" : "#ebebeb";
+  const bord = dark ? "#333"    : "#d8d8d8";
+
+  return `<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><title>${info.title}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:${bg};color:${fg};font-family:system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+body{display:flex;align-items:center;justify-content:center;padding:32px 24px}
+.w{max-width:420px;width:100%}
+h1{font-size:18px;font-weight:500;margin-bottom:10px;line-height:1.4}
+.ln{font-size:13px;line-height:1.6;color:${sub};margin-bottom:4px}
+.ln strong{color:${fg};font-weight:500}
+.ec{font-size:11px;color:${sub};font-family:monospace;margin-top:16px;margin-bottom:20px;opacity:.7}
+button{background:${btn};color:${fg};border:1px solid ${bord};border-radius:6px;padding:6px 16px;font-size:12px;font-family:inherit;cursor:pointer;transition:opacity .15s}
+button:hover{opacity:.7}
+</style></head>
+<body><div class="w">
+<h1>${info.title}</h1>
+${linesHtml}
+<div class="ec">${info.code}</div>
+<button id="r">Reload</button>
+</div>
+<script>document.addEventListener("click",function(e){var b=e.target.closest("button");if(b&&b.id==="r")document.title="__IBX_ERR__r:"+Date.now()});</script>
+</body></html>`;
+};
 
 // ── BrowserPanel ───────────────────────────────────────────────────────────────
 const WEBVIEW_PRELOAD = typeof window !== "undefined" && window.electronAPI?.getWebviewPreload
@@ -36,6 +183,8 @@ const BrowserPanel = (props) => {
   const [canGoBack,    setCanGoBack]    = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [isLoading,    setIsLoading]    = useState(false);
+  const [loadError,    setLoadError]    = useState(null);
+  const [crashed,      setCrashed]      = useState(false);
   const [focused,      setFocused]      = useState(false);
   const [lockOpen,     setLockOpen]     = useState(false);
   const [barHidden,    setBarHidden]    = useState(false);
@@ -65,8 +214,13 @@ const BrowserPanel = (props) => {
   const moreBtnRef   = useRef(null);
   const nodeIdRef    = useRef(nodeId);
   const goToUrlRef   = useRef(null);
+  const handleReloadRef = useRef(null);
   const actionListRef = useRef(null);
   const inputRef     = useRef(null);
+  const errorUrlRef  = useRef(null);
+  const errorCodeRef = useRef(null);
+  const errorDescRef = useRef(null);
+  const httpsFallbackAttemptedRef = useRef(false);
 
   // ── Page zoom (Ctrl+Scroll / Ctrl+Plus/Minus/0 — webview content zoom) ───
   // Actual page content zoom hai (webview.setZoomFactor). 25%–300%, step 10%.
@@ -127,7 +281,7 @@ const BrowserPanel = (props) => {
   const runBrowserAction = useCallback((action) => {
     const wv = webviewRef.current;
     switch (action) {
-      case "reload":   try { wv?.reload(); } catch {} break;
+      case "reload":   if (handleReloadRef.current) handleReloadRef.current(); else { try { wv?.reload(); } catch {} } break;
       case "find":     openFind(); break;
       case "focusUrl":
         try { inputRef.current?.focus(); inputRef.current?.select(); } catch {}
@@ -337,23 +491,34 @@ const BrowserPanel = (props) => {
   const isLocal  = !hostname || hostname === "localhost" || hostname === "127.0.0.1"
     || hostname === "0.0.0.0" || hostname.startsWith("192.168.") || hostname.startsWith("10.");
   const isHttps  = protocol === "https:";
-  const iconPath  = isLocal ? LOCAL_ICON : (isHttps ? LOCK_ICON : UNLOCK_ICON);
-  const iconColor = isLocal ? "var(--icon)"     : (isHttps ? "var(--teal)" : "var(--warning)");
+  const isFile   = protocol === "file:" || protocol === "ibx-file:";
+  const iconPath  = isFile ? LOCAL_ICON : isLocal ? LOCAL_ICON : (isHttps ? LOCK_ICON : UNLOCK_ICON);
+  const iconColor = isFile ? "var(--teal)" : isLocal ? "var(--icon)" : (isHttps ? "var(--teal)" : "var(--warning)");
+
+  // Error-card button style (inline — toolbars/empty states don't apply here)
+  const errBtnStyle = {
+    display: "flex", alignItems: "center", gap: 6, minHeight: 28, padding: "6px 14px",
+    border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)",
+    background: "var(--bg-surface)", color: "var(--text-hover)", fontSize: "var(--fs-small)",
+    fontWeight: "var(--fw-semibold)", cursor: "pointer", fontFamily: "inherit", transition: "background var(--t-normal)",
+  };
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const goToUrl = useCallback((u) => {
     let fixed = u.trim();
     if (!fixed) return;
-    if (/^https?:\/\//i.test(fixed)) {
+    if (/^https?:\/\//i.test(fixed) || fixed.startsWith("ibx-file://") || fixed.startsWith("file://") || fixed.startsWith("view-source:")) {
       // already has scheme
     } else if (fixed.startsWith("localhost") || fixed.startsWith("127.0.0.1") || /^\d+\.\d+\.\d+\.\d+/.test(fixed)) {
       fixed = "http://" + fixed;
-    } else if (/^[^\s]+\.[^\s]+/.test(fixed)) {
+    } else if (/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(:\d+)?(\/.*)?$/.test(fixed) || /^[^\s]+\.[^\s]+/.test(fixed)) {
       fixed = "https://" + fixed;
     } else {
       fixed = "https://www.google.com/search?q=" + encodeURIComponent(fixed);
     }
     setNavUrl(fixed); setInputValue(fixed); setDisplayUrl(fixed); setLockOpen(false);
+    setLoadError(null); setCrashed(false);
+    httpsFallbackAttemptedRef.current = false;
     if (webviewRef.current) {
       try { const p = webviewRef.current.loadURL(fixed); if (p && p.catch) p.catch(() => {}); } catch {}
     }
@@ -361,9 +526,50 @@ const BrowserPanel = (props) => {
 
   goToUrlRef.current = goToUrl;
 
+  const handleReload = useCallback(() => {
+    const wv = webviewRef.current;
+    if (!wv) return;
+    const cur = wv.getURL?.() || "";
+    if ((cur.startsWith("data:text/html") || loadError) && errorUrlRef.current) {
+      goToUrl(errorUrlRef.current);
+    } else {
+      try { wv.reload(); } catch {}
+    }
+  }, [goToUrl, loadError]);
+  handleReloadRef.current = handleReload;
+
+  const handleHardReload = useCallback(() => {
+    const wv = webviewRef.current;
+    if (!wv) return;
+    const cur = wv.getURL?.() || "";
+    if ((cur.startsWith("data:text/html") || loadError) && errorUrlRef.current) {
+      goToUrl(errorUrlRef.current);
+    } else {
+      try {
+        if (wv.reloadIgnoringCache) wv.reloadIgnoringCache();
+        else wv.reload();
+      } catch {
+        try { wv.reload(); } catch {}
+      }
+    }
+  }, [goToUrl, loadError]);
+
+  const handleRecoverFromCrash = useCallback(() => {
+    setCrashed(false);
+    const target = errorUrlRef.current || displayUrl || navUrl;
+    if (target) {
+      goToUrl(target);
+    }
+  }, [goToUrl, displayUrl, navUrl]);
+
   const handleKeyDown = useCallback((e) => {
-    if (e.key === "Enter") goToUrl(inputValue);
-  }, [inputValue, goToUrl]);
+    if (e.key === "Enter") {
+      goToUrl(inputValue);
+    } else if (e.key === "Escape") {
+      setInputValue(displayUrl);
+      inputRef.current?.blur();
+    }
+  }, [inputValue, displayUrl, goToUrl]);
 
   // ── Webview event listeners ──────────────────────────────────────────────────
   const attachListenersRef = useRef(null);
@@ -371,19 +577,102 @@ const BrowserPanel = (props) => {
     if (attachedRef.current) return;
     attachedRef.current = true;
 
-    wv.addEventListener("did-start-loading",    () => setIsLoading(true));
-    wv.addEventListener("did-stop-loading",     () => setIsLoading(false));
+    wv.addEventListener("did-start-loading", () => {
+      setIsLoading(true);
+      setCrashed(false);
+    });
+
+    wv.addEventListener("did-stop-loading", () => {
+      setIsLoading(false);
+      try { setCanGoBack(wv.canGoBack()); setCanGoForward(wv.canGoForward()); } catch {}
+    });
+
+    wv.addEventListener("did-finish-load", () => {
+      setIsLoading(false);
+      const cur = wv.getURL() || "";
+      if (!cur.startsWith("data:text/html")) {
+        setLoadError(null);
+        setCrashed(false);
+      }
+      try { setCanGoBack(wv.canGoBack()); setCanGoForward(wv.canGoForward()); } catch {}
+    });
+
     wv.addEventListener("did-fail-load", (e) => {
       setIsLoading(false);
-      // -3 = ERR_ABORTED (e.g. localhost dev server not running or navigation cancelled) — ignore silently
-      if (e.isMainFrame && e.errorCode !== -3) {
-        const validatedUrl = wv.getURL() || navUrl;
-        if (validatedUrl.startsWith("https://localhost") || validatedUrl.startsWith("https://127.0.0.1")) {
-          const httpUrl = validatedUrl.replace("https://", "http://");
-          try { const p = wv.loadURL(httpUrl); if (p && p.catch) p.catch(() => {}); } catch {}
-        }
+      // Sub-frame failure → page ka content quietly ignore
+      if (!e.isMainFrame) return;
+      // -3 = ERR_ABORTED (navigation cancelled / user stopped) — ignore silently
+      if (e.errorCode === -3) return;
+
+      const validatedUrl = wv.getURL() || navUrl;
+
+      // Smart fallback: https://localhost -> http://localhost (try once)
+      if (!httpsFallbackAttemptedRef.current && (validatedUrl.startsWith("https://localhost") || validatedUrl.startsWith("https://127.0.0.1"))) {
+        httpsFallbackAttemptedRef.current = true;
+        const httpUrl = validatedUrl.replace("https://", "http://");
+        try { const p = wv.loadURL(httpUrl); if (p && p.catch) p.catch(() => {}); } catch {}
+        return;
       }
+
+      // Real load failure → rich custom error page in webview
+      errorUrlRef.current = validatedUrl;
+      errorCodeRef.current = e.errorCode;
+      errorDescRef.current = e.errorDescription || "";
+      setLoadError({ code: e.errorCode, description: e.errorDescription, url: validatedUrl });
+      setCrashed(false);
+
+      const errInfo = getErrorInfo(e.errorCode, validatedUrl);
+      // Update FlexLayout tab title
+      try {
+        const m = window.__flexModel?.current;
+        const nid = nodeIdRef.current;
+        if (m && nid) {
+          const tabNode = m.getNodeById(nid);
+          if (tabNode) {
+            m.doAction(Actions.updateNodeAttributes(nid, {
+              config: { ...(tabNode.getConfig() || {}), title: errInfo.title },
+              name: errInfo.title,
+            }));
+          }
+        }
+      } catch {}
+
+      const errHtml = buildErrorHtml(errInfo);
+      try {
+        const p = wv.loadURL("data:text/html;charset=UTF-8," + encodeURIComponent(errHtml));
+        if (p && p.catch) p.catch(() => {});
+      } catch {}
+      setIsLoading(false);
     });
+
+    // Renderer crash / process gone / OOM
+    const showCrash = () => {
+      setIsLoading(false);
+      setLoadError(null);
+      setCrashed(true);
+      try { closeFindRef.current?.(); } catch {}
+      try {
+        const m = window.__flexModel?.current;
+        const nid = nodeIdRef.current;
+        if (m && nid) {
+          const tabNode = m.getNodeById(nid);
+          if (tabNode) {
+            m.doAction(Actions.updateNodeAttributes(nid, {
+              config: { ...(tabNode.getConfig() || {}), title: "Aw, Snap! Page crashed" },
+              name: "Aw, Snap!",
+            }));
+          }
+        }
+      } catch {}
+    };
+
+    wv.addEventListener("did-crash", showCrash);
+    wv.addEventListener("render-process-gone", (e) => {
+      if (e?.details?.reason === "clean-exit") return;
+      showCrash();
+    });
+    wv.addEventListener("plugin-crashed", showCrash);
+
     // Find matches → count badge (request se nahi, event se aata hai)
     wv.addEventListener("found-in-page", (e) => {
       try {
@@ -392,11 +681,18 @@ const BrowserPanel = (props) => {
         if (typeof r.matches === "number") setFindMatches(r.matches);
       } catch {}
     });
-    wv.addEventListener("did-navigate",         () => {
-      // Naya page → find bar band (hash-jump did-navigate-in-page par khula rehta hai)
+
+    wv.addEventListener("did-navigate", () => {
       try { closeFindRef.current?.(); } catch {}
       const cur = wv.getURL();
-      setInputValue(cur); setDisplayUrl(cur);
+      if (cur && !cur.startsWith("data:text/html")) {
+        setInputValue(cur);
+        setDisplayUrl(cur);
+        setLoadError(null);
+        setCrashed(false);
+        errorUrlRef.current = null;
+        httpsFallbackAttemptedRef.current = false;
+      }
       try { setCanGoBack(wv.canGoBack()); setCanGoForward(wv.canGoForward()); } catch {}
       syncActionTab();
       try {
@@ -409,9 +705,16 @@ const BrowserPanel = (props) => {
         }
       } catch {}
     });
+
     wv.addEventListener("did-navigate-in-page", () => {
       const cur = wv.getURL();
-      setInputValue(cur); setDisplayUrl(cur);
+      if (cur && !cur.startsWith("data:text/html")) {
+        setInputValue(cur);
+        setDisplayUrl(cur);
+        setLoadError(null);
+        setCrashed(false);
+        errorUrlRef.current = null;
+      }
       try { setCanGoBack(wv.canGoBack()); setCanGoForward(wv.canGoForward()); } catch {}
       try {
         const m = window.__flexModel?.current;
@@ -592,6 +895,33 @@ const BrowserPanel = (props) => {
       }
       if (t.startsWith("__IBX_ZOOM__out")) {
         try { bumpZoomRef.current?.("out"); } catch {}
+        return;
+      }
+      if (t.startsWith("__IBX_ERR__r")) {
+        const target = errorUrlRef.current || displayUrl || navUrl;
+        if (target) goToUrlRef.current(target);
+        return;
+      }
+      if (t.startsWith("__IBX_ERR__ext:")) {
+        const extUrl = decodeURIComponent(t.slice("__IBX_ERR__ext:".length));
+        if (extUrl) {
+          try {
+            if (window.electronAPI?.openExternal) window.electronAPI.openExternal(extUrl);
+            else window.open(extUrl, "_blank");
+          } catch {
+            try { window.open(extUrl, "_blank"); } catch {}
+          }
+        }
+        return;
+      }
+      if (t.startsWith("__IBX_COPY__")) {
+        const text = decodeURIComponent(t.slice("__IBX_COPY__".length));
+        if (text) {
+          try {
+            if (window.electronAPI?.clipboardWrite) window.electronAPI.clipboardWrite(text);
+            showToast("Diagnostics copied to clipboard", "success");
+          } catch {}
+        }
         return;
       }
       if (t.startsWith("__IBX_NAV__")) {
@@ -874,17 +1204,16 @@ const BrowserPanel = (props) => {
     const handler = (e) => {
       if (!isActiveBrowser()) return;
       const wv = webviewRef.current;
-      if (!wv) return;
-      // F5 or Ctrl+R → reload
+      // F5 or Ctrl+R → reload (or retry failed URL if error page)
       if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "r")) {
         e.preventDefault();
-        try { wv.reload(); } catch {}
+        handleReload();
         return;
       }
       // Ctrl+Shift+R / Ctrl+F5 → hard reload
       if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "r") || (e.ctrlKey && e.key === "F5")) {
         e.preventDefault();
-        try { if (wv.reloadIgnoringCache) wv.reloadIgnoringCache(); else wv.reload(); } catch { try { wv.reload(); } catch {} }
+        handleHardReload();
         return;
       }
       // Alt+Left → back, Alt+Right → forward
@@ -930,7 +1259,7 @@ const BrowserPanel = (props) => {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isLoading, setZoomExact]);
+  }, [isLoading, setZoomExact, handleReload, handleHardReload]);
 
   // ── Lock popup ─────────────────────────────────────────────────────────────
   const handleLockClick = useCallback((e) => {
@@ -1124,8 +1453,12 @@ const BrowserPanel = (props) => {
             onClick={() => webviewRef.current?.goForward()} title="Forward (Alt+Right)">
             <ChevronRight size={14} />
           </button>
-          <button className="browser__btn" onClick={() => webviewRef.current?.reload()} title="Refresh (Ctrl+R)">
-            <RefreshCw size={14} />
+          <button
+            className="browser__btn"
+            onClick={isLoading ? () => { try { webviewRef.current?.stop(); } catch {} } : handleReload}
+            title={isLoading ? "Stop loading (Esc)" : "Refresh (Ctrl+R)"}
+          >
+            {isLoading ? <X size={14} /> : <RefreshCw size={14} />}
           </button>
           <button className="browser__btn" onClick={openFind} title="Find in page (Ctrl+F)">
             <Search size={14} />
@@ -1134,8 +1467,8 @@ const BrowserPanel = (props) => {
           {/* URL bar */}
           <div className={`browser__url-wrap${focused ? " browser__url-wrap--focused" : ""}`}>
             {isLoading && <div className="browser__spinner" />}
-            <span ref={lockRef} className="browser__lock" onClick={handleLockClick} style={{ color: iconColor, display: "flex", alignItems: "center", cursor: "pointer" }}>
-              {isLocal ? <Globe size={14} /> : isHttps ? <Lock size={14} /> : <Unlock size={14} />}
+            <span ref={lockRef} className="browser__lock" onClick={handleLockClick} style={{ color: iconColor, display: "flex", alignItems: "center", cursor: "pointer" }} title={isFile ? "Local file" : isLocal ? "Local address" : isHttps ? "Secure connection" : "Not secure"}>
+              {isFile ? <FileCode size={14} /> : isLocal ? <Globe size={14} /> : isHttps ? <Lock size={14} /> : <Unlock size={14} />}
             </span>
             <input
               ref={inputRef}
@@ -1144,7 +1477,10 @@ const BrowserPanel = (props) => {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               spellCheck={false}
-              onFocus={() => setFocused(true)}
+              onFocus={(e) => {
+                setFocused(true);
+                try { e.target.select(); } catch {}
+              }}
               onBlur={() => { setFocused(false); setLockOpen(false); }}
             />
           </div>
@@ -1297,6 +1633,7 @@ const BrowserPanel = (props) => {
 
       {/* Webview — hamesha SAME element (no remount, no reload) */}
       <div ref={viewWrapRef} className="browser__view-wrap">
+        {isLoading && <div className="browser__progress-bar" />}
         <webview
           key="browser-webview"
           className="browser__view"
@@ -1307,6 +1644,31 @@ const BrowserPanel = (props) => {
           allowpopups=""
           allowFullScreen=""
         />
+        {crashed && (
+          <div className="browser__crash-overlay">
+            <div className="browser__crash-icon">
+              <Unplug size={32} />
+            </div>
+            <div className="browser__crash-title">Aw, Snap!</div>
+            <div className="browser__crash-desc">
+              Something went wrong while displaying this webpage. The renderer process terminated unexpectedly.
+            </div>
+            <div className="browser__crash-actions">
+              <button
+                style={errBtnStyle}
+                onClick={handleRecoverFromCrash}
+              >
+                <RefreshCw size={14} /> Reload Tab
+              </button>
+              <button
+                style={{ ...errBtnStyle, background: "transparent", borderColor: "var(--border)" }}
+                onClick={() => goToUrl("https://www.google.com")}
+              >
+                Open New Page
+              </button>
+            </div>
+          </div>
+        )}
         {/* Find in page bar */}
         {findOpen && (
           <div

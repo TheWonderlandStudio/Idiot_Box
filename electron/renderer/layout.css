@@ -280,3 +280,68 @@ body,
   border: none;
   background: var(--text-inverse);
 }
+
+.browser__progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent, #38bdf8);
+  animation: browser-progress 1.2s ease-in-out infinite;
+  z-index: var(--z-popover);
+  pointer-events: none;
+}
+
+@keyframes browser-progress {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.browser__crash-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  color: var(--text-bright);
+  z-index: var(--z-modal);
+  padding: var(--space-20);
+  text-align: center;
+  gap: var(--space-12);
+}
+
+.browser__crash-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-round);
+  background: var(--error-bg);
+  color: var(--error-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 24px var(--error-border);
+}
+
+.browser__crash-title {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-bold);
+  color: var(--text-bright);
+}
+
+.browser__crash-desc {
+  font-size: var(--fs-body);
+  color: var(--text-secondary);
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.browser__crash-actions {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-6);
+}
+
