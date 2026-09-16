@@ -3163,32 +3163,56 @@ function notebookDetectPython() {
 // display() collector + matplotlib inline figures. input() is stubbed — the
 // kernel's stdin carries the run protocol, so interactive input can't work.
 const NOTEBOOK_RUNNER_CODE = `
-import sys, io, json, ast, traceback, base64
+import sys, io, json, ast, traceback, base64, re as _re
 user_ns = {"__name__": "__main__"}
 exec_count = 0
 _real_stdout = sys.__stdout__
 _real_stderr = sys.__stderr__
 _pending_displays = []
+
+# ── Rich display() with MIME-type priority ──
 def display(*objs, **kwargs):
     for o in objs:
         try:
             d = {}
-            if hasattr(o, "_repr_png_"):
+            _b = base64
+            # IPython-style repr methods (priority order)
+            for mime, method in [
+                ("image/png", "_repr_png_"),
+                ("image/svg+xml", "_repr_svg_"),
+                ("text/html", "_repr_html_"),
+                ("text/latex", "_repr_latex_"),
+                ("application/json", "_repr_json_"),
+                ("image/jpeg", "_repr_jpeg_"),
+            ]:
+                if hasattr(o, method):
+                    try:
+                        v = getattr(o, method)()
+                        if v:
+                            if mime in ("image/png", "image/jpeg"):
+                                d[mime] = _b.b64encode(v if isinstance(v, (bytes, bytearray)) else str(v).encode()).decode()
+                            else:
+                                d[mime] = str(v)
+                    except Exception: pass
+            # Pandas DataFrame: auto-generate styled HTML table
+            if not d.get("text/html"):
                 try:
-                    v = o._repr_png_()
-                    if v:
-                        import base64 as _b
-                        d["image/png"] = _b.b64encode(v if isinstance(v, (bytes, bytearray)) else str(v).encode()).decode()
+                    import pandas as _pd
+                    if isinstance(o, _pd.DataFrame) or isinstance(o, _pd.Series):
+                        d["text/html"] = o.to_html(escape=False, max_rows=100, max_cols=20, show_dimensions=True, notebook=True)
+                        d["text/plain"] = str(o)
                 except Exception: pass
-            if hasattr(o, "_repr_html_"):
+            # Numpy array: formatted text display
+            if not d.get("text/html") and not d.get("image/png"):
                 try:
-                    v = o._repr_html_()
-                    if v: d["text/html"] = str(v)
-                except Exception: pass
-            if hasattr(o, "_repr_svg_"):
-                try:
-                    v = o._repr_svg_()
-                    if v: d["image/svg+xml"] = str(v)
+                    import numpy as _np
+                    if isinstance(o, _np.ndarray):
+                        d["text/plain"] = _np.array2string(o, threshold=1000, edgeitems=3, precision=4, suppress_small=True)
+                        if o.ndim == 2 and o.size < 5000:
+                            try:
+                                import pandas as _pd2
+                                d["text/html"] = _pd2.DataFrame(o).to_html(escape=False, index=False, header=False)
+                            except Exception: pass
                 except Exception: pass
             if not d:
                 try: d["text/plain"] = repr(o)
@@ -3196,6 +3220,36 @@ def display(*objs, **kwargs):
             _pending_displays.append(d)
         except Exception: pass
 user_ns["display"] = display
+
+# ── Auto-setup popular libraries for best display ──
+def _auto_setup_libs():
+    try:
+        import pandas as pd
+        pd.set_option("display.max_rows", 100)
+        pd.set_option("display.max_columns", 20)
+        pd.set_option("display.width", 200)
+        pd.set_option("display.max_colwidth", 80)
+    except Exception: pass
+    try:
+        import numpy as np
+        np.set_printoptions(precision=4, suppress=True, threshold=1000, edgeitems=3)
+    except Exception: pass
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        plt.rcParams.update({
+            "figure.figsize": (10, 6),
+            "figure.dpi": 120,
+            "savefig.dpi": 120,
+            "font.size": 11,
+            "axes.grid": True,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+        })
+    except Exception: pass
+_auto_setup_libs()
+
 try:
     import builtins as _bi
     _orig_input = _bi.input
@@ -3203,9 +3257,8 @@ try:
         raise EOFError("input() is not supported in Idiot Box notebooks — run interactive prompts in the Terminal instead.")
     _bi.input = _no_input
 except Exception: pass
+
 def _emit(exec_id, payload):
-    # NOTE: framing goes through the BINARY buffer only. Text-mode stdout
-    # on Windows rewrites newlines, which would corrupt byte counts.
     try:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         _outbuf = _real_stdout.buffer
@@ -3219,6 +3272,7 @@ def _emit(exec_id, payload):
             _outbuf.write(("__IBX_OUT__ %s 0\\n\\n__IBX_END__ %s\\n" % (exec_id, exec_id)).encode("utf-8"))
             _outbuf.flush()
         except Exception: pass
+
 def _capture_matplotlib():
     figs = []
     try:
@@ -3231,14 +3285,49 @@ def _capture_matplotlib():
         for n in nums:
             try:
                 fig = plt.figure(n)
-                buf = io.BytesIO()
-                fig.savefig(buf, format="png", bbox_inches="tight")
-                figs.append({"image/png": base64.b64encode(buf.getvalue()).decode()})
+                # PNG at 120 DPI with tight layout
+                buf_png = io.BytesIO()
+                fig.savefig(buf_png, format="png", bbox_inches="tight", dpi=120, facecolor=fig.get_facecolor(), edgecolor="none")
+                # SVG for vector quality
+                buf_svg = io.BytesIO()
+                fig.savefig(buf_svg, format="svg", bbox_inches="tight")
+                out = {"image/png": base64.b64encode(buf_png.getvalue()).decode()}
+                svg_data = buf_svg.getvalue().decode("utf-8", "replace")
+                if len(svg_data) < 500000:
+                    out["image/svg+xml"] = svg_data
+                figs.append(out)
             except Exception: pass
         try: plt.close("all")
         except Exception: pass
     except Exception: pass
     return figs
+
+def _auto_capture_last_val(last_val):
+    """Auto-detect and convert common objects to rich display data."""
+    displays = []
+    if last_val is None:
+        return displays
+    d = {}
+    try:
+        import pandas as pd
+        if isinstance(last_val, (pd.DataFrame, pd.Series)):
+            d["text/html"] = last_val.to_html(escape=False, max_rows=100, max_cols=20, show_dimensions=True, notebook=True)
+            d["text/plain"] = str(last_val)
+    except Exception: pass
+    try:
+        import numpy as np
+        if isinstance(last_val, np.ndarray) and not d.get("text/html"):
+            d["text/plain"] = np.array2string(last_val, threshold=1000, edgeitems=3, precision=4, suppress_small=True)
+            if last_val.ndim == 2 and last_val.size < 5000:
+                try:
+                    import pandas as _pd
+                    d["text/html"] = _pd.DataFrame(last_val).to_html(escape=False, index=False, header=False)
+                except Exception: pass
+    except Exception: pass
+    if d:
+        displays.append(d)
+    return displays
+
 _stdin_buf = sys.stdin.buffer
 def _readline():
     line = _stdin_buf.readline()
@@ -3303,7 +3392,6 @@ while True:
             status = "error"
             try:
                 tb = traceback.format_exception(type(e), e, e.__traceback__)
-                # Drop the runner's own <string> frame — only <cell> matters.
                 tb = [ln for ln in tb if "<string>" not in ln]
                 err = {"ename": type(e).__name__, "evalue": str(e), "traceback": tb}
             except Exception:
@@ -3312,6 +3400,9 @@ while True:
             sys.stdout, sys.stderr = _old_out, _old_err
         figs = _capture_matplotlib()
         displays = list(_pending_displays) + list(figs)
+        # Auto-detect rich display for last expression value
+        if status == "ok" and last_val is not None:
+            displays.extend(_auto_capture_last_val(last_val))
         _emit(exec_id, {"status": status, "stdout": stdout_buf.getvalue(), "stderr": stderr_buf.getvalue(), "result": result, "displays": displays, "error": err, "execution_count": exec_count})
     except Exception as e:
         try: _emit("unknown", {"status": "error", "stdout": "", "stderr": "", "result": None, "displays": [], "error": {"ename": "KernelError", "evalue": str(e), "traceback": []}, "execution_count": exec_count})

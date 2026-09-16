@@ -65,6 +65,9 @@ const inlineMd = (s) => {
   h = h.replace(/\*([^*\n]+)\*/g, "<em>$1</em>").replace(/(^|\W)_([^_\n]+)_/g, "$1<em>$2</em>");
   h = h.replace(/~~([^~]+)~~/g, "<del>$1</del>");
   h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  // LaTeX math: inline $...$ and display $$...$$
+  h = h.replace(/\$\$(.+?)\$\$/g, (_, expr) => `<span class="nb-math nb-math--display" data-expr="${escapeHtml(expr)}">${escapeHtml(expr)}</span>`);
+  h = h.replace(/\$([^$\n]+?)\$/g, (_, expr) => `<span class="nb-math nb-math--inline" data-expr="${escapeHtml(expr)}">${escapeHtml(expr)}</span>`);
   return h;
 };
 const renderMarkdown = (src) => {
@@ -72,7 +75,7 @@ const renderMarkdown = (src) => {
   if (!text.trim()) return '<p style="color:var(--text-muted)">Empty markdown — click to edit.</p>';
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   let html = "", i = 0, inCode = false, codeLang = "", codeBuf = [];
-  const flushCode = () => { html += "<pre><code>" + escapeHtml(codeBuf.join("\n")) + "</code></pre>"; codeBuf = []; };
+  const flushCode = () => { html += "<pre><code" + (codeLang ? ` class="nb-code-lang-${codeLang}"` : "") + ">" + escapeHtml(codeBuf.join("\n")) + "</code></pre>"; codeBuf = []; };
   while (i < lines.length) {
     const ln = lines[i];
     const fence = ln.match(/^```(\w*)\s*$/);
@@ -83,6 +86,14 @@ const renderMarkdown = (src) => {
     if (inCode) { codeBuf.push(ln); i++; continue; }
     if (/^\s*$/.test(ln)) { i++; continue; }
     let m;
+    // LaTeX display blocks: $$...$$
+    if (ln.trim() === "$$") {
+      let mathBuf = []; i++;
+      while (i < lines.length && lines[i].trim() !== "$$") { mathBuf.push(lines[i]); i++; }
+      if (i < lines.length) i++; // skip closing $$
+      html += `<div class="nb-math-block" data-expr="${escapeHtml(mathBuf.join("\n"))}">${escapeHtml(mathBuf.join("\n"))}</div>`;
+      continue;
+    }
     if ((m = ln.match(/^(#{1,6})\s+(.*)$/))) { html += `<h${m[1].length}>${inlineMd(m[2])}</h${m[1].length}>`; i++; continue; }
     if (/^---+\s*$/.test(ln) || /^\*\*\*+\s*$/.test(ln)) { html += "<hr/>"; i++; continue; }
     if ((m = ln.match(/^&gt;|^\s*>\s?(.*)$/)) && /^\s*>/.test(ln)) { html += `<blockquote>${inlineMd(ln.replace(/^\s*>\s?/, ""))}</blockquote>`; i++; continue; }
@@ -97,17 +108,24 @@ const renderMarkdown = (src) => {
     // table: header row + --- row
     if (ln.includes("|") && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i + 1])) {
       const splitRow = (r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-      html += "<table><thead><tr>" + splitRow(ln).map((c) => `<th>${inlineMd(c)}</th>`).join("") + "</tr></thead><tbody>";
+      html += '<div class="nb-md-table-wrap"><table><thead><tr>' + splitRow(ln).map((c) => `<th>${inlineMd(c)}</th>`).join("") + "</tr></thead><tbody>";
       i += 2;
       while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
         html += "<tr>" + splitRow(lines[i]).map((c) => `<td>${inlineMd(c)}</td>`).join("") + "</tr>"; i++;
       }
-      html += "</tbody></table>"; continue;
+      html += "</tbody></table></div>"; continue;
+    }
+    // blockquote (multi-line >)
+    if (/^\s*>/.test(ln)) {
+      let bqBuf = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) { bqBuf.push(lines[i].replace(/^\s*>\s?/, "")); i++; }
+      html += `<blockquote>${inlineMd(bqBuf.join("\n"))}</blockquote>`;
+      continue;
     }
     // paragraph (merge soft-wrapped lines)
     let para = ln;
     i++;
-    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|\s*([-*+]|\d+[.)])\s+|\s*>|---+\s*$)/.test(lines[i])) { para += " " + lines[i].trim(); i++; }
+    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|\s*([-*+]|\d+[.)])\s+|\s*>|---+\s*$|\$\$)/.test(lines[i])) { para += " " + lines[i].trim(); i++; }
     html += `<p>${inlineMd(para)}</p>`;
   }
   if (inCode) flushCode();
@@ -209,6 +227,96 @@ const useNbEditorSettings = () => {
 };
 
 const NB_CM_MAX_H = 480;
+
+// ── Image zoom overlay ──
+const ImageZoomOverlay = ({ src, alt, onClose }) => {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+  return (
+    <div className="nb-zoom-overlay" onClick={onClose}>
+      <div className="nb-zoom-content" onClick={(e) => e.stopPropagation()}>
+        <button className="nb-zoom-close" onClick={onClose} title="Close (Esc)">✕</button>
+        <img src={src} alt={alt || ""} className="nb-zoom-img" />
+      </div>
+    </div>
+  );
+};
+
+// ── OutputItem: collapsible output with rich display ──
+const OutputItem = ({ output, outKey, richRenderer }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [zoomSrc, setZoomSrc] = useState(null);
+  const txt = toStr(output.text ?? output.data?.["text/plain"] ?? "");
+  const capped = txt.length > MAX_OUT_CHARS;
+  const shown = capped ? txt.slice(0, MAX_OUT_CHARS) : txt;
+
+  const toggle = (e) => { e.stopPropagation(); setCollapsed(!collapsed); };
+
+  if (output.output_type === "stream") {
+    const isErr = output.name === "stderr";
+    return (
+      <>
+        <div key={outKey} className={"nb-out " + (isErr ? "nb-out--stderr" : "nb-out--stdout")}>
+          <span className="nb-out__label">{isErr ? "stderr" : "stdout"}</span>
+          <button className="nb-out__toggle" onClick={toggle} title={collapsed ? "Expand" : "Collapse"}>
+            {collapsed ? "▸" : "▾"}
+          </button>
+          {!collapsed && <span className="nb-out__text">{shown}</span>}
+          {collapsed && <span className="nb-out__collapsed">{shown.split("\n").length} lines</span>}
+          {capped && <div className="nb-truncated">… truncated ({((txt.length - MAX_OUT_CHARS) / 1024).toFixed(0)} KB more — output kept in file)</div>}
+        </div>
+        {zoomSrc && <ImageZoomOverlay src={zoomSrc} onClose={() => setZoomSrc(null)} />}
+      </>
+    );
+  }
+  if (output.output_type === "error") {
+    const tb = [...(output.traceback || [])].join("");
+    const errText = tb || `${output.ename || ""}: ${output.evalue || ""}`;
+    return (
+      <div key={outKey} className="nb-out nb-out--error">
+        <span className="nb-out__label">error</span>
+        <button className="nb-out__toggle" onClick={toggle} title={collapsed ? "Expand" : "Collapse"}>
+          {collapsed ? "▸" : "▾"}
+        </button>
+        {!collapsed && <pre className="nb-out__traceback">{errText.slice(0, MAX_OUT_CHARS)}</pre>}
+        {collapsed && <span className="nb-out__collapsed">{output.ename || "Error"}</span>}
+      </div>
+    );
+  }
+  if (output.output_type === "execute_result") {
+    return (
+      <>
+        <div key={outKey} className="nb-out nb-out--result">
+          <span className="nb-out__label">Out [{output.execution_count ?? " "}]</span>
+          <button className="nb-out__toggle" onClick={toggle} title={collapsed ? "Expand" : "Collapse"}>
+            {collapsed ? "▸" : "▾"}
+          </button>
+          {!collapsed && richRenderer(output.data, shown, outKey, setZoomSrc)}
+          {collapsed && <span className="nb-out__collapsed">{shown.split("\n")[0]}…</span>}
+        </div>
+        {zoomSrc && <ImageZoomOverlay src={zoomSrc} onClose={() => setZoomSrc(null)} />}
+      </>
+    );
+  }
+  if (output.output_type === "display_data" || output.output_type === "update_display_data") {
+    return (
+      <>
+        <div key={outKey} className="nb-out nb-out--display">
+          <button className="nb-out__toggle" onClick={toggle} title={collapsed ? "Expand" : "Collapse"}>
+            {collapsed ? "▸" : "▾"}
+          </button>
+          {!collapsed && richRenderer(output.data, shown, outKey, setZoomSrc)}
+          {collapsed && <span className="nb-out__collapsed">{shown.split("\n")[0]}…</span>}
+        </div>
+        {zoomSrc && <ImageZoomOverlay src={zoomSrc} onClose={() => setZoomSrc(null)} />}
+      </>
+    );
+  }
+  return null;
+};
 
 // One CodeMirror instance per code cell (python). @uiw controlled `value`
 // handles external sync (disk reload); extensions memo handles live settings.
@@ -654,41 +762,66 @@ const NotebookPanel = ({ config, nodeId }) => {
     }
   };
 
-  const renderOutput = (out, key) => {
-    const txt = toStr(out.text ?? out.data?.["text/plain"] ?? "");
-    const capped = txt.length > MAX_OUT_CHARS;
-    const shown = capped ? txt.slice(0, MAX_OUT_CHARS) : txt;
-    if (out.output_type === "stream") {
-      const isErr = out.name === "stderr";
+  // ── Rich output renderer (HTML tables, images, SVG, LaTeX, etc.) ──
+  const renderRichOutput = (data, fallbackText, key, setZoomSrc) => {
+    if (!data) return <span className="nb-out__text">{fallbackText}</span>;
+
+    // HTML (DataFrames, Plotly, interactive widgets)
+    if (data["text/html"]) {
+      const htmlStr = toStr(data["text/html"]);
+      const isDataFrame = /<table[\s>]/i.test(htmlStr) && (/<thead/i.test(htmlStr) || /<th/i.test(htmlStr));
+      if (isDataFrame) {
+        return (
+          <div className="nb-out--df">
+            <div className="nb-out__df-label">DataFrame</div>
+            <div className="nb-out--df-scroll">
+              <div className="nb-out--df-content" dangerouslySetInnerHTML={{ __html: htmlStr }} />
+            </div>
+          </div>
+        );
+      }
       return (
-        <div key={key} className={"nb-out " + (isErr ? "nb-out--stderr" : "nb-out--stdout")}>
-          <span className="nb-out__label">{isErr ? "err" : "out"}</span>{shown}
-          {capped && <div className="nb-truncated">… truncated ({((txt.length - MAX_OUT_CHARS) / 1024).toFixed(0)} KB more — output kept in file)</div>}
+        <div className="nb-out--interactive">
+          <iframe title="interactive output" sandbox="allow-same-origin" srcDoc={htmlStr} className="nb-out--iframe" />
         </div>
       );
     }
-    if (out.output_type === "error") {
-      const tb = [...(out.traceback || [])].join("");
+
+    // PNG images
+    if (data["image/png"]) {
+      const src = "data:image/png;base64," + data["image/png"];
       return (
-        <div key={key} className="nb-out nb-out--error">
-          <span className="nb-out__label">err</span>{(tb || `${out.ename || ""}: ${out.evalue || ""}`).slice(0, MAX_OUT_CHARS)}
+        <div className="nb-out--img-wrap">
+          <img className="nb-out--img" alt="" src={src} loading="lazy" />
+          <button className="nb-out--img-zoom" onClick={(e) => { e.stopPropagation(); setZoomSrc?.(src); }} title="Zoom in">⤢</button>
         </div>
       );
     }
-    if (out.output_type === "execute_result") {
+
+    // SVG images (render inline for better quality)
+    if (data["image/svg+xml"]) {
+      return <div className="nb-out--svg" dangerouslySetInnerHTML={{ __html: toStr(data["image/svg+xml"]) }} />;
+    }
+
+    // LaTeX
+    if (data["text/latex"]) {
+      return <div className="nb-out--latex" dangerouslySetInnerHTML={{ __html: toStr(data["text/latex"]) }} />;
+    }
+
+    // JPEG
+    if (data["image/jpeg"]) {
+      const src = "data:image/jpeg;base64," + data["image/jpeg"];
       return (
-        <div key={key} className="nb-out nb-out--result">
-          <span className="nb-out__label">Out[{out.execution_count ?? " "}]</span>{shown}
+        <div className="nb-out--img-wrap">
+          <img className="nb-out--img" alt="" src={src} loading="lazy" />
+          <button className="nb-out--img-zoom" onClick={(e) => { e.stopPropagation(); setZoomSrc?.(src); }} title="Zoom in">⤢</button>
         </div>
       );
     }
-    if (out.output_type === "display_data" || out.output_type === "update_display_data") {
-      const data = out.data || {};
-      if (data["image/png"]) return (<div key={key} className="nb-out"><img alt="" src={"data:image/png;base64," + data["image/png"]} /></div>);
-      if (data["image/svg+xml"]) return (<div key={key} className="nb-out"><img alt="" src={"data:image/svg+xml;utf8," + encodeURIComponent(toStr(data["image/svg+xml"]))} /></div>);
-      if (data["text/html"]) return (<div key={key} className="nb-out"><iframe title="html output" sandbox="allow-same-origin" srcDoc={toStr(data["text/html"])} /></div>);
-      if (data["text/plain"]) return (<div key={key} className="nb-out nb-out--stdout">{toStr(data["text/plain"]).slice(0, MAX_OUT_CHARS)}</div>);
-      return null;
+
+    // Plain text fallback
+    if (data["text/plain"]) {
+      return <span className="nb-out__text">{toStr(data["text/plain"]).slice(0, MAX_OUT_CHARS)}</span>;
     }
     return null;
   };
@@ -866,7 +999,9 @@ const NotebookPanel = ({ config, nodeId }) => {
                 )}
 
                 {actualCode && cell.outputs?.length > 0 && (
-                  <div className="nb-outputs">{cell.outputs.map((o, k) => renderOutput(o, cell.id + ":" + k))}</div>
+                  <div className="nb-outputs">{cell.outputs.map((o, k) => (
+                    <OutputItem key={cell.id + ":" + k} output={o} outKey={cell.id + ":" + k} richRenderer={renderRichOutput} />
+                  ))}</div>
                 )}
               </div>
               <div className="nb-addrow">
