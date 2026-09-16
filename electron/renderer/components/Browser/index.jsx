@@ -1460,7 +1460,7 @@ const BrowserPanel = (props) => {
           >
             {isLoading ? <X size={14} /> : <RefreshCw size={14} />}
           </button>
-          <button className="browser__btn" onClick={openFind} title="Find in page (Ctrl+F)">
+          <button className="browser__btn" onClick={openFind} title="Find in page (Ctrl+F)" hidden>
             <Search size={14} />
           </button>
 

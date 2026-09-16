@@ -1,6 +1,6 @@
 {
   "name": "idiot-box",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "private": true,
   "description": "Idiot Box - Code-OSS-backed desktop IDE built with Electron and React",
   "author": {
@@ -156,6 +156,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Idiot Box",
       "artifactName": "Idiot-Box-Setup-${version}.${ext}",
+      "differentialPackage": true,
       "deleteAppDataOnUninstall": false,
       "displayLanguageSelector": false,
       "installerHeaderIcon": "electron/renderer/assets/idot_box.png",

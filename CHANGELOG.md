@@ -3,6 +3,32 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.19] - 2026-09-16
+
+### Fixed
+- **Auto-updater ab `latest.yml` + `.exe.blockmap` flow use karta hai**
+  (electron-updater primary) — version ka faisla GitHub Releases ke
+  `latest.yml` feed se hota hai, aur download `.blockmap` differential se
+  hota hai (sirf badle blocks, poora exe sirf zaroorat par). GitHub API ab
+  sirf release notes/URL enrich + fallback ke liye hai jab feed unreachable
+  ho. Isse purana check/download race bhi khatm (pehle check GitHub API se
+  hota tha aur download ke paas feed ka asli `UpdateInfo` nahi hota tha).
+- **Release workflow ab updater feed files explicitly attach karta hai**
+  (`Idiot-Box-Setup-*.exe`, `*.blockmap`, `latest*.yml`, AppImage, deb) —
+  `dist/*` se builder-debug junk bhi release me chala jata tha.
+- NSIS `differentialPackage: true` explicitly set (blockmap hamesha bane).
+
+### Added
+- **Browser panel** — Electron browser component, preload script aur layout
+  styles.
+- **Notebook rich outputs** — DataFrame tables, image zoom, collapsible
+  outputs, LaTeX rendering.
+- **Notebook auto-height** — cells content + output ke hisaab se
+  auto-extend hote hain (MutationObserver for dynamic updates).
+
+### Changed
+- Browser in-page Find button hidden.
+
 ## [0.1.18] - 2026-09-15
 
 ### Added

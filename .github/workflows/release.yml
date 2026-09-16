@@ -87,6 +87,14 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          # Explicit list: installer + updater feed (latest*.yml) + differential
+          # blockmap zaroor attach hon — `dist/*` se builder-debug junk bhi
+          # chala jata tha aur feed files miss ho sakti thin.
+          files: |
+            dist/Idiot-Box-Setup-*.exe
+            dist/*.blockmap
+            dist/latest*.yml
+            dist/*.AppImage
+            dist/*.deb
           body_path: release-notes.md
           name: Idiot Box ${{ github.ref_name }}

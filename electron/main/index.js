@@ -3806,9 +3806,12 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
   return { url: `http://127.0.0.1:${port}/${rel}`, port };
 });
 
-// ─── Auto Updater (electron-updater) — Proper Update Cycle with Progress Bar ───
+// ─── Auto Updater (electron-updater) — latest.yml + .blockmap flow ─────────
 // Cycle: idle → checking → available → downloading (progress: percent, transferred, total, bytesPerSecond, ETA) → downloaded → installing → idle
 //         ↘ not-available / error → idle
+// PRIMARY: latest.yml feed (GitHub Releases, app-update.yml provider) — version
+// faisla + differential download (.exe.blockmap — sirf badle blocks).
+// GitHub API sirf release notes/URL enrich + fallback jab feed unreachable ho.
 // Manual check shows center modal; auto checks only banner when available. Periodic check every 6h + 2s launch.
 let _updaterWindow = null;
 let _updaterState = "idle"; // idle | checking | available | downloading | downloaded | error
@@ -3853,82 +3856,162 @@ function setUpdaterState(s, data) {
   try { broadcastUpdater("updater:state", { state: s, info: _latestUpdateInfo, progress: _downloadProgress }); } catch {}
 }
 
-async function checkForUpdatesViaGitHub(win) {
+// ── GitHub release meta (fail-soft helper) ─────────────────────────────────
+// Sirf release notes + release URL ke liye. Version decision hamesha
+// latest.yml feed (electron-updater) se hoti hai jab app packaged hai.
+// null = network/API fail — caller latest.yml result par hi tikka rahe.
+async function fetchGitHubReleaseMeta(timeoutMs = 10000) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => { try { ctrl.abort(); } catch {} }, timeoutMs);
+    let res;
+    try {
+      res = await fetch("https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest", {
+        headers: { "User-Agent": "IdiotBox-Updater", "Accept": "application/vnd.github.v3+json" },
+        signal: ctrl.signal,
+      });
+    } finally { clearTimeout(t); }
+    if (!res || !res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (!data) return null;
+    const version = String(data.tag_name || data.name || "").replace(/^v/, "").trim();
+    if (!version) return null;
+    return {
+      version,
+      releaseNotes: data.body || "",
+      releaseUrl: data.html_url || "https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest",
+      tag: data.tag_name || `v${version}`,
+      publishedAt: data.published_at || null,
+    };
+  } catch { return null; }
+}
+
+// electron-updater ka releaseNotes string | [{note}] | null ho sakta hai — plain string banao.
+function normalizeReleaseNotes(n) {
+  try {
+    if (!n) return "";
+    if (typeof n === "string") return n;
+    if (Array.isArray(n)) return n.map((x) => (typeof x === "string" ? x : x?.note || "")).filter(Boolean).join("\n\n");
+    if (typeof n === "object" && n.note) return String(n.note);
+    return String(n);
+  } catch { return ""; }
+}
+
+// latest.yml UpdateInfo + GitHub notes milakar renderer-ready info banao.
+// files/path/sha512 (differential download ke liye) untouched rehte hain.
+function enrichUpdateInfo(updateInfo, meta) {
+  const version = String(updateInfo?.version || "").replace(/^v/, "").trim();
+  const notes = (meta?.releaseNotes) || normalizeReleaseNotes(updateInfo?.releaseNotes) || "";
+  return {
+    ...updateInfo,
+    version,
+    releaseNotes: notes,
+    releaseUrl: meta?.releaseUrl || `https://github.com/TheWonderlandStudio/Idiot_Box/releases/tag/v${version}`,
+    releaseNotesUrl: meta?.releaseUrl || `https://github.com/TheWonderlandStudio/Idiot_Box/releases/tag/v${version}`,
+    tag: meta?.tag || `v${version}`,
+    publishedAt: meta?.publishedAt || updateInfo?.releaseDate || null,
+    via: "yml",
+  };
+}
+
+// ─── Update check — PRIMARY: latest.yml feed, FALLBACK: GitHub API ──────────
+// Packaged app me electron-updater GitHub Releases se latest.yml padhta hai
+// (app-update.yml provider config se). Wahi version faisla karta hai, aur
+// downloadUpdate() usi feed ke .exe.blockmap se differential download karta
+// hai (sirf badle blocks) — poora exe sirf zaroorat par.
+// GitHub API sirf do kaam ke liye: (1) release notes/URL enrich, (2) fallback
+// jab latest.yml unreachable ho. Dev me (unpackaged) sirf GitHub API — wahan
+// download = releases page kholna (manual).
+async function checkForUpdatesProper(win) {
   const targetWins = win && !win.isDestroyed() ? [win] : BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed());
   const primaryWin = targetWins[0] || null;
-  try {
-    const current = app.getVersion();
-    setUpdaterState("checking");
-    _latestUpdateInfo = null;
-    _downloadProgress = null;
-    broadcastUpdater("updater:checking", { version: current });
-    console.log(`[updater] cycle: checking current=${current}`);
-    logOutput("Updater", `Checking for updates… (current v${current})`);
-    // Use GitHub API directly — works in dev and packaged, no need for app-update.yml
-    const res = await fetch("https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest", {
-      headers: { "User-Agent": "IdiotBox-Updater", "Accept": "application/vnd.github.v3+json" },
-    });
-    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
-    const data = await res.json();
-    const latestTag = data.tag_name || data.name || "";
-    const latestVersion = String(latestTag).replace(/^v/, "").trim();
-    console.log(`[updater] GitHub check current=${current} latest=${latestVersion}`);
-    if (!latestVersion) throw new Error("No version in GitHub response");
-    if (isVersionNewer(latestVersion, current)) {
-      const info = {
-        version: latestVersion,
-        releaseNotes: data.body || "",
-        releaseUrl: data.html_url,
-        tag: data.tag_name,
-        publishedAt: data.published_at,
-        assets: data.assets || [],
-      };
+  const current = app.getVersion();
+  setUpdaterState("checking");
+  _latestUpdateInfo = null;
+  _downloadProgress = null;
+  broadcastUpdater("updater:checking", { version: current });
+  console.log(`[updater] cycle: checking current=${current}`);
+  logOutput("Updater", `Checking for updates… (current v${current})`);
+
+  const useYmlFeed = !!(app.isPackaged && autoUpdater);
+  if (useYmlFeed) {
+    // Notes ke liye GitHub meta parallel me — fail-soft, check is par nahi rukta.
+    const metaP = fetchGitHubReleaseMeta();
+    let res = null, checkErr = null;
+    try {
+      res = await autoUpdater.checkForUpdates();
+    } catch (e) { checkErr = e; }
+    const feedInfo = res?.updateInfo || null;
+    if (feedInfo && isVersionNewer(feedInfo.version, current)) {
+      let meta = null;
+      try { meta = await metaP; } catch {}
+      const info = enrichUpdateInfo(feedInfo, meta);
       _latestUpdateInfo = info;
       setUpdaterState("available");
-      console.log("[updater] cycle: available", latestVersion);
-      logOutput("Updater", `Update available: v${latestVersion} (current v${current})`);
+      console.log(`[updater] cycle: available v${info.version} (via latest.yml${meta ? "+notes" : ", feed notes"})`);
+      logOutput("Updater", `Update available: v${info.version} (current v${current}) — differential via .blockmap`);
       broadcastUpdater("updater:available", info);
-      // Prime autoUpdater so subsequent downloadUpdate() knows what to fetch (only when packaged)
-      if (app.isPackaged && autoUpdater) {
-        try { autoUpdater.checkForUpdates().catch(() => {}); } catch {}
-      }
       return info;
-    } else {
-      console.log("[updater] cycle: not-available");
+    }
+    if (!checkErr) {
+      console.log("[updater] cycle: not-available (latest.yml feed)");
       setUpdaterState("idle");
       logOutput("Updater", `Up to date (v${current})`);
       broadcastUpdater("updater:not-available", { version: current });
       return null;
     }
+    // latest.yml unreachable — GitHub API fallback (banner + manual link).
+    console.warn("[updater] latest.yml check failed, trying GitHub API fallback:", checkErr?.message || checkErr);
+    logOutput("Updater", `Feed check failed (${checkErr?.message || checkErr}) — trying GitHub…`, "warn");
+    try {
+      const meta = await metaP.then((m) => m || fetchGitHubReleaseMeta());
+      if (meta && isVersionNewer(meta.version, current)) {
+        _latestUpdateInfo = { ...meta, via: "github-api" };
+        setUpdaterState("available");
+        console.log("[updater] cycle: available", meta.version, "(via GitHub API fallback)");
+        logOutput("Updater", `Update available: v${meta.version} (current v${current})`);
+        broadcastUpdater("updater:available", _latestUpdateInfo);
+        return _latestUpdateInfo;
+      }
+    } catch {}
+    console.warn("[updater] fallback check also failed:", checkErr?.message || checkErr);
+    logOutput("Updater", `Check failed: ${checkErr?.message || checkErr}`, "error");
+    setUpdaterState("error");
+    broadcastUpdater("updater:error", String(checkErr?.message || checkErr));
+    return null;
+  }
+
+  // Dev / unpackaged — sirf GitHub API (download = releases page).
+  try {
+    const meta = await fetchGitHubReleaseMeta(15000);
+    if (!meta) throw new Error("GitHub API unreachable");
+    console.log(`[updater] GitHub check current=${current} latest=${meta.version}`);
+    if (isVersionNewer(meta.version, current)) {
+      _latestUpdateInfo = { ...meta, via: "github-api" };
+      setUpdaterState("available");
+      console.log("[updater] cycle: available", meta.version);
+      logOutput("Updater", `Update available: v${meta.version} (current v${current})`);
+      broadcastUpdater("updater:available", _latestUpdateInfo);
+      return _latestUpdateInfo;
+    }
+    console.log("[updater] cycle: not-available");
+    setUpdaterState("idle");
+    logOutput("Updater", `Up to date (v${current})`);
+    broadcastUpdater("updater:not-available", { version: current });
+    return null;
   } catch (e) {
     console.warn("[updater] GitHub check failed:", e.message);
     logOutput("Updater", `Check failed: ${e.message}`, "error");
-    // Fallback to electron-updater's built-in check (needs latest.yml, only works when packaged)
-    if (autoUpdater && app.isPackaged) {
-      try {
-        const res = await autoUpdater.checkForUpdates();
-        const info = res?.updateInfo || null;
-        if (info && isVersionNewer(info.version, app.getVersion())) {
-          _latestUpdateInfo = info;
-          setUpdaterState("available");
-          broadcastUpdater("updater:available", info);
-          return info;
-        } else {
-          setUpdaterState("idle");
-          if (primaryWin) broadcastUpdater("updater:not-available", { version: app.getVersion() });
-          return null;
-        }
-      } catch (e2) {
-        console.warn("[updater] fallback check also failed:", e2.message);
-        setUpdaterState("error");
-        broadcastUpdater("updater:error", String(e.message || e2.message));
-      }
-    } else {
-      setUpdaterState("error");
-      broadcastUpdater("updater:error", String(e.message));
-    }
+    setUpdaterState("error");
+    broadcastUpdater("updater:error", String(e.message));
+    if (primaryWin) void primaryWin;
     return null;
   }
+}
+
+// Purana naam — menu handler ab bhi yahi pukarta hai.
+async function checkForUpdatesViaGitHub(win) {
+  return checkForUpdatesProper(win);
 }
 
 function setupAutoUpdater(win) {
@@ -3951,14 +4034,20 @@ function setupAutoUpdater(win) {
 
     autoUpdater.on("checking-for-update", () => {
       console.log("[updater] cycle: checking-for-update (autoUpdater)");
-      // GitHub check pehle available dhoondh chuka ho to use mat hatao —
-      // warna banner "Checking..." par atak jata hai (prime check race).
+      // Unified check pehle available/downloading/downloaded set kar chuka ho
+      // to use mat hatao — warna banner "Checking..." par atak jata hai (event race).
       if (_updaterState === "available" || _updaterState === "downloading" || _updaterState === "downloaded") return;
       setUpdaterState("checking");
       broadcastUpdater("updater:checking", { version: app.getVersion() });
     });
     autoUpdater.on("update-available", (info) => {
       console.log("[updater] cycle: update-available (autoUpdater)", info?.version);
+      // Raw feed info rakho — checkForUpdatesProper isko turant GitHub notes
+      // se enrich karke dobara broadcast karta hai. Pehle se enriched info ho
+      // (same version) to use mat bigado.
+      try {
+        if (_latestUpdateInfo?.via === "yml" && _latestUpdateInfo?.version === String(info?.version || "").replace(/^v/, "")) return;
+      } catch {}
       _latestUpdateInfo = info;
       setUpdaterState("available");
       broadcastUpdater("updater:available", info);
@@ -3972,8 +4061,8 @@ function setupAutoUpdater(win) {
     });
     autoUpdater.on("error", (err) => {
       console.error("[updater] cycle: error", err?.message || err);
-      // Available/download progress ko error se mat clobber karo (feed me
-      // latest.yml na ho to ye aksar fail hota hai — GitHub path primary hai).
+      // Available/download progress ko error se mat clobber karo (background
+      // feed events aksar race karte hain — checkForUpdatesProper state ka malik hai).
       if (_updaterState === "available" || _updaterState === "downloading" || _updaterState === "downloaded") return;
       _isDownloading = false;
       _downloadProgress = null;
@@ -3995,33 +4084,46 @@ function setupAutoUpdater(win) {
       logOutput("Updater", `Downloaded v${info?.version || ""} — restart to install`);
       _isDownloading = false;
       _downloadProgress = null;
-      _latestUpdateInfo = info || _latestUpdateInfo;
+      // Enriched fields (releaseNotes/releaseUrl) bachao — raw feed info me ye nahi hote.
+      try {
+        const prev = _latestUpdateInfo || {};
+        _latestUpdateInfo = {
+          ...(info || prev),
+          releaseNotes: prev.releaseNotes || normalizeReleaseNotes(info?.releaseNotes),
+          releaseUrl: prev.releaseUrl || prev.releaseNotesUrl || `https://github.com/TheWonderlandStudio/Idiot_Box/releases/tag/v${String(info?.version || prev.version || "").replace(/^v/, "")}`,
+          tag: prev.tag || `v${String(info?.version || prev.version || "").replace(/^v/, "")}`,
+          publishedAt: prev.publishedAt || info?.releaseDate || null,
+        };
+      } catch { _latestUpdateInfo = info || _latestUpdateInfo; }
       setUpdaterState("downloaded");
-      broadcastUpdater("updater:downloaded", info || _latestUpdateInfo);
+      broadcastUpdater("updater:downloaded", _latestUpdateInfo);
     });
 
-    // Run detection on launch — use GitHub API so banner shows even in dev.
-    const runGitHubCheck = () => { try { checkForUpdatesViaGitHub(win); } catch (e) { console.warn("[updater] GitHub check error", e.message); } };
+    // Run detection on launch — packaged me latest.yml feed, dev me GitHub API.
+    // checkForUpdatesProper ke andar hi autoUpdater.checkForUpdates() chalta
+    // hai, isliye yahan DOUBLE check mat chalao (race/balloon events se bacho).
+    const runUpdateCheck = () => { try { checkForUpdatesProper(win); } catch (e) { console.warn("[updater] check error", e.message); } };
     if (!app.isPackaged && !process.env.IBX_FORCE_UPDATE_CHECK) {
       console.log("[updater] Dev mode: running GitHub API check after 2.5s (autoUpdater periodic check skipped)");
-      setTimeout(runGitHubCheck, 2500);
-      setInterval(runGitHubCheck, 6 * 60 * 60 * 1000);
+      setTimeout(runUpdateCheck, 2500);
+      setInterval(runUpdateCheck, 6 * 60 * 60 * 1000);
       return;
     }
 
-    // Packaged: run both GitHub API and autoUpdater checks for best coverage
-    setTimeout(() => { try { console.log("[updater] initial check (GitHub + autoUpdater)..."); runGitHubCheck(); autoUpdater.checkForUpdates().catch((e) => console.warn("[updater] autoUpdater check failed", e.message)); } catch {} }, 2000);
-    setInterval(() => { try { console.log("[updater] periodic check..."); runGitHubCheck(); autoUpdater.checkForUpdates().catch(()=>{}); } catch {} }, 6 * 60 * 60 * 1000);
+    // Packaged: single unified check — latest.yml feed primary (blockmap diff),
+    // GitHub API sirf notes/fallback. Har 6h + launch ke 2s baad.
+    setTimeout(() => { try { console.log("[updater] initial check (latest.yml feed)..."); runUpdateCheck(); } catch {} }, 2000);
+    setInterval(() => { try { console.log("[updater] periodic check..."); runUpdateCheck(); } catch {} }, 6 * 60 * 60 * 1000);
   } catch (e) { console.warn("[updater] setup failed", e.message); }
 }
 
 ipcMain.handle("updater:check", async (e) => {
   const win = BrowserWindow.fromWebContents(e.sender) || _updaterWindow;
   try {
-    // Reset state to checking for proper cycle
+    // Reset state to checking for proper cycle (checkForUpdatesProper bhi yahi karta hai)
     setUpdaterState("checking");
     broadcastUpdater("updater:checking", { version: app.getVersion() });
-    const info = await checkForUpdatesViaGitHub(win);
+    const info = await checkForUpdatesProper(win);
     if (info) return { ok: true, info, available: true, state: _updaterState };
     return { ok: true, info: null, available: false, state: _updaterState };
   } catch (err) {
@@ -4039,14 +4141,36 @@ ipcMain.handle("updater:download", async (e) => {
   if (_isDownloading) return { ok: false, error: "Already downloading" };
   if (_updaterState === "downloaded" && _latestUpdateInfo) return { ok: true, alreadyDownloaded: true, info: _latestUpdateInfo };
   try {
+    // latest.yml feed ka asli UpdateInfo chahiye (files/sha512) — GitHub-API
+    // fallback shape me ye nahi hota, to feed se dobara resolve karo.
+    const hasFeedInfo = !!(_latestUpdateInfo && (_latestUpdateInfo.files || _latestUpdateInfo.path));
+    if (!hasFeedInfo) {
+      console.log("[updater] no feed info cached — resolving via latest.yml...");
+      logOutput("Updater", "Resolving update feed (latest.yml)…");
+      let res = null;
+      try { res = await autoUpdater.checkForUpdates(); }
+      catch (feedErr) {
+        throw new Error(`Update feed (latest.yml) not reachable: ${feedErr?.message || feedErr}`);
+      }
+      const feedInfo = res?.updateInfo || null;
+      if (!feedInfo || !isVersionNewer(feedInfo.version, app.getVersion())) {
+        const v = feedInfo?.version || app.getVersion();
+        setUpdaterState("idle");
+        broadcastUpdater("updater:not-available", { version: app.getVersion() });
+        return { ok: false, error: `No update available (latest v${v})` };
+      }
+      let meta = null;
+      try { meta = await fetchGitHubReleaseMeta(); } catch {}
+      _latestUpdateInfo = enrichUpdateInfo(feedInfo, meta);
+      setUpdaterState("available");
+      broadcastUpdater("updater:available", _latestUpdateInfo);
+    }
     _isDownloading = true;
     setUpdaterState("downloading");
     if (win && !win.isDestroyed()) win.webContents.send("updater:progress", { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 });
     else broadcastUpdater("updater:progress", { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 });
-    // Prime with latest info if not already checked
-    if (!_latestUpdateInfo) {
-      try { await autoUpdater.checkForUpdates(); } catch {}
-    }
+    console.log(`[updater] downloading v${_latestUpdateInfo?.version} via latest.yml + .blockmap (differential)…`);
+    logOutput("Updater", `Downloading v${_latestUpdateInfo?.version || ""}… (differential via .blockmap)`);
     await autoUpdater.downloadUpdate();
     // progress will be emitted via download-progress, downloaded via update-downloaded
     return { ok: true };
