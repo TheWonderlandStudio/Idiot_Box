@@ -1,6 +1,6 @@
 {
   "name": "idiot-box",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "private": true,
   "description": "Idiot Box - Code-OSS-backed desktop IDE built with Electron and React",
   "author": {
@@ -129,6 +129,14 @@
       }
     ],
     "asar": true,
+    "protocols": [
+      {
+        "name": "Idiot Box",
+        "schemes": [
+          "idiotbox"
+        ]
+      }
+    ],
     "asarUnpack": [
       "**/node-pty/**",
       "**/esbuild/**",

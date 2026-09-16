@@ -67,6 +67,7 @@
       </noscript>
       <div class="log-card loading">Loading the log…</div>
     </main>
+    <button id="update-my-app" class="update-app-fab" type="button" title="Trigger update check in your installed Idiot Box app">⬆ Update my app</button>
   </div>
 
   <script src="vendor/marked.min.js"></script>
@@ -175,6 +176,41 @@
         });
       });
       resolveExeUrl().catch(function () {});
+
+      // "Update my app" — installed Idiot Box app ka updater trigger karo
+      // via idiotbox://update deep link (app me protocol handler, v0.1.20+).
+      // App installed + handler wala hoga to OS app kholega/focus karega aur
+      // update check chalega. Nahi hoga to fallback message + download hint.
+      (function () {
+        var btn = document.getElementById('update-my-app');
+        if (!btn) return;
+        var original = btn.textContent;
+        var timer = null;
+        function setLabel(msg) { btn.textContent = msg; }
+        function restore() { setLabel(original); btn.disabled = false; }
+        btn.addEventListener('click', function () {
+          if (timer) { clearTimeout(timer); timer = null; }
+          btn.disabled = true;
+          setLabel('Opening Idiot Box…');
+          var launched = false;
+          function onBlur() { launched = true; }
+          function onVis() { if (document.hidden) launched = true; }
+          window.addEventListener('blur', onBlur);
+          document.addEventListener('visibilitychange', onVis);
+          try { window.location.href = 'idiotbox://update'; } catch (e) {}
+          timer = setTimeout(function () {
+            window.removeEventListener('blur', onBlur);
+            document.removeEventListener('visibilitychange', onVis);
+            btn.disabled = false;
+            if (launched || document.hidden) {
+              setLabel('✓ Check started in app');
+            } else {
+              setLabel('App not found — download below ↓');
+            }
+            timer = setTimeout(restore, 4000);
+          }, 1600);
+        });
+      })();
 
       // Hamburger menu (mobile) — size card jitni
       (function () {

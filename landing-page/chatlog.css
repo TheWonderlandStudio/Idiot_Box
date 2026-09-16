@@ -253,6 +253,38 @@ body{
   margin-left: 8px;
 }
 
+/* "Update my app" — floating deep-link button (idiotbox://update).
+   Installed app ka updater trigger karta hai; style .log-dl jesa. */
+.update-app-fab{
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: black;
+  background: white;
+  border: none;
+  border-radius: 4px;
+  padding: 12px 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.update-app-fab:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+.update-app-fab:disabled{
+  opacity: 0.75;
+  cursor: default;
+  transform: none;
+}
+
 /* screen-reader only — SEO heading, zero visual change */
 .sr-only{
   position: absolute;
@@ -392,6 +424,13 @@ body{
   }
 
   .log-body{
+    font-size: 13px;
+  }
+
+  .update-app-fab{
+    right: 12px;
+    bottom: 12px;
+    padding: 10px 16px;
     font-size: 13px;
   }
 }

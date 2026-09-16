@@ -3,6 +3,19 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.20] - 2026-09-16
+
+### Added
+- **Website "Update my app" button** (chatlog page, floating bottom-right)
+  — click par `idiotbox://update` deep link khulta hai: installed app
+  launch/focus hota hai aur update check (latest.yml feed) turant chalta
+  hai. App installed na ho to button fallback message + download hint
+  dikhata hai.
+- **`idiotbox://` protocol support in app** — NSIS installer registry entry
+  (`protocols` in build config), `second-instance` / `open-url` /
+  cold-start argv routing, single-instance lock taaki protocol clicks
+  hamesha running app me aayen.
+
 ## [0.1.19] - 2026-09-16
 
 ### Fixed

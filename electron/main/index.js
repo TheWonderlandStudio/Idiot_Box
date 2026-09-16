@@ -84,6 +84,91 @@ process.on("unhandledRejection", (reason) => {
   try { console.error("[unhandledRejection]", reason); } catch {}
 });
 
+// ─── Deep link: idiotbox:// protocol (website "Update my app" button) ──────
+// Landing page (chatlog) ka "Update my app" button `idiotbox://update` kholta
+// hai → OS installed app launch karta hai (ya running instance ko deta hai).
+// NSIS installer registry entry `protocols` (package.json) se banata hai.
+// Flow: second-instance / open-url / cold-start argv → handleIbxProtocolUrl
+// → window focus + updater:manualCheck + checkForUpdatesProper (latest.yml).
+const IBX_PROTOCOL = "idiotbox";
+
+function focusMainWindow() {
+  try {
+    let win = null;
+    try { win = BrowserWindow.getFocusedWindow() || null; } catch {}
+    if (!win || win.isDestroyed()) {
+      try { win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) || null; } catch { win = null; }
+    }
+    if (!win) {
+      try { createWindow(); } catch {}
+      try { win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) || null; } catch { win = null; }
+    }
+    if (win && !win.isDestroyed()) {
+      try { if (win.isMinimized()) win.restore(); } catch {}
+      try { win.show(); } catch {}
+      try { win.focus(); } catch {}
+    }
+    return win;
+  } catch { return null; }
+}
+
+function findProtocolUrlInArgs(argv) {
+  try {
+    const list = Array.isArray(argv) ? argv : [];
+    return list.find((a) => typeof a === "string" && /^idiotbox:\/\//i.test(a.trim())) || null;
+  } catch { return null; }
+}
+
+async function handleIbxProtocolUrl(raw) {
+  let action = "";
+  try {
+    const u = String(raw || "").trim().replace(/\/+$/, "");
+    const m = u.match(/^idiotbox:\/\/([^?#]*)/i);
+    action = (m ? m[1] : "").toLowerCase();
+  } catch {}
+  if (action !== "update") return false;
+  console.log("[protocol] idiotbox://update — triggering update check");
+  try { logOutput("Updater", "Update requested from website (idiotbox://update)"); } catch {}
+  const win = focusMainWindow();
+  // Renderer ko manual-check jaisa UX do (center modal/banner), phir feed check.
+  try { if (win && !win.isDestroyed()) win.webContents.send("updater:manualCheck"); } catch {}
+  try { await checkForUpdatesProper(win); } catch (e) { console.warn("[protocol] update check failed:", e?.message || e); }
+  return true;
+}
+
+try {
+  if (process.defaultApp) {
+    // Dev (`electron .`): explicit path ke saath register karo
+    if (process.argv.length >= 2) {
+      try { app.setAsDefaultProtocolClient(IBX_PROTOCOL, process.execPath, [path.resolve(process.argv[1])]); } catch {}
+    }
+  } else {
+    app.setAsDefaultProtocolClient(IBX_PROTOCOL);
+  }
+} catch (e) { console.warn("[protocol] register failed:", e?.message || e); }
+
+// Single instance — doosri launch / protocol click hamesha pehle instance me aaye.
+// (Bina lock ke protocol click naya window khol dega aur update trigger nahi hoga.)
+const _ibxGotSingleLock = app.requestSingleInstanceLock();
+if (!_ibxGotSingleLock) {
+  try { app.quit(); } catch {}
+} else {
+  app.on("second-instance", (_event, argv) => {
+    try {
+      const url = findProtocolUrlInArgs(argv);
+      if (url) { handleIbxProtocolUrl(url); return; }
+    } catch {}
+    try { focusMainWindow(); } catch {}
+  });
+  // macOS: dock/protocol open
+  try {
+    app.on("open-url", (event, url) => {
+      try { event.preventDefault(); } catch {}
+      try { handleIbxProtocolUrl(url); } catch {}
+    });
+  } catch {}
+}
+
 // ─── Custom scheme: extension-host file access ───────────────────────────────
 // The web-worker extension host runs in a sandboxed worker that cannot
 // fetch(file://...) — serve extension files through this privileged scheme
@@ -5479,6 +5564,12 @@ app.whenReady().then(async () => {
   getShell();
   Menu.setApplicationMenu(buildMenu());
   createWindow();
+  // Cold start via idiotbox://update (app band thi, website button se khuli) —
+  // window/updater settle hone ke baad protocol action chalao.
+  try {
+    const startUrl = findProtocolUrlInArgs(process.argv);
+    if (startUrl) setTimeout(() => { try { handleIbxProtocolUrl(startUrl); } catch {} }, 1500);
+  } catch {}
 });
 
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
