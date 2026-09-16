@@ -24,7 +24,7 @@
 .nb-cells { flex: 1; overflow-y: auto; padding: var(--space-14) var(--space-18) 60px; display: flex; flex-direction: column; gap: var(--space-10); }
 .nb-cells::-webkit-scrollbar { width: 10px; }
 .nb-cells::-webkit-scrollbar-thumb { background: var(--bg-input-strong); border-radius: var(--radius-5); }
-.nb-cell { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-header); transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.nb-cell { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-header); flex-shrink: 0; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
 .nb-cell:hover { border-color: var(--border-strong); }
 .nb-cell--selected { border-color: var(--editor-blue); box-shadow: 0 0 0 1px var(--editor-blue); }
 .nb-cell--running { border-color: var(--warning); box-shadow: 0 0 0 1px var(--warning); animation: nb-cell-running 2s infinite; }
@@ -41,10 +41,10 @@
 .nb-codewrap { display: flex; }
 .nb-codewrap__gutter { width: 8px; background: var(--editor-blue); opacity: 0.55; flex-shrink: 0; }
 .nb-cell--running .nb-codewrap__gutter { background: var(--warning); opacity: 0.9; }
-.nb-textarea { flex: 1; background: var(--bg-surface); color: var(--text-highlight); border: none; outline: none; resize: none; overflow: hidden; font-family: var(--font-code); font-size: var(--fs-title); line-height: var(--lh-md); padding: var(--space-8) var(--space-10); min-height: 44px; white-space: pre; }
+.nb-textarea { flex: 1; flex-shrink: 0; background: var(--bg-surface); color: var(--text-highlight); border: none; outline: none; resize: none; overflow: hidden; font-family: var(--font-code); font-size: var(--fs-title); line-height: var(--lh-md); padding: var(--space-8) var(--space-10); min-height: 44px; white-space: pre; }
 
 /* ── Per-cell CodeMirror ── */
-.nb-monaco { flex: 1; min-height: 46px; min-width: 0; background: var(--bg-surface); }
+.nb-monaco { flex: 1; flex-shrink: 0; min-height: 46px; min-width: 0; background: var(--bg-surface); }
 .nb-monaco .cm-editor, .nb-monaco .cm-scroller,
 .nb-monaco .cm-gutters { background-color: var(--bg-surface); }
 .nb-monaco .cm-scroller { scrollbar-width: thin; scrollbar-color: var(--scrollbar) transparent; }

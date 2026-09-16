@@ -467,6 +467,63 @@ const NotebookPanel = ({ config, nodeId }) => {
       }
     } catch {}
   }, []);
+
+  // ── Jupyter Notebook Auto-Height Fix ─────────────────────────────────────
+  // Fix code cell heights to auto-extend based on content + output
+  const fixNotebookCellHeights = useCallback(() => {
+    try {
+      // Select all CodeMirror content cells
+      var code_cells = document.querySelectorAll('.cm-content');
+      
+      code_cells.forEach(function(cell) {
+        var parent = cell.parentNode.parentNode;
+        if (!parent || parent.className.includes('input_area')) return;
+        
+        var cellContainer = cell.closest('.cell');
+        if (!cellContainer) return;
+        
+        var contentHeight = cell.scrollHeight;
+        
+        var output = cell.closest('.output_area');
+        if (output) {
+          contentHeight += output.scrollHeight + 10;
+        }
+        
+        cell.style.height = 'auto';
+        cell.style.minHeight = '';
+        cell.style.maxHeight = 'none';
+        
+        if (parent.style) {
+          parent.style.overflow = 'hidden';
+        }
+      });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    // Initial fix
+    fixNotebookCellHeights();
+    
+    // Observe for changes (cell addition, output updates, etc.)
+    var observer = new MutationObserver(function(mutations) {
+      fixNotebookCellHeights();
+    });
+    
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    // Also fix on resize
+    window.addEventListener('resize', fixNotebookCellHeights);
+    
+    // Cleanup
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fixNotebookCellHeights);
+    };
+  }, [fixNotebookCellHeights]);
+  
   useEffect(() => { const t = setTimeout(autosizeAll, 30); return () => clearTimeout(t); }, [cells, autosizeAll]);
 
   // ── Load notebook ──
