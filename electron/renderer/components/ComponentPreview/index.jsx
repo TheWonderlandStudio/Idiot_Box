@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import * as ReactDOMPkg from "react-dom";
 import * as ReactJSXRuntime from "react/jsx-runtime";
 import { prepareHtmlDocument } from "../shared/previewCss.js";
+import { PREVIEW_IFRAME_CSP } from "../shared/previewCsp.js";
 
 // Error Boundary to catch runtime errors inside previewed user components
 class PreviewErrorBoundary extends React.Component {
@@ -1275,6 +1276,7 @@ const ComponentPreview = ({ nodeId, config }) => {
           ref={iframeRef}
           title="Component Preview"
           sandbox="allow-scripts allow-same-origin allow-forms"
+          csp={PREVIEW_IFRAME_CSP}
           srcDoc={!sampleMode && htmlDoc ? htmlDoc : IFRAME_HTML}
           onLoad={handleIframeLoad}
           style={{ width: "100%", height: "100%", border: "none", display: "block", background: "transparent" }}

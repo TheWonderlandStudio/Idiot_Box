@@ -139,13 +139,15 @@ const UpdaterNavButton = () => {
 };
 
 // ── Run status-bar button — visual replacement for the menu-bar Run menu ──
-// Main click → Run Auto-Detected Command (opens Run & Debug + fires auto-run).
-// Dropdown caret → Stop current run / Open Run & Debug Panel.
+// Main click → project auto-command first (npm run dev / ...), else open file.
+// Dropdown caret → ALL run options (Auto, Current File, npm scripts, customs)
+// Run panel se `run:options` par aate hain; click → panel kholo + chalao.
 const RunStatusButton = () => {
   const [open, setOpen] = React.useState(false);
   const [running, setRunning] = React.useState(false);
   const [runLabel, setRunLabel] = React.useState("");
   const [hovered, setHovered] = React.useState(false);
+  const [runOptions, setRunOptions] = React.useState([]);
   const wrapRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -154,8 +156,18 @@ const RunStatusButton = () => {
       setRunning(!!detail.running);
       setRunLabel(detail.label || "");
     };
+    const onOptions = (event) => {
+      try {
+        const list = event?.detail?.options;
+        if (Array.isArray(list)) setRunOptions(list);
+      } catch {}
+    };
     window.addEventListener("run:status", onStatus);
-    return () => window.removeEventListener("run:status", onStatus);
+    window.addEventListener("run:options", onOptions);
+    return () => {
+      window.removeEventListener("run:status", onStatus);
+      window.removeEventListener("run:options", onOptions);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -171,6 +183,16 @@ const RunStatusButton = () => {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  // Koi option chuni → panel kholo (mount) + poll ke liye pending rakho.
+  // Run panel 700ms poll me use utha kar chalata hai (mount-race safe).
+  const runOption = (id) => {
+    setOpen(false);
+    try {
+      window.__pendingRunOption = { id };
+      window.dispatchEvent(new CustomEvent("add-run-panel"));
+    } catch {}
+  };
 
   const dispatch = (channel) => {
     setOpen(false);
@@ -214,8 +236,8 @@ const RunStatusButton = () => {
         onClick={() => dispatch("runAuto")}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        title={running ? `Stop ${runLabel || "current run"}` : "Run & Debug — Run Auto-Detected Command (detect npm dev/start, python, etc.)"}
-        aria-label={running ? "Stop current run" : "Run auto-detected command"}
+        title={running ? `Stop ${runLabel || "current run"}` : "Run — project command first (npm run dev …), else open file. ▾ = all options"}
+        aria-label={running ? "Stop current run" : "Run project or open file"}
         style={{
           ...stopBase,
           borderTopLeftRadius: 5, borderBottomLeftRadius: 5, borderRight: "none",
@@ -230,8 +252,8 @@ const RunStatusButton = () => {
         onClick={() => setOpen((v) => !v)}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        title="Run menu — Stop, Open Run & Debug Panel"
-        aria-label="Run actions"
+        title="Run menu — every run option, one click"
+        aria-label="Run options"
         style={{
           ...stopBase,
           borderTopRightRadius: 5, borderBottomRightRadius: 5,
@@ -246,25 +268,42 @@ const RunStatusButton = () => {
           position: "absolute", top: "calc(100% + 7px)", right: 0, zIndex: "var(--z-menu)",
           background: "#1b1b1b", border: "1px solid #343434", borderRadius: 8,
           boxShadow: "0 12px 35px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25)",
-          minWidth: 220, padding: 5, overflow: "hidden", display: "flex", flexDirection: "column",
+          minWidth: 250, maxWidth: 340, padding: 5, overflow: "hidden", display: "flex", flexDirection: "column",
         }}>
           <button
             onClick={() => dispatch("runAuto")}
             style={menuItem}
-            title="Run"
+            title={running ? `Stop ${runLabel || "current run"}` : "Run — project command first, else open file"}
           >
             <Play size={15} strokeWidth={1.8} fill="currentColor" /> <span>{running ? "Stop" : "Run"}</span>
           </button>
-          <button
-            onClick={() => { setOpen(false); dispatch("runAuto"); }}
-            style={menuItem}
-            title="Debug"
-          >
-            <Bug size={15} strokeWidth={1.8} /> <span>Debug</span>
-          </button>
-          <button onClick={() => { setOpen(false); dispatch("runAuto"); }} style={menuItem} title="Run with Options">
-            <PlayCircle size={15} strokeWidth={1.8} /> <span>Run with Options</span>
-          </button>
+          {runOptions.length > 0 && (
+            <div style={{ height: 1, background: "#303030", margin: "5px 4px" }} />
+          )}
+          {runOptions.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => { if (!o.disabled) runOption(o.id); }}
+              disabled={!!o.disabled}
+              style={{
+                ...menuItem,
+                height: "auto", minHeight: 36, padding: "6px 10px",
+                opacity: o.disabled ? 0.45 : 1,
+                cursor: o.disabled ? "default" : "pointer",
+              }}
+              title={o.disabled ? `${o.name} — ${o.hint || "unavailable"}` : (o.hint || o.name)}
+            >
+              <Play size={13} strokeWidth={1.8} fill="currentColor" style={{ flexShrink: 0 }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                {o.name}
+              </span>
+            </button>
+          ))}
+          {runOptions.length === 0 && (
+            <div style={{ fontSize: 12, color: "#8a8a8a", padding: "6px 10px" }}>
+              Open Run &amp; Debug once — options appear here
+            </div>
+          )}
           <div style={{ height: 1, background: "#303030", margin: "5px 4px" }} />
           <button onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent("add-run-panel")); }} style={menuItem} title="Run Configuration">
             <Settings2 size={15} strokeWidth={1.8} /> <span>Run Configuration</span>
@@ -911,6 +950,13 @@ const App = () => {
     };
     const onOutput = (e) => {
       const m = modelRef.current;
+      // Jisne panel khola usne channel manga ho (Run panel → "Run") to use
+      // Output panel me select karwao — chahe panel pehle se khula ho ya ab bane.
+      const want = e?.detail?.channel;
+      if (want) {
+        try { window.__outputWantChannel = want; } catch {}
+        try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: want } })); } catch {}
+      }
       // Prefer the bottom group (Terminal/Problems/Ports/Output/Run) so Output docks there
       const findBottom = (node) => {
         if (node.getType?.() === "tabset" && node.getChildren?.()?.some?.((c) => ["terminal", "problems", "ports", "output", "runDebug"].includes(c.getComponent?.()))) return node;

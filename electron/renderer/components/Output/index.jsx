@@ -99,11 +99,47 @@ const OutputPanel = () => {
 
   // Drain buffer on mount + live updates (local event + main bridge)
   useEffect(() => {
-    pullChannel(channelRef.current);
+    // Run panel jaise openers channel maangte hain (add-output-panel detail /
+    // output:switchChannel) — mount par pending wish poori karo.
+    try {
+      const want = window.__outputWantChannel;
+      if (want && OUTPUT_CHANNELS.includes(want) && channelRef.current !== want) {
+        channelRef.current = want;
+        setChannel(want);
+        setStick(true);
+        setLines([...(window.__outputBuffer?.[want] || [])]);
+      } else {
+        pullChannel(channelRef.current);
+      }
+      // Mount ne wish poori kar li — clear taaki agli manual open App par rahe.
+      try { window.__outputWantChannel = null; } catch {}
+    } catch { pullChannel(channelRef.current); }
+    const onSwitch = (e) => {
+      try {
+        const want = e?.detail?.channel;
+        if (want && OUTPUT_CHANNELS.includes(want)) {
+          window.__outputWantChannel = want;
+          channelRef.current = want;
+          setChannel(want);
+          setStick(true);
+          setLines([...(window.__outputBuffer?.[want] || [])]);
+        }
+      } catch {}
+    };
+    // add-output-panel seedha bhi aa sakta hai (index.jsx hamesha forward karta hai,
+    // par belt-and-suspenders: detail.channel yahan bhi suno).
+    const onAdd = (e) => {
+      try {
+        const want = e?.detail?.channel;
+        if (want && OUTPUT_CHANNELS.includes(want)) onSwitch({ detail: { channel: want } });
+      } catch {}
+    };
     const refresh = () => {
       try { setLines([...(window.__outputBuffer?.[channelRef.current] || [])]); } catch {}
     };
     window.addEventListener("output:log", refresh);
+    window.addEventListener("output:switchChannel", onSwitch);
+    window.addEventListener("add-output-panel", onAdd);
     let unsub = null;
     try {
       unsub = window.electronAPI?.onOutputLog?.((entry) => {
@@ -116,6 +152,8 @@ const OutputPanel = () => {
     } catch {}
     return () => {
       window.removeEventListener("output:log", refresh);
+      window.removeEventListener("output:switchChannel", onSwitch);
+      window.removeEventListener("add-output-panel", onAdd);
       try { unsub?.(); } catch {}
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

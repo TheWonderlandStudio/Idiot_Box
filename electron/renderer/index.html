@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Content-Security-Policy (meta fallback; primary enforcement is the
+         response header injected by electron/main/csp.js via
+         session.webRequest.onHeadersReceived for file:// app shell only).
+         frame-ancestors omitted here — header-only directive, ignored in meta.
+         Keep in sync with electron/main/csp.js APP_CSP_META. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file: ibx-file:; script-src 'self' file: ibx-file: blob: 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' file: ibx-file: blob: data: 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' file: ibx-file: blob: data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' file: ibx-file: blob: data: https: http:; media-src 'self' file: ibx-file: blob: data: https: http:; connect-src 'self' file: ibx-file: blob: data: https: wss: ws: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; worker-src 'self' file: ibx-file: blob:; child-src 'self' file: ibx-file: blob:; frame-src 'self' file: ibx-file: blob: data:; object-src 'none'; base-uri 'self' file: ibx-file:; form-action 'self' file: ibx-file:"
+    />
     <title></title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

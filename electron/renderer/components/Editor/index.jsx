@@ -30,6 +30,7 @@ import {
 } from "./shared.js";
 import { normalizeCmSettings, DEFAULT_CM_SETTINGS } from "./cm/settings.js";
 import { resolveCmLanguage, getLanguageSupport, displayNameFor, CM_LANG_IDS } from "./cm/languages.js";
+import { collectSyntaxDiagnostics, publishDiagnostics } from "./cm/diagnostics.js";
 import { buildCmExtensions } from "./cm/extensions.js";
 import { createCmBridge, offsetToPos } from "./cm/bridge.js";
 
@@ -97,6 +98,35 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   pathRef.current = filePath;
   langRef.current = languageId;
   docRef.current = doc;
+  const binaryRef = useRef(false);
+  binaryRef.current = binaryFile;
+
+  // ── Problems panel diagnostics (debounced Lezer syntax check) ──────────
+  // View purani file ka bhi ho sakta hai (tab switch) — isliye schedule time
+  // ka path capture karo, fire time par match karo; galat file par publish nahi.
+  const diagTimer = useRef(null);
+  const scheduleDiagnostics = useCallback((delay = 800) => {
+    const p = pathRef.current;
+    if (!p) return;
+    try { clearTimeout(diagTimer.current); } catch {}
+    diagTimer.current = setTimeout(() => {
+      try {
+        if (pathRef.current !== p || binaryRef.current) return;
+        const v = viewRef.current;
+        if (!v) return;
+        publishDiagnostics(p, collectSyntaxDiagnostics(v));
+      } catch {}
+    }, delay);
+  }, []);
+  // Tab band → uski Problems entry clear (warna mare hue file ke errors atke rehte).
+  useEffect(() => () => {
+    try { clearTimeout(diagTimer.current); } catch {}
+    try {
+      const p = pathRef.current;
+      if (p) publishDiagnostics(p, []);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const flashStatus = (msg) => {
     setStatusMsg(msg);
@@ -180,6 +210,14 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [cmSettings, languageId]);
 
+  // File load / language-mode change par lint (doc text same bhi ho to —
+  // tab switch me docChanged fire nahi hota, ye effect pakadta hai).
+  useEffect(() => {
+    if (!filePath || isIpynb) return;
+    scheduleDiagnostics(600);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath, languageId, isIpynb]);
+
   // ── onCreateEditor: view + bridge ──
   const handleCreateEditor = useCallback((view) => {
     viewRef.current = view;
@@ -193,6 +231,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       const p = offsetToPos(view.state.doc, pos);
       setCursorPos({ line: p.lineNumber, col: p.column, totalLines: view.state.doc.lines });
     } catch {}
+    // Fresh view → pehla lint run (debounced, parse poora hone do).
+    try { scheduleDiagnostics(500); } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -215,13 +255,17 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
 
-  // ── onUpdate: cursor + focus ──
+  // ── onUpdate: cursor + focus + lint ──
   const handleUpdate = useCallback((viewUpdate) => {
     try {
       if (viewUpdate.selectionSet || viewUpdate.docChanged) {
         const head = viewUpdate.state.selection.main.head;
         const p = offsetToPos(viewUpdate.state.doc, head);
         setCursorPos({ line: p.lineNumber, col: p.column, totalLines: viewUpdate.state.doc.lines });
+      }
+      // Har edit par dobara lint (debounced) — Problems panel live rehta hai.
+      if (viewUpdate.docChanged) {
+        try { scheduleDiagnostics(); } catch {}
       }
       if (viewUpdate.focusChanged && viewUpdate.view.hasFocus) {
         setActiveEditorPath(pathRef.current);

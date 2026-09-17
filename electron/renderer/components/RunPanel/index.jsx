@@ -19,17 +19,176 @@ const stripAnsi = (s) =>
     .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
     .replace(/\r/g, "");
 
-// extension -> { runtime key, args(file) }
-const RUNNERS = {
-  ".js":  { runtime: "node",   makeArgs: (f) => [f] },
-  ".mjs": { runtime: "node",   makeArgs: (f) => [f] },
-  ".cjs": { runtime: "node",   makeArgs: (f) => [f] },
-  ".py":  { runtime: "python", makeArgs: (f) => [f] },
-  ".php": { runtime: "php",    makeArgs: (f) => [f] },
-  ".go":  { runtime: "go",     makeArgs: (f) => ["run", f] },
+// ── Shell helpers (compiled languages compile+run ek pty me) ──────────────
+const SHELL_BIN = isWin ? "cmd.exe" : "sh";
+const SHELL_FLAG = isWin ? "/c" : "-c";
+// Path me space / shell chars ho to double-quote karo.
+const q = (s) => {
+  const t = String(s ?? "");
+  return /[\s"'&|<>^()!]/.test(t) ? `"${t.replace(/"/g, '\\"')}"` : t;
 };
-// probe key -> actual command to spawn
-const RUNTIME_CMD = { node: "node", python: isWin ? "py" : "python3", php: "php", go: "go", npm: isWin ? "npm.cmd" : "npm" };
+const clsOf = (f) => baseName(f).replace(/\.[^.]+$/, "");
+const dirOf = (f) => {
+  const s = String(f || "");
+  const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
+  return i > 0 ? s.slice(0, i) : "";
+};
+const exeOf = (f) => {
+  const d = dirOf(f);
+  const sep = String(f || "").includes("\\") ? "\\" : "/";
+  return `${d ? `${d}${sep}` : ""}${clsOf(f)}${isWin ? ".exe" : ""}`;
+};
+// probe version-string vs actual binary: python/lua/npm ke binary alag field me.
+// Default "python" hai ("py" launcher kai machine par hota hi nahi — probes/
+// main-engine use milte hi sahi binary par switch kar lete hain).
+const pyBin = (probes) => (probes?.pythonCmd) || "python";
+const npmBin = (probes) => (probes?.npmCmd) || "npm";
+const luaBin = (probes) => (probes?.luaCmd) || "lua";
+
+// extension -> builder(file, probes) => { cmd, args, cwd?, live? } | { missing: "tool" }
+// Single binary wali simple hain; compile wali (c/cpp/java/rust/kotlin) shell
+// string banati hain taaki `javac && java` ek run me ho jaye.
+const RUNNERS = {
+  ".js":  { runtimes: ["node"], build: (f) => ({ cmd: "node", args: [f] }) },
+  ".mjs": { runtimes: ["node"], build: (f) => ({ cmd: "node", args: [f] }) },
+  ".cjs": { runtimes: ["node"], build: (f) => ({ cmd: "node", args: [f] }) },
+  ".jsx": { runtimes: ["tsx", "node"], build: (f, p) => p?.tsx ? ({ cmd: "tsx", args: [f] }) : ({ cmd: "node", args: [f] }) },
+  ".ts":  { runtimes: ["tsx", "tsnode", "deno", "bun", "node"], build: (f, p) => {
+    if (p?.tsx) return { cmd: "tsx", args: [f] };
+    if (p?.tsnode) return { cmd: "ts-node", args: [f] };
+    if (p?.deno) return { cmd: "deno", args: ["run", f] };
+    if (p?.bun) return { cmd: "bun", args: [f] };
+    return { cmd: "node", args: ["--experimental-strip-types", f] };
+  } },
+  ".mts": { runtimes: ["tsx", "tsnode", "deno", "bun", "node"], build: (f, p) => {
+    if (p?.tsx) return { cmd: "tsx", args: [f] };
+    if (p?.tsnode) return { cmd: "ts-node", args: [f] };
+    if (p?.deno) return { cmd: "deno", args: ["run", f] };
+    if (p?.bun) return { cmd: "bun", args: [f] };
+    return { cmd: "node", args: ["--experimental-strip-types", f] };
+  } },
+  ".cts": { runtimes: ["tsx", "tsnode", "deno", "bun", "node"], build: (f, p) => {
+    if (p?.tsx) return { cmd: "tsx", args: [f] };
+    if (p?.tsnode) return { cmd: "ts-node", args: [f] };
+    return { cmd: "node", args: ["--experimental-strip-types", f] };
+  } },
+  ".tsx": { runtimes: ["tsx", "tsnode"], build: (f, p) => {
+    if (p?.tsx) return { cmd: "tsx", args: [f] };
+    if (p?.tsnode) return { cmd: "ts-node", args: [f] };
+    return { missing: "tsx" };
+  } },
+  ".py":  { runtimes: ["python"], build: (f, p) => ({ cmd: pyBin(p), args: [f] }) },
+  ".pyw": { runtimes: ["python"], build: (f, p) => ({ cmd: pyBin(p), args: [f] }) },
+  ".php": { runtimes: ["php"], build: (f) => ({ cmd: "php", args: [f] }) },
+  ".go":  { runtimes: ["go"], build: (f) => ({ cmd: "go", args: ["run", f] }) },
+  ".java": { runtimes: ["javac", "java"], build: (f, p) => {
+    if (p?.javac && p?.java) {
+      const d = dirOf(f) || ".";
+      return { cmd: SHELL_BIN, args: [SHELL_FLAG, `javac ${q(f)} && java -cp ${q(d)} ${clsOf(f)}`] };
+    }
+    if (p?.java) return { cmd: "java", args: [f] }; // JDK 11+ single-file mode
+    return { missing: "java" };
+  } },
+  ".c": { runtimes: ["gcc", "clang", "gpp"], build: (f, p) => {
+    const cc = p?.gcc ? "gcc" : p?.clang ? "clang" : p?.gpp ? "g++" : null;
+    if (!cc) return { missing: "gcc" };
+    return { cmd: SHELL_BIN, args: [SHELL_FLAG, `${cc} ${q(f)} -o ${q(exeOf(f))} && ${q(exeOf(f))}`] };
+  } },
+  ".h": { runtimes: ["gcc"], build: () => ({ missing: "gcc" }) },
+  ".cpp": { runtimes: ["gpp", "clang", "gcc"], build: (f, p) => {
+    const cxx = p?.gpp ? "g++" : p?.clang ? "clang++" : p?.gcc ? "gcc" : null;
+    if (!cxx) return { missing: "g++" };
+    return { cmd: SHELL_BIN, args: [SHELL_FLAG, `${cxx} ${q(f)} -o ${q(exeOf(f))} && ${q(exeOf(f))}`] };
+  } },
+  ".cc": { runtimes: ["gpp", "clang"], build: (f, p) => {
+    const cxx = p?.gpp ? "g++" : p?.clang ? "clang++" : null;
+    if (!cxx) return { missing: "g++" };
+    return { cmd: SHELL_BIN, args: [SHELL_FLAG, `${cxx} ${q(f)} -o ${q(exeOf(f))} && ${q(exeOf(f))}`] };
+  } },
+  ".cxx": { runtimes: ["gpp", "clang"], build: (f, p) => {
+    const cxx = p?.gpp ? "g++" : p?.clang ? "clang++" : null;
+    if (!cxx) return { missing: "g++" };
+    return { cmd: SHELL_BIN, args: [SHELL_FLAG, `${cxx} ${q(f)} -o ${q(exeOf(f))} && ${q(exeOf(f))}`] };
+  } },
+  ".rs": { runtimes: ["cargo", "rustc"], build: (f, p) => {
+    if (p?.rustc) return { cmd: SHELL_BIN, args: [SHELL_FLAG, `rustc ${q(f)} -o ${q(exeOf(f))} && ${q(exeOf(f))}`] };
+    return { missing: "rustc" };
+  } },
+  ".cs": { runtimes: ["dotnet"], build: (f) => ({ cmd: "dotnet", args: ["run", f] }) },
+  ".rb": { runtimes: ["ruby"], build: (f) => ({ cmd: "ruby", args: [f] }) },
+  ".lua": { runtimes: ["lua"], build: (f, p) => ({ cmd: luaBin(p), args: [f] }) },
+  ".pl": { runtimes: ["perl"], build: (f) => ({ cmd: "perl", args: [f] }) },
+  ".r":  { runtimes: ["rscript"], build: (f) => ({ cmd: "Rscript", args: [f] }) },
+  ".jl": { runtimes: ["julia"], build: (f) => ({ cmd: "julia", args: [f] }) },
+  ".dart": { runtimes: ["dart"], build: (f) => ({ cmd: "dart", args: [f] }) },
+  ".swift": { runtimes: ["swift"], build: (f) => ({ cmd: "swift", args: [f] }) },
+  ".kt": { runtimes: ["kotlinc", "kotlin", "java"], build: (f, p) => {
+    if (p?.kotlinc && p?.java) {
+      const d = dirOf(f) || ".";
+      const sep = String(f || "").includes("\\") ? "\\" : "/";
+      const jar = `${d}${sep}${clsOf(f)}.jar`;
+      return { cmd: SHELL_BIN, args: [SHELL_FLAG, `kotlinc ${q(f)} -include-runtime -d ${q(jar)} && java -jar ${q(jar)}`] };
+    }
+    if (p?.kotlin) return { cmd: "kotlin", args: [f] };
+    return { missing: "kotlinc" };
+  } },
+  ".sh": { runtimes: ["bash"], build: (f, p) => ({ cmd: p?.bash ? "bash" : "sh", args: [f] }) },
+  ".bat": { runtimes: [], build: (f) => isWin ? ({ cmd: "cmd.exe", args: ["/c", f] }) : ({ missing: "cmd.exe" }) },
+  ".cmd": { runtimes: [], build: (f) => isWin ? ({ cmd: "cmd.exe", args: ["/c", f] }) : ({ missing: "cmd.exe" }) },
+  ".ps1": { runtimes: ["pwsh"], build: (f) => isWin
+    ? ({ cmd: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f] })
+    : ({ cmd: "pwsh", args: ["-File", f] }) },
+  ".html": { runtimes: [], build: (f) => ({ live: true, file: f }) },
+  ".htm": { runtimes: [], build: (f) => ({ live: true, file: f }) },
+};
+// Kisi file ke liye fresh runner banao (probes ke hisab se binary/missing decide).
+const buildRunnerForFile = (file, probes) => {
+  if (!file) return null;
+  const dot = (() => { const b = baseName(file); const i = b.lastIndexOf("."); return i >= 0 ? b.slice(i).toLowerCase() : ""; })();
+  const def = RUNNERS[dot];
+  if (!def) return null;
+  try {
+    const spec = def.build(file, probes || null);
+    if (!spec || spec.missing) {
+      const miss = spec?.missing || (def.runtimes?.[0] || "runtime");
+      return { ok: false, missing: miss, hint: `${miss} not found` };
+    }
+    if (spec.live) return { ok: true, live: true, file: spec.file };
+    const ok = probes
+      ? (def.runtimes?.length ? def.runtimes.some((k) => !!probes[k]) : true)
+      : true; // probes abhi unknown → allow (error spawn par dikhega)
+    return { ok, cmd: spec.cmd, args: spec.args || [], hint: `${spec.cmd} ${baseName(file)}` };
+  } catch { return null; }
+};
+// Command field me poori line likh di ho ("py main.py") to quote-aware split
+// karke binary + args alag karo. Quoted path ("C:\Program Files\...") ek
+// token rehta hai. Built-in runners par no-op (unke cmd me space hoti nahi).
+const splitCmdLine = (cmd, extraArgs) => {
+  const c = String(cmd || "").trim();
+  const rest = Array.isArray(extraArgs) ? extraArgs : [];
+  if (!c || !/[\s]/.test(c)) return { cmd: c, args: rest };
+  const parts = c.match(/(?:[^\s"]+|"[^"]*")+/g) || [c];
+  const clean = parts.map((p) => p.replace(/^"(.*)"$/, "$1")).filter((p) => p.length > 0);
+  if (!clean.length) return { cmd: c, args: rest };
+  return { cmd: clean[0], args: [...clean.slice(1), ...rest] };
+};
+// probe key -> actual command to spawn (legacy; python/lua/npm probes se resolve hota hai.
+// python default "python" — "py" sirf tab jab probes.pythonCmd wahi bataye.)
+const RUNTIME_CMD = { node: "node", python: "python", php: "php", go: "go", npm: isWin ? "npm.cmd" : "npm" };
+// Spawn se pehle alias resolve: py/python/python3, npm, lua variants → probes wala binary.
+// probes abhi unknown ho to "py" ko "python" par lao (launcher aksar missing hota hai;
+// main-engine bhi py→python→python3 retry karta hai, ye sirf display/hint sahi rakhta hai).
+const resolveCmd = (cmd, probes) => {
+  const c = String(cmd || "");
+  if (/^(py|python|python3)(\.exe|\.cmd)?$/i.test(c)) {
+    if (probes?.pythonCmd) return probes.pythonCmd;
+    if (/^py(\.exe|\.cmd)?$/i.test(c)) return "python";
+    return cmd;
+  }
+  if (/^npm(\.cmd)?$/i.test(c) && probes?.npmCmd) return probes.npmCmd;
+  if (/^(lua|lua5\.4|luajit)(\.exe)?$/i.test(c) && probes?.luaCmd) return probes.luaCmd;
+  return cmd;
+};
 
 const lsKey = (root) => `ibx:runConfigs:${root || "__global__"}`;
 const histKey = (root) => `ibx:runHistory:${root || "__global__"}`;
@@ -48,8 +207,9 @@ const saveJson = (k, v) => {
 const baseName = (p) => String(p || "").replace(/.*[\\/]/, "") || String(p || "");
 const stripSlash = (p) => String(p || "").replace(/[\\/]+$/, "");
 // ── Project auto-detect: project type se default run command ─────────────
-// Priority: npm scripts (dev>start>serve>watch) > cargo > go > python entry >
-// php server > static index.html (Live Server). Null = kuch samajh nahi aaya.
+// Priority: npm scripts (dev>start>serve>watch) > dotnet > cargo > go >
+// python entry > ruby > php server > dart > java (gradle/maven) >
+// static index.html (Live Server). Null = kuch samajh nahi aaya.
 export async function detectAutoConfig(root) {
   try {
     if (!root) return null;
@@ -60,6 +220,7 @@ export async function detectAutoConfig(root) {
     const files = entries.filter((e) => !e.isDir).map((e) => String(e.name || ""));
     const lower = new Set(files.map((f) => f.toLowerCase()));
     const has = (n) => lower.has(String(n).toLowerCase());
+    const hasExt = (ext) => [...lower].some((f) => f.endsWith(ext));
     const real = (n) => entries.find((e) => !e.isDir && String(e.name).toLowerCase() === String(n).toLowerCase())?.name || n;
     const join = (n) => `${stripSlash(root)}/${n}`;
     if (has("package.json")) {
@@ -75,9 +236,10 @@ export async function detectAutoConfig(root) {
         }
       } catch {}
     }
+    if (hasExt(".csproj") || hasExt(".sln")) return { kind: "run", name: "dotnet run", cmd: "dotnet", args: ["run"], cwd: root };
     if (has("Cargo.toml")) return { kind: "run", name: "cargo run", cmd: "cargo", args: ["run"], cwd: root };
     if (has("go.mod")) return { kind: "run", name: "go run .", cmd: "go", args: ["run", "."], cwd: root };
-    if (has("requirements.txt") || has("pyproject.toml") || has("setup.py")) {
+    if (has("requirements.txt") || has("pyproject.toml") || has("setup.py") || has("manage.py") || has("main.py") || has("app.py")) {
       const py = RUNTIME_CMD.python;
       const entry = ["manage.py", "main.py", "app.py", "server.py"].find((f) => lower.has(f))
         || [...lower].find((f) => f.endsWith(".py") && !f.startsWith("test"));
@@ -87,7 +249,19 @@ export async function detectAutoConfig(root) {
         return { kind: "run", name: `${py} ${rn}`, cmd: py, args: [join(rn)], cwd: root };
       }
     }
+    if (has("rakefile") || has("gemfile") || hasExt(".gemspec")) {
+      if (has("rakefile")) return { kind: "run", name: "rake", cmd: "rake", args: [], cwd: root };
+      const entry = ["main.rb", "app.rb", "server.rb"].find((f) => lower.has(f))
+        || [...lower].find((f) => f.endsWith(".rb"));
+      if (entry) return { kind: "run", name: `ruby ${real(entry)}`, cmd: "ruby", args: [join(real(entry))], cwd: root };
+    }
     if (has("composer.json")) return { kind: "run", name: "php server :8000", cmd: "php", args: ["-S", "127.0.0.1:8000", "-t", "."], cwd: root };
+    if (has("pubspec.yaml")) return { kind: "run", name: "dart run", cmd: "dart", args: ["run"], cwd: root };
+    if (has("build.gradle") || has("build.gradle.kts") || has("pom.xml")) {
+      if (has("gradlew") || has("gradlew.bat")) return { kind: "run", name: "gradle run", cmd: isWin ? "gradlew.bat" : "./gradlew", args: ["run"], cwd: root };
+      if (has("build.gradle") || has("build.gradle.kts")) return { kind: "run", name: "gradle run", cmd: "gradle", args: ["run"], cwd: root };
+      return { kind: "run", name: "mvn spring-boot:run", cmd: "mvn", args: ["spring-boot:run"], cwd: root };
+    }
     if (has("index.html")) return { kind: "live", name: "Live Server", file: join(real("index.html")), cwd: root };
     return null;
   } catch { return null; }
@@ -102,6 +276,81 @@ const extOf = (p) => {
   const i = b.lastIndexOf(".");
   return i >= 0 ? b.slice(i).toLowerCase() : "";
 };
+// ── Runtime errors → Problems panel ───────────────────────────────────────
+// Fail run ke tail se Python traceback / Node stack / Java frame nikalo aur
+// `codemirror:diagnostics` (origin:"runtime") par bhejo. Problems panel inhe
+// editor-lint se alag bucket me rakhta hai. runFile = chalai gayi file
+// (current-file runs) — Java ke bare filename isi se resolve hote hain.
+const parseRuntimeDiagnostics = (text, runFile) => {
+  const found = [];
+  try {
+    const t = String(text || "");
+    if (!t) return found;
+    // — Python: Traceback … File "abs", line N … ValueError: msg —
+    if (/Traceback \(most recent call last\)/.test(t)) {
+      const frames = [...t.matchAll(/File "([^"]+)", line (\d+)(?:, in (\S+))?/g)];
+      const lines = t.split("\n").map((l) => l.trim()).filter(Boolean);
+      const exc = [...lines].reverse().find((l) => !/^(Traceback|File "|[\^~]+$)/.test(l) && /(Error|Exception|assert|raise\b)/i.test(l))
+        || lines[lines.length - 1] || "Runtime error";
+      if (frames.length) {
+        const last = frames[frames.length - 1];
+        const at = last[3] && last[3] !== "<module>" ? ` in ${last[3]}` : "";
+        found.push({
+          path: last[1],
+          markers: [{
+            path: last[1],
+            message: `${String(exc).slice(0, 300)}${at}`,
+            severity: 8,
+            startLineNumber: parseInt(last[2], 10) || 1,
+            startColumn: 1,
+            source: "Python",
+          }],
+          origin: "runtime",
+        });
+        return found;
+      }
+    }
+    // — Node.js: Error: msg … at fn (D:\x\app.js:10:15) —
+    const nl = t.split("\n");
+    const head = (nl.find((l) => /^\s*(Error|.*Error|Exception)\s*:/i.test(l)) || nl.find((l) => l.trim()) || "Runtime error").trim().slice(0, 300);
+    for (const l of nl) {
+      const m = l.match(/at\s+(?:.+?\s+\()?((?:[A-Za-z]:[\\/]|\/)[^()\s]+?\.(?:js|mjs|cjs|jsx|ts|tsx|mts|cts)):(\d+):(\d+)\)?/);
+      if (m && !/node:internal|node_modules[\\/]/i.test(m[1])) {
+        found.push({
+          path: m[1],
+          markers: [{
+            path: m[1], message: head, severity: 8,
+            startLineNumber: parseInt(m[2], 10) || 1,
+            startColumn: parseInt(m[3], 10) || 1,
+            source: "Node",
+          }],
+          origin: "runtime",
+        });
+        return found;
+      }
+    }
+    // — Java: at com.Foo.main(Foo.java:12) — bare filename runFile se jodo —
+    if (runFile) {
+      const jm = t.match(/at\s+[\w.$]+\(([\w-]+\.java):(\d+)\)/);
+      const base = baseName(runFile);
+      if (jm && jm[1].toLowerCase() === String(base || "").toLowerCase()) {
+        const jhead = (nl.find((l) => /(Exception|Error)/.test(l)) || "Runtime error").trim().slice(0, 300);
+        found.push({
+          path: runFile,
+          markers: [{
+            path: runFile, message: jhead, severity: 8,
+            startLineNumber: parseInt(jm[2], 10) || 1, startColumn: 1,
+            source: "Java",
+          }],
+          origin: "runtime",
+        });
+        return found;
+      }
+    }
+  } catch {}
+  return found;
+};
+
 
 const RunPanel = () => {
   const [projectRoot, setProjectRoot] = useState(() => {
@@ -124,6 +373,13 @@ const RunPanel = () => {
   runningRef.current = running;
   const rootRef = useRef(projectRoot);
   rootRef.current = projectRoot;
+  // doRun callback ke andar fresh values (stale closure se bachne ke liye)
+  const probesRef = useRef(null);
+  probesRef.current = probes;
+  const activeFileRef = useRef(activeFile);
+  activeFileRef.current = activeFile;
+  const projectRootRef = useRef(projectRoot);
+  projectRootRef.current = projectRoot;
   // xterm console refs
   const termWrapRef = useRef(null);
   const termRef = useRef(null);
@@ -209,8 +465,16 @@ const RunPanel = () => {
   useEffect(() => { saveJson(lsKey(projectRoot), customs); }, [customs, projectRoot]);
   useEffect(() => { saveJson(histKey(projectRoot), history); }, [history, projectRoot]);
 
-  // Auto-detected command default select karo (user ne kuch aur chuna ho to wahi rahe)
-  useEffect(() => { if (auto) setSelected((s) => (s === "__current__" ? "__auto__" : s)); }, [auto]);
+  // Default select: project AUTO-command ko priority (npm run dev / ...),
+  // khuli runnable file uske baad. User ki explicit choice (npm/custom) ko
+  // nahi chhedo. Top ▾ dropdown se koi bhi option ek click me chalti hai.
+  useEffect(() => {
+    setSelected((s) => {
+      if (s !== "__current__" && s !== "__auto__") return s;
+      if (auto) return "__auto__";
+      return "__current__";
+    });
+  }, [auto]);
 
   // ── Engine events → xterm console + Output panel ────────────────────────
   // RAW chunk xterm me (colors/spinners/progress as-is), stripped lines Output me.
@@ -237,12 +501,32 @@ const RunPanel = () => {
     const onExit = ({ runId, code, ms }) => {
       try {
         if (!runningRef.current || String(runId) !== String(runningRef.current.runId)) return;
-        const label = runningRef.current.label;
+        const info = runningRef.current;
+        const label = info.label;
+        const runFile = info.file || null;
         setRunning(null);
         try {
           termRef.current?.writeln(`\x1b[90m[exit code ${code} in ${((Number(ms) || 0) / 1000).toFixed(1)}s]\x1b[0m`);
         } catch {}
         setHistory((prev) => [{ label, code: Number(code), ms: Number(ms) || 0, at: Date.now() }, ...prev].slice(0, HIST_MAX));
+        // ── Problems panel sync ──────────────────────────────────────
+        // Pass → us file ke purane runtime-errors clear; fail → tail se
+        // traceback/stack nikalo aur Problems me dikhao (click → editor).
+        try {
+          if (Number(code) === 0) {
+            if (runFile) {
+              window.dispatchEvent(new CustomEvent("codemirror:diagnostics", {
+                detail: { path: runFile, markers: [], origin: "runtime" },
+              }));
+            }
+          } else {
+            const buf = window.__outputBuffer?.Run || [];
+            const tail = buf.slice(-150).map((l) => l?.msg ?? "").join("\n");
+            for (const d of parseRuntimeDiagnostics(tail, runFile)) {
+              window.dispatchEvent(new CustomEvent("codemirror:diagnostics", { detail: d }));
+            }
+          }
+        } catch {}
       } catch {}
     };
     let u1 = null, u2 = null;
@@ -335,7 +619,7 @@ const RunPanel = () => {
           try {
             const line = term.buffer.active.getLine(y - 1)?.translateToString(true) || "";
             const out = [];
-            const re = /([\w\-.\\/]+?\.(?:js|jsx|ts|tsx|mjs|cjs|py|go|php|java|rb|c|h|cpp|json|html|css|txt|log|md)(?::\d+(?::\d+)?)?)/g;
+            const re = /([\w\-.\\/]+?\.(?:js|jsx|ts|tsx|mts|cts|mjs|cjs|py|pyw|go|php|java|rb|c|h|cpp|cc|cxx|hpp|cs|rs|swift|kt|dart|lua|pl|r|jl|sh|bat|cmd|ps1|json|html|htm|css|txt|log|md)(?::\d+(?::\d+)?)?)/g;
             let m;
             let guard = 0;
             while ((m = re.exec(line)) && guard++ < 20) {
@@ -414,13 +698,14 @@ const RunPanel = () => {
   }, []);
 
   // ── Config list ─────────────────────────────────────────────────────────
+  // currentRunner har render par fresh banta hai taaki probes update hote hi
+  // sahi binary / missing-hint mile (py→python fallback समेत).
   const currentRunner = (() => {
     if (!activeFile) return null;
-    const r = RUNNERS[extOf(activeFile)];
-    if (!r) return null;
-    const cmd = RUNTIME_CMD[r.runtime];
-    const ok = probes ? !!probes[r.runtime] : true; // probes unknown yet → allow
-    return { ...r, cmd, ok, file: activeFile };
+    const built = buildRunnerForFile(activeFile, probes);
+    if (!built) return null;
+    if (built.live) return { live: true, file: built.file, ok: true, cmd: "live-server", hint: `Live Server ${baseName(activeFile)}` };
+    return { cmd: resolveCmd(built.cmd, probes), ok: !!built.ok, hint: built.hint, missing: built.missing, file: activeFile };
   })();
 
   const configs = [
@@ -428,13 +713,15 @@ const RunPanel = () => {
     {
       id: "__current__",
       name: activeFile ? `Current File — ${baseName(activeFile)}` : "Current File — (none open)",
-      disabled: !currentRunner || (probes ? !currentRunner.ok : false),
+      disabled: !currentRunner || (probes ? !currentRunner.ok && !currentRunner.live : false),
       hint: !activeFile
         ? "koi file kholo"
         : !currentRunner
           ? `no runner for ${extOf(activeFile) || "this type"}`
-          : (probes && !currentRunner.ok ? `${currentRunner.cmd} not found` : `${currentRunner.cmd} ${baseName(activeFile)}`),
+          : (currentRunner.live ? currentRunner.hint
+            : (probes && !currentRunner.ok ? `${currentRunner.missing || currentRunner.cmd} not found — install it or pick another config` : currentRunner.hint)),
       run: currentRunner,
+      file: activeFile,
     },
     ...npmScripts.map((s) => ({
       id: `npm:${s}`,
@@ -451,6 +738,26 @@ const RunPanel = () => {
     })),
   ];
   const active = configs.find((c) => c.id === selected) || configs[0];
+
+  // ── Top ▾ dropdown bridge ─────────────────────────────────────────────
+  // configs har render fresh hain — poll/dropdown ke liye ref me rakho.
+  const configsRef = useRef([]);
+  configsRef.current = configs;
+  // Options badle tabhi broadcast (har render par storm nahi).
+  const optionsKey = `${selected}~${configs.map((c) => `${c.id}|${c.disabled ? 1 : 0}|${c.name}`).join("~")}`;
+  const lastOptionsKeyRef = useRef("");
+  useEffect(() => {
+    if (lastOptionsKeyRef.current === optionsKey) return;
+    lastOptionsKeyRef.current = optionsKey;
+    try {
+      window.dispatchEvent(new CustomEvent("run:options", {
+        detail: {
+          options: configsRef.current.map((c) => ({ id: c.id, name: c.name, hint: c.hint, disabled: !!c.disabled })),
+          selected,
+        },
+      }));
+    } catch {}
+  });
 
   // Static projects: Live Server kholo (browser tab me)
   const runLive = useCallback(async (a) => {
@@ -474,14 +781,56 @@ const RunPanel = () => {
 
   const doRun = useCallback(async (cfg) => {
     let c = cfg || active;
-    if (!c || c.disabled) return;
-    // Auto sentinel → project-detected command resolve karo (NO recursion —
-    // resolved config seedha neeche chalti hai, warna __auto__ loop ban jata hai)
+    if (!c || c.disabled) {
+      // Disabled current-file par bhi wajah batao (silent fail nahi).
+      if (c?.id === "__current__" && activeFile) {
+        const b = buildRunnerForFile(activeFile, probesRef.current);
+        if (b && !b.ok) setErr(`${b.missing || "runtime"} not found — install it and press ↻, or pick another config`);
+      }
+      return;
+    }
+    // Auto sentinel → resolve karo (NO recursion — resolved config seedha
+    // neeche chalti hai, warna __auto__ loop ban jata hai).
+    // Priority: project AUTO-command pehle (npm run dev / cargo run / ...),
+    // phir khuli runnable file. Koi file khuli nahi ya runnable nahi to auto
+    // hi chalta hai; auto nahi to current file. (Dropdown me explicit choice
+    // seedha usi config par jati hai — neeche run:runOption dekho.)
     if (c.auto || c.id === "__auto__") {
       const a = autoRef.current;
-      if (!a) { setErr("Nothing auto-detectable — open a project file or pick a config"); return; }
-      if (a.kind === "live") { runLive(a); return; }
-      c = { id: "__auto_resolved__", name: a.name, run: { cmd: a.cmd, args: a.args, cwd: a.cwd } };
+      const f = activeFileRef.current;
+      const fb = buildRunnerForFile(f, probesRef.current);
+      const runCurrentFile = () => {
+        if (!f || !fb) return false;
+        if (fb.live) { runLive({ name: `Live Server — ${baseName(f)}`, file: fb.file, cwd: projectRootRef.current }); return true; }
+        if (fb.ok) {
+          c = { id: "__current__", name: `Current File — ${baseName(f)}`, run: { cmd: resolveCmd(fb.cmd, probesRef.current), args: fb.args }, file: f };
+          return true;
+        }
+        return false;
+      };
+      const runAutoCfg = () => {
+        if (!a) return false;
+        if (a.kind === "live") { runLive(a); return true; }
+        c = { id: "__auto_resolved__", name: a.name, run: { cmd: resolveCmd(a.cmd, probesRef.current), args: a.args, cwd: a.cwd } };
+        return true;
+      };
+      const done = runAutoCfg() || runCurrentFile();
+      if (!done) {
+        setErr(fb && !fb.ok
+          ? `${fb.missing || "runtime"} not found — install it and press ↻, or open a project (package.json / Cargo.toml / go.mod / *.csproj / python / index.html)`
+          : "Nothing to run — open a code file (.py .js .java .c .cpp .go .rs .rb .php …) or a project, then press Run");
+        out("Nothing runnable for Run button — open a file or pick a config", "warn");
+        return;
+      }
+    }
+    // Current-file config: probes fresh ho sakte hain — runner dobara build karo.
+    if (c.id === "__current__") {
+      const f = c.file || activeFileRef.current;
+      const fb = buildRunnerForFile(f, probesRef.current);
+      if (!fb) { setErr(`No runner for ${extOf(f) || "this type"} yet`); return; }
+      if (fb.live) { runLive({ name: `Live Server — ${baseName(f)}`, file: fb.file, cwd: projectRootRef.current }); return; }
+      if (!fb.ok) { setErr(`${fb.missing || "runtime"} not found — install it and press ↻`); out(`Cannot run ${baseName(f)}: ${fb.missing || "runtime"} missing`, "error"); return; }
+      c = { ...c, run: { cmd: resolveCmd(fb.cmd, probesRef.current), args: fb.args } };
     }
     if (!c.run) return;
     setErr(null);
@@ -489,9 +838,13 @@ const RunPanel = () => {
       if (runningRef.current) {
         try { await window.electronAPI?.runStop?.(runningRef.current.runId); } catch {}
       }
-      const run = c.run;
-      const cwd = run.cwd || (c.id === "__current__" && activeFile ? (dirName(activeFile) || projectRoot) : projectRoot) || undefined;
-      const args = c.id === "__current__" && run.file ? run.makeArgs(run.file) : (run.args || []);
+      const raw = { ...c.run, cmd: resolveCmd(c.run.cmd, probesRef.current) };
+      // Command field me poori line ho ("py main.py") to binary/args alag karo,
+      // phir alias resolve (py→probes.pythonCmd/"python").
+      const sp = splitCmdLine(raw.cmd, raw.args);
+      const run = { ...raw, cmd: resolveCmd(sp.cmd, probesRef.current), args: sp.args };
+      const cwd = run.cwd || (c.id === "__current__" && (c.file || activeFileRef.current) ? (dirName(c.file || activeFileRef.current) || projectRootRef.current) : projectRootRef.current) || undefined;
+      const args = run.args || [];
       const label = c.name;
       const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       try {
@@ -500,21 +853,36 @@ const RunPanel = () => {
       } catch {}
       lastCwdRef.current = cwd || null;
       browserOpenedRef.current = false;
-      setRunning({ runId, label, startedAt: Date.now(), cwd: cwd || null });
-      try { window.dispatchEvent(new CustomEvent("add-output-panel")); } catch {}
+      // file bhi rakho taaki exit par runtime-errors Problems me file se jud sakein.
+      const runFile = (c.id === "__current__" ? (c.file || activeFileRef.current) : null) || null;
+      setRunning({ runId, label, startedAt: Date.now(), cwd: cwd || null, file: runFile });
+      // Output panel kholo + uska channel "Run" par lao (warna logs App me chhupe rehte hain).
+      try { window.dispatchEvent(new CustomEvent("add-output-panel", { detail: { channel: "Run" } })); } catch {}
+      try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: "Run" } })); } catch {}
       out(`—— ${label} ——`);
       const res = await window.electronAPI?.runStart?.({ runId, cmd: run.cmd, args, cwd, label });
       if (!res?.ok) {
         setRunning(null);
-        setErr(res?.error || "Could not start");
-        out(`FAILED: ${res?.error || "Could not start"}`, "error");
+        // Detected runtimes bhi batao taaki "py vs python" confusion turant clear ho.
+        let det = "";
+        try {
+          const p = probesRef.current;
+          det = !p
+            ? " (runtimes abhi detect ho rahe hain — ↻ dabao)"
+            : ` (detected: python=${p.python ? `${p.python} via ${p.pythonCmd || "?"}` : "MISSING"}, node=${p.node || "MISSING"})`;
+        } catch {}
+        const hint = /Could not start/i.test(res?.error || "")
+          ? `${res?.error} — is "${run.cmd}" installed and on PATH?${det}`
+          : (res?.error || "Could not start");
+        setErr(hint);
+        out(`FAILED: ${hint}`, "error");
         setHistory((prev) => [{ label, code: -1, ms: 0, at: Date.now() }, ...prev].slice(0, HIST_MAX));
       }
     } catch (e) {
       setRunning(null);
       setErr(e?.message || String(e));
     }
-  }, [active, activeFile, projectRoot, out, runLive]);
+  }, [active, out, runLive]);
 
   const doStop = useCallback(async () => {
     try {
@@ -523,7 +891,8 @@ const RunPanel = () => {
   }, []);
 
   // ── Status-bar button bridge ────────────────────────────────────────────
-  // window.__pendingAutoRun = { auto:true } → default auto command chalao.
+  // window.__pendingAutoRun = { auto:true } → khuli runnable file pehle,
+  // warna project auto-command (doRun preferCurrent me khud decide karta hai).
   // "run:stopCurrent" event → chalti run roko.
   // Har running change par "run:status" broadcast (status button sunta hai).
   const doRunRef = useRef(null);
@@ -537,14 +906,23 @@ const RunPanel = () => {
       try {
         if (window.__pendingAutoRun) {
           window.__pendingAutoRun = null;
-          const a = autoRef.current;
-          if (a) doRunRef.current?.({ id: "__auto__", name: a.name, auto: true });
-          else {
-            // Status-bar button se aaya par kuch auto-detectable nahi —
-            // panel khula hai, isliye visible error dikhao (silent mat raho).
-            setErr("No auto-detectable run here — open a project (package.json / go.mod / Cargo.toml / python / index.html) or pick a config above");
-            out("No auto-detectable run for this project — pick a config", "warn");
-          }
+          // doRun: auto → current-file fallback + visible error khud handle karta hai.
+          try { doRunRef.current?.({ id: "__auto__", auto: true }); } catch {}
+        }
+        // Top ▾ dropdown se chuni option (panel mount hone ke baad chalti hai —
+        // isliye poll, seedha event nahi: panel tabhi mount hota hai).
+        if (window.__pendingRunOption) {
+          const { id } = window.__pendingRunOption || {};
+          window.__pendingRunOption = null;
+          try {
+            const list = configsRef.current || [];
+            const cfg = list.find((x) => x.id === id);
+            if (cfg) doRunRef.current?.(cfg);
+            else {
+              setErr("Woh run option ab nahi hai — panel se dobara chuno");
+              out(`Run option not found: ${id}`, "warn");
+            }
+          } catch {}
         }
       } catch {}
     }, 700);
@@ -584,7 +962,8 @@ const RunPanel = () => {
 
   const dot = running ? "var(--teal)" : "var(--text-muted)";
   const runtimeHint = probes
-    ? ["node", "python", "php", "go"].filter((k) => probes[k]).map((k) => `${k} ${String(probes[k]).split(" ")[0]}`).join(" • ") || "no runtimes found"
+    ? ["node", "python", "php", "go", "java", "gcc", "gpp", "cargo", "rustc", "ruby", "dotnet", "dart", "tsx", "deno", "bun", "lua", "perl", "rscript", "julia"]
+      .filter((k) => probes[k]).map((k) => `${k} ${String(probes[k]).split(" ")[0]}`).join(" • ") || "no runtimes found — install node/python/java/gcc and press ↻"
     : "detecting runtimes…";
 
   const btn = {

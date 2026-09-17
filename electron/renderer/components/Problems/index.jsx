@@ -1,10 +1,17 @@
-// Problems Panel — CodeMirror lint diagnostics.
+// Problems Panel — editor lint + runtime errors.
 //
-// Har CodeMirror editor apne lint run par `codemirror:diagnostics` window
-// event dispatch karta hai { path, markers }. Yahan per-file aggregate hota
-// hai. Severity numbers purane jaisi hi hain: 8=Error, 4=Warning, 2=Info,
-// 1=Hint (click -> open-file-in-editor + editor:revealLine, unchanged).
+// Sources:
+//  - Editor har lint run par `codemirror:diagnostics` bhejta hai
+//    { path, markers } — Lezer syntax errors (cm/diagnostics.js).
+//  - Run panel fail run par { path, markers, origin: "runtime" } bhejta hai
+//    (Python traceback / Node stack se nikle markers, source Python/Node/Java).
+// Dono alag buckets me rehte hain taaki editor ka agla lint run runtime
+// errors na mitaye (aur vice versa). Empty markers = sirf apni bucket clear.
+// Severity: 8=Error, 4=Warning, 2=Info, 1=Hint.
+// Click -> open-file-in-editor + editor:revealLine.
 import React, { useEffect, useState } from "react";
+
+const fileBase = (p) => String(p || "unknown").split(/[\\/]/).pop() || String(p || "unknown");
 
 const ProblemsPanel = () => {
   const [markers, setMarkers] = useState([]);
@@ -12,12 +19,13 @@ const ProblemsPanel = () => {
   const [svcError, setSvcError] = useState(null);
 
   useEffect(() => {
-    const byFile = new Map(); // path -> markers[]
+    const byFile = new Map(); // path -> { editor: [], runtime: [] }
     const rebuild = () => {
       try {
         const seen = new Set();
         const all = [];
-        for (const list of byFile.values()) {
+        for (const buckets of byFile.values()) {
+          const list = [...(buckets.editor || []), ...(buckets.runtime || [])];
           for (const m of list) {
             const k = `${m.path}:${m.startLineNumber}:${m.startColumn}:${m.message}`;
             if (seen.has(k)) continue;
@@ -37,19 +45,19 @@ const ProblemsPanel = () => {
     };
     const onDiags = (e) => {
       try {
-        const { path, markers: list } = e.detail || {};
+        const { path, markers: list, origin } = e.detail || {};
         if (!path) return;
-        if (Array.isArray(list) && list.length) byFile.set(path, list);
-        else byFile.delete(path);
-        if (!document.hidden) rebuild();
+        const bucket = origin === "runtime" ? "runtime" : "editor";
+        const cur = byFile.get(path) || { editor: [], runtime: [] };
+        cur[bucket] = Array.isArray(list) && list.length ? list : [];
+        if (!cur.editor.length && !cur.runtime.length) byFile.delete(path);
+        else byFile.set(path, cur);
+        rebuild();
       } catch {}
     };
-    const onVis = () => { if (!document.hidden) rebuild(); };
     window.addEventListener("codemirror:diagnostics", onDiags);
-    document.addEventListener("visibilitychange", onVis);
     return () => {
       window.removeEventListener("codemirror:diagnostics", onDiags);
-      document.removeEventListener("visibilitychange", onVis);
     };
   }, []);
 
@@ -127,7 +135,7 @@ const ProblemsPanel = () => {
         {filtered.length === 0 && !svcError && (
           <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
             {markers.length === 0 ? "No problems — all good" : `No ${filter} problems`}
-            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>Diagnostics from the editor (lint) appear here</div>
+            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>Editor syntax errors &amp; failed-run errors appear here — click to jump</div>
           </div>
         )}
         {filtered.map((m, i) => (
@@ -145,7 +153,7 @@ const ProblemsPanel = () => {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: "var(--fs-body)", color: "var(--text-bright)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.message}</div>
               <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)", display: "flex", gap: "var(--space-8)" }}>
-                <span style={{ fontFamily: "var(--font-code)" }}>{(m.path || "unknown").split("/").pop()}:{m.startLineNumber}:{m.startColumn}</span>
+                <span style={{ fontFamily: "var(--font-code)" }} title={m.path}>{fileBase(m.path)}:{m.startLineNumber}:{m.startColumn}</span>
                 <span style={{ color: "var(--text-placeholder)" }}>{m.source || ""}</span>
               </div>
             </div>

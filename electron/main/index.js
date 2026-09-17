@@ -5,6 +5,8 @@ const fs      = require("fs");
 const { pathToFileURL } = require("url");
 const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
+let setupCsp = null;
+try { ({ setupCsp } = require("./csp")); } catch (e) { console.warn("[main] csp module not available:", e.message); }
 let chokidar = null;
 try { chokidar = require("chokidar"); } catch (e) { console.warn("[main] chokidar not available:", e.message); }
 let pty = null;
@@ -3065,6 +3067,69 @@ function cleanRunCwd(cwd) {
   } catch {}
   return process.cwd();
 }
+// node-pty (conpty) Windows par BARE binary names resolve nahi karta —
+// "py"/"python"/"node" par "File not found" aata hai jabki wahi binary
+// execFile aur terminal (absolute/.exe path) me chalta hai. Root cause:
+// is code-path me CreateProcess ko extension-less naam par PATH/PATHEXT
+// lookup nahi milta. Isliye spawn se pehle binary ko ABSOLUTE path me
+// resolve karo (where.exe jaisa: PATH dirs × PATHEXT exts). Verified:
+// bare "py"/"python"/"node"/"cmd" → fail; absolute → ok.
+function resolveBinAbsolute(bin, cwd) {
+  try {
+    const b = String(bin || "").trim();
+    if (!b) return null;
+    const isWin = process.platform === "win32";
+    const hasExt = /\.[A-Za-z0-9]+$/.test(b);
+    const hasSlash = b.includes("/") || b.includes("\\");
+    const pathext = () => String(process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD")
+      .split(";").map((e) => e.trim()).filter(Boolean);
+    const isFile = (p) => {
+      try { return fs.existsSync(p) && fs.statSync(p).isFile(); } catch { return false; }
+    };
+    // Relative path (./gradlew, tools/run.bat) → run cwd se jodo.
+    if (hasSlash && !/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(b)) {
+      try {
+        const base = cleanRunCwd(cwd);
+        if (isFile(path.resolve(base, b))) return path.resolve(base, b);
+      } catch {}
+      if (isWin && !hasExt) {
+        for (const e of pathext()) {
+          try {
+            const c = path.resolve(cleanRunCwd(cwd), b + e);
+            if (isFile(c)) return c;
+          } catch {}
+        }
+      }
+    }
+    // Absolute path → wese hi lo (ext na ho to PATHEXT lagao).
+    if (/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(b) || hasSlash) {
+      if (isFile(b)) return b;
+      if (isWin && !hasExt) {
+        for (const e of pathext()) {
+          try { if (isFile(b + e)) return b + e; } catch {}
+        }
+      }
+      if (/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(b)) return null;
+    }
+    // Bare name → PATH search. Windows: pehle PATHEXT wale (npm → npm.cmd),
+    // BARE naam sabse aakhir me — warna extension-less text files (nodejs/npm
+    // shell script) galat match ho jate hain. Linux: bare hi ek roop hai.
+    const names = [];
+    if (isWin && !hasExt) for (const e of pathext()) names.push(b + e);
+    names.push(b);
+    const dirs = String(process.env.PATH || "").split(";")
+      .map((d) => String(d || "").trim().replace(/^"|"$/g, "")).filter(Boolean);
+    for (const d of dirs) {
+      for (const n of names) {
+        try {
+          const full = path.join(d, n);
+          if (isFile(full)) return full;
+        } catch {}
+      }
+    }
+    return null;
+  } catch { return null; }
+}
 ipcMain.handle("run:start", async (event, { runId, cmd, args, cwd, label }) => {
   if (!pty) return { ok: false, error: "node-pty not available — run `npm install`" };
   if (!runId || typeof cmd !== "string" || !cmd.trim()) return { ok: false, error: "Bad run request" };
@@ -3075,19 +3140,38 @@ ipcMain.handle("run:start", async (event, { runId, cmd, args, cwd, label }) => {
     if (old) { try { old.pty.kill(); } catch {} runProcesses.delete(key); }
   } catch {}
   const bin = cmd.trim();
+  const runCwd = cleanRunCwd(cwd);
   const spawnOpts = {
     name: "xterm-256color",
     cols: 120,
     rows: 30,
-    cwd: cleanRunCwd(cwd),
+    cwd: runCwd,
     env: { ...process.env },
   };
-  // Windows: npm/npx jaise shims .cmd hote hain — CreateProcess ko extension
-  // chahiye. Koi bhi spawn failure par .cmd retry karo (sirf ENOENT text par
-  // nahi — node-pty "error code: 2" bhi deta hai).
-  const candidates = (process.platform === "win32" && !/\.(exe|cmd|bat|com|ps1)$/i.test(bin))
-    ? [bin, `${bin}.cmd`]
-    : [bin];
+  // Bare list: khud + python aliases (purane "py ..." saved configs bhi chalein).
+  const bareList = [bin];
+  if (/^(py|python|python3)$/i.test(bin)) {
+    const alts = process.platform === "win32" ? ["python", "py", "python3"] : ["python3", "python"];
+    for (const a of alts) {
+      if (a.toLowerCase() !== bin.toLowerCase() && !bareList.some((x) => x.toLowerCase() === a.toLowerCase())) bareList.push(a);
+    }
+  }
+  // Pehle ABSOLUTE resolved paths (node-pty/Win par yahi chalte hain),
+  // phir legacy bare names (Linux execvp PATH lookup + purana .cmd retry).
+  const candidates = [];
+  const seen = new Set();
+  const push = (c) => {
+    const k = String(c).toLowerCase();
+    if (c && !seen.has(k)) { seen.add(k); candidates.push(c); }
+  };
+  for (const b of bareList) {
+    try {
+      const abs = resolveBinAbsolute(b, runCwd);
+      if (abs) push(abs);
+    } catch {}
+  }
+  for (const b of bareList) push(b);
+  if (process.platform === "win32" && !/\.(exe|cmd|bat|com|ps1)$/i.test(bin)) push(`${bin}.cmd`);
   let p = null;
   let lastErr = null;
   for (const c of candidates) {
@@ -3095,11 +3179,11 @@ ipcMain.handle("run:start", async (event, { runId, cmd, args, cwd, label }) => {
     catch (err) { lastErr = err; }
   }
   if (!p) {
-    return { ok: false, error: `Could not start (${cmd}): ${lastErr?.message || lastErr}` };
+    return { ok: false, error: `Could not start (${cmd}) — tried: ${candidates.join(", ")} — ${lastErr?.message || lastErr}` };
   }
   const startedAt = Date.now();
   runProcesses.set(key, { pty: p, sender: event.sender, startedAt, label: String(label || cmd) });
-  try { logOutput("Run", `$ ${cmd} ${argList.join(" ")}`.trim() + `  [${cleanRunCwd(cwd)}]`); } catch {}
+  try { logOutput("Run", `$ ${cmd} ${argList.join(" ")}`.trim() + `  [${runCwd}]`); } catch {}
   p.onData((data) => {
     try {
       const sender = runProcesses.get(key)?.sender || event.sender;
@@ -3134,24 +3218,81 @@ ipcMain.handle("run:stop", async (event, { runId, signal }) => {
   return { ok: true };
 });
 ipcMain.handle("run:probes", async () => {
-  // Best-effort runtime detection (node / python / php / go / npm)
+  // Best-effort runtime detection — node/python/php/go + compiled & scripting langs.
+  // Har key ke liye candidates: pehla jo version de, wahi wins (Win par py->python->python3 fallback).
+  const isWin = process.platform === "win32";
+  const CANDIDATES = {
+    node: [["node", ["--version"]]],
+    npm: isWin ? [["npm.cmd", ["--version"]], ["npm", ["--version"]]] : [["npm", ["--version"]]],
+    python: isWin
+      ? [["py", ["--version"]], ["python", ["--version"]], ["python3", ["--version"]]]
+      : [["python3", ["--version"]], ["python", ["--version"]]],
+    php: [["php", ["--version"]]],
+    go: [["go", ["version"]]],
+    java: [["java", ["-version"]]],
+    javac: [["javac", ["-version"]]],
+    gcc: [["gcc", ["--version"]]],
+    gpp: [["g++", ["--version"]]],
+    clang: [["clang", ["--version"]]],
+    rustc: [["rustc", ["--version"]]],
+    cargo: [["cargo", ["--version"]]],
+    ruby: [["ruby", ["--version"]]],
+    dotnet: [["dotnet", ["--version"]]],
+    tsx: [["tsx", ["--version"]]],
+    tsnode: [["ts-node", ["--version"]]],
+    deno: [["deno", ["--version"]]],
+    bun: [["bun", ["--version"]]],
+    dart: [["dart", ["--version"]]],
+    swift: [["swift", ["--version"]]],
+    kotlin: [["kotlin", ["-version"]]],
+    kotlinc: [["kotlinc", ["-version"]]],
+    lua: [["lua", ["-v"]], ["lua5.4", ["-v"]], ["luajit", ["-v"]]],
+    perl: [["perl", ["--version"]]],
+    rscript: [["Rscript", ["--version"]]],
+    julia: [["julia", ["--version"]]],
+    bash: [["bash", ["--version"]]],
+  };
   const out = {};
   const { execFile: ef } = require("child_process");
-  await Promise.all(Object.entries({
-    node: ["node", ["--version"]],
-    python: [process.platform === "win32" ? "py" : "python3", ["--version"]],
-    php: ["php", ["--version"]],
-    go: ["go", ["version"]],
-    npm: ["npm", ["--version"]],
-  }).map(([k, [c, a]]) => new Promise((resolve) => {
+  const tryCandidate = (c, a) => new Promise((resolve) => {
     try {
       ef(c, a, { timeout: 4000, windowsHide: true, encoding: "utf8" }, (err, stdout, stderr) => {
         const s = String(stdout || stderr || "").trim().split("\n")[0] || "";
-        out[k] = err ? null : s.slice(0, 40);
-        resolve();
+        resolve(err ? null : (s.slice(0, 60) || "ok"));
       });
-    } catch { out[k] = null; resolve(); }
-  })));
+    } catch { resolve(null); }
+  });
+  await Promise.all(Object.entries(CANDIDATES).map(([k, list]) => (async () => {
+    out[k] = null;
+    for (const [c, a] of list) {
+      const v = await tryCandidate(c, a);
+      if (v) { out[k] = v; break; }
+    }
+  })()));
+  // Renderer ke liye actual binary names (version string se alag).
+  try {
+    if (out.python) {
+      if (isWin) {
+        out.pythonCmd = (await tryCandidate("py", ["--version"])) ? "py"
+          : (await tryCandidate("python", ["--version"])) ? "python"
+          : (await tryCandidate("python3", ["--version"])) ? "python3" : null;
+      } else {
+        out.pythonCmd = (await tryCandidate("python3", ["--version"])) ? "python3"
+          : (await tryCandidate("python", ["--version"])) ? "python" : null;
+      }
+    } else out.pythonCmd = null;
+  } catch { out.pythonCmd = out.python ? (isWin ? "py" : "python3") : null; }
+  try {
+    if (out.npm) out.npmCmd = (isWin && await tryCandidate("npm.cmd", ["--version"])) ? "npm.cmd" : "npm";
+    else out.npmCmd = null;
+  } catch { out.npmCmd = out.npm ? (isWin ? "npm.cmd" : "npm") : null; }
+  try {
+    if (out.lua) {
+      out.luaCmd = (await tryCandidate("lua", ["-v"])) ? "lua"
+        : (await tryCandidate("lua5.4", ["-v"])) ? "lua5.4"
+        : (await tryCandidate("luajit", ["-v"])) ? "luajit" : null;
+    } else out.luaCmd = null;
+  } catch { out.luaCmd = out.lua ? "lua" : null; }
   return out;
 });
 
@@ -4835,7 +4976,13 @@ function openSettingsWindow(initialPage) {
     title: "Settings", backgroundColor: "#1a1a1a",
     icon: path.join(__dirname, "../renderer/assets/idot_box.png"),
     parent: BrowserWindow.getAllWindows()[0], modal: false, show: false,
-    webPreferences: { preload: path.join(__dirname, "../preload/index.js"), contextIsolation: true, nodeIntegration: false },
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/index.js"),
+      contextIsolation: true, nodeIntegration: false,
+      // CSP hardening — never relax these for app shell windows.
+      webSecurity: true, allowRunningInsecureContent: false,
+      experimentalFeatures: false, enableWebSQL: false,
+    },
   });
   settingsWin.setMenuBarVisibility(false);
   // Apply persisted UI zoom to settings window as well
@@ -5230,6 +5377,11 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload-bundle.cjs"),
       contextIsolation: true, nodeIntegration: false, webviewTag: true,
+      // CSP hardening — never relax these for app shell windows.
+      // (sandbox stays off: the preload bridge needs Node in main world;
+      // isolation comes from contextIsolation + CSP + navigation guards.)
+      webSecurity: true, allowRunningInsecureContent: false,
+      experimentalFeatures: false, enableWebSQL: false,
     },
   });
   win.setMenuBarVisibility(false);
@@ -5430,6 +5582,10 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // ─── Content-Security-Policy — header enforcement for file:// app shell ──
+  // Must run BEFORE any BrowserWindow loads. Guest <webview> / ibx-file
+  // content is intentionally excluded (see electron/main/csp.js).
+  try { if (typeof setupCsp === "function") setupCsp(session.defaultSession); } catch (e) { console.warn("[csp] setup failed:", e?.message || e); }
   if (ElectronChromeExtensions) {
     try { ElectronChromeExtensions.handleCRXProtocol(session.defaultSession); } catch (e) { console.warn("[electron-chrome-extensions] handleCRXProtocol failed:", e.message); }
   }
@@ -5556,6 +5712,12 @@ app.whenReady().then(async () => {
         headers.set("Access-Control-Allow-Origin", "null");
       }
       headers.set("Content-Type", PP_FILE_MIME[path.extname(normPath).toLowerCase()] || "application/octet-stream");
+      // MIME-confusion hardening. NOTE: no CSP header here on purpose —
+      // ibx-file serves *user project content* for Browser <webview> previews
+      // and srcDoc <base> assets; stamping the app-shell CSP would break
+      // legitimate user pages (CDN scripts, inline handlers). Guest isolation
+      // relies on <webview> process separation + preview iframe sandbox.
+      headers.set("X-Content-Type-Options", "nosniff");
       return new Response(res.body, { status: res.status, headers });
     } catch {
       return new Response("Not found", { status: 404 });

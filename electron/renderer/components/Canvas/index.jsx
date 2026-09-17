@@ -9,6 +9,7 @@ import "@excalidraw/excalidraw/index.css";
 import "./canvas.css";
 import { cssVar } from "../shared/theme.js";
 import { findGlobalCssFiles, inlineCssImports, posixDir, scopeCssForShadow, prepareHtmlDocument } from "../shared/previewCss.js";
+import { PREVIEW_IFRAME_CSP } from "../shared/previewCsp.js";
 
 // ── Canvas (Excalidraw drawing surface) ─────────────────────────────────────
 // Replaces the old project-map canvas. Drawings persist as JSON / .excalidraw:
@@ -516,6 +517,7 @@ export function ComponentEmbed({ element }) {
           <iframe
             srcDoc={html}
             sandbox="allow-scripts allow-same-origin"
+            csp={PREVIEW_IFRAME_CSP}
             style={{ width: "100%", height: "100%", border: 0, background: "var(--text-inverse)", display: "block" }}
           />
         );
