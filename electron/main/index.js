@@ -519,6 +519,18 @@ function saveUiZoomFactor(factor) {
 function getFocusedWin() {
   try { return BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || null; } catch { return null; }
 }
+// ── rebuildMenu: set application menu AND tell all renderer windows to
+// re-fetch it via cet:refreshMenu. custom-electron-titlebar caches the
+// serialized menu (with commandIds) in the renderer; if the menu is rebuilt
+// without notifying the renderer, commandIds go stale and menu clicks silently
+// fail. Call this instead of Menu.setApplicationMenu(buildMenu()) everywhere.
+function rebuildMenu() {
+  try { Menu.setApplicationMenu(buildMenu()); } catch {}
+  try {
+    const wins = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+    for (const w of wins) { try { w.webContents.send("cet:refreshMenu"); } catch {} }
+  } catch {}
+}
 let _lastZoomAt = 0;
 function applyUiZoom(win, factor) {
   // win may be null when called from IPC without sender; fallback to first window
@@ -534,7 +546,7 @@ function applyUiZoom(win, factor) {
     try { w.webContents.setZoomFactor(factor); } catch {}
   }
   saveUiZoomFactor(factor);
-  try { Menu.setApplicationMenu(buildMenu()); } catch {}
+  rebuildMenu();
   for (const w of allWins) {
     try { w.webContents.send("zoom:changed", factor); } catch {}
   }
@@ -1116,8 +1128,23 @@ ipcMain.handle("dialog:openFolder", async (event) => {
   if (r.canceled || !r.filePaths.length) return null;
   const folderPath = r.filePaths[0];
   lastProjectPath = folderPath;
+  addRecentProject(folderPath);
   event.sender.send("menu:openProject", folderPath);
   return folderPath;
+});
+ipcMain.handle("dialog:browseFolder", async () => {
+  const r = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
+  if (r.canceled || !r.filePaths.length) return null;
+  return r.filePaths[0];
+});
+ipcMain.handle("dialog:getDefaultLocation", async () => {
+  try {
+    // Prefer Documents/Projects, fallback to home
+    const docs = app.getPath("documents");
+    return docs;
+  } catch {
+    try { return app.getPath("home"); } catch { return ""; }
+  }
 });
 
 // ─── Directory reads ──────────────────────────────────────────────────────────
@@ -1689,6 +1716,21 @@ ipcMain.handle("git:pull", async (_e, rootPath) => {
 ipcMain.handle("git:fetch", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
   try { const out = await gitRunLogged(rootPath, ["fetch"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+});
+ipcMain.handle("git:clone", async (_e, url, destPath) => {
+  if (!url || !destPath) return { ok: false, error: "Missing url or destination" };
+  try {
+    const parent = path.dirname(destPath);
+    if (!fs.existsSync(parent)) fs.mkdirSync(parent, { recursive: true });
+    if (fs.existsSync(destPath)) return { ok: false, error: "Destination already exists: " + destPath };
+    await new Promise((resolve, reject) => {
+      execFile("git", ["clone", url, destPath], { timeout: 300000 }, (err, _stdout, stderr) => {
+        if (err) reject(new Error(stderr || err.message || String(err)));
+        else resolve();
+      });
+    });
+    return { ok: true, path: destPath };
+  } catch (e) { return { ok: false, error: e.message || String(e) }; }
 });
 
 // ─── Project config (tabs state + pin config) — stored in appData/projects/ ───
@@ -2382,6 +2424,136 @@ ipcMain.handle("projectStorage:clearAll", async (_e, rootPath) => {
     } catch {}
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
+});
+
+ipcMain.handle("project:load-recent", async () => {
+  try {
+    const root = getProjectStoreRoot();
+    let pinned = [];
+    let recent = [];
+
+    // Load from the projects index
+    if (root && fs.existsSync(root)) {
+      const idxFile = path.join(root, "index.json");
+      let idx = {};
+      try { idx = JSON.parse(fs.readFileSync(idxFile, "utf8")); } catch {}
+
+      // pinned projects come from project pins config
+      const pinConfigPath = path.join(root, "project-pins.json");
+      try {
+        const pinData = JSON.parse(fs.readFileSync(pinConfigPath, "utf8"));
+        if (pinData && Array.isArray(pinData)) pinned = pinData;
+      } catch {}
+
+      // recent projects from the existing recentProjects array (global)
+      const userDataRoot = app.getPath("userData");
+      const recentFile = path.join(userDataRoot, "recent-projects.json");
+      try {
+        const rData = JSON.parse(fs.readFileSync(recentFile, "utf8"));
+        if (Array.isArray(rData)) {
+          // support both string and object format
+          recent = rData.map((e) => typeof e === "string" ? e : e?.path).filter(Boolean).slice(0, 10);
+        }
+      } catch {}
+      // enrich with lastOpened from meta
+      try {
+        const meta = loadRecentMeta();
+        recent = recent.map((p) => ({ path: p, lastOpened: meta[p] || null }));
+      } catch {}
+    }
+
+    // Also check settings for any pinned projects
+    try {
+      const settings = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "settings.json"), "utf8"));
+      if (settings && settings.pinnedProjects) {
+        pinned = Array.from(new Set([...pinned, ...(settings.pinnedProjects || [])]));
+      }
+    } catch {}
+
+    return { ok: true, pinned, recent };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle("project:add-recent", async (_, folderPath) => {
+  if (!folderPath) return { ok: false, error: "No path provided" };
+  try {
+    addRecentProject(folderPath);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle("project:remove-recent", async (_, folderPath) => {
+  if (!folderPath) return { ok: false, error: "No path provided" };
+  try {
+    const idx = recentProjects.indexOf(folderPath);
+    if (idx >= 0) recentProjects.splice(idx, 1);
+    saveRecentProjects();
+    try {
+      const meta = loadRecentMeta();
+      if (meta[folderPath]) { delete meta[folderPath]; saveRecentMeta(meta); }
+    } catch {}
+try { rebuildMenu(); } catch {}
+    broadcastRecentUpdated();
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle("project:toggle-pin", async (_, folderPath) => {
+  if (!folderPath) return { ok: false, error: "No path provided" };
+  try {
+    const pinConfigPath = path.join(app.getPath("userData"), "project-pins.json");
+    let pins = [];
+    try {
+      const data = JSON.parse(fs.readFileSync(pinConfigPath, "utf8"));
+      if (Array.isArray(data)) pins = data;
+    } catch {}
+
+    const idx = pins.indexOf(folderPath);
+    if (idx >= 0) {
+      pins.splice(idx, 1);
+    } else {
+      pins.push(folderPath);
+    }
+    fs.writeFileSync(pinConfigPath, JSON.stringify(pins, null, 2));
+
+    broadcastRecentUpdated();
+    for (const win of BrowserWindow.getAllWindows()) {
+      try { win.webContents.send("project:pin-updated", folderPath); } catch {}
+    }
+
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle("project:refresh-recent", async () => {
+  try {
+    loadRecentProjects();
+    broadcastRecentUpdated();
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle("menu:openProject", async (event, folderPath) => {
+  if (!folderPath) return { ok: false, error: "No path provided" };
+  try {
+    lastProjectPath = folderPath;
+    addRecentProject(folderPath);
+    try { event.sender.send("menu:openProject", folderPath); } catch {}
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle("menu:newProject", async (event, folderPath) => {
+  if (!folderPath) return { ok: false, error: "No path provided" };
+  try {
+    // Just ensure directory exists (don't create files)
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+    lastProjectPath = folderPath;
+    addRecentProject(folderPath);
+    try { event.sender.send("menu:newProject", folderPath); } catch {}
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle("projectStorage:listAll", async () => {
@@ -5008,21 +5180,64 @@ ipcMain.handle("menu:popup", (event, menuId) => {
 // ─── App menu ─────────────────────────────────────────────────────────────────
 let autoSaveEnabled = false;
 const RECENT_FILE = path.join(app.getPath("userData"), "recent-projects.json");
+const RECENT_META_FILE = path.join(app.getPath("userData"), "recent-projects-meta.json");
 let recentProjects = [];
 const MAX_RECENT = 10;
 
 function loadRecentProjects() {
   try {
     const arr = JSON.parse(fs.readFileSync(RECENT_FILE, "utf8"));
-    if (Array.isArray(arr)) recentProjects = arr.filter((p) => typeof p === "string").slice(0, MAX_RECENT);
+    if (Array.isArray(arr)) {
+      // support both string and object format (migrate)
+      const normalized = arr.map((e) => typeof e === "string" ? e : (e && e.path) || null).filter(Boolean);
+      recentProjects = normalized.filter((p) => typeof p === "string").slice(0, MAX_RECENT);
+    }
   } catch {}
 }
 function saveRecentProjects() {
   try { fs.writeFileSync(RECENT_FILE, JSON.stringify(recentProjects, null, 2)); } catch {}
 }
+function loadRecentMeta() {
+  try {
+    const m = JSON.parse(fs.readFileSync(RECENT_META_FILE, "utf8"));
+    return m && typeof m === "object" ? m : {};
+  } catch { return {}; }
+}
+function saveRecentMeta(meta) {
+  try { fs.writeFileSync(RECENT_META_FILE, JSON.stringify(meta, null, 2)); } catch {}
+}
+function touchRecentMeta(projectPath) {
+  try {
+    const meta = loadRecentMeta();
+    meta[projectPath] = Date.now();
+    // prune old entries not in recentProjects
+    for (const k of Object.keys(meta)) {
+      if (!recentProjects.includes(k)) delete meta[k];
+    }
+    saveRecentMeta(meta);
+  } catch {}
+}
 // load at startup
 try { loadRecentProjects(); } catch {}
 
+function broadcastRecentUpdated() {
+  try {
+    const pinConfigPath = path.join(app.getPath("userData"), "project-pins.json");
+    let pinned = [];
+    try {
+      const data = JSON.parse(fs.readFileSync(pinConfigPath, "utf8"));
+      if (Array.isArray(data)) pinned = data;
+    } catch {}
+    let enriched = [];
+    try {
+      const meta = loadRecentMeta();
+      enriched = recentProjects.map((p) => ({ path: p, lastOpened: meta[p] || null }));
+    } catch { enriched = [...recentProjects]; }
+    for (const win of BrowserWindow.getAllWindows()) {
+      try { win.webContents.send("project:recent-updated", { recent: enriched, pinned }); } catch {}
+    }
+  } catch {}
+}
 function addRecentProject(projectPath) {
   if (!projectPath) return;
   const idx = recentProjects.indexOf(projectPath);
@@ -5030,12 +5245,15 @@ function addRecentProject(projectPath) {
   recentProjects.unshift(projectPath);
   if (recentProjects.length > MAX_RECENT) recentProjects.pop();
   saveRecentProjects();
-  try { Menu.setApplicationMenu(buildMenu()); } catch {}
+  touchRecentMeta(projectPath);
+  try { rebuildMenu(); } catch {}
+  broadcastRecentUpdated();
 }
 function clearRecentProjects() {
   recentProjects = [];
   saveRecentProjects();
-  try { Menu.setApplicationMenu(buildMenu()); } catch {}
+  try { rebuildMenu(); } catch {}
+  broadcastRecentUpdated();
 }
 
 function buildMenu() {
@@ -5219,7 +5437,7 @@ function buildMenu() {
           try { fs.unlinkSync(path.join(getProjectStoreDir(rp), "pinconfig.json")); } catch {}
           try { fs.rmSync(path.join(rp, ".project_config", ".pinconfig"), { force: true }); } catch {}
           dialog.showMessageBox({ type: "info", message: "Pin config cleared (app memory)" });
-          try { Menu.setApplicationMenu(buildMenu()); } catch {}
+          try { rebuildMenu(); } catch {}
         }},
         { label: "Clear Tabs (Open Editors)", click: async () => {
           const rp = lastProjectPath;
@@ -5724,7 +5942,7 @@ app.whenReady().then(async () => {
     }
   });
   getShell();
-  Menu.setApplicationMenu(buildMenu());
+  rebuildMenu();
   createWindow();
   // Cold start via idiotbox://update (app band thi, website button se khuli) —
   // window/updater settle hone ke baad protocol action chalao.

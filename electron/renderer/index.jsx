@@ -12,6 +12,7 @@ import MediaViewer from "./components/MediaViewer/index.jsx";
 import { isMediaFile } from "./components/MediaViewer/mediaTypes.js";
 import BrowserPanel from "./components/Browser/index.jsx";
 import ProjectPanel from "./components/Project/index.jsx";
+import ProjectHub from "./components/Project/Hub.jsx";
 import EditorPanel from "./components/Editor/index.jsx";
 import NotebookPanel from "./components/Notebook/index.jsx";
 import TerminalPanel from "./components/Terminal/index.jsx";
@@ -89,6 +90,7 @@ const factory = (node) => {
     case "mediaViewer":       return <MediaViewer />;
     case "panel3":            return <BrowserPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "projectPanel":      return <ProjectPanel />;
+    case "projectHub":      return <ProjectHub />;
     case "editor":            return <EditorPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "notebook":          return <NotebookPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "terminal":          return <TerminalPanel config={node.getConfig()} nodeId={node.getId()} />;
@@ -369,9 +371,10 @@ const forceLayoutRedraw = (m) => {
 const App = () => {
   const modelRef          = useRef(null);
   const readyRef          = useRef(false);
-  const currentProjectRef = useRef(null);  // currently open project root path
+  const currentProjectRef = useRef(null);
   const saveTabsTimer     = useRef(null);
-  const lastBrowserTabsetRef = useRef(null); // last group where a Browser was opened
+  const lastBrowserTabsetRef = useRef(null);
+  const [hasProject, setHasProject] = useState(false);
   const [, setTick] = useState(0);
   const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
 
@@ -695,6 +698,7 @@ const App = () => {
       doSaveProjectTabs();
       currentProjectRef.current = folderPath;
       window.__currentProjectPath = folderPath;
+      setHasProject(true);
       // Notify editor panels
       window.dispatchEvent(new CustomEvent("project:opened", { detail: { path: folderPath } }));
       await restoreProjectTabs(folderPath);
@@ -704,6 +708,7 @@ const App = () => {
       doSaveProjectTabs();
       currentProjectRef.current = null;
       window.__currentProjectPath = null;
+      setHasProject(false);
       // Notify editor panels
       window.dispatchEvent(new CustomEvent("project:closed"));
     };
@@ -1327,6 +1332,7 @@ const App = () => {
           // Mimic handleClose: clear current project and notify
           currentProjectRef.current = null;
           window.__currentProjectPath = null;
+          setHasProject(false);
           window.dispatchEvent(new CustomEvent("project:closed"));
         } catch {}
         return false;
@@ -1679,6 +1685,20 @@ const App = () => {
     } catch {}
     return action;
   };
+
+  if (!hasProject) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
+        <UpdaterBanner />
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <ProjectHub />
+        </div>
+        <CommandPalette />
+        <QuickOpen />
+        <SearchPanel />
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>

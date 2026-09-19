@@ -44,6 +44,7 @@ const EditorPage = ({ settings, onSave }) => {
   const autocompletion = s.autocompletion !== false; // default true
   const tabAcceptsCompletion = s.tabAcceptsCompletion !== false; // default true
   const autoSave = s.autoSave === true || s.autoSave === "afterDelay"; // default false
+  const vimMode = s.vim !== false; // default false (disabled)
   const fontSize = Number.isFinite(s.fontSize) ? s.fontSize : 14;
   const fontFamily = s.fontFamily || "Consolas";
   const tabSize = Number.isFinite(s.tabSize) ? s.tabSize : 2;
@@ -55,6 +56,7 @@ const EditorPage = ({ settings, onSave }) => {
     // Compat mirrors (notebook / purane readers ke liye)
     if ("lineWrapping" in full) full.wordWrap = full.lineWrapping !== false;
     if ("theme" in full) full.editorTheme = full.theme;
+    if ("vim" in full) full.vim = !full.vim; // normalize: store as boolean
     await onSave(full);
     broadcast(full);
   };
@@ -195,6 +197,24 @@ const EditorPage = ({ settings, onSave }) => {
             aria-checked={autoSave}
             role="switch"
             aria-label="Toggle auto save"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+
+      {/* ── Vim Mode ── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Vim Mode</span>
+        <span className="sw-row__desc">Vim keybindings enable karo (Esc, h/j/k/l, etc.)</span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{vimMode ? "Enabled" : "Disabled"}</span>
+          <button
+            className={`sw-toggle-btn${vimMode ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => toggle("vim", vimMode)}
+            aria-checked={vimMode}
+            role="switch"
+            aria-label="Toggle vim mode"
           >
             <span className="sw-toggle-thumb" />
           </button>

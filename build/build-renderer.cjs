@@ -90,7 +90,7 @@ async function main() {
     define: {
       'process.env.NODE_ENV': '"production"',
     },
-    external: ['node:fs/promises', 'node:fs', 'node:path'],
+    external: ['child_process', 'fs', 'path'],
     logLevel: 'info',
   });
   console.log(`[build:renderer] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

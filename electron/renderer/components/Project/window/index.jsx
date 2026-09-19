@@ -351,6 +351,10 @@ const ProjectWindow = () => {
     const u2 = window.electronAPI.onMenuEvent("menu:newProject",   openProject);
     const u3 = window.electronAPI.onMenuEvent("menu:closeProject", closeProject);
     const u4 = window.electronAPI.onMenuEvent("menu:saveProject",  () => {});
+    try {
+      const existing = window.__currentProjectPath;
+      if (existing) openProject(existing);
+    } catch {}
     return () => { u1(); u2(); u3(); u4(); };
   }, [openProject, closeProject]);
 

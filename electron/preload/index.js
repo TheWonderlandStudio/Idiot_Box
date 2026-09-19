@@ -2,14 +2,22 @@
 const { contextBridge, ipcRenderer, webUtils, clipboard } = require("electron");
 try {
   const { createTitlebarOnDOMContentLoaded, TitlebarColor } = require("custom-electron-titlebar");
-  createTitlebarOnDOMContentLoaded({
-    menuPosition: "left",
+  const _tbPromise = createTitlebarOnDOMContentLoaded({
     containerOverflow: "visible",
     backgroundColor: TitlebarColor.fromHex("#171717"),
     menuBarBackgroundColor: TitlebarColor.fromHex("#171717"),
     itemBackgroundColor: TitlebarColor.fromHex("#2a2d2e"),
     shadow: true,
-  }).catch(() => {});
+  });
+  // After main calls Menu.setApplicationMenu() it sends cet:refreshMenu so
+  // the renderer re-fetches the menu with fresh commandId values. Without
+  // this, commandIds go stale and menu clicks silently do nothing.
+  ipcRenderer.on("cet:refreshMenu", () => {
+    if (_tbPromise && typeof _tbPromise.then === "function") {
+      _tbPromise.then((tb) => { if (tb && typeof tb.refreshMenu === "function") tb.refreshMenu(); }).catch(() => {});
+    }
+  });
+  if (_tbPromise) _tbPromise.catch(() => {});
 } catch (e) { /* optional dep — preload must not crash even without it */ }
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -43,6 +51,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Directory access ───────────────────────────────────────────────────────
   openFolder:  ()      => ipcRenderer.invoke("dialog:openFolder"),
+  browseFolder: ()     => ipcRenderer.invoke("dialog:browseFolder"),
+  getDefaultLocation: () => ipcRenderer.invoke("dialog:getDefaultLocation"),
   showAppMenu: (id)    => ipcRenderer.invoke("menu:popup", id),
   readDir:     (dir)   => ipcRenderer.invoke("fs:readDir",    dir),
   readDirAll:  (dir)   => ipcRenderer.invoke("fs:readDirAll", dir),
@@ -234,6 +244,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readProjectTabs:  (rootPath)        => ipcRenderer.invoke("projectConfig:readTabs",  rootPath),
   writeProjectTabs: (rootPath, data)  => ipcRenderer.invoke("projectConfig:writeTabs", rootPath, data),
 
+  // ── Project Hub — recent / pinned projects ────────────────────────────────
+  projectLoadRecent:   ()            => ipcRenderer.invoke("project:load-recent"),
+  projectAddRecent:    (folderPath)  => ipcRenderer.invoke("project:add-recent",   folderPath),
+  projectRemoveRecent: (folderPath)  => ipcRenderer.invoke("project:remove-recent",folderPath),
+  projectTogglePin:    (folderPath)  => ipcRenderer.invoke("project:toggle-pin",   folderPath),
+  projectRefreshRecent:()            => ipcRenderer.invoke("project:refresh-recent"),
+  onProjectRecentUpdated: (cb) => {
+    const h = (_e, data) => cb(data);
+    ipcRenderer.on("project:recent-updated", h);
+    return () => ipcRenderer.removeListener("project:recent-updated", h);
+  },
+  onProjectPinUpdated: (cb) => {
+    const h = (_e, folderPath) => cb(folderPath);
+    ipcRenderer.on("project:pin-updated", h);
+    return () => ipcRenderer.removeListener("project:pin-updated", h);
+  },
+  menuOpenProject: (folderPath) => ipcRenderer.invoke("menu:openProject", folderPath),
+  menuNewProject:  (folderPath) => ipcRenderer.invoke("menu:newProject",  folderPath),
+
   // ── Git ─────────────────────────────────────────────────────────────────────
   gitStatus:  (rootPath)             => ipcRenderer.invoke("git:status", rootPath),
   gitDiff:    (rootPath, filePath)   => ipcRenderer.invoke("git:diff", rootPath, filePath),
@@ -261,6 +290,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   gitPush:    (rootPath)             => ipcRenderer.invoke("git:push", rootPath),
   gitPull:    (rootPath)             => ipcRenderer.invoke("git:pull", rootPath),
   gitFetch:   (rootPath)             => ipcRenderer.invoke("git:fetch", rootPath),
+  gitClone:   (url, destPath)        => ipcRenderer.invoke("git:clone", url, destPath),
 
   // ── Canvas (Excalidraw drawing surface) ────────────────────────────────────
   scanCanvas:        (rootPath) => ipcRenderer.invoke("canvas:scan",        rootPath),

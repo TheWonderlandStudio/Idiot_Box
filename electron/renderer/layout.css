@@ -64,6 +64,18 @@ body,
   background: var(--border);
 }
 
+/* ── Custom Electron Titlebar Menu Fixes ─────────────────────────────────── */
+.cet-menubar-menu-button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+.cet-menubar-menu-button:hover {
+  background: var(--bg-hover) !important;
+}
+.cet-menubar-menu-title {
+  pointer-events: auto !important;
+}
+
 /* ── Browser panel (Panel3) ───────────────────────────────────────────────── */
 .browser {
   display: flex;
