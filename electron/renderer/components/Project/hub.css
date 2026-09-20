@@ -237,6 +237,69 @@
   display: flex;
   flex-direction: column;
 }
+/* ── Frameworks gallery ─────────────────────────────────────────────── */
+.phub__panel--frameworks {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg-surface);
+  overflow-x: hidden;
+}
+.phub__fw-cat {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-vscode);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.phub__fw-cat:hover {
+  background: var(--bg-hover-strong);
+  color: var(--text-hover);
+  border-color: var(--border-light);
+}
+.phub__fw-cat--active {
+  background: var(--editor-blue);
+  border-color: var(--accent-border);
+  color: var(--text-inverse);
+}
+.phub__fw-cat--active:hover {
+  background: var(--editor-blue-hover);
+  color: var(--text-inverse);
+}
+.phub__fw-badge {
+  font-size: 10px;
+  color: var(--text-placeholder);
+  background: var(--bg-active);
+  padding: 2px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.phub__fw-card {
+  cursor: pointer;
+  transition: border-color var(--t-normal), box-shadow var(--t-normal), transform var(--t-fast);
+}
+.phub__fw-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+}
+.phub__fw-card:active {
+  transform: translateY(0);
+}
+
 @media (max-width: 900px) {
   .phub__stack { max-width: 100%; padding: 24px; gap: 20px; }
 }
@@ -694,7 +757,10 @@
   background: var(--bg-input);
   border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  padding: var(--space-6) var(--space-8);
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0 var(--space-8);
   color: var(--text-input);
   font-family: var(--font-ui);
   font-size: var(--fs-title);
@@ -792,13 +858,18 @@
 .phub__dialog-browse {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-6);
-  padding: var(--space-6) var(--space-10);
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0 var(--space-10);
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--bg-vscode);
   color: var(--text-label);
   font-family: var(--font-ui);
+  box-sizing: border-box;
   font-size: var(--fs-small);
   font-weight: var(--fw-medium);
   cursor: pointer;
@@ -858,13 +929,17 @@
   flex: 1 1 120px;
   min-width: 0;
   max-width: 100%;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-6);
   background: var(--bg-input);
   border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  padding: var(--space-4) var(--space-6);
+  padding: 0 var(--space-8);
+  box-sizing: border-box;
 }
 .phub__dialog-inputWrap:focus-within {
   border-color: var(--accent);
@@ -874,6 +949,9 @@
   padding: 0;
   background: transparent;
   min-width: 0;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
 }
 .phub__dialog-inputIcon {
   flex-shrink: 0;

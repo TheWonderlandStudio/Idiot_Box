@@ -626,7 +626,9 @@ ipcMain.handle("fs:openFile", async (event, { filePath, editorId }) => {
 
 ipcMain.handle("fs:writeFile", async (_e, { filePath, text }) => {
   try {
-    fs.writeFileSync(toLongPath(filePath), text, "utf8");
+    const full = toLongPath(filePath);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, text, "utf8");
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
