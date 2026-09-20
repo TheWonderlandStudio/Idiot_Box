@@ -791,6 +791,16 @@ const MediaViewer = () => {
     }
 
     if (PDF_EXTS.includes(e)) {
+      // Try dataUrl first (CSP-safe, no file:// quirks), fallback to file:// with plugins:true
+      try {
+        const dataUrl = await window.electronAPI.readFileAsDataUrl(fp);
+        if (dataUrl) {
+          setContent(dataUrl);
+          setType("pdf");
+          setFilePath(fp);
+          return;
+        }
+      } catch {}
       const fileUrl = toFileUrl(fp);
       if (fileUrl) {
         setContent(fileUrl);

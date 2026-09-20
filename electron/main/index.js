@@ -1717,20 +1717,32 @@ ipcMain.handle("git:fetch", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
   try { const out = await gitRunLogged(rootPath, ["fetch"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
-ipcMain.handle("git:clone", async (_e, url, destPath) => {
+ipcMain.handle("git:clone", async (event, url, destPath) => {
   if (!url || !destPath) return { ok: false, error: "Missing url or destination" };
   try {
     const parent = path.dirname(destPath);
     if (!fs.existsSync(parent)) fs.mkdirSync(parent, { recursive: true });
     if (fs.existsSync(destPath)) return { ok: false, error: "Destination already exists: " + destPath };
-    await new Promise((resolve, reject) => {
-      execFile("git", ["clone", url, destPath], { timeout: 300000 }, (err, _stdout, stderr) => {
-        if (err) reject(new Error(stderr || err.message || String(err)));
-        else resolve();
-      });
+    let logs = "";
+    const sendLog = (chunk) => {
+      const text = chunk.toString();
+      logs += text;
+      try { event.sender.send("git:clone:log", text); } catch {}
+    };
+    const exitCode = await new Promise((resolve, reject) => {
+      const child = spawn("git", ["clone", "--progress", url, destPath], { cwd: parent });
+      child.stdout.on("data", sendLog);
+      child.stderr.on("data", sendLog);
+      child.on("error", reject);
+      child.on("close", (code) => resolve(code));
+      // safety timeout 5min
+      setTimeout(() => { try { child.kill(); } catch {} }, 300000);
     });
-    return { ok: true, path: destPath };
-  } catch (e) { return { ok: false, error: e.message || String(e) }; }
+    try { event.sender.send("git:clone:done", { code: exitCode, logs }); } catch {}
+    if (exitCode !== 0) return { ok: false, error: logs || `git clone exited ${exitCode}`, logs };
+    return { ok: true, path: destPath, logs };
+  } catch (e) { try { event.sender.send("git:clone:done", { code: 1, error: e.message }); } catch {}
+    return { ok: false, error: e.message || String(e), logs: e.logs || "" }; }
 });
 
 // ─── Project config (tabs state + pin config) — stored in appData/projects/ ───
@@ -2708,12 +2720,15 @@ ipcMain.handle("fs:readFileAsDataUrl", async (_e, filePath) => {
   try {
     const ext = path.extname(filePath).toLowerCase();
     const data = fs.readFileSync(toLongPath(filePath));
-    if (data.length > 10 * 1024 * 1024) return null;
+    // pdf can be larger than images — allow 30MB for pdf, 10MB for others
+    const limit = ext === ".pdf" ? 30 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (data.length > limit) return null;
     const mime = ext === ".svg" ? "image/svg+xml"
       : ext === ".ico" ? "image/x-icon"
       : ext === ".png" || ext === ".jpg" || ext === ".jpeg" || ext === ".gif" || ext === ".bmp" || ext === ".webp" ? `image/${ext.slice(1)}`
       : ext === ".mp4" ? "video/mp4"
       : ext === ".webm" ? "video/webm"
+      : ext === ".pdf" ? "application/pdf"
       : null;
     if (!mime) return null;
     return `data:${mime};base64,${data.toString("base64")}`;
@@ -5595,6 +5610,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload-bundle.cjs"),
       contextIsolation: true, nodeIntegration: false, webviewTag: true,
+      plugins: true,
       // CSP hardening — never relax these for app shell windows.
       // (sandbox stays off: the preload bridge needs Node in main world;
       // isolation comes from contextIsolation + CSP + navigation guards.)

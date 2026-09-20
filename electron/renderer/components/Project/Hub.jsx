@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, FolderUp, Search, Link2, Star, Loader2, ArrowLeft } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, FolderUp, Search, Link2, Star, Loader2, ArrowLeft, Layers } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
 import "./hub.css";
 
 const ProjectHub = () => {
@@ -21,7 +24,99 @@ const ProjectHub = () => {
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [cloneUrl, setCloneUrl] = useState("");
   const [cloning, setCloning] = useState(false);
+  const [cloningTarget, setCloningTarget] = useState(null);
+  const [cloneLogs, setCloneLogs] = useState([]);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
+
+  // ── Xterm console for git clone ────────────────────────────────────────
+  const cloneTermRef = useRef(null);
+  const cloneFitRef = useRef(null);
+  const cloneContainerRef = useRef(null);
+  const clonePrevLenRef = useRef(0);
+
+  useEffect(() => {
+    if (!showCloneDialog) return;
+    if (!(cloning || cloneLogs.length > 0)) return;
+    const el = cloneContainerRef.current;
+    if (!el || cloneTermRef.current) return;
+    const term = new Terminal({
+      convertEol: true,
+      disableStdin: true,
+      cursorBlink: false,
+      cursorStyle: "block",
+      fontFamily: "'Cascadia Code', Consolas, 'Courier New', monospace",
+      fontSize: 12,
+      lineHeight: 1.2,
+      theme: {
+        background: "#0a0a0a",
+        foreground: "#cccccc",
+        cursor: "#cccccc",
+        selectionBackground: "#264f78",
+        black: "#0a0a0a",
+        white: "#cccccc",
+      },
+      scrollback: 5000,
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(el);
+    try { fit.fit(); } catch {}
+    cloneTermRef.current = term;
+    cloneFitRef.current = fit;
+    // write existing logs
+    if (cloneLogs.length) {
+      term.write(cloneLogs.join("").replace(/\r?\n/g, "\r\n"));
+      clonePrevLenRef.current = cloneLogs.length;
+    }
+    const ro = new ResizeObserver(() => { try { fit.fit(); } catch {} });
+    ro.observe(el);
+    const onResize = () => { try { fit.fit(); } catch {} };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      try { ro.disconnect(); } catch {}
+      // keep term alive while dialog open — dispose only on dialog close
+    };
+  }, [showCloneDialog, cloning, cloneLogs.length]);
+
+  // dispose xterm when dialog closes
+  useEffect(() => {
+    if (!showCloneDialog) {
+      if (cloneTermRef.current) { try { cloneTermRef.current.dispose(); } catch {} cloneTermRef.current = null; cloneFitRef.current = null; }
+      clonePrevLenRef.current = 0;
+    }
+  }, [showCloneDialog]);
+
+  // incremental write when new chunks arrive
+  useEffect(() => {
+    const term = cloneTermRef.current;
+    if (!term) { clonePrevLenRef.current = cloneLogs.length; return; }
+    if (cloneLogs.length === 0) {
+      try { term.clear(); } catch {}
+      clonePrevLenRef.current = 0;
+      return;
+    }
+    if (cloneLogs.length < clonePrevLenRef.current) {
+      try { term.clear(); term.write(cloneLogs.join("").replace(/\r?\n/g, "\r\n")); } catch {}
+      clonePrevLenRef.current = cloneLogs.length;
+      return;
+    }
+    const newChunks = cloneLogs.slice(clonePrevLenRef.current);
+    for (const chunk of newChunks) {
+      try { term.write(String(chunk).replace(/\r?\n/g, "\r\n")); } catch {}
+    }
+    clonePrevLenRef.current = cloneLogs.length;
+  }, [cloneLogs]);
+
+  useEffect(() => {
+    const unsubLog = window.electronAPI.onCloneLog?.((data) => {
+      setCloneLogs((prev) => [...prev, data]);
+    });
+    const unsubDone = window.electronAPI.onCloneDone?.(() => {
+      // keep logs, just stop spinning via cloning state
+    });
+    return () => { try { unsubLog?.(); } catch {} try { unsubDone?.(); } catch {} };
+  }, []);
 
   // Default location for new project (Documents etc.)
   useEffect(() => {
@@ -267,6 +362,8 @@ const ProjectHub = () => {
     const sep = cleanParent.includes("\\") ? "\\" : "/";
     const destPath = cleanParent + sep + repoName;
     setCloning(true);
+    setCloningTarget(targetUrl);
+    setCloneLogs([]);
     try {
       const r = await window.electronAPI.gitClone(targetUrl, destPath);
       if (!r || r.ok === false) throw new Error(r?.error || "Clone failed");
@@ -279,6 +376,7 @@ const ProjectHub = () => {
       await window.electronAPI.showAlert(`Clone failed:\n${err.message || String(err)}`);
     } finally {
       setCloning(false);
+      setCloningTarget(null);
     }
   }, [cloneUrl, newProjectLocation, projectPath]);
 
@@ -367,13 +465,27 @@ const ProjectHub = () => {
           className="phub__sidebar-btn phub__btn--secondary"
           onClick={() => { setShowNewProjectDialog(true); setShowCloneDialog(false); }}
         >
-          Create Project
+          <Plus size={14} /> Create Project
         </button>
         <button
           className="phub__sidebar-btn phub__btn--secondary"
           onClick={() => { setShowCloneDialog(true); setShowNewProjectDialog(false); }}
         >
           <CloudDownload size={14} /> Clone Repo
+        </button>
+        <button
+          className="phub__sidebar-btn phub__btn--secondary"
+          onClick={async () => { try { await window.electronAPI.openFolder(); } catch {} }}
+          title="Open Existing Folder"
+        >
+          <FolderOpen size={14} /> Open Folder
+        </button>
+        <div className="phub__sidebar-divider" />
+        <button
+          className="phub__sidebar-btn phub__btn--secondary"
+          title="Frameworks"
+        >
+          <Layers size={14} /> Frameworks
         </button>
       </div>
 
@@ -446,7 +558,7 @@ const ProjectHub = () => {
                 <input value={newProjectPath} onChange={(e) => setNewProjectPath(e.target.value)} />
               </div>
             </div>
-            <div className="phub__panel-footer">
+            <div className="phub__panel-footer phub__create-actions">
               <button
                 className="phub__dialog-cancel"
                 onClick={() => {
@@ -497,10 +609,16 @@ const ProjectHub = () => {
                     />
                   </div>
                   <button className="phub__dialog-browse" onClick={() => { const v = searchQuery.trim(); if (v.includes("github.com") || v.startsWith("http")) handleClone(v); else handleSearch(); }} disabled={searchLoading || cloning || !searchQuery.trim()} title="Search or Clone" tabIndex={0}>
-                    {searchLoading || cloning ? <Loader2 size={14} className="phub__spin" /> : <Search size={14} />} Go
+                    {searchLoading || (cloning && cloningTarget === searchQuery.trim()) ? <Loader2 size={14} className="phub__spin" /> : <Search size={14} />} Go
                   </button>
                 </div>
               </div>
+              {(cloning || cloneLogs.length > 0) && (
+                <div className="phub__clone-logs">
+                  <div className="phub__clone-logs-header">Console {cloning && <Loader2 size={12} className="phub__spin" />}</div>
+                  <div ref={cloneContainerRef} className="phub__clone-logs-body phub__clone-xterm" />
+                </div>
+              )}
               <div className="phub__dialog-results phub__dialog-results--full">
                 {searchLoading ? (
                   <div className="phub__panel-empty"><Loader2 size={16} className="phub__spin" /> Searching…</div>
@@ -525,7 +643,7 @@ const ProjectHub = () => {
                       <div className="phub__dialog-result-foot">
                         <span className="phub__dialog-result-url" title={repo.clone_url}>{repo.clone_url}</span>
                         <button className="phub__dialog-cloneBtn" onClick={() => handleClone(repo.clone_url)} disabled={cloning} title={repo.clone_url}>
-                          {cloning ? <Loader2 size={12} className="phub__spin" /> : <CloudDownload size={12} />} Clone
+                          {cloning && cloningTarget === repo.clone_url ? <Loader2 size={12} className="phub__spin" /> : <CloudDownload size={12} />} Clone
                         </button>
                       </div>
                     </div>
@@ -544,66 +662,73 @@ const ProjectHub = () => {
             </div>
           </div>
         ) : (
-          <div className="phub__panel">
-            <div className="phub__panel-header">
-              <span className="phub__panel-title">Recent</span>
-              <span className="phub__panel-count">{recentProjects.length}</span>
-              <button
-                className="phub__panel-refresh phub__btn--tiny"
-                onClick={() => window.electronAPI.projectRefreshRecent()}
-                title="Refresh"
-              >
-                <Clock size={12} />
-              </button>
-            </div>
-            {recentProjects.length === 0 && (
-              <div className="phub__panel-empty">
-                No recent projects. <button className="phub__empty-link" onClick={() => setShowNewProjectDialog(true)}>Create first project</button>
+          <div className="phub__stack">
+            <div className="phub__panel phub__panel--note">
+              <div className="phub__panel-body phub__note-body">
+                {/* blank — will handle later */}
               </div>
-            )}
-            <div className="phub__panel-list">
-              {recentProjects.map((entry) => {
-                const path = entry.path;
-                const name = path.split(/[\\/]/).pop() || path;
-                return (
-                  <div
-                    key={path}
-                    className="phub__panel-item"
-                    onClick={() => openProject(path)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setDeletingPath(path);
-                      setConfirmDelete(true);
-                    }}
-                    title={path}
-                  >
-                    {getProjectIcon(path)}
-                    <div className="phub__panel-main">
-                      <span className="phub__panel-name">{name}</span>
-                      <span className="phub__panel-path" title={path}>{path}</span>
+            </div>
+            <div className="phub__panel phub__panel--recents">
+              <div className="phub__panel-header">
+                <span className="phub__panel-title">Recents</span>
+                <span className="phub__panel-count">{recentProjects.length}</span>
+                <button
+                  className="phub__panel-refresh phub__btn--tiny"
+                  onClick={() => window.electronAPI.projectRefreshRecent()}
+                  title="Refresh"
+                >
+                  <Clock size={12} />
+                </button>
+              </div>
+              {recentProjects.length === 0 && (
+                <div className="phub__panel-empty">
+                  No recent projects. <button className="phub__empty-link" onClick={() => setShowNewProjectDialog(true)}>Create first project</button>
+                </div>
+              )}
+              <div className="phub__panel-list">
+                {recentProjects.map((entry) => {
+                  const path = entry.path;
+                  const name = path.split(/[\\/]/).pop() || path;
+                  return (
+                    <div
+                      key={path}
+                      className="phub__panel-item"
+                      onClick={() => openProject(path)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setDeletingPath(path);
+                        setConfirmDelete(true);
+                      }}
+                      title={path}
+                    >
+                      {getProjectIcon(path)}
+                      <div className="phub__panel-main">
+                        <span className="phub__panel-name">{name}</span>
+                        <span className="phub__panel-path" title={path}>{path}</span>
+                      </div>
+                      <div className="phub__panel-time phub__panel-time--center" title={entry.lastOpened ? new Date(entry.lastOpened).toString() : ""}>
+                        {formatLastOpened(entry.lastOpened)}
+                      </div>
+                      <div className="phub__panel-actions">
+                        <button
+                          className="phub__panel-action"
+                          onClick={(e) => { e.stopPropagation(); window.electronAPI.revealInExplorer(path); }}
+                          title="Open in Files"
+                        >
+                          <FolderOpen size={14} />
+                        </button>
+                        <button
+                          className="phub__panel-action phub__panel-action--danger"
+                          onClick={(e) => { e.stopPropagation(); setDeletingPath(path); setConfirmDelete(true); }}
+                          title="Remove"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="phub__panel-time phub__panel-time--center" title={entry.lastOpened ? new Date(entry.lastOpened).toString() : ""}>
-                      {formatLastOpened(entry.lastOpened)}
-                    </div>
-                    <div className="phub__panel-actions">
-                      <button
-                        className="phub__panel-action"
-                        onClick={(e) => { e.stopPropagation(); window.electronAPI.revealInExplorer(path); }}
-                        title="Open in Files"
-                      >
-                        <FolderOpen size={14} />
-                      </button>
-                      <button
-                        className="phub__panel-action phub__panel-action--danger"
-                        onClick={(e) => { e.stopPropagation(); setDeletingPath(path); setConfirmDelete(true); }}
-                        title="Remove"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
