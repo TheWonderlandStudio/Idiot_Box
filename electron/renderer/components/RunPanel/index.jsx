@@ -141,6 +141,39 @@ const RUNNERS = {
   ".html": { runtimes: [], build: (f) => ({ live: true, file: f }) },
   ".htm": { runtimes: [], build: (f) => ({ live: true, file: f }) },
 };
+// ── Auto-install helper — run button se pehle missing deps install karo ────
+const getInstallCommand = async (root, probes) => {
+  if (!root) return null;
+  const api = window.electronAPI;
+  if (!api?.stat) return null;
+  const exists = async (p) => {
+    try { const s = await api.stat(p); return !!s?.exists; } catch { return false; }
+  };
+  const join = (f) => `${String(root).replace(/[\\/]+$/, "")}/${f}`;
+  // Node: package.json + missing node_modules → npm/yarn/pnpm/bun install
+  if (await exists(join("package.json"))) {
+    const hasModules = await exists(join("node_modules"));
+    if (!hasModules) {
+      if (await exists(join("yarn.lock"))) return { cmd: "yarn", args: ["install"], cwd: root, label: "yarn install" };
+      if (await exists(join("pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["install"], cwd: root, label: "pnpm install" };
+      if (await exists(join("bun.lockb"))) return { cmd: "bun", args: ["install"], cwd: root, label: "bun install" };
+      const npm = npmBin(probes);
+      return { cmd: npm, args: ["install"], cwd: root, label: `${npm} install` };
+    }
+  }
+  // Python: requirements.txt → pip install (only if venv not ready — pip will be no-op if satisfied)
+  if (await exists(join("requirements.txt"))) {
+    const py = pyBin(probes);
+    return { cmd: py, args: ["-m", "pip", "install", "-r", "requirements.txt"], cwd: root, label: `${py} -m pip install -r requirements.txt` };
+  }
+  // Go: go.mod → go mod tidy
+  if (await exists(join("go.mod"))) {
+    return { cmd: "go", args: ["mod", "tidy"], cwd: root, label: "go mod tidy" };
+  }
+  // Rust: Cargo.toml → cargo fetch (optional, cargo run will fetch)
+  return null;
+};
+
 // Kisi file ke liye fresh runner banao (probes ke hisab se binary/missing decide).
 const buildRunnerForFile = (file, probes) => {
   if (!file) return null;
@@ -833,6 +866,25 @@ const RunPanel = () => {
       c = { ...c, run: { cmd: resolveCmd(fb.cmd, probesRef.current), args: fb.args } };
     }
     if (!c.run) return;
+    // ── Auto-install missing deps before run ───────────────────────
+    let autoInstall = null;
+    try {
+      const rootForInstall = c.run?.cwd || c.cwd || projectRootRef.current;
+      autoInstall = await getInstallCommand(rootForInstall, probesRef.current);
+    } catch {}
+    if (autoInstall) {
+      try {
+        termRef.current?.writeln(`\x1b[33m[auto-install] ${autoInstall.label}...\x1b[0m`);
+        out(`Auto-install: ${autoInstall.label}`);
+      } catch {}
+      const mainRaw = { ...c.run, cmd: resolveCmd(c.run.cmd, probesRef.current) };
+      const mainSp = splitCmdLine(mainRaw.cmd, mainRaw.args);
+      const mainCmd = resolveCmd(mainSp.cmd, probesRef.current);
+      const installStr = `${q(autoInstall.cmd)} ${autoInstall.args.map(q).join(" ")}`;
+      const mainStr = `${q(mainCmd)} ${mainSp.args.map(q).join(" ")}`;
+      const combined = `${installStr} && ${mainStr}`;
+      c = { ...c, name: `${autoInstall.label} && ${c.name}`, run: { cmd: SHELL_BIN, args: [SHELL_FLAG, combined], cwd: autoInstall.cwd } };
+    }
     setErr(null);
     try {
       if (runningRef.current) {

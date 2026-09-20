@@ -398,7 +398,7 @@
 }
 .phub__panel--create .phub__panel-body {
   flex: 0 0 auto;
-  max-width: 560px;
+  max-width: 860px;
   width: 100%;
   align-self: center;
   margin: 0 auto;
@@ -406,7 +406,7 @@
   gap: var(--space-10);
 }
 .phub__create-actions {
-  max-width: 560px;
+  max-width: 860px;
   width: 100%;
   align-self: center;
   margin: 0 auto;
@@ -416,6 +416,35 @@
   box-sizing: border-box;
   background: transparent;
   border-top: none;
+}
+.phub__create-grid {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  width: 100%;
+}
+.phub__create-form {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.phub__create-files {
+  flex: 0 0 300px;
+  width: 300px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 60vh;
+}
+@media (max-width: 700px) {
+  .phub__create-grid { flex-direction: column; }
+  .phub__create-files { flex: 1 1 auto; width: 100%; max-height: none; position: static; }
 }
 .phub__panel--create .phub__dialog-field--preview {
   margin-top: 0;

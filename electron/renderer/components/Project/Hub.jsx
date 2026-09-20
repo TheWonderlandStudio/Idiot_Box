@@ -381,6 +381,7 @@ const ProjectHub = () => {
   const [frameworkCategory, setFrameworkCategory] = useState("All");
   const [selectedFramework, setSelectedFramework] = useState(null);
   const [frameworkLang, setFrameworkLang] = useState("TypeScript");
+  const [showTemplateFiles, setShowTemplateFiles] = useState(false);
 
   // ── Xterm console for git clone ────────────────────────────────────────
   const cloneTermRef = useRef(null);
@@ -560,7 +561,30 @@ const ProjectHub = () => {
   const getProjectIcon = useCallback((projectPath) => {
     const lower = (projectPath || "").toLowerCase();
     const base = projectPath.split(/[\\/]/).pop() || projectPath;
-    // Framework / language detection -> map to a representative file for vscode-icons
+    // Try framework real icon first
+    try {
+      const match = FRAMEWORKS.find((f) => {
+        const id = f.id.toLowerCase();
+        const name = f.name.toLowerCase();
+        // direct id/name match, or id base without suffix
+        if (lower.includes(id)) return true;
+        const baseId = id.split("-")[0];
+        if (baseId.length >= 3 && lower.includes(baseId)) return true;
+        if (name.length >= 3 && lower.includes(name)) return true;
+        // also check aliases for common stacks
+        if (id === "react" && lower.includes("react")) return true;
+        if (id === "nextjs" && lower.includes("next")) return true;
+        return false;
+      });
+      if (match && match.iconUrl) {
+        return (
+          <span style={{ width: 16, height: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "#fff", border: "1px solid var(--border)", borderRadius: 3, overflow: "hidden" }}>
+            <img src={match.iconUrl} alt={match.name} style={{ width: 12, height: 12, objectFit: "contain" }} loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+          </span>
+        );
+      }
+    } catch {}
+    // Fallback to vscode-icons mapping
     if (lower.includes("react") || lower.includes("next")) {
       return <VscodeIcon name="App.jsx" isDir={false} size={16} />;
     }
@@ -639,6 +663,7 @@ const ProjectHub = () => {
     setSelectedFramework(fw);
     if (fw.languages?.length) setFrameworkLang(fw.languages.includes("TypeScript") ? "TypeScript" : fw.languages[0]);
     else setFrameworkLang("TypeScript");
+    setShowTemplateFiles(false);
     setShowFrameworks(false);
     setShowNewProjectDialog(true);
     setShowCloneDialog(false);
@@ -670,6 +695,7 @@ const ProjectHub = () => {
       setNewProjectName("");
       setNewProjectLocation("");
       setSelectedFramework(null);
+      setShowTemplateFiles(false);
       setShowNewProjectDialog(false);
     } catch (err) {
       console.error("Failed to create project:", err);
@@ -875,11 +901,22 @@ const ProjectHub = () => {
               <button
                 className="phub__panel-back"
                 onClick={() => {
-                  setShowNewProjectDialog(false);
-                  setNewProjectName("");
-                  setNewProjectLocation("");
-                  setNewProjectPath("");
-                  setSelectedFramework(null);
+                  if (selectedFramework) {
+                    setShowNewProjectDialog(false);
+                    setShowFrameworks(true);
+                    setNewProjectName("");
+                    setNewProjectLocation("");
+                    setNewProjectPath("");
+                    setSelectedFramework(null);
+                    setShowTemplateFiles(false);
+                  } else {
+                    setShowNewProjectDialog(false);
+                    setNewProjectName("");
+                    setNewProjectLocation("");
+                    setNewProjectPath("");
+                    setSelectedFramework(null);
+                    setShowTemplateFiles(false);
+                  }
                 }}
                 aria-label="Back"
               >
@@ -888,89 +925,146 @@ const ProjectHub = () => {
               <span className="phub__panel-title">Create Project{selectedFramework ? ` — ${selectedFramework.name}` : ""}</span>
             </div>
             <div className="phub__panel-body">
-              {selectedFramework && (
-                <div className="phub__dialog-field">
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--bg-subtle)", border: "1px solid var(--border)", borderRadius: 6 }}>
-                    <span style={{ width: 24, height: 24, borderRadius: 4, background: "#fff", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
-                      {selectedFramework.iconUrl ? (
-                        <img src={selectedFramework.iconUrl} alt={selectedFramework.name} style={{ width: 16, height: 16, objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; const sib = e.currentTarget.nextElementSibling; if (sib) sib.style.display = "inline-flex"; }} />
-                      ) : null}
-                      <span style={{ display: selectedFramework.iconUrl ? "none" : "inline-flex", color: selectedFramework.color }}>
-                        {(() => { const I = selectedFramework.icon; return <I size={14} />; })()}
-                      </span>
-                    </span>
-                    <span style={{ fontWeight: 600, fontSize: "var(--fs-small)", color: "var(--text-primary)" }}>{selectedFramework.name}</span>
-                    <span style={{ fontSize: "10px", color: "var(--text-muted)", background: "var(--bg-active)", padding: "2px 6px", borderRadius: 10 }}>{selectedFramework.category}</span>
-                    <button className="phub__btn--tiny" style={{ marginLeft: "auto" }} onClick={() => setSelectedFramework(null)}>Clear</button>
-                  </div>
-                </div>
-              )}
-              {selectedFramework?.languages && (
-                <div className="phub__dialog-field">
-                  <label className="phub__dialog-label">Language</label>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {selectedFramework.languages.map((l) => (
-                      <button key={l} onClick={() => setFrameworkLang(l)} className={frameworkLang === l ? "phub__fw-cat phub__fw-cat--active" : "phub__fw-cat"}>
-                        {l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {selectedFramework?.variants?.includes("Tailwind") && (
-                <div className="phub__dialog-field">
-                  <label className="phub__dialog-label">Variant</label>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "11px", color: "var(--text-muted)", padding: "4px 8px", background: "var(--bg-active)", borderRadius: 6 }}>Tailwind available — will be included in template</span>
-                  </div>
-                </div>
-              )}
-              <div className="phub__dialog-field">
-                <label className="phub__dialog-label">Project Name</label>
-                <input
-                  className="phub__dialog-input"
-                  type="text"
-                  placeholder="e.g., MyAwesomeApp"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  autoComplete="off"
-                  autoFocus
-                />
-              </div>
-              <div className="phub__dialog-field">
-                <label className="phub__dialog-label">Save Location</label>
-                <div className="phub__dialog-row">
-                  <input
-                    className="phub__dialog-input phub__dialog-input--flex"
-                    type="text"
-                    placeholder="Choose folder where project will be created"
-                    value={newProjectLocation}
-                    onChange={(e) => setNewProjectLocation(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <button className="phub__dialog-browse" onClick={handleBrowseLocation} title="Browse" type="button">
-                    <FolderOpen size={14} />
-                    Browse
-                  </button>
-                </div>
-              </div>
-              {(() => {
-                const full = getFullProjectPath();
-                const loc = newProjectLocation.trim();
-                const preview = full || loc;
-                if (!preview) return null;
-                const isFull = !!full;
-                return (
-                  <div className="phub__dialog-field phub__dialog-field--preview">
-                    <label className="phub__dialog-label">{isFull ? "Project will be created at" : "Default location"}</label>
-                    <div className="phub__dialog-path-preview" title={preview}>
-                      <FolderOpen size={12} className="phub__dialog-path-icon" />
-                      <span>{preview}{!isFull && loc ? "/<project-name>" : ""}</span>
+              <div className="phub__create-grid">
+                <div className="phub__create-form">
+                  {selectedFramework && (
+                    <div className="phub__dialog-field">
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--bg-subtle)", border: "1px solid var(--border)", borderRadius: 6 }}>
+                        <span style={{ width: 24, height: 24, borderRadius: 4, background: "#fff", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                          {selectedFramework.iconUrl ? (
+                            <img src={selectedFramework.iconUrl} alt={selectedFramework.name} style={{ width: 16, height: 16, objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; const sib = e.currentTarget.nextElementSibling; if (sib) sib.style.display = "inline-flex"; }} />
+                          ) : null}
+                          <span style={{ display: selectedFramework.iconUrl ? "none" : "inline-flex", color: selectedFramework.color }}>
+                            {(() => { const I = selectedFramework.icon; return <I size={14} />; })()}
+                          </span>
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: "var(--fs-small)", color: "var(--text-primary)" }}>{selectedFramework.name}</span>
+                        <span style={{ fontSize: "10px", color: "var(--text-muted)", background: "var(--bg-active)", padding: "2px 6px", borderRadius: 10 }}>{selectedFramework.category}</span>
+                        <button className="phub__btn--tiny" style={{ marginLeft: "auto" }} onClick={() => setSelectedFramework(null)}>Clear</button>
+                      </div>
                     </div>
-                    {!isFull && loc ? <span className="phub__dialog-hint">Enter project name to see full path</span> : null}
+                  )}
+                  {selectedFramework?.languages && (
+                    <div className="phub__dialog-field">
+                      <label className="phub__dialog-label">Language</label>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {selectedFramework.languages.map((l) => (
+                          <button key={l} onClick={() => setFrameworkLang(l)} className={frameworkLang === l ? "phub__fw-cat phub__fw-cat--active" : "phub__fw-cat"}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedFramework?.variants?.includes("Tailwind") && (
+                    <div className="phub__dialog-field">
+                      <label className="phub__dialog-label">Variant</label>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "11px", color: "var(--text-muted)", padding: "4px 8px", background: "var(--bg-active)", borderRadius: 6 }}>Tailwind available — will be included in template</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="phub__dialog-field">
+                    <label className="phub__dialog-label">Project Name</label>
+                    <input
+                      className="phub__dialog-input"
+                      type="text"
+                      placeholder="e.g., MyAwesomeApp"
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      autoComplete="off"
+                      autoFocus
+                    />
                   </div>
-                );
-              })()}
+                  <div className="phub__dialog-field">
+                    <label className="phub__dialog-label">Save Location</label>
+                    <div className="phub__dialog-row">
+                      <input
+                        className="phub__dialog-input phub__dialog-input--flex"
+                        type="text"
+                        placeholder="Choose folder where project will be created"
+                        value={newProjectLocation}
+                        onChange={(e) => setNewProjectLocation(e.target.value)}
+                        autoComplete="off"
+                      />
+                      <button className="phub__dialog-browse" onClick={handleBrowseLocation} title="Browse" type="button">
+                        <FolderOpen size={14} />
+                        Browse
+                      </button>
+                    </div>
+                  </div>
+                  {(() => {
+                    const full = getFullProjectPath();
+                    const loc = newProjectLocation.trim();
+                    const preview = full || loc;
+                    if (!preview) return null;
+                    const isFull = !!full;
+                    return (
+                      <div className="phub__dialog-field phub__dialog-field--preview">
+                        <label className="phub__dialog-label">{isFull ? "Project will be created at" : "Default location"}</label>
+                        <div className="phub__dialog-path-preview" title={preview}>
+                          <FolderOpen size={12} className="phub__dialog-path-icon" />
+                          <span>{preview}{!isFull && loc ? "/<project-name>" : ""}</span>
+                        </div>
+                        {!isFull && loc ? <span className="phub__dialog-hint">Enter project name to see full path</span> : null}
+                      </div>
+                    );
+                  })()}
+                </div>
+                {selectedFramework && (
+                  <div className="phub__create-files">
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <FolderOpen size={12} style={{ color: "var(--text-muted)" }} />
+                      <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 500 }}>
+                        {Object.keys(getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang)).length} files will be created
+                      </span>
+                    </div>
+                    <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-surface)", padding: 4, minHeight: 180 }}>
+                      {(() => {
+                        const files = getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang);
+                        const tree = {};
+                        for (const p of Object.keys(files)) {
+                          const parts = p.split("/");
+                          let node = tree;
+                          for (let i = 0; i < parts.length; i++) {
+                            const part = parts[i];
+                            const isFile = i === parts.length - 1;
+                            if (isFile) node[part] = null;
+                            else {
+                              if (!node[part]) node[part] = {};
+                              node = node[part];
+                            }
+                          }
+                        }
+                        const renderNode = (obj, depth = 0, prefix = "") => {
+                          return Object.entries(obj).map(([name, val]) => {
+                            const isFolder = val !== null;
+                            const fullPath = prefix ? `${prefix}/${name}` : name;
+                            if (isFolder) {
+                              return (
+                                <div key={fullPath}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", paddingLeft: 6 + depth * 12, fontSize: "11px", color: "var(--text-soft)", background: "var(--bg-surface)", fontWeight: 500 }}>
+                                    <VscodeIcon name={name} isDir={true} size={14} />
+                                    <span>{name}</span>
+                                  </div>
+                                  <div>{renderNode(val, depth + 1, fullPath)}</div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={fullPath} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", paddingLeft: 6 + depth * 12 + 8, fontSize: "11px", borderBottom: "1px solid var(--border-row)", background: "var(--bg-surface)" }}>
+                                <VscodeIcon name={name} isDir={false} size={14} />
+                                <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0, textAlign: "left" }}>{name}</span>
+                              </div>
+                            );
+                          });
+                        };
+                        return <>{renderNode(tree)}</>;
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
               <div style={{ display: "none" }}>
                 <input value={newProjectPath} onChange={(e) => setNewProjectPath(e.target.value)} />
               </div>
@@ -984,6 +1078,7 @@ const ProjectHub = () => {
                   setNewProjectLocation("");
                   setNewProjectPath("");
                   setSelectedFramework(null);
+                  setShowTemplateFiles(false);
                 }}
               >
                 Cancel

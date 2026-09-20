@@ -1,5 +1,6 @@
 // GitPanel — full-featured Source Control, production ready
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import VscodeIcon from "../shared/VscodeIcon.jsx";
 
 // ── helpers ──────────────────────────────────────────────────────────
 function statusColor(st, x, y) {
@@ -596,6 +597,7 @@ export default function GitPanel({ nodeId }){
                   onMouseEnter={e=>e.currentTarget.style.background="var(--error-border-faint)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
                   onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
                   <span style={s.statusBox("var(--danger)")}>U</span>
+                  <VscodeIcon name={it.rel.split("/").pop() || it.rel} isDir={false} size={16} />
                   <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.rel}>{it.rel}</span>
                   <span style={{fontSize:"var(--fs-tiny)",color:"var(--danger)",background:"var(--bg-surface)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid var(--error-border-2)"}}>Conflicted</span>
                   <span style={{display:"flex",gap:"var(--space-3)",flexShrink:0}}>
@@ -627,6 +629,7 @@ export default function GitPanel({ nodeId }){
               <div key={"staged:"+it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
                 <div style={{...s.row, background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} onDoubleClick={()=>toggleDiff(it.rel)} title={(it.rel + (it.origRel ? " — renamed from " + it.origRel : "") + " — " + statusLabel(it.status,it.x,it.y,it) + " — single-click open, double-click diff")} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover-strong)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
                   <span style={s.statusBox(statusColor(it.status,it.x,it.y))}>{it.status.trim()||"S"}</span>
+                  <VscodeIcon name={(it.rel.split("/").pop() || it.rel)} isDir={false} size={16} />
                   <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.origRel ? (it.origRel + " → " + it.rel) : it.rel}>{it.rel}{it.origRel? <span style={{color:"var(--code-blue)",fontSize:"var(--fs-tiny)"}}> • from {it.origRel.split("/").pop()}</span>:null}</span>
                   {it.partiallyStaged && <span title="Both staged and unstaged changes" style={{fontSize:"var(--fs-tiny)", color:"var(--git-modified)", background:"var(--warn-bg-olive)", padding:"var(--space-1) var(--space-5)", borderRadius:"var(--radius-sm)", border:"var(--space-1) solid var(--warn-border-olive)", flexShrink:0}}>Partial</span>}
                   {!it.partiallyStaged && <span style={{fontSize:"var(--fs-tiny)",color:statusColor(it.status,it.x,it.y),flexShrink:0,background:"var(--bg-surface)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid color-mix(in srgb, " + statusColor(it.status,it.x,it.y) + " 20%, transparent)"}}>{statusLabel(it.status,it.x,it.y,it)}</span>}
@@ -664,6 +667,7 @@ export default function GitPanel({ nodeId }){
               <div key={"chg:"+it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
                 <div style={{...s.row, background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} onDoubleClick={()=>toggleDiff(it.rel)} title={it.rel + " — double-click for diff"} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover-strong)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
                   <span style={s.statusBox(statusColor(it.status,it.x,it.y))}>{it.status.trim()||"M"}</span>
+                  <VscodeIcon name={it.rel.split("/").pop() || it.rel} isDir={false} size={16} />
                   <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.rel}>{it.rel}</span>
                   <span style={{fontSize:"var(--fs-tiny)",color:statusColor(it.status,it.x,it.y),flexShrink:0,background:"var(--bg-surface)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid color-mix(in srgb, " + statusColor(it.status,it.x,it.y) + " 20%, transparent)"}}>{statusLabel(it.status,it.x,it.y,it)}</span>
                   <span style={{display:"flex",gap:"var(--space-3)",flexShrink:0}}>
@@ -697,6 +701,7 @@ export default function GitPanel({ nodeId }){
             {!collapsed.untracked && groups.untracked.map(it=>(
               <div key={"unt:"+it.rel} style={{display:"flex",alignItems:"center",gap:"var(--space-6)",padding:"var(--space-5) var(--space-8)",cursor:"pointer",fontSize:"var(--fs-body)",borderBottom:"var(--space-1) solid var(--border-row)", background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} title={it.rel} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover-strong)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
                 <span style={s.statusBox("var(--git-added)")}>U</span>
+                <VscodeIcon name={it.rel.split("/").pop() || it.rel} isDir={false} size={16} />
                 <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.rel}>{it.rel}</span>
                 <span style={{fontSize:"var(--fs-tiny)",color:"var(--git-added)",background:"var(--success-tint-bg)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid var(--success-border-3)"}}>Untracked</span>
                 <span style={{display:"flex",gap:"var(--space-3)"}}>
