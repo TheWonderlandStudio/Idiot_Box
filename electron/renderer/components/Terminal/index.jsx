@@ -1,5 +1,6 @@
 // Terminal Panel — Flexlayout integrated standalone terminal component
-import React, { useEffect, useRef, useState, useCallback } from "react";
+// Multi-session: ek panel me multiple PTY + dropdown se switch + top toolbar.
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef, useSyncExternalStore } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -7,6 +8,81 @@ import "@xterm/xterm/css/xterm.css";
 import { cssVar } from "../shared/theme.js";
 
 let nextTerminalId = 1;
+const genSessionId = () => {
+  const rand = Math.random().toString(36).slice(2, 7);
+  return `term_g_${Date.now().toString(36)}_${rand}`;
+};
+
+// ─── Global terminal registry: saare panels ek hi dropdown/list dekhte hain ─
+// Sessions panel-level nahi, app-level hain — naya terminal tab kholo to wahi
+// list + wahi shells dikhenge. PTY main-process me tabId se keyed hai aur
+// `terminal:open` bina forceRestart ke reuse karta hai, isliye multiple views
+// (panels) ek hi PTY ko mirror kar sakte hain. PTY sirf explicit kill par
+// close hota hai (view unmount par nahi), taaki panel switch/close par shell
+// zinda rahe.
+const GlobalTerms = {
+  sessions: [{ id: genSessionId(), n: 1 }],
+  activeId: null,
+  cwdMap: {},
+  counter: 1,
+  version: 0,
+  cachedSnap: null,
+  listeners: new Set(),
+  snapshot() {
+    // useSyncExternalStore: same reference until data changes, warna infinite loop
+    if (!this.cachedSnap || this.cachedSnap.v !== this.version) {
+      this.cachedSnap = {
+        v: this.version,
+        sessions: this.sessions,
+        activeId: this.activeId || (this.sessions[0] && this.sessions[0].id) || null,
+        cwdMap: this.cwdMap,
+      };
+    }
+    return this.cachedSnap;
+  },
+  emit() { this.version += 1; for (const l of [...this.listeners]) { try { l(); } catch {} } },
+  subscribe(fn) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; },
+  add() {
+    this.counter += 1;
+    const s = { id: genSessionId(), n: this.counter };
+    this.sessions = [...this.sessions, s];
+    this.activeId = s.id;
+    this.emit();
+    return s.id;
+  },
+  kill(id) {
+    const target = id || this.activeId || (this.sessions[0] && this.sessions[0].id);
+    if (!target) return;
+    try { window.electronAPI.closeTerminal(target); } catch {}
+    const next = this.sessions.filter((s) => s.id !== target);
+    const { [target]: _drop, ...restCwd } = this.cwdMap;
+    this.cwdMap = restCwd;
+    if (!next.length) {
+      this.counter += 1;
+      const s = { id: genSessionId(), n: this.counter };
+      this.sessions = [s];
+      this.activeId = s.id;
+    } else {
+      this.sessions = next;
+      if (this.activeId === target) this.activeId = next[0].id;
+    }
+    this.emit();
+  },
+  setActive(id) {
+    if (!id || !this.sessions.some((s) => s.id === id)) return;
+    if (this.activeId !== id) { this.activeId = id; this.emit(); }
+  },
+  setCwd(id, cwd) {
+    if (this.cwdMap[id] === cwd) return;
+    this.cwdMap = { ...this.cwdMap, [id]: cwd };
+    this.emit();
+  },
+};
+const useGlobalTerms = () => useSyncExternalStore(
+  (fn) => GlobalTerms.subscribe(fn),
+  () => GlobalTerms.snapshot(),
+  () => GlobalTerms.snapshot()
+);
 
 // ─── Custom xterm CSS overrides (injected once) ────────────────────────────
 // IMPORTANT: the app's global `* { font-family: 'Fredoka' }` rule applies to
@@ -59,6 +135,28 @@ const TERMINAL_PANEL_CSS = `
 .term-status-actions { display:flex; align-items:center; gap:var(--space-4); }
 .term-status-btn { background:transparent; border:none; color:var(--icon); cursor:pointer; padding:var(--space-2) var(--space-4); border-radius:var(--radius-xs); font-size:var(--fs-small); }
 .term-status-btn:hover { background:var(--bg-thumb); color:var(--text-inverse); }
+.term-toolbar { display:flex; align-items:center; gap:var(--space-6); padding:var(--space-4) var(--space-8); background:var(--bg-vscode); border-bottom:1px solid var(--bg-active); flex-shrink:0; user-select:none; }
+.term-dd { position:relative; flex-shrink:1; min-width:0; }
+.term-dd-btn { background:var(--bg-surface); color:var(--text-bright); border:1px solid var(--border-light); border-radius:var(--radius-sm); font-size:var(--fs-small); padding:var(--space-2) var(--space-8); outline:none; cursor:pointer; max-width:230px; min-width:130px; display:inline-flex; align-items:center; gap:var(--space-6); overflow:hidden; }
+.term-dd-btn:hover { border-color:var(--accent); }
+.term-dd-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; text-align:left; }
+.term-dd-chev { opacity:0.7; font-size:var(--fs-tiny); flex-shrink:0; }
+.term-dd-menu { position:absolute; top:calc(100% + 4px); left:0; min-width:230px; max-width:300px; max-height:260px; overflow-y:auto; background:var(--bg-raised); border:1px solid var(--border-strong); border-radius:var(--radius-md); box-shadow:0 8px 24px var(--overlay-dark); z-index:var(--z-menu); padding:var(--space-4); display:flex; flex-direction:column; gap:2px; }
+.term-dd-item { display:flex; align-items:center; gap:var(--space-6); width:100%; padding:var(--space-4) var(--space-8); border:0; border-radius:var(--radius-sm); background:transparent; color:var(--text-bright); font-size:var(--fs-small); cursor:pointer; text-align:left; }
+.term-dd-item:hover { background:var(--bg-hover); }
+.term-dd-item--active { background:var(--select-blue); color:var(--text-inverse); }
+.term-dd-item--active:hover { background:var(--select-blue); }
+.term-dd-item-name { font-weight:var(--fw-semibold); white-space:nowrap; flex-shrink:0; }
+.term-dd-item-cwd { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; opacity:0.75; font-size:var(--fs-tiny); }
+.term-dd-item-x { flex-shrink:0; background:transparent; border:none; color:inherit; opacity:0.6; cursor:pointer; padding:0 var(--space-2); border-radius:var(--radius-xs); font-size:var(--fs-small); line-height:1; }
+.term-dd-item-x:hover { opacity:1; background:var(--error-bg-solid); color:var(--text-inverse); }
+.term-dd-new { display:flex; align-items:center; justify-content:center; gap:var(--space-4); width:100%; margin-top:var(--space-2); padding:var(--space-4); border:1px dashed var(--border-light); border-radius:var(--radius-sm); background:transparent; color:var(--teal); font-size:var(--fs-small); cursor:pointer; }
+.term-dd-new:hover { background:var(--teal-a12); border-color:var(--teal); }
+.term-tool-btn { background:var(--bg-active); border:1px solid var(--border-light); color:var(--text-soft); cursor:pointer; padding:var(--space-2) var(--space-8); border-radius:var(--radius-sm); font-size:var(--fs-small); line-height:1; display:inline-flex; align-items:center; justify-content:center; min-width:26px; min-height:24px; flex-shrink:0; }
+.term-tool-btn:hover { background:var(--bg-thumb); color:var(--text-inverse); }
+.term-tool-btn:disabled { opacity:0.4; cursor:default; }
+.term-tool-btn--danger:hover { background:var(--error-bg-solid); color:var(--text-inverse); border-color:var(--error-border-3); }
+.term-toolbar-count { font-size:var(--fs-tiny); color:var(--text-muted); flex-shrink:0; }
 `;
 
 const TerminalStyle = () => <style>{XTERM_CUSTOM_CSS}{TERMINAL_PANEL_CSS}</style>;
@@ -82,27 +180,25 @@ const getTerminalOpts = (settings = {}) => {
   return { fontSize: Math.min(32, Math.max(8, fontSize)), fontFamily, cursorStyle, cursorBlink, scrollback, copyOnSelect };
 };
 
-const TerminalPanel = ({ nodeId, config }) => {
+// ─── Single PTY session (one xterm + one pty) ─────────────────────────────
+// Parent keeps these mounted (hidden when inactive) so buffer survives switch.
+const TerminalSession = forwardRef(({ tabId, nodeId, config, active, onCwd }, ref) => {
   const elRef = useRef(null);
   const termRef = useRef(null);
   const fitRef = useRef(null);
-  const tabIdRef = useRef(null);
-  const initTerminalRef = useRef(null); // startTerminal, usable after mount
-  
+  const initTerminalRef = useRef(null);
+
   const [initError, setInitError] = useState(null);
   const [cwd, setCwd] = useState(null);
 
-  // Generate unique tabId per terminal instance
-  if (!tabIdRef.current) {
-    const safeNodeId = nodeId ? String(nodeId).replace(/[^a-zA-Z0-9_]/g, "_") : `term_${nextTerminalId++}`;
-    const rand = Math.random().toString(36).slice(2, 7);
-    tabIdRef.current = `term_${safeNodeId}_${rand}`;
-  }
-  const tabId = tabIdRef.current;
-  // Mirror mode: read-only view of an externally-driven stream
-  // (config.mirrorTabId, e.g. the Android emulator log) — no PTY is spawned.
   const mirrorTabId = config?.mirrorTabId || null;
   const listenId = mirrorTabId || tabId;
+
+  const activeRef = useRef(active);
+  useEffect(() => { activeRef.current = active; }, [active]);
+
+  // notify parent of cwd changes (for dropdown labels + status bar)
+  useEffect(() => { try { onCwd && onCwd(tabId, cwd); } catch {} }, [cwd, tabId, onCwd]);
 
   // ── Context menu (Right Click anywhere inside terminal) ────────────────────
   const handleContextMenu = useCallback(async (e) => {
@@ -157,7 +253,7 @@ const TerminalPanel = ({ nodeId, config }) => {
         window.dispatchEvent(new CustomEvent("close-flex-tab", { detail: { nodeId } }));
         break;
     }
-  }, [tabId, cwd, nodeId]);
+  }, [tabId, cwd, nodeId, mirrorTabId]);
 
   const handleFocus = useCallback(() => {
     if (termRef.current) {
@@ -206,6 +302,7 @@ const TerminalPanel = ({ nodeId, config }) => {
         const s = await window.electronAPI.readSettings();
         if (s) termOpts = getTerminalOpts(s);
       } catch {}
+      if (disposed) return;
       term = new Terminal({
         cursorBlink: termOpts.cursorBlink,
         cursorStyle: termOpts.cursorStyle,
@@ -264,6 +361,7 @@ const TerminalPanel = ({ nodeId, config }) => {
 
       // elRef div is ALWAYS rendered (placeholder is an overlay), so it is
       // available from the first commit — no waiting required.
+      // Hidden (inactive) sessions have 0 size — wait until visible/active.
       el = elRef.current;
       if (!el) {
         // UI element never appeared (component unmounted or stuck) — abort
@@ -271,9 +369,15 @@ const TerminalPanel = ({ nodeId, config }) => {
         try { term.dispose(); } catch {}
         return;
       }
+      if (el.offsetWidth === 0 || el.offsetHeight === 0) {
+        // Session created while hidden (background tab) — dispose xterm shell,
+        // retry when activated (parent calls api.start() via initTerminalRef).
+        try { term.dispose(); } catch {}
+        term = null;
+        return;
+      }
       el.innerHTML = "";
       term.open(el);
-      term.focus();
 
       if (!mirrorTabId) {
         term.onData((data) => {
@@ -370,7 +474,8 @@ const TerminalPanel = ({ nodeId, config }) => {
       initTerminalRef.current = null;
       if (rafId !== undefined) cancelAnimationFrame(rafId);
       if (fitIv !== undefined) clearInterval(fitIv);
-      if (!mirrorTabId) window.electronAPI.closeTerminal(tabId);
+      // NOTE: PTY close nahi karte — sessions global hain, view unmount
+      // (panel switch/close) par shell zinda rehta hai. Kill sirf 🗑 se.
       if (term) { try { term.dispose(); } catch {} }
       termRef.current = null;
       fitRef.current = null;
@@ -459,8 +564,10 @@ const TerminalPanel = ({ nodeId, config }) => {
   }, [tabId]);
 
   // ── Listen for "Open in Terminal" from file explorer ──────────────────────
+  // Multi-session: only the ACTIVE session handles it (warna saare cd ho jate).
   useEffect(() => {
     const handler = (e) => {
+      if (!activeRef.current) return;
       const dir = e.detail?.dir;
       if (!dir) return;
       setCwd(dir);
@@ -485,7 +592,7 @@ const TerminalPanel = ({ nodeId, config }) => {
     };
     window.addEventListener("open-terminal", handler);
     return () => window.removeEventListener("open-terminal", handler);
-  }, [tabId, nodeId]);
+  }, [tabId, nodeId, chdirTerminal]);
 
   // ── Focus/highlight terminal on Ctrl+` (target highlight, not new terminal) ─
   useEffect(() => {
@@ -493,6 +600,7 @@ const TerminalPanel = ({ nodeId, config }) => {
       const tId = e.detail?.tabId;
       // Only focus this instance if it matches the target tab or no specific target
       if (tId && tId !== tabId && tId !== nodeId) return;
+      if (!tId && !activeRef.current) return; // untargeted focus → active session only
       try { termRef.current?.focus(); } catch {}
       // Visual highlight flash on the panel
       try {
@@ -559,27 +667,266 @@ const TerminalPanel = ({ nodeId, config }) => {
       window.removeEventListener("project:opened", handleProjectOpen);
       u1(); u2(); u3();
     };
-  }, [tabId]);
+  }, [tabId, chdirTerminal]);
 
-  const dirName = mirrorTabId ? "Emulator" : (cwd ? cwd.replace(/[\\/]$/, "").split(/[\\/]/).pop() || cwd : "Terminal");
+  // Parent API: focus / clear / fit / restart / ensureStarted
+  const ensureStarted = useCallback(async () => {
+    if (termRef.current || mirrorTabId) {
+      try { fitRef.current?.fit(); } catch {}
+      return;
+    }
+    const starter = initTerminalRef.current;
+    if (!starter) return;
+    let dir = cwdRef.current || window.__currentProjectPath;
+    if (!dir) {
+      try { dir = await window.electronAPI.getProjectPath(); } catch {}
+    }
+    if (dir) { try { await starter(dir); } catch {} }
+  }, [mirrorTabId]);
+  useImperativeHandle(ref, () => ({
+    focus: () => { try { termRef.current?.focus(); } catch {} },
+    clear: () => { try { termRef.current?.clear(); } catch {} },
+    fit: () => { try { fitRef.current?.fit(); } catch {} },
+    ensureStarted,
+    restart: (dir) => {
+      const d = dir || cwdRef.current;
+      if (!d || mirrorTabId) return;
+      try { window.electronAPI.openTerminal(tabId, d, true); } catch {}
+    },
+    get tabId() { return tabId; },
+  }), [tabId, mirrorTabId, ensureStarted]);
+
+  // Activated (dropdown switch / tab visible) → start if needed, fit + focus
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    const boot = async () => {
+      // hidden mount par xterm bana hi nahi hoga — ab visible hai to start karo
+      if (!termRef.current && initTerminalRef.current && !mirrorTabId) {
+        let dir = cwdRef.current || window.__currentProjectPath;
+        if (!dir) { try { dir = await window.electronAPI.getProjectPath(); } catch {} }
+        if (cancelled) return;
+        if (dir) { try { await initTerminalRef.current(dir); } catch {} }
+      }
+      if (!cancelled) { try { fitRef.current?.fit(); } catch {} }
+    };
+    const t1 = setTimeout(boot, 30);
+    const t2 = setTimeout(() => { try { fitRef.current?.fit(); } catch {} }, 250);
+    return () => { cancelled = true; clearTimeout(t1); clearTimeout(t2); };
+  }, [active, mirrorTabId]);
+
+  if (initError) {
+    return (
+      <div style={{ display: active ? "flex" : "none", alignItems: "center", justifyContent: "center", height: "100%", width: "100%", color: "var(--danger)", fontSize: "var(--fs-body)", padding: "var(--space-20)", textAlign: "center" }}>
+        Terminal init error: {initError}
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={elRef}
+      className="term-xterm"
+      onContextMenu={handleContextMenu}
+      style={{ flex: 1, minHeight: 0, overflow: "hidden", display: active ? "flex" : "none", flexDirection: "column" }}
+    />
+  );
+});
+
+// ─── Multi-session panel: GLOBAL toolbar (dropdown + actions) + sessions ────
+// Saare terminal panels ek hi GlobalTerms store se render hote hain — naya
+// tab/panel kholo to wahi dropdown, wahi shells. Har panel har session ka
+// mirror view mount karta hai (PTY shared, open reuse karta hai).
+const TerminalPanel = ({ nodeId, config }) => {
+  const mirrorTabId = config?.mirrorTabId || null;
+
+  const { sessions, activeId, cwdMap } = useGlobalTerms();
+  const sessionApis = useRef(new Map());
+  const [panelCwd, setPanelCwd] = useState(null);
+  const [ddOpen, setDdOpen] = useState(false);
+  const ddRef = useRef(null);
+
+  // track project root for status fallback
+  useEffect(() => {
+    const sync = () => { try { setPanelCwd(window.__currentProjectPath || null); } catch {} };
+    sync();
+    const onOpen = (e) => { if (e?.detail?.path) setPanelCwd(e.detail.path); else sync(); };
+    const onClose = () => setPanelCwd(null);
+    window.addEventListener("project:opened", onOpen);
+    window.addEventListener("project:closed", onClose);
+    return () => {
+      window.removeEventListener("project:opened", onOpen);
+      window.removeEventListener("project:closed", onClose);
+    };
+  }, []);
+
+  // dropdown bahar click / Escape → band
+  useEffect(() => {
+    if (!ddOpen) return;
+    const onDoc = (e) => { try { if (ddRef.current && !ddRef.current.contains(e.target)) setDdOpen(false); } catch {} };
+    const onKey = (e) => { if (e.key === "Escape") setDdOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [ddOpen]);
+
+  const onSessionCwd = useCallback((id, cwd) => {
+    GlobalTerms.setCwd(id, cwd);
+  }, []);
+
+  const setApi = useCallback((id) => (api) => {
+    if (api) sessionApis.current.set(id, api);
+    else sessionApis.current.delete(id);
+  }, []);
+
+  const focusActive = useCallback(() => {
+    const id = GlobalTerms.snapshot().activeId;
+    const api = sessionApis.current.get(id);
+    try { api?.focus(); } catch {}
+  }, []);
+
+  // active switch → session start (hidden mount fix) + fit
+  useEffect(() => {
+    if (!activeId) return;
+    const t = setTimeout(() => {
+      const api = sessionApis.current.get(activeId);
+      try { api?.ensureStarted?.(); } catch {}
+      try { api?.fit?.(); } catch {}
+    }, 60);
+    return () => clearTimeout(t);
+  }, [activeId]);
+
+  const addSession = useCallback(() => {
+    GlobalTerms.add();
+    setDdOpen(false);
+    setTimeout(focusActive, 150);
+  }, [focusActive]);
+
+  const killSession = useCallback((id) => {
+    GlobalTerms.kill(id);
+    setDdOpen(false);
+    setTimeout(focusActive, 150);
+  }, [focusActive]);
+
+  const switchSession = useCallback((id) => {
+    GlobalTerms.setActive(id);
+    setDdOpen(false);
+    setTimeout(focusActive, 80);
+  }, [focusActive]);
+
+  const clearActive = useCallback(() => {
+    const api = sessionApis.current.get(activeId);
+    try { api?.clear(); } catch {}
+    focusActive();
+  }, [activeId, focusActive]);
+
+  const restartActive = useCallback(() => {
+    const api = sessionApis.current.get(activeId);
+    const dir = cwdMap[activeId] || panelCwd;
+    try { api?.restart(dir); } catch {}
+  }, [activeId, cwdMap, panelCwd]);
+
+  const activeCwd = cwdMap[activeId] || null;
+  const activeIdx = Math.max(0, sessions.findIndex((s) => s.id === activeId));
+  const activeSession = sessions.find((s) => s.id === activeId) || sessions[0];
+  const dirBase = (p) => {
+    if (!p) return null;
+    try { return String(p).replace(/[\\/]$/, "").split(/[\\/]/).pop() || p; } catch { return p; }
+  };
+  const dirName = mirrorTabId ? "Emulator" : (dirBase(activeCwd) || dirBase(panelCwd) || "Terminal");
+  const activeLabel = activeSession
+    ? `Terminal ${activeSession.n}${dirBase(activeCwd) ? ` — ${dirBase(activeCwd)}` : ""}`
+    : "Terminal";
+
+  // ── Mirror mode: single read-only stream, no toolbar (old behavior) ──────
+  if (mirrorTabId) {
+    return (
+      <div className="term-panel" onClick={focusActive}>
+        <TerminalStyle />
+        <div className="term-content">
+          <TerminalSession
+            ref={setApi("mirror")}
+            tabId={mirrorTabId}
+            nodeId={nodeId}
+            config={config}
+            active={true}
+            onCwd={onSessionCwd}
+          />
+        </div>
+        <div className="term-status">
+          <span className="term-status-path">Emulator</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="term-panel" onClick={handleFocus}>
+    <div className="term-panel" onClick={focusActive}>
       <TerminalStyle />
 
-      <div className="term-content" onContextMenu={handleContextMenu}>
-        {initError ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--danger)", fontSize: "var(--fs-body)", padding: "var(--space-20)", textAlign: "center" }}>
-            Terminal init error: {initError}
-          </div>
-        ) : (
-          <div ref={elRef} className="term-xterm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }} />
-        )}
+      {/* ── Top toolbar: GLOBAL dropdown + new/kill/clear + splits ───────── */}
+      <div className="term-toolbar">
+        <div className="term-dd" ref={ddRef}>
+          <button
+            className="term-dd-btn"
+            title="Switch terminal (global)"
+            onClick={(e) => { e.stopPropagation(); setDdOpen((v) => !v); }}
+          >
+            <span className="term-dd-label">{activeLabel}</span>
+            <span className="term-dd-chev">{ddOpen ? "▴" : "▾"}</span>
+          </button>
+          {ddOpen && (
+            <div className="term-dd-menu" onClick={(e) => e.stopPropagation()}>
+              {sessions.map((s) => {
+                const base = dirBase(cwdMap[s.id]);
+                const isActive = s.id === activeId;
+                return (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <button
+                      className={isActive ? "term-dd-item term-dd-item--active" : "term-dd-item"}
+                      onClick={() => switchSession(s.id)}
+                      title={cwdMap[s.id] || `Terminal ${s.n}`}
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
+                      <span className="term-dd-item-name">{isActive ? "● " : "○ "}Terminal {s.n}</span>
+                      <span className="term-dd-item-cwd">{base || "no project"}</span>
+                    </button>
+                    <button
+                      className="term-dd-item-x"
+                      title={`Kill Terminal ${s.n}`}
+                      onClick={(e) => { e.stopPropagation(); killSession(s.id); }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+              <button className="term-dd-new" onClick={addSession}>+ New terminal</button>
+            </div>
+          )}
+        </div>
+        <span className="term-toolbar-count">{activeIdx + 1}/{sessions.length}</span>
       </div>
 
-      {!cwd && !mirrorTabId && !initError && (
+      <div className="term-content">
+        {sessions.map((s) => (
+          <TerminalSession
+            key={s.id}
+            ref={setApi(s.id)}
+            tabId={s.id}
+            nodeId={nodeId}
+            config={config}
+            active={s.id === activeId}
+            onCwd={onSessionCwd}
+          />
+        ))}
+      </div>
+
+      {!(activeCwd || panelCwd) && (
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: "var(--z-raised)",
+          position: "absolute", top: 33, left: 0, right: 0, bottom: 25, zIndex: "var(--z-raised)",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           color: "var(--text-muted)", fontSize: "var(--fs-title)", background: "var(--bg-surface)", gap: "var(--space-12)", userSelect: "none",
         }}>
@@ -603,6 +950,36 @@ const TerminalPanel = ({ nodeId, config }) => {
         <div className="term-status-actions">
           <button
             className="term-status-btn"
+            title="New terminal"
+            onClick={addSession}
+          >
+            + New
+          </button>
+          <button
+            className="term-status-btn"
+            title="Kill active terminal"
+            onClick={() => killSession(activeId)}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--error-text)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = ""; }}
+          >
+            🗑 Kill
+          </button>
+          <button
+            className="term-status-btn"
+            title="Clear active terminal"
+            onClick={clearActive}
+          >
+            ∿ Clear
+          </button>
+          <button
+            className="term-status-btn"
+            title="Restart active terminal"
+            onClick={restartActive}
+          >
+            ↻ Restart
+          </button>
+          <button
+            className="term-status-btn"
             title="Split Right"
             onClick={() => window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { nodeId, location: "RIGHT" } }))}
           >
@@ -622,4 +999,3 @@ const TerminalPanel = ({ nodeId, config }) => {
 };
 
 export default TerminalPanel;
-

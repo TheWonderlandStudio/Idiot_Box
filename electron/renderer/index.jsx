@@ -1346,10 +1346,11 @@ const App = () => {
     };
   }, []);
 
-  // ── UI Size — View → Ctrl + + / Ctrl + - / Ctrl + 0 fallback + overlay ──
+  // ── UI Size — View → Ctrl + + / Ctrl + - / Ctrl + 0 / Ctrl + Scroll + overlay ──
   // Main process handles accelerators + before-input-event, but Monaco/webview can
-  // swallow them. This renderer fallback ensures Ctrl+=/Plus/Minus/0 still zoom.
-  // NOTE: Ctrl+Scroll zoom is intentionally disabled — only Ctrl +/-/0 keys zoom UI.
+  // swallow them. This renderer fallback ensures Ctrl+=/Plus/Minus/0/wheel still zoom.
+  // Ctrl+Wheel zooms the whole UI — except inside components with their own
+  // Ctrl+wheel zoom ([data-zoom="local"] = MediaViewer, .excalidraw = Canvas).
   useEffect(() => {
     let toastTimer = null;
     let overlayEl = null;
@@ -1407,13 +1408,34 @@ const App = () => {
         return false;
       }
     };
-    // Ctrl+Scroll zoom disabled — do nothing on wheel, even with Ctrl held.
-    // (Previously this zoomed the whole UI and fought Canvas/Explorer/Media zoom.)
+    // Ctrl+Scroll → UI zoom (throttled; local-zoom components excluded).
+    let lastWheelZoom = 0;
+    const onWheel = (e) => {
+      try {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        const t = e.target;
+        if (t && t.closest) {
+          if (t.closest('[data-zoom="local"], .excalidraw, webview')) return;
+        }
+        e.preventDefault(); e.stopPropagation();
+        const now = Date.now();
+        if (now - lastWheelZoom < 120) return;
+        lastWheelZoom = now;
+        // deltaY > 0 (scroll down) = zoom out, < 0 = zoom in; normalize line-mode
+        let dy = e.deltaY || 0;
+        if (e.deltaMode === 1) dy *= 16;
+        if (dy === 0) return;
+        const api = dy < 0 ? window.electronAPI?.zoomIn : window.electronAPI?.zoomOut;
+        try { api?.().then((f) => { if (f) showToast(f); }).catch(() => {}); } catch {}
+      } catch {}
+    };
     window.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("wheel", onWheel, { capture: true, passive: false });
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("wheel", onWheel, { capture: true });
       try { unsubZoom?.(); } catch {}
       clearTimeout(toastTimer);
     };

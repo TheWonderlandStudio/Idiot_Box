@@ -1624,6 +1624,7 @@ const MediaViewer = () => {
       {/* ── Main Media Display Canvas / Viewport ───────────────────── */}
       <div
         ref={viewportRef}
+        data-zoom="local"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
