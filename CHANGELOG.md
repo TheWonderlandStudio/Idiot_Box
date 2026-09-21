@@ -3,6 +3,45 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.21] - 2026-09-21
+
+### Added
+- **Project Hub redesign** — left sidebar (Create / Clone / Open / Frameworks),
+  Note + Recents stacked panels, compact centered layout with scroll.
+- **GitHub contribution heatmap in Hub** — GitHub-style full-year grid
+  (month labels, Mon/Wed/Fri, Less→More legend, streak), shimmer skeleton +
+  cascade load animations. Username via onboarding / Settings → Hub.
+- **First-launch onboarding page** — minimal 2-screen flow (brand → GitHub
+  username), Discord-style animations. Sirf first launch ya data reset par.
+- **Frameworks gallery (32 templates)** — real devicons, categories + search,
+  JS/TS language selector, template files tree preview (right column),
+  one-click project creation with starter files. Framework icons in Recents.
+- **Your repositories in Clone panel** — saved GitHub id ki public repos
+  direct list + one-click clone.
+- **Recents search + filter** — title-bar search, All/Pinned dropdown, pin
+  buttons on rows.
+- **Settings → Hub page** — GitHub username, heatmap toggle (live), reset
+  onboarding, clear recents, open/clear main storage folder.
+- **Settings redesign (fragments language)** — grouped icon sidebar + search,
+  Card rows, Field layout, new Switch/buttons/inputs, staggered entrances.
+- **Terminal multi-session** — global dropdown (saare panels me same list),
+  top toolbar, bottom Kill/Clear/Restart, shells survive panel switch.
+- **Run auto-install** — `npm install` / `pip install -r` / `go mod tidy`
+  run se pehle auto (single chained command).
+- **Storage menu** — top `Open Main Storage Folder` button.
+- **Ctrl+Scroll UI zoom** — poori UI me (Media/Canvas local zoom excluded).
+- **Git panel file icons**, **MediaViewer PDF fix** (plugins + dataURL),
+  **clone console xterm**.
+
+### Fixed
+- **Pinned filter never worked** — `load-recent` galat
+  `projects/project-pins.json` padhta tha, toggle `userData/` me likhta tha;
+  path unify (restart required).
+- **Onboarding black screen** — TDZ crash (`clean` used before declaration).
+- **Terminal infinite re-render** — `useSyncExternalStore` snapshot caching.
+- **Hub button overflow** + responsive gaps, create-panel spacing, dialog
+  footer backgrounds.
+
 ## [0.1.20] - 2026-09-16
 
 ### Added
