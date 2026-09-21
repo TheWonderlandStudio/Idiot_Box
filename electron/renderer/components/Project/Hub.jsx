@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, FolderUp, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, FolderUp, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -355,6 +355,33 @@ const getFrameworkFiles = (id, projectName, lang = "TypeScript") => {
   }
 };
 
+// ─── Repo card (search results + your repos share) ──────────────────────────
+const RepoCard = ({ repo, cloning, cloningTarget, onClone }) => (
+  <div className="phub__dialog-result phub__dialog-result--card">
+    <div className="phub__dialog-result-main">
+      {repo.owner?.avatar_url && (
+        <img
+          src={repo.owner.avatar_url}
+          alt={repo.owner.login || ""}
+          className="phub__dialog-result-avatar"
+          width={24}
+          height={24}
+          loading="lazy"
+        />
+      )}
+      <span className="phub__dialog-result-name" title={repo.full_name}>{repo.full_name}</span>
+      <span className="phub__dialog-result-stars"><Star size={12} /> {repo.stargazers_count?.toLocaleString?.() ?? repo.stargazers_count}</span>
+    </div>
+    {repo.description && <div className="phub__dialog-result-desc" title={repo.description}>{repo.description}</div>}
+    <div className="phub__dialog-result-foot">
+      <span className="phub__dialog-result-url" title={repo.clone_url}>{repo.clone_url}</span>
+      <button className="phub__dialog-cloneBtn" onClick={() => onClone(repo.clone_url)} disabled={cloning} title={repo.clone_url}>
+        {cloning && cloningTarget === repo.clone_url ? <Loader2 size={12} className="phub__spin" /> : <CloudDownload size={12} />} Clone
+      </button>
+    </div>
+  </div>
+);
+
 const ProjectHub = () => {
   const [recentProjects, setRecentProjects] = useState([]);
   const [pinnedProjects, setPinnedProjects] = useState([]);
@@ -376,12 +403,189 @@ const ProjectHub = () => {
   const [cloningTarget, setCloningTarget] = useState(null);
   const [cloneLogs, setCloneLogs] = useState([]);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [userRepos, setUserRepos] = useState([]);
+  const [userReposLoading, setUserReposLoading] = useState(false);
+  const [userReposError, setUserReposError] = useState(null);
+  const [recentSearch, setRecentSearch] = useState("");
+  const [recentFilter, setRecentFilter] = useState("all"); // all | pinned
+  const [recentFilterOpen, setRecentFilterOpen] = useState(false);
+  const recentFilterRef = useRef(null);
+
+  // filter menu bahar click → band
+  useEffect(() => {
+    if (!recentFilterOpen) return;
+    const onDoc = (e) => { try { if (recentFilterRef.current && !recentFilterRef.current.contains(e.target)) setRecentFilterOpen(false); } catch {} };
+    const onKey = (e) => { if (e.key === "Escape") setRecentFilterOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [recentFilterOpen]);
   const [showFrameworks, setShowFrameworks] = useState(false);
   const [frameworkSearch, setFrameworkSearch] = useState("");
   const [frameworkCategory, setFrameworkCategory] = useState("All");
   const [selectedFramework, setSelectedFramework] = useState(null);
   const [frameworkLang, setFrameworkLang] = useState("TypeScript");
   const [showTemplateFiles, setShowTemplateFiles] = useState(false);
+
+  // ── GitHub heatmap (note panel) ────────────────────────────────────────
+  const [ghUser, setGhUser] = useState(null);
+  const [ghWeeks, setGhWeeks] = useState([]);
+  const [ghTotal, setGhTotal] = useState(0);
+  const [ghStreak, setGhStreak] = useState(0);
+  const [ghLoading, setGhLoading] = useState(false);
+  const [ghError, setGhError] = useState(null);
+  const [ghInput, setGhInput] = useState("");
+
+  const loadHeatmap = useCallback(async (username) => {
+    const user = String(username || "").trim();
+    if (!user) return;
+    setGhLoading(true);
+    setGhError(null);
+    try {
+      const res = await fetch(`https://github-contributions-api.jogruber.de/v4/${encodeURIComponent(user)}?y=last`);
+      if (!res.ok) throw new Error(res.status === 404 ? "user not found" : `HTTP ${res.status}`);
+      const data = await res.json();
+      const list = Array.isArray(data.contributions) ? data.contributions : [];
+      if (!list.length) throw new Error("no data");
+      const sorted = [...list].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      // streak: aaj/pichhle se peeche tak lagatar count>0
+      let streak = 0;
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if ((sorted[i].count || 0) > 0) streak++;
+        else if (i < sorted.length - 1) break;
+      }
+      const total = sorted.reduce((s, d) => s + (d.count || 0), 0);
+      // poora saal — GitHub jaisa, Sunday-start columns
+      const pad = sorted.length ? new Date(sorted[0].date + "T00:00:00").getDay() : 0;
+      const cells = [...Array(pad).fill(null), ...sorted];
+      const weeks = [];
+      for (let i = 0; i < cells.length; i += 7) {
+        const w = cells.slice(i, i + 7);
+        while (w.length < 7) w.push(null);
+        weeks.push(w);
+      }
+      setGhUser(user);
+      setGhWeeks(weeks);
+      setGhTotal(total);
+      setGhStreak(streak);
+    } catch (e) {
+      setGhError(e?.message || "failed to load");
+      setGhWeeks([]);
+    } finally {
+      setGhLoading(false);
+    }
+  }, []);
+
+  const [showHeat, setShowHeat] = useState(true);
+
+  const resolveGhUser = useCallback(async () => {
+    let user = null;
+    try { user = window.__githubUsername || null; } catch {}
+    if (!user) {
+      try {
+        const s = await window.electronAPI.readSettings().catch(() => ({}));
+        user = s?.githubUsername || null;
+        try { window.__githubUsername = user; } catch {}
+      } catch {}
+    }
+    if (user) setGhUser(user);
+    return user;
+  }, []);
+
+  const loadUserRepos = useCallback(async (username) => {
+    const user = String(username || "").trim();
+    if (!user) return;
+    setUserReposLoading(true);
+    setUserReposError(null);
+    try {
+      const res = await fetch(`https://api.github.com/users/${encodeURIComponent(user)}/repos?per_page=100&sort=updated`);
+      if (!res.ok) throw new Error(res.status === 404 ? "user not found" : `GitHub ${res.status}`);
+      const data = await res.json();
+      setUserRepos(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setUserReposError(e?.message || "failed to load repos");
+      setUserRepos([]);
+    } finally {
+      setUserReposLoading(false);
+    }
+  }, []);
+
+  // clone dialog khule + username ho → apni repos lao
+  useEffect(() => {
+    if (!showCloneDialog) return;
+    (async () => {
+      let user = null;
+      try { user = window.__githubUsername || null; } catch {}
+      if (!user) user = await resolveGhUser();
+      else setGhUser(user);
+      if (user) loadUserRepos(user);
+    })();
+  }, [showCloneDialog, resolveGhUser, loadUserRepos]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await window.electronAPI.readSettings().catch(() => ({}));
+        if (s?.hubShowHeatmap === false) {
+          setShowHeat(false);
+          await resolveGhUser();
+          return;
+        }
+        setShowHeat(true);
+      } catch {}
+      const user = await resolveGhUser();
+      if (user) loadHeatmap(user);
+    })();
+    // Settings → Hub changes live (heatmap toggle / username)
+    let unsub = null;
+    try {
+      unsub = window.electronAPI.onSettingsUpdated?.((patch) => {
+        if (!patch || typeof patch !== "object") return;
+        if ("hubShowHeatmap" in patch) {
+          const on = patch.hubShowHeatmap !== false;
+          setShowHeat(on);
+          if (!on) { setGhUser(null); setGhWeeks([]); }
+          else {
+            let u = null;
+            try { u = window.__githubUsername || null; } catch {}
+            if (u) loadHeatmap(u);
+          }
+        }
+        if ("githubUsername" in patch) {
+          const u = patch.githubUsername || null;
+          try { window.__githubUsername = u; } catch {}
+          if (u) loadHeatmap(u);
+          else { setGhUser(null); setGhWeeks([]); }
+        }
+      });
+    } catch {}
+    return () => { try { unsub?.(); } catch {} };
+  }, [loadHeatmap]);
+
+  const saveGhUser = useCallback(async () => {
+    const user = ghInput.trim();
+    if (!user) return;
+    try {
+      const s = await window.electronAPI.readSettings().catch(() => ({}));
+      const next = { ...(s || {}), githubUsername: user };
+      delete next.githubOnboardingDismissed;
+      await window.electronAPI.writeSettings(next);
+      try { window.__githubUsername = user; } catch {}
+    } catch {}
+    setGhInput("");
+    loadHeatmap(user);
+  }, [ghInput, loadHeatmap]);
+
+  const ghColor = (c) => {
+    if (!c || c <= 0) return "var(--bg-active)";
+    if (c <= 2) return "rgba(78,201,176,0.28)";
+    if (c <= 5) return "rgba(78,201,176,0.5)";
+    if (c <= 8) return "rgba(78,201,176,0.75)";
+    return "#4ec9b0";
+  };
 
   // ── Xterm console for git clone ────────────────────────────────────────
   const cloneTermRef = useRef(null);
@@ -1126,6 +1330,24 @@ const ProjectHub = () => {
                   </button>
                 </div>
               </div>
+              {ghUser && !searchQuery.trim() && !searchLoading && searchResults.length === 0 && (
+                <div className="phub__dialog-field">
+                  <label className="phub__dialog-label">Your repositories (@{ghUser})</label>
+                  {userReposLoading ? (
+                    <div className="phub__panel-empty" style={{ padding: "var(--space-12)" }}><Loader2 size={14} className="phub__spin" /> Loading your repos…</div>
+                  ) : userReposError ? (
+                    <div className="phub__panel-empty" style={{ padding: "var(--space-12)" }}>⚠ {userReposError}</div>
+                  ) : userRepos.length > 0 ? (
+                    <div className="phub__dialog-results phub__dialog-results--full" style={{ minHeight: 0 }}>
+                      {userRepos.map((repo) => (
+                        <RepoCard key={repo.id} repo={repo} cloning={cloning} cloningTarget={cloningTarget} onClone={handleClone} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="phub__panel-empty" style={{ padding: "var(--space-12)" }}>No public repos found</div>
+                  )}
+                </div>
+              )}
               {(cloning || cloneLogs.length > 0) && (
                 <div className="phub__clone-logs">
                   <div className="phub__clone-logs-header">Console {cloning && <Loader2 size={12} className="phub__spin" />}</div>
@@ -1137,29 +1359,7 @@ const ProjectHub = () => {
                   <div className="phub__panel-empty"><Loader2 size={16} className="phub__spin" /> Searching…</div>
                 ) : searchResults.length > 0 ? (
                   searchResults.map((repo) => (
-                    <div key={repo.id} className="phub__dialog-result phub__dialog-result--card">
-                      <div className="phub__dialog-result-main">
-                        {repo.owner?.avatar_url && (
-                          <img
-                            src={repo.owner.avatar_url}
-                            alt={repo.owner.login || ""}
-                            className="phub__dialog-result-avatar"
-                            width={24}
-                            height={24}
-                            loading="lazy"
-                          />
-                        )}
-                        <span className="phub__dialog-result-name" title={repo.full_name}>{repo.full_name}</span>
-                        <span className="phub__dialog-result-stars"><Star size={12} /> {repo.stargazers_count?.toLocaleString?.() ?? repo.stargazers_count}</span>
-                      </div>
-                      {repo.description && <div className="phub__dialog-result-desc" title={repo.description}>{repo.description}</div>}
-                      <div className="phub__dialog-result-foot">
-                        <span className="phub__dialog-result-url" title={repo.clone_url}>{repo.clone_url}</span>
-                        <button className="phub__dialog-cloneBtn" onClick={() => handleClone(repo.clone_url)} disabled={cloning} title={repo.clone_url}>
-                          {cloning && cloningTarget === repo.clone_url ? <Loader2 size={12} className="phub__spin" /> : <CloudDownload size={12} />} Clone
-                        </button>
-                      </div>
-                    </div>
+                    <RepoCard key={repo.id} repo={repo} cloning={cloning} cloningTarget={cloningTarget} onClone={handleClone} />
                   ))
                 ) : (
                   <div className="phub__panel-empty" style={{ padding: "var(--space-16)" }}>No results — try searching or paste a URL above</div>
@@ -1260,15 +1460,139 @@ const ProjectHub = () => {
           </div>
         ) : (
           <div className="phub__stack">
+            {showHeat && (
             <div className="phub__panel phub__panel--note">
-              <div className="phub__panel-body phub__note-body">
-                {/* blank — will handle later */}
+              <div className="phub__panel-body phub__note-body phub__heat">
+                <div className="phub__heat-head">
+                  {ghUser ? (
+                    <>
+                      <span className="phub__heat-user" title={ghUser}>@{ghUser}</span>
+                      <span className="phub__heat-stat">{ghTotal} contributions in the last year</span>
+                      <button
+                        className="phub__btn--tiny"
+                        onClick={() => loadHeatmap(ghUser)}
+                        title="Refresh"
+                        style={{ marginLeft: "auto" }}
+                      >
+                        <RefreshCw size={11} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="phub__heat-stat">github heatmap</span>
+                      <input
+                        className="phub__heat-input"
+                        value={ghInput}
+                        onChange={(e) => setGhInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveGhUser(); }}
+                        placeholder="username + Enter"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </>
+                  )}
+                </div>
+                <div className="phub__heat-scroll">
+                  {ghLoading && (
+                    <div className="phub__heat-skel">
+                      {Array.from({ length: 24 }).map((_, wi) => (
+                        <div key={wi} className="phub__heat-week">
+                          {Array.from({ length: 7 }).map((_, di) => (
+                            <span key={di} className="phub__heat-cell phub__heat-skel-cell" style={{ animationDelay: `${(wi + di) * 40}ms` }} />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!ghLoading && ghError && <span className="phub__heat-stat">⚠ {ghError}</span>}
+                  {!ghLoading && !ghError && ghWeeks.length > 0 && (
+                    <div className="phub__heat-table" key={`${ghUser}:${ghTotal}`}>
+                      <div className="phub__heat-months">
+                        <span className="phub__heat-daygutter" />
+                        {(() => {
+                          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                          let prev = -1;
+                          return ghWeeks.map((week, wi) => {
+                            const first = week.find((d) => d);
+                            const m = first ? new Date(first.date + "T00:00:00").getMonth() : -1;
+                            const show = m !== -1 && m !== prev;
+                            prev = m;
+                            return <span key={wi} className="phub__heat-month">{show ? months[m] : ""}</span>;
+                          });
+                        })()}
+                      </div>
+                      <div className="phub__heat-grid">
+                        <div className="phub__heat-days">
+                          {["", "Mon", "", "Wed", "", "Fri", ""].map((d, i) => (
+                            <span key={i} className="phub__heat-day">{d}</span>
+                          ))}
+                        </div>
+                        {ghWeeks.map((week, wi) => (
+                          <div key={wi} className="phub__heat-week">
+                            {week.map((d, di) => d ? (
+                              <span
+                                key={di}
+                                className="phub__heat-cell phub__heat-cell--enter"
+                                title={`${d.date}: ${d.count} contribution${d.count === 1 ? "" : "s"}`}
+                                style={{ background: ghColor(d.count), animationDelay: `${Math.min((wi * 7 + di) * 4, 1200)}ms` }}
+                              />
+                            ) : (
+                              <span key={di} className="phub__heat-cell" style={{ background: "transparent", border: "none" }} />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="phub__heat-foot">
+                        <span className="phub__heat-stat">Less</span>
+                        {[0, 1, 4, 7, 10].map((c) => (
+                          <span key={c} className="phub__heat-cell" style={{ background: ghColor(c) }} />
+                        ))}
+                        <span className="phub__heat-stat">More</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+            )}
             <div className="phub__panel phub__panel--recents">
               <div className="phub__panel-header">
                 <span className="phub__panel-title">Recents</span>
                 <span className="phub__panel-count">{recentProjects.length}</span>
+                <div className="phub__panel-search">
+                  <Search size={12} className="phub__dialog-inputIcon" />
+                  <input
+                    type="text"
+                    placeholder="Search…"
+                    value={recentSearch}
+                    onChange={(e) => setRecentSearch(e.target.value)}
+                    autoComplete="off"
+                    aria-label="Search recents"
+                  />
+                </div>
+                <div className="phub__filterwrap" ref={recentFilterRef}>
+                  <button
+                    className={`phub__btn--tiny${recentFilter !== "all" ? " phub__filterbtn--on" : ""}`}
+                    onClick={() => setRecentFilterOpen((v) => !v)}
+                    title={`Filter: ${recentFilter === "all" ? "All" : "Pinned"}`}
+                    aria-label="Filter recents"
+                  >
+                    <ListFilter size={12} />
+                  </button>
+                  {recentFilterOpen && (
+                    <div className="phub__filtermenu">
+                      {[["all", "All"], ["pinned", "Pinned"]].map(([v, label]) => (
+                        <button
+                          key={v}
+                          className={`phub__filtermenu-item${recentFilter === v ? " phub__filtermenu-item--on" : ""}`}
+                          onClick={() => { setRecentFilter(v); setRecentFilterOpen(false); }}
+                        >
+                          {recentFilter === v ? "● " : "○ "}{label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   className="phub__panel-refresh phub__btn--tiny"
                   onClick={() => window.electronAPI.projectRefreshRecent()}
@@ -1283,9 +1607,22 @@ const ProjectHub = () => {
                 </div>
               )}
               <div className="phub__panel-list">
-                {recentProjects.map((entry) => {
+                {(() => {
+                  const pinnedSet = new Set((pinnedProjects || []).map((p) => (typeof p === "string" ? p : p?.path)).filter(Boolean));
+                  const q = recentSearch.trim().toLowerCase();
+                  const list = recentProjects.filter((entry) => {
+                    if (recentFilter === "pinned" && !pinnedSet.has(entry.path)) return false;
+                    if (!q) return true;
+                    const name = (entry.path.split(/[\\/]/).pop() || "").toLowerCase();
+                    return name.includes(q) || entry.path.toLowerCase().includes(q);
+                  });
+                  if (!list.length && recentProjects.length > 0) {
+                    return <div className="phub__panel-empty" style={{ padding: "var(--space-16)" }}>No matches</div>;
+                  }
+                  return list.map((entry) => {
                   const path = entry.path;
                   const name = path.split(/[\\/]/).pop() || path;
+                  const isPinned = pinnedSet.has(path);
                   return (
                     <div
                       key={path}
@@ -1309,6 +1646,14 @@ const ProjectHub = () => {
                       <div className="phub__panel-actions">
                         <button
                           className="phub__panel-action"
+                          onClick={(e) => { e.stopPropagation(); togglePin(path); }}
+                          title={isPinned ? "Unpin" : "Pin"}
+                          style={isPinned ? { opacity: 1, color: "var(--warn-gold)" } : undefined}
+                        >
+                          <Pin size={14} />
+                        </button>
+                        <button
+                          className="phub__panel-action"
                           onClick={(e) => { e.stopPropagation(); window.electronAPI.revealInExplorer(path); }}
                           title="Open in Files"
                         >
@@ -1324,7 +1669,8 @@ const ProjectHub = () => {
                       </div>
                     </div>
                   );
-                })}
+                  });
+                })()}
               </div>
             </div>
           </div>

@@ -20,6 +20,7 @@ import BlankPanel from "./components/Blank/index.jsx";
 import ComponentPreview from "./components/ComponentPreview/index.jsx";
 import CanvasPanel from "./components/Canvas/index.jsx";
 import CommandPalette from "./components/CommandPalette/index.jsx";
+import OnboardingPage from "./components/Onboarding/index.jsx";
 import QuickOpen from "./components/QuickOpen/index.jsx";
 import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
@@ -377,6 +378,20 @@ const App = () => {
   const [hasProject, setHasProject] = useState(false);
   const [, setTick] = useState(0);
   const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // ── Onboarding check — sirf first launch (ya data remove hone par) ──────
+  // Poora page hai (components/Onboarding), modal nahi. Save/Skip wahi
+  // handle karta hai; yahan sirf show/hide + username cache.
+  useEffect(() => {
+    (async () => {
+      try {
+        const s = await window.electronAPI.readSettings().catch(() => ({}));
+        try { window.__githubUsername = s?.githubUsername || null; } catch {}
+        if (!s?.githubUsername && !s?.githubOnboardingDismissed) setShowOnboarding(true);
+      } catch {}
+    })();
+  }, []);
 
   useEffect(() => {
     let attempts = 0;
@@ -1648,6 +1663,11 @@ const App = () => {
     ];
     return () => unsubs.forEach((u) => u());
   }, []);
+
+  // Onboarding poora page hai — hub/layout ki jagah render hota hai
+  if (showOnboarding) {
+    return <OnboardingPage onDone={() => setShowOnboarding(false)} />;
+  }
 
   if (!readyRef.current) return null;
 

@@ -2453,7 +2453,8 @@ ipcMain.handle("project:load-recent", async () => {
       try { idx = JSON.parse(fs.readFileSync(idxFile, "utf8")); } catch {}
 
       // pinned projects come from project pins config
-      const pinConfigPath = path.join(root, "project-pins.json");
+      // (same file toggle-pin + broadcast use: userData/project-pins.json)
+      const pinConfigPath = path.join(app.getPath("userData"), "project-pins.json");
       try {
         const pinData = JSON.parse(fs.readFileSync(pinConfigPath, "utf8"));
         if (pinData && Array.isArray(pinData)) pinned = pinData;
@@ -5421,6 +5422,11 @@ function buildMenu() {
     },
     {
       id: "menu-storage", label: "Storage", submenu: [
+        { label: "Open Main Storage Folder", click: async () => {
+          const root = getProjectStoreRoot();
+          try { fs.mkdirSync(root, { recursive: true }); await shell.openPath(root); } catch (e) { dialog.showErrorBox("Error", String(e)); }
+        }},
+        { type: "separator" },
         { label: "Current Project Storage…", enabled: false },
         { label: "Reveal Project Storage Folder", click: async () => {
           const rp = lastProjectPath;
@@ -5514,10 +5520,6 @@ function buildMenu() {
         }},
         { type: "separator" },
         { label: "Global Storage…", enabled: false },
-        { label: "Reveal All Storages Folder", click: async () => {
-          const root = getProjectStoreRoot();
-          try { fs.mkdirSync(root, { recursive: true }); await shell.openPath(root); } catch (e) { dialog.showErrorBox("Error", String(e)); }
-        }},
         { label: "Clear All Projects Data…", click: async () => {
           const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Clear Everything"], defaultId: 1, cancelId: 0, message: "Clear data for ALL projects?", detail: "This deletes every project's pin, tabs, canvas and trash from app memory (userData/projects). Project files are NOT deleted. This cannot be undone." });
           if (response !== 1) return;
