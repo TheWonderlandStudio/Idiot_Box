@@ -3,6 +3,17 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.22] - 2026-09-22
+
+### Changed
+- **Project Panel delete ab OS Recycle Bin me jata hai** — internal
+  `.bin/<timestamp>_<name>` trash system + `manifest.json` + migration code
+  hata diya. Delete (`shell.trashItem`) → OS Recycle Bin, permanent delete
+  use bypass karta hai.
+- **Delete ka internal undo hata diya** — deleted files OS Recycle Bin se
+  restore karo. `Empty Trash` / `Reveal Trash` menu entries bhi hata diye.
+- README me delete behavior document kiya.
+
 ## [0.1.21] - 2026-09-21
 
 ### Added
