@@ -12,7 +12,7 @@ Idiot Box is a modern, customizable desktop IDE designed to make development sim
 - **Live Component Preview** — shadow-DOM previews of components that sync instantly with the editor (no save needed).
 - **Terminal** — xterm.js + node-pty with split/new panel actions and working-directory-aware launch.
 - **Browser Panel** — webview-based tabs with port detection for your dev servers.
-- **Project Panel** — grid/list file manager with native drag-and-drop, multi-select, clipboard operations, undo/redo, renaming, duplicate, context menus (open in new editor tab, open with, reveal, terminal here), and sidebar tree.
+- **Project Panel** — grid/list file manager with native drag-and-drop, multi-select, clipboard operations, undo/redo, renaming, duplicate, context menus (open in new editor tab, open with, reveal, terminal here), and sidebar tree. Delete moves files to the OS Recycle Bin (`shell.trashItem`); permanent delete bypasses it. There is no app-internal trash folder — restore deleted files from your OS Recycle Bin.
 - **Media Viewer** — zoom / rotate / flip / pan for images and videos.
 - **Settings Window** — live-updating editor preferences (minimap, word wrap) via BroadcastChannel.
 - **Command Palette** — quick actions for projects, files, panels and layout.

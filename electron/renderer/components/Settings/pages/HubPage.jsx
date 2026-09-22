@@ -92,7 +92,7 @@ const HubPage = ({ settings, onSave }) => {
   };
 
   const clearAllStorage = async () => {
-    if (!window.confirm("Clear data for ALL projects? (pins, tabs, canvas, trash — project files safe)")) return;
+    if (!window.confirm("Clear data for ALL projects? (pins, tabs, canvas — project files safe)")) return;
     setBusy("storage");
     try {
       const r = await window.electronAPI.clearAllProjectsStorage();

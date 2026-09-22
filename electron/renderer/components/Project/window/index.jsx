@@ -196,7 +196,11 @@ const ProjectWindow = () => {
           break;
         }
         case "create": {
-          try { await window.electronAPI.deleteItem(op.path, false); } catch (err) {
+          // Undo-create → OS Recycle Bin (shell.trashItem)
+          try {
+            const effectiveRoot = rootPath || window.__currentProjectPath || op.parentDir;
+            await window.electronAPI.trashItem(op.path, effectiveRoot);
+          } catch (err) {
             await window.electronAPI.showAlert(`Undo create failed:\n${err.message}`);
             break;
           }
@@ -212,15 +216,8 @@ const ProjectWindow = () => {
           break;
         }
         case "delete": {
-          if (op.trashIds?.length) {
-            for (const { from, trashId } of op.trashIds) {
-              try { await window.electronAPI.restoreTrashItem(trashId, op.rootPath); } catch (err) {
-                await window.electronAPI.showAlert(`Undo delete failed:\n${err.message}`);
-                continue;
-              }
-              affected.add(from.replace(/[\\/][^\\/]+$/, "") || from);
-            }
-          }
+          // OS Recycle Bin in use — internal undo not possible
+          await window.electronAPI.showAlert("Undo delete not available:\nItem is in OS Recycle Bin — restore it from there.");
           break;
         }
       }
@@ -229,7 +226,7 @@ const ProjectWindow = () => {
     } catch (err) {
       console.warn("Undo failed:", err);
     }
-  }, [refreshAll]);
+  }, [refreshAll, rootPath]);
 
   // ── Redo ─────────────────────────────────────────────────────────────────
   const performRedo = useCallback(async () => {
@@ -275,8 +272,9 @@ const ProjectWindow = () => {
           break;
         }
         case "delete": {
+          // Legacy op — re-delete via OS trash if path still exists
           if (op.trashIds?.length) {
-            for (const { from, trashId } of op.trashIds) {
+            for (const { from } of op.trashIds) {
               try { await window.electronAPI.trashItem(from, op.rootPath); } catch (err) {
                 await window.electronAPI.showAlert(`Redo delete failed:\n${err.message}`);
                 continue;

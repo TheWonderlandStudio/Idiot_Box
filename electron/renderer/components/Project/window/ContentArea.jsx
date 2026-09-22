@@ -347,45 +347,45 @@ const ContentArea = ({
         if (targetPaths.length === 1) setRenamingPath(targetPaths[0]);
         return;
       }
-      // ── Delete (move to local .trash) ────────────────────────────────────
+      // ── Delete (OS Recycle Bin via shell.trashItem) ─────────────────────
       case "delete": {
         const names = targetPaths.map((p) => p.replace(/.*[\\/]/, ""));
         const label = targetPaths.length === 1
-          ? `Move "${names[0]}" to Trash?`
-          : `Move ${targetPaths.length} items to Trash?`;
+          ? `Move "${names[0]}" to Recycle Bin?`
+          : `Move ${targetPaths.length} items to Recycle Bin?`;
         const ok = await confirmIfNeeded(label);
         if (!ok) return;
         const failed = [];
-        const trashIds = [];
         const rp = rootPathRef.current;
         for (const p of targetPaths) {
           try {
-            const result = await window.electronAPI.trashItem(p, rp);
-            if (result?.trashId) trashIds.push({ from: p, trashId: result.trashId });
+            await window.electronAPI.trashItem(p, rp);
           } catch (err) { failed.push(p.split(/[\\/]/).pop()); }
         }
         if (failed.length) await alertErr("Delete failed for", new Error(failed.join(", ")));
         if (failed.length === targetPaths.length) return;
-        pushUndoRef.current?.({ type: "delete", trashIds, parentDir: dir, rootPath: rp });
+        // OS trash — no internal undo (restore from OS Recycle Bin)
         onSetSelectedItems(new Set());
         invalidateCache(dir);
         await loadEntries();
         return;
       }
-      // ── Permanent delete (Shift+Delete) ─────────────────────────────────
+      // ── Shift+Delete → permanent (bypass Recycle Bin) ───────────────────
       case "permaDelete": {
         const pnames = targetPaths.map((p) => p.replace(/.*[\\/]/, ""));
         const plabel = targetPaths.length === 1
-          ? `Permanently delete "${pnames[0]}"?`
-          : `Permanently delete ${targetPaths.length} items?`;
+          ? `Permanently delete "${pnames[0]}"? This cannot be undone.`
+          : `Permanently delete ${targetPaths.length} items? This cannot be undone.`;
         const pok = await confirmIfNeeded(plabel);
         if (!pok) return;
         const pfailed = [];
         for (const p of targetPaths) {
-          try { await window.electronAPI.deleteItem(p); }
+          try {
+            await window.electronAPI.deleteItem(p);
+          }
           catch (err) { pfailed.push(p.split(/[\\/]/).pop()); }
         }
-        if (pfailed.length) await alertErr("Permanent delete failed for", new Error(pfailed.join(", ")));
+        if (pfailed.length) await alertErr("Delete failed for", new Error(pfailed.join(", ")));
         if (pfailed.length === targetPaths.length) return;
         onSetSelectedItems(new Set());
         invalidateCache(dir);
@@ -508,11 +508,7 @@ const ContentArea = ({
       if (paths.length === 1) setRenamingPath(paths[0]);
       return;
     }
-    if (e.key === "Delete" && e.shiftKey) {
-      e.preventDefault();
-      if (paths.length) execAction("permaDelete", paths, cp);
-      return;
-    }
+    // Project Panel: Delete → OS Recycle Bin
     if (e.key === "Delete") {
       e.preventDefault();
       if (paths.length) execAction("delete", paths, cp);

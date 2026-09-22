@@ -419,42 +419,9 @@ function migrateLegacyIfNeeded(rootPath) {
   migrateLegacyFile(rootPath, path.join(".project_config", "tabs.json"), "tabs.json");
   migrateLegacyFile(rootPath, path.join(".project_config", ".pinconfig"), "pinconfig.json");
   migrateLegacyFile(rootPath, path.join(".canvas", "layout.json"), "canvas-layout.json");
-  // .trash is handled separately (large files) — migrate manifest + contents lazily on first trash access
-  try {
-    const legacyTrash = path.join(rootPath, ".trash");
-    const storeTrash = path.join(getProjectStoreDir(rootPath), "trash");
-    const legacyManifest = path.join(legacyTrash, "manifest.json");
-    if (fs.existsSync(legacyTrash) && !fs.existsSync(storeTrash)) {
-      // move entire .trash folder
-      try { fs.cpSync(legacyTrash, storeTrash, { recursive: true }); } catch {}
-      // keep manifest migration but don't delete immediately if large — try
-      try { fs.rmSync(legacyTrash, { recursive: true, force: true }); } catch {}
-    } else if (fs.existsSync(legacyManifest) && fs.existsSync(storeTrash)) {
-      // merge manifests if both exist
-      try {
-        const legacyM = JSON.parse(fs.readFileSync(legacyManifest, "utf8"));
-        const newMPath = path.join(storeTrash, "manifest.json");
-        let newM = {};
-        try { newM = JSON.parse(fs.readFileSync(newMPath, "utf8")); } catch {}
-        let changed = false;
-        for (const [k, v] of Object.entries(legacyM)) {
-          if (!newM[k]) { newM[k] = v; changed = true; }
-          const legacyItem = path.join(legacyTrash, k);
-          const newItem = path.join(storeTrash, k);
-          if (fs.existsSync(legacyItem) && !fs.existsSync(newItem)) {
-            try {
-              const s = fs.statSync(legacyItem);
-              if (s.isDirectory()) fs.cpSync(legacyItem, newItem, { recursive: true });
-              else fs.copyFileSync(legacyItem, newItem);
-              changed = true;
-            } catch {}
-          }
-        }
-        if (changed) fs.writeFileSync(newMPath, JSON.stringify(newM, null, 2));
-        try { fs.rmSync(legacyTrash, { recursive: true, force: true }); } catch {}
-      } catch {}
-    }
-  } catch {}
+  // No internal trash — deletes go to OS Recycle Bin via shell.trashItem.
+  // Legacy .bin/.trash folders are left on disk (hidden from panel) and
+  // cleaned only via projectStorage:clearTrash / clearAll.
 }
 
 // In-memory cache for project configs (app memory) — speeds up reads + survives until app quit
@@ -1156,13 +1123,14 @@ ipcMain.handle("fs:readDir", async (_e, dirPath) => {
   try {
     return sortByName(fs.readdirSync(toLongPath(dirPath), { withFileTypes: true })
       .filter((e) => e.isDirectory())
+      .filter((e) => e.name !== ".bin" && e.name !== ".trash")
       .map((e) => ({ name: e.name, path: path.join(dirPath, e.name) })));
   } catch { return []; }
 });
 
 ipcMain.handle("fs:readDirAll", async (_e, dirPath) => {
   try {
-    const entries = fs.readdirSync(toLongPath(dirPath), { withFileTypes: true });
+    const entries = fs.readdirSync(toLongPath(dirPath), { withFileTypes: true }).filter((e) => e.name !== ".bin" && e.name !== ".trash");
     return [
       ...sortByName(entries.filter((e) => e.isDirectory()).map((e) => ({ name: e.name, path: path.join(dirPath, e.name), isDir: true }))),
       ...sortByName(entries.filter((e) => e.isFile()).map((e)      => ({ name: e.name, path: path.join(dirPath, e.name), isDir: false }))),
@@ -1171,7 +1139,7 @@ ipcMain.handle("fs:readDirAll", async (_e, dirPath) => {
 });
 
 // ─── File finder (Ctrl+P) and text search (Ctrl+Shift+F) ───────────────────────
-const FIND_IGNORE_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "out", "coverage", ".cache", ".parcel-cache", ".turbo", ".vscode", ".idea", ".output", ".trash"]);
+const FIND_IGNORE_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".nuxt", "out", "coverage", ".cache", ".parcel-cache", ".turbo", ".vscode", ".idea", ".output", ".trash", ".bin"]);
 const FIND_IGNORE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico", ".mp4", ".webm", ".avi", ".mov", ".mkv", ".woff", ".woff2", ".ttf", ".eot", ".zip", ".tar", ".gz", ".pdf", ".exe", ".dll", ".lock", ".map", ".wasm"]);
 function shouldIgnoreFile(name, isDir) {
   if (name.startsWith(".")) return name !== ".env" && name !== ".env.example" && name !== ".project_config" && name !== ".canvas";
@@ -1244,7 +1212,7 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
   const q = String(query).trim();
   if (q.length < 2) return [];
   const tryRg = () => new Promise((resolve) => {
-    const rg = spawn("rg", ["--no-heading", "--line-number", "--color", "never", "--max-count", String(limit), "--glob", "!.git/*", "--glob", "!node_modules/*", "-i", q, rootPath], { timeout: 8000, windowsHide: true });
+    const rg = spawn("rg", ["--no-heading", "--line-number", "--color", "never", "--max-count", String(limit), "--glob", "!.git/*", "--glob", "!node_modules/*", "--glob", "!.bin/*", "--glob", "!.trash/*", "-i", q, rootPath], { timeout: 8000, windowsHide: true });
     let out = "";
     let err = "";
     rg.stdout.on("data", (d) => { out += d.toString(); if (out.length > 500000) rg.kill(); });
@@ -1259,7 +1227,7 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
         if (m) {
           const file = m[1];
           const rel = path.relative(rootPath, file).replace(/\\/g, "/");
-          if (rel.includes("node_modules") || rel.startsWith(".git/")) continue;
+          if (rel.includes("node_modules") || rel.startsWith(".git/") || rel === ".bin" || rel.startsWith(".bin/") || rel === ".trash" || rel.startsWith(".trash/")) continue;
           results.push({ path: file, rel, line: parseInt(m[2], 10), text: m[3].trim().slice(0, 300), preview: m[3].trim().slice(0, 120) });
           if (results.length >= limit) break;
         }
@@ -2099,112 +2067,22 @@ ipcMain.handle("fs:delete", async (_e, { itemPath }) => {
   }
 });
 
-// ─── Local trash (project-level recycle bin) — stored in userData/projects/ ───
-// Legacy: was .trash in project folder — now migrated to userData
-const TRASH_DIR = ".trash"; // kept for legacy migration check only
-const TRASH_DIR_NAME = "trash"; // inside storeDir
-const MANIFEST  = "manifest.json";
-
-function trashDir(rootPath) {
-  // New location: userData/projects/<hash>/trash
-  if (!rootPath) return null;
-  // migrate on first access
-  try { migrateLegacyIfNeeded(rootPath); } catch {}
-  const storeDir = getProjectStoreDir(rootPath);
-  if (!storeDir) return null;
-  const td = path.join(storeDir, TRASH_DIR_NAME);
-  if (!fs.existsSync(td)) {
-    try { fs.mkdirSync(td, { recursive: true }); } catch {}
-  }
-  return td;
-}
-
-function manifestPath(rootPath) {
-  const td = trashDir(rootPath);
-  if (!td) return null;
-  return path.join(td, MANIFEST);
-}
-
-function readManifest(rootPath) {
-  try {
-    const mp = manifestPath(rootPath);
-    if (!mp || !fs.existsSync(mp)) return {};
-    return JSON.parse(fs.readFileSync(mp, "utf8"));
-  }
-  catch { return {}; }
-}
-
-function writeManifest(rootPath, manifest) {
-  const td = trashDir(rootPath);
-  if (!td) return;
-  if (!fs.existsSync(td)) fs.mkdirSync(td, { recursive: true });
-  fs.writeFileSync(path.join(td, MANIFEST), JSON.stringify(manifest, null, 2));
-}
-
-ipcMain.handle("fs:trashItem", async (_e, { itemPath, rootPath }) => {
+// ─── OS native trash — Project Panel Delete goes to OS Recycle Bin ───
+// Delete → shell.trashItem (OS Recycle Bin). No <projectRoot>/.bin, no manifest.
+// fs:delete → permanent.
+ipcMain.handle("fs:trashItem", async (_e, { itemPath }) => {
   const lpItem = toLongPath(itemPath);
-  // rootPath may be different from itemPath's parent — use provided rootPath for store location
-  const effectiveRoot = rootPath || path.dirname(itemPath);
   try {
     if (!fs.existsSync(lpItem)) throw new Error(`File does not exist: ${itemPath}`);
-    const name = path.basename(lpItem);
-    const td   = trashDir(effectiveRoot);
-    if (!td) throw new Error("Cannot resolve trash dir");
-    if (!fs.existsSync(td)) fs.mkdirSync(td, { recursive: true });
-
-    let trashId = `${Date.now()}_${name}`;
-    let dest    = path.join(td, trashId);
-    let i = 1;
-    while (fs.existsSync(dest)) {
-      trashId = `${Date.now()}_${i++}_${name}`;
-      dest    = path.join(td, trashId);
-    }
-
-    // prevent trashing the trash store itself or legacy .trash
-    const legacyTrash = path.join(path.resolve(effectiveRoot), TRASH_DIR);
-    if (lpItem === td || lpItem.startsWith(td + path.sep) || lpItem === legacyTrash || lpItem.startsWith(legacyTrash + path.sep)) {
-      throw new Error("Cannot trash item inside trash folder");
-    }
-
-    safeRename(lpItem, dest);
-
-    const manifest = readManifest(effectiveRoot);
-    manifest[trashId] = { originalPath: itemPath, timestamp: Date.now(), isDir: fs.statSync(dest).isDirectory() };
-    writeManifest(effectiveRoot, manifest);
-
-    return { trashId, originalPath: itemPath };
+    await shell.trashItem(lpItem);
+    return { movedToTrash: true, originalPath: itemPath };
   } catch (err) {
-    throw new Error(`Cannot trash "${path.basename(itemPath)}": ${err.message}`);
+    throw new Error(`Cannot move "${path.basename(itemPath)}" to Recycle Bin: ${err.message}`);
   }
 });
 
-ipcMain.handle("fs:restoreTrashItem", async (_e, { trashId, rootPath }) => {
-  const effectiveRoot = rootPath;
-  if (!effectiveRoot) throw new Error("Missing rootPath");
-  const manifest = readManifest(effectiveRoot);
-  const entry = manifest[trashId];
-  if (!entry) throw new Error(`Trash entry "${trashId}" not found`);
-
-  const td = trashDir(effectiveRoot);
-  if (!td) throw new Error("Cannot resolve trash dir");
-  const src = path.join(td, trashId);
-  const dst = toLongPath(entry.originalPath);
-
-  let finalDst = dst, i = 1;
-  while (fs.existsSync(finalDst)) {
-    const { dir, name, ext } = path.parse(dst);
-    finalDst = path.join(dir, `${name} (${i++})${ext}`);
-  }
-
-  const parentDir = path.dirname(finalDst);
-  if (!fs.existsSync(parentDir)) fs.mkdirSync(parentDir, { recursive: true });
-
-  safeRename(src, finalDst);
-
-  delete manifest[trashId];
-  writeManifest(effectiveRoot, manifest);
-
-  return finalDst;
+ipcMain.handle("fs:restoreTrashItem", async () => {
+  throw new Error("Restore not supported — item is in OS Recycle Bin, restore it from there");
 });
 
 // ─── Project storage management (app memory) — menu bar actions ──────────────
@@ -2216,44 +2094,9 @@ function getStorageInfo(rootPath) {
     const pinPath = path.join(storeDir, "pinconfig.json");
     const tabsPath = path.join(storeDir, "tabs.json");
     const canvasPath = path.join(storeDir, "canvas-layout.json");
-    const td = path.join(storeDir, "trash");
-    const mf = path.join(td, "manifest.json");
-    let trashCount = 0;
-    let trashSize = 0;
-    try {
-      if (fs.existsSync(mf)) {
-        const m = JSON.parse(fs.readFileSync(mf, "utf8"));
-        trashCount = Object.keys(m).length;
-      }
-      if (fs.existsSync(td)) {
-        const entries = fs.readdirSync(td);
-        for (const e of entries) {
-          if (e === "manifest.json") continue;
-          try {
-            const st = fs.statSync(path.join(td, e));
-            trashSize += st.isDirectory() ? 0 : st.size;
-            // for dirs, rough size
-            if (st.isDirectory()) {
-              try {
-                const walk = (dir) => {
-                  let s = 0;
-                  for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
-                    const fp = path.join(dir, f.name);
-                    try {
-                      const ss = fs.statSync(fp);
-                      if (ss.isDirectory()) s += walk(fp);
-                      else s += ss.size;
-                    } catch {}
-                  }
-                  return s;
-                };
-                trashSize += walk(path.join(td, e));
-              } catch {}
-            }
-          } catch {}
-        }
-      }
-    } catch {}
+    // OS Recycle Bin in use — no internal trash
+    const trashCount = 0;
+    const trashSize = 0;
     const exists = (p) => fs.existsSync(p);
     return {
       storeDir,
@@ -2265,8 +2108,8 @@ function getStorageInfo(rootPath) {
       pinPath,
       tabsPath,
       canvasPath,
-      trashDir: td,
-      manifestPath: mf,
+      trashDir: null,
+      manifestPath: null,
     };
   } catch { return null; }
 }
@@ -2275,47 +2118,9 @@ ipcMain.handle("projectStorage:getInfo", async (_e, rootPath) => {
   return getStorageInfo(rootPath || lastProjectPath);
 });
 
-ipcMain.handle("projectStorage:getTrashList", async (_e, rootPath) => {
-  const rp = rootPath || lastProjectPath;
-  if (!rp) return [];
-  try {
-    const manifest = readManifest(rp);
-    const td = trashDir(rp);
-    const out = [];
-    for (const [id, info] of Object.entries(manifest)) {
-      let size = 0;
-      let exists = false;
-      try {
-        const fp = path.join(td, id);
-        if (fs.existsSync(fp)) {
-          exists = true;
-          const st = fs.statSync(fp);
-          if (!st.isDirectory()) size = st.size;
-          else {
-            // dir size approx
-            try {
-              const walk = (dir) => {
-                let s = 0;
-                for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
-                  const fp2 = path.join(dir, f.name);
-                  try {
-                    const ss = fs.statSync(fp2);
-                    if (ss.isDirectory()) s += walk(fp2);
-                    else s += ss.size;
-                  } catch {}
-                }
-                return s;
-              };
-              size = walk(fp);
-            } catch {}
-          }
-        }
-      } catch {}
-      out.push({ trashId: id, originalPath: info.originalPath, timestamp: info.timestamp, isDir: !!info.isDir, size, exists });
-    }
-    out.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    return out;
-  } catch { return []; }
+ipcMain.handle("projectStorage:getTrashList", async () => {
+  // OS Recycle Bin in use — no internal list
+  return [];
 });
 
 ipcMain.handle("projectStorage:reveal", async (_e, rootPath) => {
@@ -2331,16 +2136,8 @@ ipcMain.handle("projectStorage:reveal", async (_e, rootPath) => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
-ipcMain.handle("projectStorage:revealTrash", async (_e, rootPath) => {
-  const rp = rootPath || lastProjectPath;
-  const td = trashDir(rp);
-  try {
-    if (td && fs.existsSync(td)) {
-      await shell.openPath(td);
-      return { ok: true, path: td };
-    }
-    return { ok: false, error: "Trash empty or not found" };
-  } catch (e) { return { ok: false, error: e.message }; }
+ipcMain.handle("projectStorage:revealTrash", async () => {
+  return { ok: false, error: "OS Recycle Bin in use — open it from your OS" };
 });
 
 ipcMain.handle("projectStorage:clearPin", async (_e, rootPath) => {
@@ -2390,17 +2187,13 @@ ipcMain.handle("projectStorage:clearTrash", async (_e, rootPath) => {
   const rp = rootPath || lastProjectPath;
   if (!rp) return { ok: false, error: "No project" };
   try {
-    const td = trashDir(rp);
-    if (td && fs.existsSync(td)) {
-      const entries = fs.readdirSync(td);
-      for (const e of entries) {
-        if (e === "manifest.json") continue;
-        try { fs.rmSync(path.join(td, e), { recursive: true, force: true }); } catch {}
-      }
-      try { fs.writeFileSync(path.join(td, "manifest.json"), JSON.stringify({}, null, 2)); } catch {}
-    }
-    // legacy cleanup
+    // OS Recycle Bin in use — just clean legacy .bin/.trash leftovers
+    try { fs.rmSync(path.join(rp, ".bin"), { recursive: true, force: true }); } catch {}
     try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
+    try {
+      const storeDir = getProjectStoreDir(rp);
+      if (storeDir) fs.rmSync(path.join(storeDir, "trash"), { recursive: true, force: true });
+    } catch {}
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 });
@@ -2417,10 +2210,11 @@ ipcMain.handle("projectStorage:clearAll", async (_e, rootPath) => {
     if (storeDir && fs.existsSync(storeDir)) {
       fs.rmSync(storeDir, { recursive: true, force: true });
     }
-    // legacy cleanup — keep project folder clean
+    // legacy cleanup — keep project folder clean (legacy .bin/.trash leftovers)
     try { fs.rmSync(path.join(rp, ".project_config"), { recursive: true, force: true }); } catch {}
     try { fs.rmSync(path.join(rp, ".canvas"), { recursive: true, force: true }); } catch {}
     try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(path.join(rp, ".bin"), { recursive: true, force: true }); } catch {}
     // remove from index
     try {
       const idxFile = path.join(getProjectStoreRoot(), "index.json");
@@ -2764,7 +2558,7 @@ ipcMain.handle("fs:watch", (event, rootPath) => {
 
   const watcher = chokidar.watch(rootPath, {
     ignoreInitial:     true,
-    ignored:           /(^|[/\\])\.(git|hg|svn)($|[/\\])|node_modules/,
+    ignored:           /(^|[/\\])\.(git|hg|svn)($|[/\\])|node_modules|(^|[/\\])\.bin($|[/\\])|(^|[/\\])\.trash($|[/\\])/,
     persistent:        true,
     usePolling:        false,
     awaitWriteFinish:  { stabilityThreshold: 100, pollInterval: 50 },
@@ -5440,15 +5234,8 @@ function buildMenu() {
           if (!rp) { dialog.showMessageBox({ type: "info", message: "No project open" }); return; }
           const info = getStorageInfo(rp);
           if (!info) { dialog.showErrorBox("Error", "Cannot get storage info"); return; }
-          const detail = `Project: ${rp}\nStore: ${info.storeDir}\n\nPin: ${info.pinExists ? "yes" : "no"}  Tabs: ${info.tabsExists ? "yes" : "no"}  Canvas: ${info.canvasExists ? "yes" : "no"}\nTrash: ${info.trashCount} items (${(info.trashSize/1024).toFixed(1)} KB)\n\n(App memory: userData/projects — not in project folder)`;
+          const detail = `Project: ${rp}\nStore: ${info.storeDir}\n\nPin: ${info.pinExists ? "yes" : "no"}  Tabs: ${info.tabsExists ? "yes" : "no"}  Canvas: ${info.canvasExists ? "yes" : "no"}\nDeletes go to OS Recycle Bin.\n\n(App memory: userData/projects — not in project folder)`;
           dialog.showMessageBox({ type: "info", message: "Project Storage — App Memory", detail });
-        }},
-        { label: "Reveal Trash Folder", click: async () => {
-          const rp = lastProjectPath;
-          if (!rp) { dialog.showMessageBox({ type: "info", message: "No project open" }); return; }
-          const td = trashDir(rp);
-          if (td && fs.existsSync(td)) await shell.openPath(td);
-          else dialog.showMessageBox({ type: "info", message: "Trash is empty", detail: `Trash location:\n${td || "(unknown)"}` });
         }},
         { type: "separator" },
         { label: "Clear Pin Config", click: async () => {
@@ -5482,31 +5269,11 @@ function buildMenu() {
           try { fs.rmSync(path.join(rp, ".canvas", "layout.json"), { force: true }); } catch {}
           dialog.showMessageBox({ type: "info", message: "Canvas layout cleared" });
         }},
-        { label: "Empty Trash (App Memory)", click: async () => {
-          const rp = lastProjectPath;
-          if (!rp) return;
-          const info = getStorageInfo(rp);
-          if (!info || info.trashCount === 0) { dialog.showMessageBox({ type: "info", message: "Trash is already empty" }); return; }
-          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Empty Trash"], defaultId: 1, cancelId: 0, message: `Empty trash?`, detail: `${info.trashCount} items will be permanently deleted from app memory.` });
-          if (response !== 1) return;
-          try {
-            const td = trashDir(rp);
-            if (td && fs.existsSync(td)) {
-              for (const e of fs.readdirSync(td)) {
-                if (e === "manifest.json") continue;
-                try { fs.rmSync(path.join(td, e), { recursive: true, force: true }); } catch {}
-              }
-              try { fs.writeFileSync(path.join(td, "manifest.json"), JSON.stringify({}, null, 2)); } catch {}
-            }
-            try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
-            dialog.showMessageBox({ type: "info", message: "Trash emptied" });
-          } catch (e) { dialog.showErrorBox("Error", String(e)); }
-        }},
         { type: "separator" },
         { label: "Clear All Project Data…", click: async () => {
           const rp = lastProjectPath;
           if (!rp) { dialog.showMessageBox({ type: "info", message: "No project open" }); return; }
-          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Clear All"], defaultId: 1, cancelId: 0, message: "Clear ALL data for this project?", detail: `Project: ${rp}\n\nThis deletes pin config, tabs, canvas layout and trash from app memory (userData/projects). Project files are NOT deleted.\n\nLegacy .project_config / .canvas / .trash in project folder will also be removed.` });
+          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Clear All"], defaultId: 1, cancelId: 0, message: "Clear ALL data for this project?", detail: `Project: ${rp}\n\nThis deletes pin config, tabs and canvas layout from app memory (userData/projects). Project files are NOT deleted.\n\nLegacy .project_config / .canvas / .bin / .trash in project folder will also be removed.` });
           if (response !== 1) return;
           try {
             memPinCache.delete(rp); memTabsCache.delete(rp); memCanvasCache.delete(rp);
@@ -5515,13 +5282,14 @@ function buildMenu() {
             try { fs.rmSync(path.join(rp, ".project_config"), { recursive: true, force: true }); } catch {}
             try { fs.rmSync(path.join(rp, ".canvas"), { recursive: true, force: true }); } catch {}
             try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
+            try { fs.rmSync(path.join(rp, ".bin"), { recursive: true, force: true }); } catch {}
             dialog.showMessageBox({ type: "info", message: "All project data cleared" });
           } catch (e) { dialog.showErrorBox("Error", String(e)); }
         }},
         { type: "separator" },
         { label: "Global Storage…", enabled: false },
         { label: "Clear All Projects Data…", click: async () => {
-          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Clear Everything"], defaultId: 1, cancelId: 0, message: "Clear data for ALL projects?", detail: "This deletes every project's pin, tabs, canvas and trash from app memory (userData/projects). Project files are NOT deleted. This cannot be undone." });
+          const { response } = await dialog.showMessageBox({ type: "warning", buttons: ["Cancel", "Clear Everything"], defaultId: 1, cancelId: 0, message: "Clear data for ALL projects?", detail: "This deletes every project's pin, tabs and canvas from app memory (userData/projects). Project files are NOT deleted. This cannot be undone." });
           if (response !== 1) return;
           try {
             const root = getProjectStoreRoot();

@@ -330,7 +330,7 @@ const SidebarTree = ({
     return null;
   }, [gitStatus, rootPath]);
 
-  // Helper: find a rootPath that can host .trash (top-most ancestor of folderPath)
+  // Helper: project root for trash (kept for API compat — OS trash ignores it)
   const findTrashRoot = useCallback((folderPath) => {
     // Use the project rootPath if folderPath is inside it, else parent
     if (rootPath && folderPath.startsWith(rootPath)) return rootPath;
@@ -546,25 +546,14 @@ const SidebarTree = ({
       }
       case "delete": {
         const name = folderPath.replace(/.*[\\/]/, "");
-        if (shiftKey) {
-          const ok = await confirmIfNeeded(`Permanently delete "${name}"?`);
-          if (ok) {
-            try {
-              await window.electronAPI.deleteItem(folderPath);
-              invalidateCache(parentDir);
-              setLocalRefresh((k) => k + 1);
-            } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-          }
-        } else {
-          const ok = await confirmIfNeeded(`Move "${name}" to Trash?`);
-          if (ok) {
-            try {
-              const result = await window.electronAPI.trashItem(folderPath, findTrashRoot(folderPath));
-              if (pushUndo && result?.trashId) pushUndo({ type: "delete", trashIds: [{ from: folderPath, trashId: result.trashId }], parentDir, rootPath: findTrashRoot(folderPath) });
-              invalidateCache(parentDir);
-              setLocalRefresh((k) => k + 1);
-            } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-          }
+        // Project Panel: Delete → OS Recycle Bin
+        const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
+        if (ok) {
+          try {
+            await window.electronAPI.trashItem(folderPath, findTrashRoot(folderPath));
+            invalidateCache(parentDir);
+            setLocalRefresh((k) => k + 1);
+          } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
         }
         break;
       }
@@ -738,25 +727,14 @@ const SidebarTree = ({
       }
       case "delete": {
         const name = filePath.replace(/.*[\\/]/, "");
-        if (shiftKey) {
-          const ok = await confirmIfNeeded(`Permanently delete "${name}"?`);
-          if (ok) {
-            try {
-              await window.electronAPI.deleteItem(filePath);
-              invalidateCache(parentDir);
-              setLocalRefresh((k) => k + 1);
-            } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-          }
-        } else {
-          const ok = await confirmIfNeeded(`Move "${name}" to Trash?`);
-          if (ok) {
-            try {
-              const result = await window.electronAPI.trashItem(filePath, findTrashRoot(filePath));
-              if (pushUndo && result?.trashId) pushUndo({ type: "delete", trashIds: [{ from: filePath, trashId: result.trashId }], parentDir, rootPath: findTrashRoot(filePath) });
-              invalidateCache(parentDir);
-              setLocalRefresh((k) => k + 1);
-            } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-          }
+        // Project Panel: Delete → OS Recycle Bin
+        const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
+        if (ok) {
+          try {
+            await window.electronAPI.trashItem(filePath, findTrashRoot(filePath));
+            invalidateCache(parentDir);
+            setLocalRefresh((k) => k + 1);
+          } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
         }
         break;
       }
@@ -1000,20 +978,14 @@ const SidebarTree = ({
       e.preventDefault();
       const name = selectedPath.replace(/.*[\\/]/, "");
       const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
-      if (e.shiftKey) {
-        const ok = await confirmIfNeeded(`Permanently delete "${name}"?`);
-        if (!ok) return;
-        try { await window.electronAPI.deleteItem(selectedPath); invalidateCache(parentDir); setLocalRefresh((k)=>k+1); } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-      } else {
-        const ok = await confirmIfNeeded(`Move "${name}" to Trash?`);
-        if (!ok) return;
-        try {
-          const result = await window.electronAPI.trashItem(selectedPath, findTrashRoot(selectedPath));
-          if (pushUndo && result?.trashId) pushUndo({ type: "delete", trashIds: [{ from: selectedPath, trashId: result.trashId }], parentDir, rootPath: findTrashRoot(selectedPath) });
-          invalidateCache(parentDir);
-          setLocalRefresh((k)=>k+1);
-        } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-      }
+      // Project Panel: Delete → OS Recycle Bin
+      const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
+      if (!ok) return;
+      try {
+        await window.electronAPI.trashItem(selectedPath, findTrashRoot(selectedPath));
+        invalidateCache(parentDir);
+        setLocalRefresh((k)=>k+1);
+      } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
@@ -1177,11 +1149,10 @@ const SidebarTree = ({
                         }
                         case "delete": {
                           const dname = fullPath.replace(/.*[\\/]/, "");
-                          const ok = await confirmIfNeeded(`Move "${dname}" to Trash?`);
+                          const ok = await confirmIfNeeded(`Move "${dname}" to Recycle Bin?`);
                           if (ok) {
                             try {
-                              const result = await window.electronAPI.trashItem(fullPath, rootPath);
-                              if (pushUndo && result?.trashId) pushUndo({ type: "delete", trashIds: [{ from: fullPath, trashId: result.trashId }], parentDir, rootPath });
+                              await window.electronAPI.trashItem(fullPath, rootPath);
                               invalidateCache(parentDir);
                               setLocalRefresh((k) => k + 1);
                             } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
