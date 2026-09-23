@@ -22,7 +22,7 @@ const FONT_OPTIONS = [
 const TerminalPage = ({ settings, onSave }) => {
   const t = settings.terminal || {};
   const fontSize     = Number.isFinite(t.fontSize) ? t.fontSize : Number.isFinite(settings.terminalFontSize) ? settings.terminalFontSize : 13;
-  const fontFamily   = t.fontFamily || settings.terminalFontFamily || "Courier New";
+  const fontFamily   = t.fontFamily || settings.terminalFontFamily || "Consolas";
   const cursorStyle  = t.cursorStyle || settings.terminalCursorStyle || "block";
   const cursorBlink  = t.cursorBlink !== false && settings.terminalCursorBlink !== false; // default true
   const scrollback   = Number.isFinite(t.scrollback) ? t.scrollback : Number.isFinite(settings.terminalScrollback) ? settings.terminalScrollback : 1000;

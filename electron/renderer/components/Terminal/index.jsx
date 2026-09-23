@@ -172,7 +172,7 @@ const withMonoFallback = (f) => {
 const getTerminalOpts = (settings = {}) => {
   const t = settings.terminal || {};
   const fontSize = Number.isFinite(t.fontSize) ? t.fontSize : Number.isFinite(settings.terminalFontSize) ? settings.terminalFontSize : 13;
-  const fontFamily = withMonoFallback(t.fontFamily || settings.terminalFontFamily || "Courier New, Courier, monospace");
+  const fontFamily = withMonoFallback(t.fontFamily || settings.terminalFontFamily || "Consolas, 'Courier New', Courier, monospace");
   const cursorStyle = t.cursorStyle || settings.terminalCursorStyle || "block";
   const cursorBlink = t.cursorBlink !== undefined ? !!t.cursorBlink : settings.terminalCursorBlink !== undefined ? !!settings.terminalCursorBlink : true;
   const scrollback = Number.isFinite(t.scrollback) ? t.scrollback : Number.isFinite(settings.terminalScrollback) ? settings.terminalScrollback : 1000;

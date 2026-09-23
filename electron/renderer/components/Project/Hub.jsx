@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, FolderUp, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import "./hub.css";
+import CustomCursor from "../shared/CustomCursor.jsx";
 
 // ─── Frameworks / Templates — Replit-style starter gallery ────────────────
 // Real icons via devicons + simpleicons CDN (no local assets needed)
@@ -480,6 +481,7 @@ const ProjectHub = () => {
   }, []);
 
   const [showHeat, setShowHeat] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const resolveGhUser = useCallback(async () => {
     let user = null;
@@ -603,7 +605,7 @@ const ProjectHub = () => {
       disableStdin: true,
       cursorBlink: false,
       cursorStyle: "block",
-      fontFamily: "'Cascadia Code', Consolas, 'Courier New', monospace",
+      fontFamily: "Consolas, 'Cascadia Code', 'Courier New', monospace",
       fontSize: 12,
       lineHeight: 1.2,
       theme: {
@@ -990,31 +992,10 @@ const ProjectHub = () => {
 
   return (
     <div className="phub">
-      <div className="phub__header">
-        <img src="assets/idot_box.png" alt="Idiot Box logo" width={20} height={20} style={{ width: 20, height: 20, borderRadius: 5, objectFit: "cover", flexShrink: 0 }} />
-        <div className="phub__title">Idiot Box Hub</div>
-        <div className="phub__actions">
-          <button
-            className="phub__btn phub__btn--secondary"
-            onClick={async () => {
-              await window.electronAPI.openFolder();
-            }}
-            title="Open Existing Folder"
-          >
-            <FolderUp size={16} /> Open
-          </button>
-          <button
-            className="phub__btn phub__btn--secondary"
-            onClick={() => setShowNewProjectDialog(true)}
-            title="New Project"
-          >
-            <Plus size={16} /> New
-          </button>
-        </div>
-      </div>
+      <CustomCursor />
 
       {projectPath && (
-        <div className="phub__path-bar">
+        <div className={`phub__path-bar${sidebarCollapsed ? " phub__path-bar--collapsed" : ""}`}>
           <span className="phub__path-label">Current Project:</span>
           <span className="phub__path-value" title={projectPath}>{projectPath}</span>
           <div className="phub__path-actions">
@@ -1069,37 +1050,65 @@ const ProjectHub = () => {
         </div>
       )}
 
-      <div className="phub__sidebar">
+      <div className={`phub__sidebar${sidebarCollapsed ? " phub__sidebar--collapsed" : ""}`}>
+        <div className="phub__sidebar-label">Start</div>
         <button
-          className="phub__sidebar-btn phub__btn--secondary"
+          className={`phub__sidebar-btn phub__sidebar-btn--primary${showNewProjectDialog ? " phub__sidebar-btn--active" : ""}`}
           onClick={() => { setShowNewProjectDialog(true); setShowCloneDialog(false); setShowFrameworks(false); }}
         >
           <Plus size={14} /> Create Project
         </button>
         <button
-          className="phub__sidebar-btn phub__btn--secondary"
+          className={`phub__sidebar-btn${showCloneDialog ? " phub__sidebar-btn--active" : ""}`}
           onClick={() => { setShowCloneDialog(true); setShowNewProjectDialog(false); setShowFrameworks(false); }}
         >
-          <CloudDownload size={14} /> Clone Repo
+          <span className="phub__sidebar-ico"><CloudDownload size={14} /></span> Clone Repo
         </button>
         <button
-          className="phub__sidebar-btn phub__btn--secondary"
+          className="phub__sidebar-btn"
           onClick={async () => { try { await window.electronAPI.openFolder(); } catch {} }}
           title="Open Existing Folder"
         >
-          <FolderOpen size={14} /> Open Folder
+          <span className="phub__sidebar-ico"><FolderOpen size={14} /></span> Open Folder
         </button>
-        <div className="phub__sidebar-divider" />
+        <div className="phub__sidebar-label phub__sidebar-label--gap">Explore</div>
         <button
-          className="phub__sidebar-btn phub__btn--secondary"
+          className={`phub__sidebar-btn${showFrameworks ? " phub__sidebar-btn--active" : ""}`}
           title="Frameworks"
           onClick={() => { setShowFrameworks(true); setShowNewProjectDialog(false); setShowCloneDialog(false); }}
         >
-          <Layers size={14} /> Frameworks
+          <span className="phub__sidebar-ico"><Layers size={14} /></span> Frameworks
         </button>
+        <div className="phub__sidebar-user">
+          {ghUser ? (
+            <>
+              <img
+                src={`https://github.com/${encodeURIComponent(ghUser)}.png`}
+                alt={ghUser}
+                className="phub__sidebar-avatar"
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+              />
+              <span className="phub__sidebar-username" title={`@${ghUser}`}>@{ghUser}</span>
+            </>
+          ) : (
+            <>
+              <span className="phub__sidebar-avatar phub__sidebar-avatar--fallback" aria-hidden="true">
+                <User size={14} />
+              </span>
+              <span className="phub__sidebar-username phub__sidebar-username--muted">Local user</span>
+            </>
+          )}
+          <button
+            className="phub__sidebar-hidebtn"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        </div>
       </div>
 
-      <div className="phub__center">
+      <div className={`phub__center${sidebarCollapsed ? " phub__center--collapsed" : ""}`}>
         {showNewProjectDialog ? (
           <div className="phub__panel phub__panel--create">
             <div className="phub__panel-header">
@@ -1628,7 +1637,28 @@ const ProjectHub = () => {
                     <div
                       key={path}
                       className="phub__panel-item"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open project ${name}`}
                       onClick={() => openProject(path)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          // Space scroll rok ke project kholo
+                          e.preventDefault();
+                          openProject(path);
+                        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                          // List me up/down se ghumo
+                          e.preventDefault();
+                          try {
+                            const items = Array.from(
+                              e.currentTarget.parentElement.querySelectorAll(".phub__panel-item")
+                            );
+                            const i = items.indexOf(e.currentTarget);
+                            const next = e.key === "ArrowDown" ? items[i + 1] : items[i - 1];
+                            if (next) next.focus();
+                          } catch {}
+                        }
+                      }}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setDeletingPath(path);
@@ -1644,6 +1674,13 @@ const ProjectHub = () => {
                       <div className="phub__panel-time phub__panel-time--center" title={entry.lastOpened ? new Date(entry.lastOpened).toString() : ""}>
                         {formatLastOpened(entry.lastOpened)}
                       </div>
+                      <button
+                        className="phub__panel-action phub__panel-action--always"
+                        onClick={(e) => { e.stopPropagation(); window.electronAPI.revealInExplorer(path); }}
+                        title="Open in Files"
+                      >
+                        <FolderOpen size={14} />
+                      </button>
                       <div className="phub__panel-actions">
                         <button
                           className="phub__panel-action"
@@ -1652,13 +1689,6 @@ const ProjectHub = () => {
                           style={isPinned ? { opacity: 1, color: "var(--warn-gold)" } : undefined}
                         >
                           <Pin size={14} />
-                        </button>
-                        <button
-                          className="phub__panel-action"
-                          onClick={(e) => { e.stopPropagation(); window.electronAPI.revealInExplorer(path); }}
-                          title="Open in Files"
-                        >
-                          <FolderOpen size={14} />
                         </button>
                         <button
                           className="phub__panel-action phub__panel-action--danger"

@@ -1,9 +1,11 @@
 // Onboarding — 2 minimal screens: 1) "idiot box" 2) github username input.
 import React, { useState, useCallback } from "react";
+import CustomCursor from "../shared/CustomCursor.jsx";
 
 const ONBOARD_CSS = `
 .ob-page { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center;
   background:var(--bg-app); font-family:var(--font-ui); cursor:pointer; }
+.ob-page, .ob-page * { cursor:none !important; }
 .ob-wrap { display:flex; flex-direction:column; align-items:center; text-align:center; animation:ob-step-in 0.32s ease both; }
 @keyframes ob-step-in { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
 .ob-brand { animation:ob-brand-in 0.45s ease both; }
@@ -57,6 +59,7 @@ const OnboardingPage = ({ onDone }) => {
     return (
       <div className="ob-page" onClick={() => setStep(1)}>
         <style>{ONBOARD_CSS}</style>
+        <CustomCursor scope=".ob-page" />
         <div className="ob-wrap" key="s0">
           <img className="ob-logo" src="assets/idot_box.png" alt="Idiot Box logo" width={96} height={96} />
           <div className="ob-brand">idiot box</div>
@@ -69,6 +72,7 @@ const OnboardingPage = ({ onDone }) => {
   return (
     <div className="ob-page">
       <style>{ONBOARD_CSS}</style>
+      <CustomCursor scope=".ob-page" />
       <div className="ob-wrap" key="s1" onClick={(e) => e.stopPropagation()}>
         <div className="ob-label">enter your github username</div>
         <input

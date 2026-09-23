@@ -299,8 +299,8 @@
   --updater-track-line: rgba(42,74,106,0.5);
 
   /* ── §13 Typography ───────────────────────────────────────────────────── */
-  --font-ui:     'Fredoka', sans-serif;
-  --font-system: 'Segoe UI', system-ui, sans-serif;
+  --font-ui:     Consolas, "Courier New", monospace;
+  --font-system: Consolas, "Courier New", monospace;
   --font-code:   Consolas, "Courier New", monospace;
   --fs-micro:    9px;
   --fs-tiny:     10px;
