@@ -33,7 +33,31 @@ const DEFAULT_MODELS = {
   pollinations: "openai",
   ollama: "llama3.1",
   "openai-compatible": "llama3.1",
+  openrouter: "openai/gpt-4o-mini",
+  groq: "llama-3.3-70b-versatile",
+  together: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  deepseek: "deepseek-chat",
+  xai: "grok-3-mini",
+  mistral: "mistral-small-latest",
 };
+
+// Default OpenAI-compatible endpoints (no new SDK deps needed — all of these
+// speak /chat/completions). A custom Server URL in settings always wins.
+const COMPAT_BASE_URLS = {
+  ollama: "http://localhost:11434/v1",
+  "openai-compatible": "http://localhost:1234/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  groq: "https://api.groq.com/openai/v1",
+  together: "https://api.together.xyz/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  xai: "https://api.x.ai/v1",
+  mistral: "https://api.mistral.ai/v1",
+};
+
+const COMPAT_PROVIDERS = new Set([
+  "ollama", "openai-compatible", "custom", "lmstudio",
+  "openrouter", "groq", "together", "deepseek", "xai", "mistral",
+]);
 
 // Pollinations.ai (https://pollinations.ai) — free tier, no signup required.
 // Docs: POST https://text.pollinations.ai/openai (exact path, OpenAI-compatible).
@@ -326,15 +350,15 @@ async function resolveModel(cfg) {
       fetch: exactEndpointFetch,
     })(model);
   }
-  if (provider === "ollama" || provider === "openai-compatible" || provider === "custom" || provider === "lmstudio") {
+  if (COMPAT_PROVIDERS.has(provider)) {
     const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
     return createOpenAICompatible({
-      name: provider === "ollama" ? "ollama" : "custom",
-      baseURL: baseURL || "http://localhost:11434/v1",
+      name: provider,
+      baseURL: baseURL || COMPAT_BASE_URLS[provider] || "http://localhost:11434/v1",
       apiKey: apiKey || "ollama",
     })(model);
   }
-  throw new Error(`Unknown provider "${provider}". Use gateway, openai, anthropic, google, ollama or openai-compatible.`);
+  throw new Error(`Unknown provider "${provider}". Use pollinations, openai, anthropic, google, gateway, openrouter, groq, together, deepseek, xai, mistral, ollama or openai-compatible.`);
 }
 
 function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
@@ -342,7 +366,8 @@ function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
   let seq = 0;
 
   const needsKey = (provider) =>
-    ["openai", "anthropic", "google", "gateway"].includes(provider);
+    ["openai", "anthropic", "google", "gateway",
+     "openrouter", "groq", "together", "deepseek", "xai", "mistral"].includes(provider);
 
   ipcMain.handle("ai:chat", async (event, payload = {}) => {
     const requestId = `ai-${Date.now().toString(36)}-${(seq++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;

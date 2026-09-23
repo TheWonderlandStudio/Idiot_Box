@@ -100,3 +100,11 @@
   --chart-5: oklch(0.645 0.246 16.439);
   color-scheme: dark;
 }
+
+/* Native <select> option popup: force SOLID popover tokens so text stays
+   readable in both themes. (The select itself uses semi-transparent
+   --input, which the popup blends into an unreadable grey.) */
+.ai-scope select option {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+}

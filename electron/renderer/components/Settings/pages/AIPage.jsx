@@ -13,11 +13,26 @@ const PROVIDERS = [
   { id: "anthropic", label: "Anthropic", needsKey: true, keyUrl: "https://console.anthropic.com/settings/keys", models: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-sonnet-4-5"] },
   { id: "google", label: "Google Gemini", needsKey: true, keyUrl: "https://aistudio.google.com/apikey", models: ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"] },
   { id: "gateway", label: "Vercel AI Gateway", needsKey: true, keyUrl: "https://vercel.com/ai-gateway", models: ["openai/gpt-4o-mini", "anthropic/claude-sonnet-4.5", "google/gemini-2.0-flash"] },
+  { id: "openrouter", label: "OpenRouter", needsKey: true, keyUrl: "https://openrouter.ai/keys", models: ["openai/gpt-4o-mini", "anthropic/claude-sonnet-4.5", "meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.0-flash-001"] },
+  { id: "groq", label: "Groq", needsKey: true, keyUrl: "https://console.groq.com/keys", models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "moonshotai/kimi-k2-instruct", "openai/gpt-oss-120b"] },
+  { id: "together", label: "Together AI", needsKey: true, keyUrl: "https://api.together.xyz/settings/api-keys", models: ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "Qwen/Qwen2.5-Coder-32B-Instruct", "deepseek-ai/DeepSeek-V3"] },
+  { id: "deepseek", label: "DeepSeek", needsKey: true, keyUrl: "https://platform.deepseek.com/api_keys", models: ["deepseek-chat", "deepseek-reasoner"] },
+  { id: "xai", label: "xAI (Grok)", needsKey: true, keyUrl: "https://console.x.ai", models: ["grok-4", "grok-3", "grok-3-mini", "grok-3-fast"] },
+  { id: "mistral", label: "Mistral AI", needsKey: true, keyUrl: "https://console.mistral.ai/api-keys", models: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"] },
   { id: "ollama", label: "Ollama (local, free)", needsKey: false, keyUrl: "https://ollama.com", models: ["llama3.1", "qwen2.5-coder", "codellama", "mistral", "deepseek-coder-v2"] },
   { id: "openai-compatible", label: "Custom OpenAI-compatible server", needsKey: false, keyUrl: "", models: [] },
 ];
 
-const DEFAULT_BASE_URL = { ollama: "http://localhost:11434/v1", "openai-compatible": "http://localhost:1234/v1" };
+const DEFAULT_BASE_URL = {
+  ollama: "http://localhost:11434/v1",
+  "openai-compatible": "http://localhost:1234/v1",
+  openrouter: "https://openrouter.ai/api/v1",
+  groq: "https://api.groq.com/openai/v1",
+  together: "https://api.together.xyz/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  xai: "https://api.x.ai/v1",
+  mistral: "https://api.mistral.ai/v1",
+};
 
 const AIPage = ({ settings, onSave }) => {
   const provider = String(settings.aiProvider || settings.ai?.provider || "pollinations");

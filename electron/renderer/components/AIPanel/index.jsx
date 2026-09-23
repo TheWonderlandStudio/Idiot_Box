@@ -47,6 +47,7 @@ import {
   MessageSquare,
   Copy,
   Check,
+  ChevronDown,
   FileCode2,
   Wrench,
   Download,
@@ -86,6 +87,36 @@ const PROVIDERS = [
     keyUrl: "https://vercel.com/ai-gateway",
   },
   {
+    id: "openrouter", label: "OpenRouter", needsKey: true,
+    models: ["openai/gpt-4o-mini", "anthropic/claude-sonnet-4.5", "meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.0-flash-001"],
+    keyUrl: "https://openrouter.ai/keys",
+  },
+  {
+    id: "groq", label: "Groq", needsKey: true,
+    models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "moonshotai/kimi-k2-instruct", "openai/gpt-oss-120b"],
+    keyUrl: "https://console.groq.com/keys",
+  },
+  {
+    id: "together", label: "Together AI", needsKey: true,
+    models: ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "Qwen/Qwen2.5-Coder-32B-Instruct", "deepseek-ai/DeepSeek-V3"],
+    keyUrl: "https://api.together.xyz/settings/api-keys",
+  },
+  {
+    id: "deepseek", label: "DeepSeek", needsKey: true,
+    models: ["deepseek-chat", "deepseek-reasoner"],
+    keyUrl: "https://platform.deepseek.com/api_keys",
+  },
+  {
+    id: "xai", label: "xAI (Grok)", needsKey: true,
+    models: ["grok-4", "grok-3", "grok-3-mini", "grok-3-fast"],
+    keyUrl: "https://console.x.ai",
+  },
+  {
+    id: "mistral", label: "Mistral AI", needsKey: true,
+    models: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
+    keyUrl: "https://console.mistral.ai/api-keys",
+  },
+  {
     id: "ollama", label: "Ollama (local)", needsKey: false,
     models: ["llama3.1", "qwen2.5-coder", "codellama", "mistral", "deepseek-coder-v2"],
     keyUrl: "https://ollama.com",
@@ -103,6 +134,12 @@ const DEFAULT_MODELS = {
   anthropic: "claude-3-5-sonnet-latest",
   google: "gemini-2.0-flash",
   gateway: "openai/gpt-4o-mini",
+  openrouter: "openai/gpt-4o-mini",
+  groq: "llama-3.3-70b-versatile",
+  together: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+  deepseek: "deepseek-chat",
+  xai: "grok-3-mini",
+  mistral: "mistral-small-latest",
   ollama: "llama3.1",
   "openai-compatible": "llama3.1",
 };
@@ -201,6 +238,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
   const [ctxPreview, setCtxPreview] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [route, setRoute] = useState(null); // { provider, model, fallback } of last request
+  const [lightTheme, setLightTheme] = useState(false); // app light theme -> drop .dark
   const modelFocusRef = useRef(false);
 
   try {
@@ -246,10 +284,11 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
     };
   }, [applySettings]);
 
-  // App theme -> shadow dark class.
+  // App theme -> shadow dark class (+ panel root, which owns the tokens).
   useEffect(() => {
     const sync = (isLight) => {
       try {
+        setLightTheme(!!isLight);
         mountEl?.classList?.toggle("dark", !isLight);
       } catch {}
     };
@@ -429,21 +468,25 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
   const needsKey = providerMeta.needsKey && !hasKey;
 
   return (
-    <div className="ai-scope dark flex h-full flex-col bg-background text-foreground">
+    <div className={`ai-scope ${lightTheme ? "" : "dark"} flex h-full flex-col bg-background text-foreground`}>
       {/* Panel chrome: provider / model / settings */}
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <Bot className="size-4 shrink-0 text-primary" />
         <span className="text-xs font-semibold">AI</span>
-        <select
-          value={provider}
-          onChange={(e) => onProviderChange(e.target.value)}
-          title="Provider (Vercel AI SDK)"
-          className="max-w-28 rounded-md border bg-input px-1.5 py-1 text-xs outline-none"
-        >
-          {PROVIDERS.map((p) => (
-            <option key={p.id} value={p.id}>{p.label}</option>
-          ))}
-        </select>
+        <div className="relative max-w-36 shrink-0" title="Provider (Vercel AI SDK)">
+          <select
+            value={provider}
+            onChange={(e) => onProviderChange(e.target.value)}
+            title="Provider (Vercel AI SDK)"
+            aria-label="AI provider"
+            className="w-full cursor-pointer appearance-none truncate rounded-md border border-input bg-input py-1 pl-1.5 pr-6 text-xs text-foreground outline-none transition-colors hover:border-muted-foreground/60 focus:border-primary"
+          >
+            {PROVIDERS.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-1 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        </div>
         <input
           value={model}
           onChange={(e) => {
@@ -602,6 +645,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
           <PromptInputTextarea
             placeholder="Ask AI… (Enter to send, Shift+Enter for newline)"
             disabled={status !== "ready"}
+            rows={3}
           />
           <PromptInputFooter>
             <PromptInputTools>
