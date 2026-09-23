@@ -804,7 +804,7 @@ const NotebookPanel = ({ config, nodeId }) => {
 
   const onCodeKeyDown = (e, index) => {
     if (e.key === "Tab") {
-      e.preventDefault();
+      // Allow Tab to propagate for menu navigation; handle indentation separately
       const el = e.currentTarget;
       const { selectionStart: s, selectionEnd: en, value } = el;
       const next = value.slice(0, s) + "    " + value.slice(en);

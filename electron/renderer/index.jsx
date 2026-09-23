@@ -7,6 +7,7 @@ import "./variables.css";
 import "flexlayout-react/style/dark.css";
 import "./layout.css";
 import "./responsive.css";
+import "./components/shared/titlebarA11y.js"; // titlebar menu Tab access (CET tabindex fix)
 
 import MediaViewer from "./components/MediaViewer/index.jsx";
 import { isMediaFile } from "./components/MediaViewer/mediaTypes.js";

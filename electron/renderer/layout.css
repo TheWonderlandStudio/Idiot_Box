@@ -16,6 +16,16 @@ body,
   background: var(--bg-app);
 }
 
+/* Titlebar menu (custom-electron-titlebar) keyboard focus — Tab se dikhe */
+.cet-menubar-menu-button:focus {
+  outline: none;
+}
+.cet-menubar-menu-button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  background: var(--bg-hover);
+}
+
 /* FlexLayout base theme overrides */
 .flexlayout__layout {
   background: var(--bg-app);

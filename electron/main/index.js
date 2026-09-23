@@ -367,29 +367,212 @@ function safeRename(src, dest) {
 }
 
 // ─── Project storage — app memory (userData) instead of polluting project ───
+// Human-readable layout (v2):
+//   <userData>/projects/
+//     README.txt                  ← ye folder kya hai (humans ke liye)
+//     index.json                  ← { version: 2, folders: { "<ProjectName>": { path, addedAt } } }
+//     <ProjectName>/              ← project ke naam par folder (same naam ho to " (2)", " (3)")
+//       project.json              ← { projectPath, addedAt } (self-describing)
+//       tabs.json / pinconfig.json / canvas-layout.json / drawing.excalidraw
+// Purane `<name>-<hash12>` folders pehli access par auto-migrate ho jate hain
+// (rename only — data safe, project files untouched).
 const crypto = require("crypto");
+const STORE_INDEX_VERSION = 2;
 const getProjectStoreRoot = () => path.join(app.getPath("userData"), "projects");
+
+const STORE_README =
+  "Idiot Box — Main Storage Folder\r\n" +
+  "================================\r\n" +
+  "Har project ka app data yahan rehta hai (pins, tabs, canvas layout, drawings).\r\n" +
+  "- Har folder ka naam uske project ke naam par hai; andar project.json me original path likha hai.\r\n" +
+  "- Ye files delete karne se PROJECT FILES safe rehti hain — sirf app state (pins/tabs/canvas) reset hoga.\r\n" +
+  "- App me Storage menu -> \"Open Main Storage Folder\" se yehi folder khulta hai.\r\n";
+
+// Root + README.txt banao (idempotent) — "Open Main Storage" me yehi root khulta hai,
+// jisme saare project folders dikhte hain.
+function ensureStoreRoot() {
+  try {
+    const root = getProjectStoreRoot();
+    fs.mkdirSync(root, { recursive: true });
+    const readme = path.join(root, "README.txt");
+    if (!fs.existsSync(readme)) fs.writeFileSync(readme, STORE_README, "utf8");
+    return root;
+  } catch { return getProjectStoreRoot(); }
+}
+
+function sanitizeStoreName(name) {
+  let s = String(name || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/g, "").trim().slice(0, 48);
+  if (!s) s = "project";
+  if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = "_" + s; // Windows reserved names
+  return s;
+}
+
+// index.json padho — purana format ({ "<absPath>": "<folder>", "_folder:<folder>": "<absPath>" })
+// ho to naye format me normalize karo. Returns { folderName: { path, addedAt } }.
+function readStoreIndex() {
+  const root = getProjectStoreRoot();
+  const idxFile = path.join(root, "index.json");
+  const folders = {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(idxFile, "utf8"));
+    if (raw && typeof raw === "object") {
+      if (raw.folders && typeof raw.folders === "object") {
+        for (const [folder, entry] of Object.entries(raw.folders)) {
+          const p = typeof entry === "string" ? entry : entry?.path;
+          if (folder && p) folders[folder] = typeof entry === "string" ? { path: p } : entry;
+        }
+      } else {
+        for (const [k, v] of Object.entries(raw)) {
+          if (!k.startsWith("_folder:") && typeof v === "string" && v) {
+            if (!folders[v]) folders[v] = { path: k };
+          }
+        }
+      }
+    }
+  } catch {}
+  return folders;
+}
+
+function writeStoreIndex(folders) {
+  try {
+    const root = ensureStoreRoot();
+    fs.writeFileSync(
+      path.join(root, "index.json"),
+      JSON.stringify({ version: STORE_INDEX_VERSION, folders }, null, 2)
+    );
+    return true;
+  } catch { return false; }
+}
+
+function removeFromStoreIndex(resolvedPath) {
+  try {
+    const folders = readStoreIndex();
+    let changed = false;
+    for (const [f, entry] of Object.entries(folders)) {
+      if (entry?.path === resolvedPath) { delete folders[f]; changed = true; break; }
+    }
+    if (changed) writeStoreIndex(folders);
+  } catch {}
+}
+
+// Purane hashed naam ko dobara banao (sirf migration ke liye)
+function legacyStoreDirName(resolved) {
+  try {
+    const hash = crypto.createHash("md5").update(resolved).digest("hex").slice(0, 12);
+    const safe = (path.basename(resolved) || "project").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 32) || "project";
+    return `${safe}-${hash}`;
+  } catch { return null; }
+}
+
+// Human folder chuno — doosre project se takraye to " (2)", " (3)" lagao
+function pickStoreFolder(root, base, resolved, folders) {
+  const taken = (name) => {
+    if (folders[name] && folders[name].path !== resolved) return true;
+    try {
+      if (fs.existsSync(path.join(root, name))) {
+        // disk par hai par index me nahi (orphan) — andar project.json me
+        // hamara path ho to reuse karo, warna taken mano
+        try {
+          const pj = JSON.parse(fs.readFileSync(path.join(root, name, "project.json"), "utf8"));
+          if (pj?.projectPath === resolved) return false;
+        } catch {}
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+  if (!taken(base)) return base;
+  for (let i = 2; i < 1000; i++) {
+    const cand = `${base} (${i})`;
+    if (!taken(cand)) return cand;
+  }
+  return `${base} (${Date.now().toString(36)})`;
+}
+
+function writeProjectJson(dir, folder, resolved, addedAt) {
+  try {
+    fs.writeFileSync(
+      path.join(dir, "project.json"),
+      JSON.stringify({ projectPath: resolved, folder, addedAt, app: "Idiot Box" }, null, 2)
+    );
+  } catch {}
+}
+
+// Purane `<name>-<12hex>` style naam ki pehchan (migration ke liye)
+const LEGACY_SUFFIX_RE = /-[0-9a-f]{12}$/;
+
 function getProjectStoreDir(rootPath) {
   if (!rootPath) return null;
   try {
+    const root = ensureStoreRoot();
     const resolved = path.resolve(rootPath);
-    const hash = crypto.createHash("md5").update(resolved).digest("hex").slice(0, 12);
-    const safe = (path.basename(resolved) || "project").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 32) || "project";
-    const dir = path.join(getProjectStoreRoot(), `${safe}-${hash}`);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    // keep a human-readable index for debugging/manage UI
-    try {
-      const indexFile = path.join(getProjectStoreRoot(), "index.json");
-      let idx = {};
-      try { idx = JSON.parse(fs.readFileSync(indexFile, "utf8")); } catch {}
-      if (idx[resolved] !== `${safe}-${hash}`) {
-        idx[resolved] = `${safe}-${hash}`;
-        // also store reverse: folder -> original path for manage UI
-        idx[`_folder:${safe}-${hash}`] = resolved;
-        fs.mkdirSync(getProjectStoreRoot(), { recursive: true });
-        fs.writeFileSync(indexFile, JSON.stringify(idx, null, 2));
+    const folders = readStoreIndex();
+
+    // 1) index me pehle se mapped?
+    for (const [folder, entry] of Object.entries(folders)) {
+      if (entry?.path === resolved) {
+        // purana hashed naam ho to human naam par migrate karo (rename, data safe)
+        if (LEGACY_SUFFIX_RE.test(folder)) {
+          const base = sanitizeStoreName(path.basename(resolved));
+          const rest = { ...folders };
+          delete rest[folder];
+          const target = pickStoreFolder(root, base, resolved, rest);
+          if (target !== folder) {
+            const oldDir = path.join(root, folder);
+            const newDir = path.join(root, target);
+            try {
+              if (fs.existsSync(oldDir)) fs.renameSync(oldDir, newDir);
+              else fs.mkdirSync(newDir, { recursive: true });
+              delete folders[folder];
+              folders[target] = { ...entry, migratedFrom: folder };
+              writeStoreIndex(folders);
+              writeProjectJson(newDir, target, resolved, folders[target].addedAt || new Date().toISOString());
+              return newDir;
+            } catch {
+              // fallback neeche: purana folder hi use karo
+            }
+          }
+        }
+        const dir = path.join(root, folder);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        try {
+          if (!fs.existsSync(path.join(dir, "project.json"))) {
+            writeProjectJson(dir, folder, resolved, entry.addedAt || new Date().toISOString());
+          }
+        } catch {}
+        return dir;
       }
-    } catch {}
+    }
+
+    // 2) purana hashed folder? → human naam par migrate (rename, data safe)
+    const legacyName = legacyStoreDirName(resolved);
+    if (legacyName && fs.existsSync(path.join(root, legacyName))) {
+      const base = sanitizeStoreName(path.basename(resolved));
+      const folder = pickStoreFolder(root, base, resolved, folders);
+      try {
+        fs.renameSync(path.join(root, legacyName), path.join(root, folder));
+      } catch {
+        // rename fail (locked?) → purana folder hi use karo, map kar do
+        folders[legacyName] = { path: resolved };
+        writeStoreIndex(folders);
+        return path.join(root, legacyName);
+      }
+      const addedAt = new Date().toISOString();
+      folders[folder] = { path: resolved, addedAt, migratedFrom: legacyName };
+      writeStoreIndex(folders);
+      writeProjectJson(path.join(root, folder), folder, resolved, addedAt);
+      return path.join(root, folder);
+    }
+
+    // 3) naya human-readable folder
+    const base = sanitizeStoreName(path.basename(resolved));
+    const folder = pickStoreFolder(root, base, resolved, folders);
+    const dir = path.join(root, folder);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const addedAt = new Date().toISOString();
+    folders[folder] = { path: resolved, addedAt };
+    writeStoreIndex(folders);
+    writeProjectJson(dir, folder, resolved, addedAt);
     return dir;
   } catch { return null; }
 }
@@ -2216,20 +2399,7 @@ ipcMain.handle("projectStorage:clearAll", async (_e, rootPath) => {
     try { fs.rmSync(path.join(rp, ".trash"), { recursive: true, force: true }); } catch {}
     try { fs.rmSync(path.join(rp, ".bin"), { recursive: true, force: true }); } catch {}
     // remove from index
-    try {
-      const idxFile = path.join(getProjectStoreRoot(), "index.json");
-      if (fs.existsSync(idxFile)) {
-        const idx = JSON.parse(fs.readFileSync(idxFile, "utf8"));
-        const resolved = path.resolve(rp);
-        let changed = false;
-        if (idx[resolved]) { delete idx[resolved]; changed = true; }
-        // find folder key
-        for (const k of Object.keys(idx)) {
-          if (k.startsWith("_folder:") && idx[k] === resolved) { delete idx[k]; changed = true; }
-        }
-        if (changed) fs.writeFileSync(idxFile, JSON.stringify(idx, null, 2));
-      }
-    } catch {}
+    try { removeFromStoreIndex(path.resolve(rp)); } catch {}
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 });
@@ -2367,44 +2537,62 @@ ipcMain.handle("menu:newProject", async (event, folderPath) => {
 
 ipcMain.handle("projectStorage:listAll", async () => {
   try {
-    const root = getProjectStoreRoot();
-    if (!fs.existsSync(root)) return [];
-    const idxFile = path.join(root, "index.json");
-    let idx = {};
-    try { idx = JSON.parse(fs.readFileSync(idxFile, "utf8")); } catch {}
-    const dirs = fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name);
+    const root = ensureStoreRoot();
+    const folders = readStoreIndex(); // folderName -> { path }
+    const onDisk = fs.existsSync(root)
+      ? fs.readdirSync(root, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)
+      : [];
+    const seen = new Set();
     const out = [];
-    for (const dirName of dirs) {
-      const storeDir = path.join(root, dirName);
-      let original = idx[`_folder:${dirName}`] || null;
-      if (!original) {
-        // try reverse lookup
-        for (const [k, v] of Object.entries(idx)) {
-          if (v === dirName) { original = k; break; }
-        }
-      }
+    const exists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
+    // Bina mapping wale (orphan/legacy) folders ke liye — getProjectStoreDir
+    // mat chalao (warna junk folder ban jayega), seedha files check karo.
+    const statFiles = (dir) => ({
+      pinExists: exists(path.join(dir, "pinconfig.json")),
+      tabsExists: exists(path.join(dir, "tabs.json")),
+      canvasExists: exists(path.join(dir, "canvas-layout.json")),
+    });
+    const pushEntry = (folderName) => {
+      // canonical dir nikalo (legacy ho to yahin migrate ho jayega)
+      let canonicalDir = path.join(root, folderName);
+      const mappedPath = folders[folderName]?.path || null;
       let info = null;
-      try { info = getStorageInfo(original || storeDir); } catch {}
-      // fallback: use dirName as pseudo root if not resolved
+      if (mappedPath) {
+        try {
+          const c = getProjectStoreDir(mappedPath);
+          if (c) canonicalDir = c;
+        } catch {}
+        try { info = getStorageInfo(mappedPath); } catch {}
+      }
+      const canonName = path.basename(canonicalDir);
+      if (seen.has(canonName)) return;
+      seen.add(canonName);
+      const st = info
+        ? { pinExists: info.pinExists, tabsExists: info.tabsExists, canvasExists: info.canvasExists }
+        : statFiles(canonicalDir);
       out.push({
-        folder: dirName,
-        storeDir,
-        originalPath: original || "(unknown)",
-        exists: original ? fs.existsSync(original) : false,
-        pinExists: info?.pinExists || false,
-        tabsExists: info?.tabsExists || false,
-        canvasExists: info?.canvasExists || false,
+        folder: canonName,
+        storeDir: canonicalDir,
+        originalPath: mappedPath || "(unknown)",
+        exists: mappedPath ? exists(mappedPath) : false,
+        pinExists: st.pinExists || false,
+        tabsExists: st.tabsExists || false,
+        canvasExists: st.canvasExists || false,
         trashCount: info?.trashCount || 0,
       });
+    };
+    for (const folder of Object.keys(folders)) pushEntry(folder);
+    for (const dirName of onDisk) {
+      if (dirName !== "node_modules" && !seen.has(dirName) && !folders[dirName]) pushEntry(dirName);
     }
     return out;
   } catch { return []; }
 });
 
 ipcMain.handle("projectStorage:revealAll", async () => {
-  const root = getProjectStoreRoot();
+  // Main storage ROOT kholo — isme saare project folders dikhte hain
+  const root = ensureStoreRoot();
   try {
-    fs.mkdirSync(root, { recursive: true });
     await shell.openPath(root);
     return { ok: true, path: root };
   } catch (e) { return { ok: false, error: e.message }; }
@@ -5217,8 +5405,9 @@ function buildMenu() {
     {
       id: "menu-storage", label: "Storage", submenu: [
         { label: "Open Main Storage Folder", click: async () => {
-          const root = getProjectStoreRoot();
-          try { fs.mkdirSync(root, { recursive: true }); await shell.openPath(root); } catch (e) { dialog.showErrorBox("Error", String(e)); }
+          // Storage ROOT kholo — isme saare project folders dikhte hain
+          const root = ensureStoreRoot();
+          try { await shell.openPath(root); } catch (e) { dialog.showErrorBox("Error", String(e)); }
         }},
         { type: "separator" },
         { label: "Current Project Storage…", enabled: false },

@@ -60,6 +60,8 @@ const s = {
   input:{ width:"100%", background:"var(--bg-input-strong)", border:"1px solid var(--border-strong)", color:"var(--text-input)", borderRadius:"var(--radius-md)", padding:"var(--space-6) var(--space-8)", fontSize:"var(--fs-body)", outline:"none", resize:"none", fontFamily:"inherit" },
   sectionHead:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"var(--space-6) var(--space-8)", background:"var(--bg-vscode)", borderTop:"var(--space-1) solid var(--bg-active)", borderBottom:"var(--space-1) solid var(--bg-active)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-extrabold)", letterSpacing:0.35, textTransform:"uppercase", color:"var(--text-soft)", cursor:"pointer", userSelect:"none" },
   row:{ display:"flex", alignItems:"center", gap:"var(--space-6)", padding:"var(--space-5) var(--space-8)", cursor:"pointer", fontSize:"var(--fs-body)", borderBottom:"var(--space-1) solid var(--border-row)" },
+  // subtle row hover
+  rowHover:{ display:"flex", alignItems:"center", gap:"var(--space-6)", padding:"var(--space-5) var(--space-8)", cursor:"pointer", fontSize:"var(--fs-body)", borderBottom:"var(--space-1) solid var(--border-row)", background:"var(--bg-hover)" },
   statusBox:(c)=>({ minWidth:24, textAlign:"center", fontSize:"var(--fs-tiny)", fontWeight:"var(--fw-extrabold)", color:c, background:"var(--bg-surface)", border:"1px solid color-mix(in srgb, " + c + " 20%, transparent)", padding:"var(--space-2) var(--space-4)", borderRadius:"var(--radius-sm)", flexShrink:0, letterSpacing:0.2 }),
 };
 

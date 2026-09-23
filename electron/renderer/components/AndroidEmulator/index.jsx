@@ -481,8 +481,9 @@ const AndroidEmulatorPanel = () => {
     const sendKey = (code) => { flushKeyBuf(); sendInput(serial, { type: "key", code }); };
     if (k === "Backspace") { e.preventDefault(); sendKey(67); }
     else if (k === "Enter") { e.preventDefault(); sendKey(66); }
-    else if (k === "Tab") { e.preventDefault(); sendKey(61); }
-    else if (k === "Escape") { e.preventDefault(); if (full) setFull(false); else sendKey(4); }
+    else if (k === "Tab") {
+      // Allow Tab to propagate for menu navigation (do not preventDefault)
+    } else if (k === "Escape") { e.preventDefault(); if (full) setFull(false); else sendKey(4); }
     else if (k === "Delete") { e.preventDefault(); sendKey(112); }
     else if (k === "ArrowUp") { e.preventDefault(); sendKey(19); }
     else if (k === "ArrowDown") { e.preventDefault(); sendKey(20); }

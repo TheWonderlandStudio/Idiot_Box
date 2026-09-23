@@ -18,7 +18,7 @@ import { PREVIEW_IFRAME_CSP } from "../shared/previewCsp.js";
 //    the project. Loaded via fs:readTextFile, saved via fs:writeFile.
 //  - Project mode (default): per-project scratch drawing stored through
 //    dedicated Electron IPC (canvas:saveDrawing / canvas:loadDrawing) in the
-//    app's project storage (userData/projects/<hash>/drawing.excalidraw).
+//    app's project storage (userData/projects/<ProjectName>/drawing.excalidraw).
 //
 // External edits are picked up through the existing chokidar file watcher
 // (window.electronAPI.onFsChange) and surface a Reload banner. The live
