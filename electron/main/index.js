@@ -2191,7 +2191,17 @@ ipcMain.handle("canvas:saveDrawing", async (_e, rootPath, data) => {
     const storeDir = getProjectStoreDir(rootPath);
     if (!storeDir) return { ok: false, error: "No storage" };
     fs.mkdirSync(storeDir, { recursive: true });
-    fs.writeFileSync(path.join(storeDir, CANVAS_DRAWING_FILE), text, "utf8");
+    // Atomic write (tmp + fsync + rename) so a crash mid-save can never
+    // leave a zeroed/partial drawing.excalidraw on disk.
+    const filePath = path.join(storeDir, CANVAS_DRAWING_FILE);
+    const tmpPath = filePath + ".tmp";
+    fs.writeFileSync(tmpPath, text, "utf8");
+    try {
+      const fd = fs.openSync(tmpPath, "r");
+      try { fs.fsyncSync(fd); } catch {}
+      try { fs.closeSync(fd); } catch {}
+    } catch {}
+    fs.renameSync(tmpPath, filePath);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };

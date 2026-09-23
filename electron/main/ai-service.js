@@ -39,6 +39,7 @@ const DEFAULT_MODELS = {
   deepseek: "deepseek-chat",
   xai: "grok-3-mini",
   mistral: "mistral-small-latest",
+  opencode: "deepseek-v4-flash-free",
 };
 
 // Default OpenAI-compatible endpoints (no new SDK deps needed — all of these
@@ -52,11 +53,12 @@ const COMPAT_BASE_URLS = {
   deepseek: "https://api.deepseek.com/v1",
   xai: "https://api.x.ai/v1",
   mistral: "https://api.mistral.ai/v1",
+  opencode: "https://opencode.ai/zen/v1",
 };
 
 const COMPAT_PROVIDERS = new Set([
   "ollama", "openai-compatible", "custom", "lmstudio",
-  "openrouter", "groq", "together", "deepseek", "xai", "mistral",
+  "openrouter", "groq", "together", "deepseek", "xai", "mistral", "opencode",
 ]);
 
 // Pollinations.ai (https://pollinations.ai) — free tier, no signup required.
@@ -104,7 +106,9 @@ function resolveConfig(payload = {}, settings = {}) {
   const projectRoot = payload.projectRoot || settings.__projectRoot || null;
   const allowTools = payload.allowTools !== false &&
     (pickSetting(settings, "aiAllowTools", "allowTools") !== false);
-  return { provider, model, apiKey, baseURL, temperature, system, projectRoot, allowTools };
+  const allowWrite = payload.allowWrite === true ||
+    pickSetting(settings, "aiAllowWrite", "allowWrite") === true;
+  return { provider, model, apiKey, baseURL, temperature, system, projectRoot, allowTools, allowWrite };
 }
 
 function humanAiError(raw) {
@@ -194,9 +198,11 @@ function isUiMessage(m) {
     Array.isArray(m.parts);
 }
 
-// Minimal read-only IDE tools so the model can inspect the open project.
-// They run in main (Node) with path confinement + size caps.
-async function buildTools(projectRoot, z) {
+// Minimal IDE tools so the model can inspect the open project (read-only)
+// plus opt-in file writes. They run in main (Node) with path confinement +
+// size caps. Write tools are only built when allowWrite is explicitly true
+// (panel/Settings toggle, default OFF).
+async function buildTools(projectRoot, z, allowWrite = false) {
   if (!projectRoot) return undefined;
   let root = null;
   try {
@@ -298,6 +304,146 @@ async function buildTools(projectRoot, z) {
         return hits.length ? hits.join("\n") : "No matches.";
       },
     },
+    // ── Write tools (only when the user enabled file writes) ──────────
+    ...(allowWrite
+      ? {
+          write_file: {
+            description:
+              "Create a new file or completely overwrite an existing one. Parent folders are created as needed. Prefer edit_file for small changes to existing files.",
+            inputSchema: z.object({
+              path: z.string().describe("Relative file path inside the project"),
+              content: z.string().describe("Full new file content (utf8)"),
+            }),
+            execute: async ({ path: rel, content }) => {
+              const abs = ensureInside(root, String(rel || "").replace(/\\/g, "/"));
+              if (!abs) return "Invalid path (must be inside the project).";
+              const text = String(content ?? "");
+              if (text.length > 512 * 1024) return "Content too large (>512 KB). Split into smaller writes.";
+              try {
+                fs.mkdirSync(path.dirname(abs), { recursive: true });
+                fs.writeFileSync(abs, text, "utf8");
+                const shown = path.relative(root, abs).replace(/\\/g, "/");
+                return `Wrote ${shown} (${text.length} chars).`;
+              } catch (e) {
+                return `Cannot write file: ${e.message}`;
+              }
+            },
+          },
+          edit_file: {
+            description:
+              "Replace one unique block of text inside an existing file. old_text must occur EXACTLY ONCE — if it matches zero or many places, nothing is changed and you get an error telling you to be more specific.",
+            inputSchema: z.object({
+              path: z.string().describe("Relative file path inside the project"),
+              old_text: z.string().describe("Exact existing text to replace (must be unique)"),
+              new_text: z.string().describe("Replacement text"),
+            }),
+            execute: async ({ path: rel, old_text, new_text }) => {
+              const abs = ensureInside(root, String(rel || "").replace(/\\/g, "/"));
+              if (!abs) return "Invalid path (must be a file inside the project).";
+              const oldT = String(old_text ?? "");
+              if (!oldT) return "old_text is empty.";
+              const newT = String(new_text ?? "");
+              if (newT.length > 512 * 1024) return "Replacement too large (>512 KB).";
+              try {
+                const st = fs.statSync(abs);
+                if (!st.isFile()) return "Not a file.";
+                if (st.size > 2 * 1024 * 1024) return "File too large (>2 MB).";
+                const buf = fs.readFileSync(abs);
+                if (buf.includes(0)) return "Binary file — cannot edit.";
+                const text = buf.toString("utf8");
+                const first = text.indexOf(oldT);
+                if (first < 0) return "No match for old_text — nothing changed.";
+                if (text.indexOf(oldT, first + oldT.length) >= 0) {
+                  return "old_text matches MULTIPLE places — nothing changed. Include more surrounding lines to make it unique.";
+                }
+                fs.writeFileSync(abs, text.slice(0, first) + newT + text.slice(first + oldT.length), "utf8");
+                const shown = path.relative(root, abs).replace(/\\/g, "/");
+                return `Edited ${shown} (replaced ${oldT.length} chars with ${newT.length}).`;
+              } catch (e) {
+                return `Cannot edit file: ${e.message}`;
+              }
+            },
+          },
+          make_dir: {
+            description: "Create a folder (including parents) inside the project.",
+            inputSchema: z.object({
+              dir: z.string().describe("Relative directory path to create"),
+            }),
+            execute: async ({ dir }) => {
+              const abs = ensureInside(root, String(dir || "").replace(/\\/g, "/"));
+              if (!abs) return "Invalid path (must be inside the project).";
+              try {
+                fs.mkdirSync(abs, { recursive: true });
+                return `Created folder ${path.relative(root, abs).replace(/\\/g, "/") || "."}.`;
+              } catch (e) {
+                return `Cannot create folder: ${e.message}`;
+              }
+            },
+          },
+          rename_path: {
+            description: "Rename or move a file/folder inside the project. Both paths must stay inside the project.",
+            inputSchema: z.object({
+              from: z.string().describe("Current relative path"),
+              to: z.string().describe("New relative path"),
+            }),
+            execute: async ({ from, to }) => {
+              const a = ensureInside(root, String(from || "").replace(/\\/g, "/"));
+              const b = ensureInside(root, String(to || "").replace(/\\/g, "/"));
+              if (!a || !b) return "Invalid path (both must stay inside the project).";
+              try {
+                if (!fs.existsSync(a)) return `Source does not exist: ${from}.`;
+                if (fs.existsSync(b)) return `Destination already exists: ${to}.`;
+                fs.mkdirSync(path.dirname(b), { recursive: true });
+                fs.renameSync(a, b);
+                return `Renamed ${from} → ${to}.`;
+              } catch (e) {
+                return `Cannot rename: ${e.message}`;
+              }
+            },
+          },
+          copy_path: {
+            description: "Copy a file to a new location inside the project (parent folders created as needed).",
+            inputSchema: z.object({
+              from: z.string().describe("Source relative file path"),
+              to: z.string().describe("Destination relative file path"),
+            }),
+            execute: async ({ from, to }) => {
+              const a = ensureInside(root, String(from || "").replace(/\\/g, "/"));
+              const b = ensureInside(root, String(to || "").replace(/\\/g, "/"));
+              if (!a || !b) return "Invalid path (both must stay inside the project).";
+              try {
+                const st = fs.statSync(a);
+                if (!st.isFile()) return "Can only copy files.";
+                if (st.size > 10 * 1024 * 1024) return "File too large to copy (>10 MB).";
+                if (fs.existsSync(b)) return `Destination already exists: ${to}.`;
+                fs.mkdirSync(path.dirname(b), { recursive: true });
+                fs.copyFileSync(a, b);
+                return `Copied ${from} → ${to}.`;
+              } catch (e) {
+                return `Cannot copy: ${e.message}`;
+              }
+            },
+          },
+          delete_path: {
+            description: "PERMANENTLY delete a file or folder inside the project (no trash, cannot be undone). Use only when the user asked for deletion.",
+            inputSchema: z.object({
+              path: z.string().describe("Relative path to delete"),
+            }),
+            execute: async ({ path: rel }) => {
+              const abs = ensureInside(root, String(rel || "").replace(/\\/g, "/"));
+              if (!abs) return "Invalid path (must stay inside the project).";
+              if (abs === root) return "Refusing to delete the project root.";
+              try {
+                if (!fs.existsSync(abs)) return `Does not exist: ${rel}.`;
+                fs.rmSync(abs, { recursive: true, force: true });
+                return `Deleted ${rel}.`;
+              } catch (e) {
+                return `Cannot delete: ${e.message}`;
+              }
+            },
+          },
+        }
+      : {}),
   };
 }
 
@@ -358,7 +504,7 @@ async function resolveModel(cfg) {
       apiKey: apiKey || "ollama",
     })(model);
   }
-  throw new Error(`Unknown provider "${provider}". Use pollinations, openai, anthropic, google, gateway, openrouter, groq, together, deepseek, xai, mistral, ollama or openai-compatible.`);
+  throw new Error(`Unknown provider "${provider}". Use pollinations, opencode, openai, anthropic, google, gateway, openrouter, groq, together, deepseek, xai, mistral, ollama or openai-compatible.`);
 }
 
 function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
@@ -428,7 +574,7 @@ function setupAiIpc({ ipcMain, BrowserWindow, readSettings }) {
         const ai = await import("ai");
         const { z } = await import("zod");
         const model = await resolveModel(cfg);
-        const tools = cfg.allowTools ? await buildTools(cfg.projectRoot, z) : undefined;
+        const tools = cfg.allowTools ? await buildTools(cfg.projectRoot, z, cfg.allowWrite === true) : undefined;
         // Keyless Pollinations is heavily rate-limited: fewer chained tool
         // steps so a single answer fits the free tier.
         const maxSteps = cfg.provider === "pollinations" && !cfg.apiKey ? 2 : 5;

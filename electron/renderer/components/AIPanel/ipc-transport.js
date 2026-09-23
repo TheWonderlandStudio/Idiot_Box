@@ -114,6 +114,7 @@ export class ElectronIpcTransport {
         system: req.system || "",
         projectRoot: req.projectRoot || null,
         allowTools: req.allowTools !== false && !!req.projectRoot,
+        allowWrite: req.allowWrite === true && !!req.projectRoot,
       });
     } catch (e) {
       throw new Error(e?.message || "AI request failed");

@@ -49,6 +49,7 @@ import {
   Check,
   ChevronDown,
   FileCode2,
+  Pencil,
   Wrench,
   Download,
   Settings,
@@ -117,6 +118,11 @@ const PROVIDERS = [
     keyUrl: "https://console.mistral.ai/api-keys",
   },
   {
+    id: "opencode", label: "OpenCode Zen (free)", needsKey: false,
+    models: ["deepseek-v4-flash-free", "kimi-k2.5", "big-pickle", "mimo-v2.5-free", "minimax-m2.7", "glm-5.1", "nemotron-3-ultra-free"],
+    keyUrl: "https://opencode.ai/docs/zen",
+  },
+  {
     id: "ollama", label: "Ollama (local)", needsKey: false,
     models: ["llama3.1", "qwen2.5-coder", "codellama", "mistral", "deepseek-coder-v2"],
     keyUrl: "https://ollama.com",
@@ -140,6 +146,7 @@ const DEFAULT_MODELS = {
   deepseek: "deepseek-chat",
   xai: "grok-3-mini",
   mistral: "mistral-small-latest",
+  opencode: "deepseek-v4-flash-free",
   ollama: "llama3.1",
   "openai-compatible": "llama3.1",
 };
@@ -229,12 +236,14 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
   const projectPathRef = useRef(null);
   const attachRef = useRef(true);
   const toolsRef = useRef(true);
+  const writeRef = useRef(false);
   const [provider, setProvider] = useState("pollinations");
   const [providerMeta, setProviderMeta] = useState(PROVIDERS[0]);
   const [model, setModel] = useState(DEFAULT_MODELS.pollinations);
   const [hasKey, setHasKey] = useState(false);
   const [attachFile, setAttachFile] = useState(true);
   const [allowTools, setAllowTools] = useState(true);
+  const [allowWrite, setAllowWrite] = useState(false);
   const [ctxPreview, setCtxPreview] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [route, setRoute] = useState(null); // { provider, model, fallback } of last request
@@ -248,6 +257,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
   }
   attachRef.current = attachFile;
   toolsRef.current = allowTools;
+  writeRef.current = allowWrite;
 
   const applySettings = useCallback((st) => {
     const d = st || {};
@@ -262,6 +272,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
     const m = String(d.aiModel || d.ai?.model || "").trim() || DEFAULT_MODELS[meta.id];
     if (!modelFocusRef.current) setModel(m);
     setHasKey(String(d.aiApiKey || d.ai?.apiKey || "").length > 0);
+    setAllowWrite(!!(d.aiAllowWrite ?? d.ai?.allowWrite ?? false));
   }, []);
 
   useEffect(() => {
@@ -362,6 +373,7 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
           system: st.aiSystemPrompt || st.ai?.systemPrompt || "",
           projectRoot: projectPathRef.current,
           allowTools: toolsRef.current && !!projectPathRef.current,
+          allowWrite: writeRef.current === true,
           attachFile: attachRef.current,
         };
       }),
@@ -660,10 +672,22 @@ function AiChat({ chatId, storageKey, nodeId, mountEl }) {
               <PromptInputButton
                 variant={allowTools && projectPathRef.current ? "default" : "ghost"}
                 onClick={() => setAllowTools((v) => !v)}
-                title={projectPathRef.current ? "Let AI list, read and search project files (read-only)" : "Open a project to enable file tools"}
+                title={projectPathRef.current ? "Let AI list, read and search project files" : "Open a project to enable file tools"}
               >
                 <Wrench className="size-4" />
                 <span>Tools</span>
+              </PromptInputButton>
+              <PromptInputButton
+                variant={allowWrite && projectPathRef.current ? "default" : "ghost"}
+                onClick={() => {
+                  const v = !allowWrite;
+                  setAllowWrite(v);
+                  persistInlineConfig({ aiAllowWrite: v });
+                }}
+                title={projectPathRef.current ? (allowWrite ? "WRITE ON — AI can create, edit, rename, copy and delete project files" : "Let AI create, edit, rename, copy and delete project files (off)") : "Open a project to enable file writes"}
+              >
+                <Pencil className="size-4" />
+                <span>Write</span>
               </PromptInputButton>
               <PromptInputButton
                 variant="ghost"

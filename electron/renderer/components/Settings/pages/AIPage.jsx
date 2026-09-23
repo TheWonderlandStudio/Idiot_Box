@@ -19,6 +19,7 @@ const PROVIDERS = [
   { id: "deepseek", label: "DeepSeek", needsKey: true, keyUrl: "https://platform.deepseek.com/api_keys", models: ["deepseek-chat", "deepseek-reasoner"] },
   { id: "xai", label: "xAI (Grok)", needsKey: true, keyUrl: "https://console.x.ai", models: ["grok-4", "grok-3", "grok-3-mini", "grok-3-fast"] },
   { id: "mistral", label: "Mistral AI", needsKey: true, keyUrl: "https://console.mistral.ai/api-keys", models: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"] },
+  { id: "opencode", label: "OpenCode Zen (free)", needsKey: false, keyUrl: "https://opencode.ai/docs/zen", models: ["deepseek-v4-flash-free", "kimi-k2.5", "big-pickle", "mimo-v2.5-free", "minimax-m2.7", "glm-5.1", "nemotron-3-ultra-free"] },
   { id: "ollama", label: "Ollama (local, free)", needsKey: false, keyUrl: "https://ollama.com", models: ["llama3.1", "qwen2.5-coder", "codellama", "mistral", "deepseek-coder-v2"] },
   { id: "openai-compatible", label: "Custom OpenAI-compatible server", needsKey: false, keyUrl: "", models: [] },
 ];
@@ -32,6 +33,7 @@ const DEFAULT_BASE_URL = {
   deepseek: "https://api.deepseek.com/v1",
   xai: "https://api.x.ai/v1",
   mistral: "https://api.mistral.ai/v1",
+  opencode: "https://opencode.ai/zen/v1",
 };
 
 const AIPage = ({ settings, onSave }) => {
@@ -43,6 +45,7 @@ const AIPage = ({ settings, onSave }) => {
   const temperature = settings.aiTemperature ?? settings.ai?.temperature ?? 0.7;
   const systemPrompt = String(settings.aiSystemPrompt || settings.ai?.systemPrompt || "");
   const allowTools = (settings.aiAllowTools ?? settings.ai?.allowTools) !== false;
+  const allowWrite = (settings.aiAllowWrite ?? settings.ai?.allowWrite) === true;
 
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -241,6 +244,27 @@ const AIPage = ({ settings, onSave }) => {
             aria-checked={allowTools}
             role="switch"
             aria-label="Toggle project tools"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+
+      {/* ── File writes (opt-in, default OFF) ──────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Allow File Writes</span>
+        <span className="sw-row__desc">
+          Let the AI create, edit, rename, copy, make folders and delete files in the open project.
+          Confined to the project folder. Deletes are permanent (no trash). Default OFF.
+        </span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{allowWrite ? "Enabled" : "Disabled"}</span>
+          <button
+            className={`sw-toggle-btn${allowWrite ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => update({ aiAllowWrite: !allowWrite })}
+            aria-checked={allowWrite}
+            role="switch"
+            aria-label="Toggle file writes"
           >
             <span className="sw-toggle-thumb" />
           </button>

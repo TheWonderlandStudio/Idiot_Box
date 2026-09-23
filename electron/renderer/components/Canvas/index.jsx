@@ -48,9 +48,18 @@ const baseName = (p) => {
 // Parse .excalidraw JSON into Excalidraw initialData. Tolerates plain
 // { elements, appState, files } as well as the full file envelope
 // { type: "excalidraw", version, elements, appState, files }.
+// Corrupt files throw a friendly error (caught at the load site → empty
+// scene + banner) instead of a raw SyntaxError.
 const parseDrawing = (text) => {
-  if (text == null || text === "") return { elements: [], appState: undefined, files: undefined };
-  const data = typeof text === "string" ? JSON.parse(text) : text;
+  if (text == null) return { elements: [], appState: undefined, files: undefined };
+  const s = String(typeof text === "string" ? text : JSON.stringify(text)).replace(/^\uFEFF/, "").trim();
+  if (!s) return { elements: [], appState: undefined, files: undefined };
+  let data;
+  try {
+    data = JSON.parse(s);
+  } catch {
+    throw new Error("Drawing file is corrupted (invalid JSON) — starting with an empty canvas. Your file is untouched until you save.");
+  }
   const elements = Array.isArray(data?.elements) ? data.elements : [];
   const appState = data?.appState && typeof data.appState === "object" ? data.appState : undefined;
   const files = data?.files && typeof data.files === "object" ? data.files : undefined;

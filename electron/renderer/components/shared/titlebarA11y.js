@@ -75,20 +75,6 @@ export function setupTitlebarA11y() {
   }, 500);
 }
 
-// TEMP-DIAG (headless debug ke liye — verify ke baad hatayenge)
-try {
-  setTimeout(() => {
-    try {
-      const btns = Array.from(document.querySelectorAll(BTN_SEL));
-      console.log(
-        "[ibx-a11y-diag] menubar buttons: " + btns.length +
-        " | tabindexes: [" + btns.map((b) => b.getAttribute("tabindex")).join(",") + "]" +
-        " | titlebar in DOM: " + (!!document.querySelector(".cet-titlebar")) +
-        " | activeElement: " + (document.activeElement ? document.activeElement.tagName + "." + document.activeElement.className : "none")
-      );
-    } catch (e) { console.log("[ibx-a11y-diag] error: " + (e && e.message)); }
-  }, 4000);
-} catch {}
 try {
   setupTitlebarA11y();
 } catch {}
