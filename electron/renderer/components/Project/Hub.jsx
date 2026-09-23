@@ -991,6 +991,7 @@ const ProjectHub = () => {
   return (
     <div className="phub">
       <div className="phub__header">
+        <img src="assets/idot_box.png" alt="Idiot Box logo" width={20} height={20} style={{ width: 20, height: 20, borderRadius: 5, objectFit: "cover", flexShrink: 0 }} />
         <div className="phub__title">Idiot Box Hub</div>
         <div className="phub__actions">
           <button

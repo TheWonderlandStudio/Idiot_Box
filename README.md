@@ -1,4 +1,4 @@
-<img src="https://files.catbox.moe/wpu6fh.png" width=200px>
+<img src="electron/renderer/assets/idot_box.png" width=200px>
 
 # Idiot Box
 

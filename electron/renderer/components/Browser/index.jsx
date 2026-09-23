@@ -1460,10 +1460,6 @@ const BrowserPanel = (props) => {
           >
             {isLoading ? <X size={14} /> : <RefreshCw size={14} />}
           </button>
-          <button className="browser__btn" onClick={openFind} title="Find in page (Ctrl+F)" hidden>
-            <Search size={14} />
-          </button>
-
           {/* URL bar */}
           <div className={`browser__url-wrap${focused ? " browser__url-wrap--focused" : ""}`}>
             {isLoading && <div className="browser__spinner" />}
@@ -1525,11 +1521,6 @@ const BrowserPanel = (props) => {
                 <button className="browser__more-item" onClick={handleToggleDevTools} title="Inspect Element / DevTools">
                   <span className="browser__more-icon"><Search size={14} /></span>
                   <span className="browser__more-label">Inspect element</span>
-                </button>
-                <button className="browser__more-item" onClick={() => { setMoreOpen(false); openFind(); }} title="Find in page (Ctrl+F)">
-                  <span className="browser__more-icon"><Search size={14} /></span>
-                  <span className="browser__more-label">Find in page</span>
-                  <span className="browser__more-hint">Ctrl+F</span>
                 </button>
                 <button className="browser__more-item" onClick={() => { setMoreOpen(false); runBrowserAction("newTab"); }} title="New browser tab (Ctrl+T)">
                   <span className="browser__more-icon"><span style={{ fontSize: 14, fontWeight: "bold" }}>+</span></span>
