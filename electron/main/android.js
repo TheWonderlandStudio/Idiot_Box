@@ -1194,7 +1194,7 @@ async function createAvdInternal({ name, device, image, api, variant, op = "crea
     lvl = r.level;
     sysImage = r.image;
     if (variant && variant !== r.variant) {
-      progress(op, "image", `Play Store image API ${lvl.api} ke liye available nahi — Google APIs image use ho rahi hai.`);
+      progress(op, "image", `Play Store image not available for API ${lvl.api} — using Google APIs image.`);
     }
   }
   if (!sysImage) sysImage = DEFAULT_IMAGE;

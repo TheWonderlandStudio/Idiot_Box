@@ -84,15 +84,15 @@ const EditorPage = ({ settings, onSave }) => {
 
   return (
     <div>
-      <ToggleRow flagKey="lineNumbers" on={lineNumbers} label="Line Numbers" desc="Gutter me line numbers dikhao." />
-      <ToggleRow flagKey="lineWrapping" on={lineWrapping} label="Word Wrap" desc="Lambi lines wrap karo (horizontal scroll nahi)." />
+      <ToggleRow flagKey="lineNumbers" on={lineNumbers} label="Line Numbers" desc="Show line numbers in the gutter." />
+      <ToggleRow flagKey="lineWrapping" on={lineWrapping} label="Word Wrap" desc="Wrap long lines (no horizontal scroll)." />
       <ToggleRow flagKey="autocompletion" on={autocompletion} label="Autocompletion" desc="Suggest popup (Ctrl+Space)." />
-      <ToggleRow flagKey="tabAcceptsCompletion" on={tabAcceptsCompletion} label="Tab Accepts Suggestion" desc="Tab: suggestion khula ho to accept, band ho to normal indent." />
+      <ToggleRow flagKey="tabAcceptsCompletion" on={tabAcceptsCompletion} label="Tab Accepts Suggestion" desc="Tab accepts an open suggestion, otherwise normal indent." />
 
       {/* ── Theme ── */}
       <div className="sw-row">
         <span className="sw-row__label">Theme</span>
-        <span className="sw-row__desc">vscodeDark / vscodeLight / oneDark. Turant apply hota hai.</span>
+        <span className="sw-row__desc">          vscodeDark / vscodeLight / oneDark. Applies instantly.</span>
         <select
           className="sw-select"
           value={["dark", "light", "oneDark"].includes(theme) ? theme : "dark"}
@@ -206,7 +206,7 @@ const EditorPage = ({ settings, onSave }) => {
       {/* ── Vim Mode ── */}
       <div className="sw-row">
         <span className="sw-row__label">Vim Mode</span>
-        <span className="sw-row__desc">Vim keybindings enable karo (Esc, h/j/k/l, etc.)</span>
+        <span className="sw-row__desc">Enable Vim keybindings (Esc, h/j/k/l, etc.)</span>
         <label className="sw-toggle-row">
           <span className="sw-toggle-label">{vimMode ? "Enabled" : "Disabled"}</span>
           <button

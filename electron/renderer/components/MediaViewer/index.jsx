@@ -1262,8 +1262,8 @@ const MediaViewer = () => {
                 >
                   ⛶
                 </button>
-                {/* View rotate/flip edit mode me hidden — entry par bake ho chuke hain.
-                    Edit me rotate/flip ke liye neeche Rotate tool use karo. */}
+                {/* View rotate/flip hidden in edit mode — already baked at entry.
+                    For rotate/flip while editing, use the Rotate tool below. */}
                 {!editing && (
                   <>
                     <button
@@ -1457,9 +1457,9 @@ const MediaViewer = () => {
         <div style={toolPanelStyle}>
           <span style={toolLabelStyle}>Background remover</span>
           {[
-            { id: "edge", label: "Edge", title: "Border se juda background auto-cut" },
-            { id: "color", label: "Color", title: "Picked color har jagah se hatao" },
-            { id: "brush", label: "Magic Brush", title: "Image par drag karo — similar connected area erase hoga" },
+            { id: "edge", label: "Edge", title: "Auto-cut background connected to the border" },
+            { id: "color", label: "Color", title: "Remove the picked color everywhere" },
+            { id: "brush", label: "Magic Brush", title: "Drag on the image — erases the similar connected area" },
           ].map((m) => (
             <button
               key={m.id}
@@ -1486,7 +1486,7 @@ const MediaViewer = () => {
             <span style={{ minWidth: 30, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{tolerance}</span>
           </label>
           {bgMode === "edge" && (
-            <span style={{ color: "var(--text-muted)" }}>Edge color cut hota hai — solid backgrounds par best</span>
+            <span style={{ color: "var(--text-muted)" }}>Edge color is cut — works best on solid backgrounds</span>
           )}
           {bgMode === "color" && (
             <label style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", color: "var(--text-bright)" }}>
@@ -1511,7 +1511,7 @@ const MediaViewer = () => {
             </label>
           )}
           {bgMode === "brush" && (
-            <span style={{ color: "var(--text-muted)" }}>Image par drag karo — jahan paint hoga wahan ka similar connected area transparent</span>
+            <span style={{ color: "var(--text-muted)" }}>Drag on the image — the similar connected area you paint turns transparent</span>
           )}
           <span style={{ flex: 1 }} />
           <button

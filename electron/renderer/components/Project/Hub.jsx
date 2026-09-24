@@ -574,6 +574,144 @@ const ProjectHub = () => {
     try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
   }, []);
 
+  // ── Drag & drop: bahar se koi bhi folder Hub me khincho → import ──
+  const [dropActive, setDropActive] = useState(false);
+  const [dropMsg, setDropMsg] = useState(null);
+  const dragDepthRef = useRef(0);
+  const dropMsgTimerRef = useRef(null);
+  const flashDropMsg = useCallback((t) => {
+    setDropMsg(t);
+    try { clearTimeout(dropMsgTimerRef.current); } catch {}
+    dropMsgTimerRef.current = setTimeout(() => setDropMsg(null), 4000);
+  }, []);
+  const hasFiles = (e) => {
+    try {
+      const types = Array.from(e?.dataTransfer?.types || []);
+      if (types.includes("Files")) return true;
+      // Electron/Windows: native OS drops sometimes types me "Files" nahi aata
+      // par items/file aate hain. Drop items check bhi karo.
+      try {
+        const items = Array.from(e?.dataTransfer?.items || []);
+        if (items.some((it) => it.kind === "file")) return true;
+      } catch {}
+      // Agar types empty hai aur external drag hai (OS side se), consider karo
+      if (types.length === 0 || types.includes("application/x-moz-file")) return true;
+    } catch {}
+    return false;
+  };
+  const onHubDragEnter = useCallback((e) => {
+    // Hamesha preventDefault — bina iske drop event fire hi nahi hota.
+    // (Electron me OS drops par dataTransfer.types kabhi khaali milta hai.)
+    e.preventDefault();
+    // Drag enter/drag leave par strict hasFiles mat lagao — Electron me native drops
+    // me types unreliable hote hain. Drop handler me proper validation hai.
+    dragDepthRef.current += 1;
+    setDropActive(true);
+  }, []);
+  const onHubDragOver = useCallback((e) => {
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = "copy"; } catch {}
+  }, []);
+  const onHubDragLeave = useCallback((e) => {
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDropActive(false);
+  }, []);
+  const onHubDrop = useCallback(async (e) => {
+    // Pehle preventDefault — taaki drop hamesha hum tak pahunche.
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepthRef.current = 0;
+    setDropActive(false);
+    try {
+      let files = Array.from(e?.dataTransfer?.files || []);
+      if (!files.length) {
+        // fallback: items se File nikalo (kuch drops me files khaali milta hai)
+        try {
+          const items = Array.from(e?.dataTransfer?.items || []);
+          files = items.map((it) => { try { return it.getAsFile(); } catch { return null; } }).filter(Boolean);
+        } catch {}
+      }
+      if (!files.length) {
+        flashDropMsg("Nothing dropped — try again");
+        return;
+      }
+      // Paths nikalne ke liye pehle Electron ka getPathForFile use karo
+      // (File.path deprecated/unreliable hai newer Electron me)
+      const paths = [];
+      for (const f of files) {
+        try {
+          let p = null;
+          try { p = await window.electronAPI?.getPathForFile?.(f); } catch {}
+          if (!p) { try { p = f?.path; } catch {} }
+          if (p && !paths.includes(p)) paths.push(p);
+        } catch {}
+      }
+      // Fallback: webkitGetAsEntry se directory check
+      if (!paths.length) {
+        try {
+          const items = Array.from(e?.dataTransfer?.items || []);
+          for (const it of items) {
+            try {
+              if (it.kind === "file" && typeof it.webkitGetAsEntry === "function") {
+                const entry = it.webkitGetAsEntry();
+                if (entry && entry.fullPath) {
+                  // entry.fullPath relative hota hai, lekin File object se path lelo
+                  const file = it.getAsFile();
+                  if (file) {
+                    let p = null;
+                    try { p = await window.electronAPI?.getPathForFile?.(file); } catch {}
+                    if (!p) { try { p = file?.path; } catch {} }
+                    if (p && !paths.includes(p)) paths.push(p);
+                  }
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+      }
+      if (!paths.length) {
+        flashDropMsg("No paths found — drag the folder from Explorer");
+        return;
+      }
+      const dirs = [];
+      for (const p of paths) {
+        try {
+          const st = await window.electronAPI?.stat?.(p);
+          if (st?.exists && st?.isDir && !dirs.includes(p)) dirs.push(p);
+        } catch {}
+      }
+      if (!dirs.length) {
+        // DIAG: pehle path ka stat dikhao taaki exact wajah pata chale
+        let diag = "";
+        try {
+          if (paths.length) {
+            const st0 = await window.electronAPI?.stat?.(paths[0]);
+            diag = ` [${paths[0]} exists=${!!st0?.exists} dir=${!!st0?.isDir}]`;
+          }
+        } catch (err) { diag = ` [stat err: ${err?.message || err}]`; }
+        flashDropMsg(`No folder found${diag}`);
+        return;
+      }
+      for (const d of dirs) {
+        try { window.electronAPI.projectAddRecent(d); } catch {}
+      }
+      // Open button wala shared direct-open (dialog:openFolder ka same code
+      // path — dialog bilkul nahi, dropped path seedha khulta hai).
+      let opened = null;
+      try { opened = await window.electronAPI.openDirect?.(dirs[0]); } catch (err) { opened = { ok: false, error: err?.message || String(err) }; }
+      if (!opened) {
+        // purana preload (rebuild se pehle) — fallback purana raasta
+        try { opened = await window.electronAPI.menuOpenProject(dirs[0]); } catch (err) { opened = { ok: false, error: err?.message || String(err) }; }
+      }
+      if (opened && opened.ok === false) {
+        flashDropMsg(`Open fail: ${opened.error || "unknown"}`);
+        return;
+      }
+      flashDropMsg(`Imported: ${String(dirs[0]).split(/[\\/]/).pop() || dirs[0]}${dirs.length > 1 ? ` +${dirs.length - 1} recents me` : ""}`);
+    } catch {}
+  }, []);
+
   const resolveGhUser = useCallback(async () => {
     let user = null;
     try { user = window.__githubUsername || null; } catch {}
@@ -1088,6 +1226,10 @@ const ProjectHub = () => {
         ...(wallpaper ? { backgroundImage: `url("${wallpaper}")`, "--wall-tint": wallTint || undefined } : {}),
         "--wall-opacity": `${wallOpacity}%`,
       }}
+      onDragEnter={onHubDragEnter}
+      onDragOver={onHubDragOver}
+      onDragLeave={onHubDragLeave}
+      onDrop={onHubDrop}
     >
       {!nativeCursor && <CustomCursor />}
 
@@ -1804,6 +1946,22 @@ const ProjectHub = () => {
           </div>
         )}
       </div>
+
+      {/* Drag & drop overlay — folder import */}
+      {dropActive && (
+        <div className="phub__dropzone" aria-hidden="true">
+          <div className="phub__dropzone-box">
+            <FolderOpen size={28} />
+            <span>Drop folder to import project</span>
+          </div>
+        </div>
+      )}
+      {/* Drop result message */}
+      {dropMsg && (
+        <div className="phub__dropmsg" role="status">
+          {dropMsg}
+        </div>
+      )}
 
       {/* Wallpaper — right side bottom, chhota button */}
       <div className="phub__wallwrap">

@@ -59,7 +59,7 @@ const HubPage = ({ settings, onSave }) => {
     await update({ githubUsername: null, githubOnboardingDismissed: null });
     try { window.__githubUsername = null; } catch {}
     setUsername("");
-    flash("Onboarding reset — restart par phir puchega");
+    flash("Onboarding reset — it will ask again on restart");
   };
 
   const clearRecents = async () => {
@@ -114,7 +114,7 @@ const HubPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">GitHub Username</span>
         <span className="sw-row__desc">
-          Hub me contribution heatmap ke liye. Onboarding me bhi manga jata hai.
+          For the contribution heatmap in Hub. Also asked during onboarding.
         </span>
         <div className="sw-inline-row">
           <input
@@ -156,7 +156,7 @@ const HubPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Custom Cursor</span>
         <span className="sw-row__desc">
-          Hub me smart custom cursor. Band karo to normal OS cursor milega.
+          Smart custom cursor in Hub. Turn off for the normal OS cursor.
         </span>
         <label className="sw-toggle-row">
           <span className="sw-toggle-label">{customCursor ? "Custom" : "Default OS"}</span>
@@ -176,7 +176,7 @@ const HubPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Wallpaper Opacity</span>
         <span className="sw-row__desc">
-          Wallpaper laga ho to Hub panels kitne solid rahen (100 = full solid, kam = zyada transparent).
+          How solid Hub panels stay when a wallpaper is set (100 = fully solid, lower = more transparent).
         </span>
         <div className="sw-inline-row">
           <input
@@ -209,7 +209,7 @@ const HubPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Reset Onboarding</span>
         <span className="sw-row__desc">
-          Welcome page dobara dikhao (username bhool jayega).
+          Show the welcome page again (forgets the username).
         </span>
         <button className="sw-btn" onClick={resetOnboarding}>Reset</button>
       </div>

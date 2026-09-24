@@ -385,10 +385,10 @@ const getProjectStoreRoot = () => path.join(app.getPath("userData"), "projects")
 const STORE_README =
   "Idiot Box — Main Storage Folder\r\n" +
   "================================\r\n" +
-  "Har project ka app data yahan rehta hai (pins, tabs, canvas layout, drawings).\r\n" +
-  "- Har folder ka naam uske project ke naam par hai; andar project.json me original path likha hai.\r\n" +
-  "- Ye files delete karne se PROJECT FILES safe rehti hain — sirf app state (pins/tabs/canvas) reset hoga.\r\n" +
-  "- App me Storage menu -> \"Open Main Storage Folder\" se yehi folder khulta hai.\r\n";
+  "Each project's app data lives here (pins, tabs, canvas layout, drawings).\r\n" +
+  "- Each folder is named after its project; project.json inside holds the original path.\r\n" +
+  "- Deleting these files keeps PROJECT FILES safe — only app state (pins/tabs/canvas) resets.\r\n" +
+  "- Open this same folder from the app via Storage menu -> \"Open Main Storage Folder\".\r\n";
 
 // Root + README.txt banao (idempotent) — "Open Main Storage" me yehi root khulta hai,
 // jisme saare project folders dikhte hain.
@@ -1288,10 +1288,25 @@ ipcMain.handle("dialog:openFolder", async (event) => {
   const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
   if (r.canceled || !r.filePaths.length) return null;
   const folderPath = r.filePaths[0];
-  lastProjectPath = folderPath;
-  addRecentProject(folderPath);
-  event.sender.send("menu:openProject", folderPath);
-  return folderPath;
+  const res = openProjectDirect(folderPath, event.sender);
+  return res.ok ? folderPath : null;
+});
+// Drop-import + Open button shared path — dialog bilkul nahi, seedha open.
+// (dialog:openFolder dialog ke baad, drop seedha path ke saath — dono yahi.)
+function openProjectDirect(folderPath, sender) {
+  try {
+    if (!folderPath || typeof folderPath !== "string") return { ok: false, error: "No path provided" };
+    let st = null;
+    try { st = fs.statSync(toLongPath(folderPath)); } catch {}
+    if (!st || !st.isDirectory()) return { ok: false, error: "Not a folder" };
+    lastProjectPath = folderPath;
+    addRecentProject(folderPath);
+    try { sender.send("menu:openProject", folderPath); } catch {}
+    return { ok: true };
+  } catch (err) { return { ok: false, error: err?.message || String(err) }; }
+}
+ipcMain.handle("project:openDirect", async (event, folderPath) => {
+  return openProjectDirect(folderPath, event.sender);
 });
 ipcMain.handle("dialog:browseFolder", async () => {
   const r = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
@@ -2540,13 +2555,7 @@ ipcMain.handle("project:refresh-recent", async () => {
 });
 
 ipcMain.handle("menu:openProject", async (event, folderPath) => {
-  if (!folderPath) return { ok: false, error: "No path provided" };
-  try {
-    lastProjectPath = folderPath;
-    addRecentProject(folderPath);
-    try { event.sender.send("menu:openProject", folderPath); } catch {}
-    return { ok: true };
-  } catch (err) { return { ok: false, error: err.message }; }
+  return openProjectDirect(folderPath, event.sender);
 });
 
 ipcMain.handle("menu:newProject", async (event, folderPath) => {

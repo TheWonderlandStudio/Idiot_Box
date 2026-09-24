@@ -74,34 +74,34 @@ export const validateCmSettings = (raw) => {
   const errors = [];
   const out = { ...DEFAULT_CM_SETTINGS };
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { settings: out, errors: ["Settings object nahi hai — defaults use ho rahe hain"] };
+    return { settings: out, errors: ["Settings is not an object — using defaults"] };
   }
   for (const k of BOOL_KEYS) {
     if (k in raw) {
       const v = raw[k];
       if (typeof v === "boolean") out[k] = v;
-      else errors.push(`"${k}" boolean hona chahiye (mila: ${typeof v}) — purani value rakhi`);
+      else errors.push(`"${k}" must be a boolean (got: ${typeof v}) — kept previous value`);
     }
   }
   if ("tabSize" in raw) {
     const n = Number(raw.tabSize);
     if (Number.isFinite(n) && n >= 1 && n <= 8) out.tabSize = Math.round(n);
-    else errors.push(`"tabSize" 1–8 ke beech number hona chahiye — purani value rakhi`);
+    else errors.push(`"tabSize" must be a number between 1–8 — kept previous value`);
   }
   if ("indentUnit" in raw) {
     const u = String(raw.indentUnit ?? "");
     if (/^( +|\t+)$/.test(u) && u.length >= 1 && u.length <= 8) out.indentUnit = u;
-    else errors.push(`"indentUnit" sirf spaces/tabs (1–8 chars) ho sakta hai — purani value rakhi`);
+      else errors.push(`"indentUnit" must be spaces/tabs only (1–8 chars) — kept previous value`);
   }
   if ("fontSize" in raw) {
     const n = Number(raw.fontSize);
     if (Number.isFinite(n) && n >= 8 && n <= 32) out.fontSize = Math.round(n);
-    else errors.push(`"fontSize" 8–32 ke beech hona chahiye — purani value rakhi`);
+    else errors.push(`"fontSize" must be between 8–32 — kept previous value`);
   }
   if ("theme" in raw || "editorTheme" in raw) {
     const v = raw.theme ?? raw.editorTheme;
     if (typeof v === "string") out.theme = migrateTheme(v);
-    else errors.push(`"theme" string hona chahiye — purani value rakhi`);
+    else errors.push(`"theme" must be a string — kept previous value`);
   }
   // ── Compat sync: wordWrap <-> lineWrapping ──
   if ("wordWrap" in raw && !("lineWrapping" in raw)) {

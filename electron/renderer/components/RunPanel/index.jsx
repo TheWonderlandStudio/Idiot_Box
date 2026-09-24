@@ -611,7 +611,7 @@ const RunPanel = () => {
         try {
           const p = probesRef.current;
           det = !p
-            ? " (runtimes abhi detect ho rahe hain — ↻ dabao)"
+            ? " (still detecting runtimes — press ↻)"
             : ` (detected: python=${p.python ? `${p.python} via ${p.pythonCmd || "?"}` : "MISSING"}, node=${p.node || "MISSING"})`;
         } catch {}
         const hint = /Could not start/i.test(res?.error || "")
@@ -849,7 +849,7 @@ const RunPanel = () => {
     termRef.current = term;
     fitRef.current = fit;
     try {
-      term.writeln("\x1b[90mRun console — output yahan, poora log Output › Run me. Chalti run me type karke input de sakte ho.\x1b[0m");
+      term.writeln("\x1b[90mRun console — output here, full log in Output › Run. Type to send input to a running process.\x1b[0m");
     } catch {}
 
     // Typing → chalti run ko stdin (idle ho to ignore)
@@ -1141,7 +1141,7 @@ const RunPanel = () => {
             const cfg = list.find((x) => x.id === id);
             if (cfg) doRunRef.current?.(cfg);
             else {
-              setErr("Woh run option ab nahi hai — panel se dobara chuno");
+              setErr("That run option no longer exists — pick again from the panel");
               out(`Run option not found: ${id}`, "warn");
             }
           } catch {}
