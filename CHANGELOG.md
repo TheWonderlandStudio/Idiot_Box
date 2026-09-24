@@ -3,6 +3,60 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.23] - 2026-09-25
+
+### Added
+- **AI panel: 7 new providers** — OpenRouter, Groq, Together AI, DeepSeek,
+  xAI (Grok), Mistral AI and OpenCode Zen (free tier), all OpenAI-compatible
+  with no extra dependencies. Synced across panel, Settings and main process.
+- **AI file write tools** (opt-in, default OFF) — `write_file`, `edit_file`
+  (unique-match guard), `make_dir`, `rename_path`, `copy_path`,
+  `delete_path`. Project-confined, with panel + Settings toggles.
+- **Run button: mise on-demand runtimes** — missing runtimes
+  (node, python, go, rust, dotnet, java, ruby, php, dart…) auto-install via
+  mise binary (auto-downloaded) and retry through `mise x --`. Success path
+  untouched; dependency auto-install preserved as a chained step.
+- **Run auto-detect v2** — multiple configs per project, framework detection
+  (Next/Nuxt/Astro/Vue/Svelte/Angular/Expo/Electron…), Makefile,
+  docker-compose and Taskfile support, prioritized npm scripts.
+- **Hub wallpaper** — picker button (bottom-right), popup with wide-ratio
+  recents grid, dotted + tile, custom right-click menu, session-only recents,
+  wallpaper-tinted sidebar/center, opacity + cursor settings in Settings → Hub.
+- **Hub drag-drop folder import** — drop any folder to import and open it
+  directly (shared `openProjectDirect` path, no dialog), with status badges.
+- **Output panel on xterm.js** — colored levels, clickable links,
+  follow-lock, select-to-copy, incremental writes and same-line `\r`
+  progress overwrites (with Run panel source fix).
+- **Landing page privacy policy** (`privacy.html`) — human-written, no
+  trackers/music notes, nav + sitemap wiring, jpg background.
+- **Extension icon fallback** — icon-less extensions get the app icon
+  instead of a 400 + broken tile.
+
+### Changed
+- **Project storage uses readable folder names** (`userData/projects/
+  <ProjectName>/` with `project.json`, `README.txt`, `index.json`) with
+  automatic migration from hashed names; Storage menu added.
+- **Fonts: Consolas across the app**; shared smart CustomCursor (Hub +
+  onboarding) with collapsible Hub sidebar rail.
+- **All UI strings in English** — 27 Hinglish strings converted
+  (Hub, Run, MediaViewer, Editor, Settings, storage README, emulator).
+- **App-wide custom scrollbars** — single thin style everywhere, Hub rules unified.
+- **Hub layout fit** — titlebar-aware container (`top: 30px`), flexible note
+  panel, `min-height: 0` chain, short-screen compact mode, centered
+  content-width Create panel with centered actions, flat backgrounds.
+- **Canvas sidebar toggle** is now a Hub-style icon button; drawing saves
+  are atomic (crash can no longer zero the file) with graceful corrupt-file
+  handling.
+
+### Fixed
+- **Titlebar Tab access** — menubar buttons reachable via keyboard
+  (`titlebarA11y` bridge + focus styles); Tab-eating handlers removed from
+  Notebook and AndroidEmulator.
+- **Canvas corrupt drawing recovery** — zeroed file diagnosed, backed up
+  and repaired.
+- **Recents filter menu clipping/z-order** and Hub bottom-margin/frame fit.
+- **Temp titlebar diagnostics** removed from console.
+
 ## [0.1.22] - 2026-09-22
 
 ### Changed
