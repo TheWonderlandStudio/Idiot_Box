@@ -261,65 +261,544 @@ const saveJson = (k, v) => {
 
 const baseName = (p) => String(p || "").replace(/.*[\\/]/, "") || String(p || "");
 const stripSlash = (p) => String(p || "").replace(/[\\/]+$/, "");
-// ── Project auto-detect: project type se default run command ─────────────
-// Priority: npm scripts (dev>start>serve>watch) > dotnet > cargo > go >
-// python entry > ruby > php server > dart > java (gradle/maven) >
-// static index.html (Live Server). Null = kuch samajh nahi aaya.
+// ── Project auto-detect: project type se MULTIPLE default run configs ─────
+// Priority: npm scripts (ALL, dev>start>serve>watch priority wale pehle) >
+// Makefile > docker-compose > Taskfile > dotnet > cargo > go >
+// python entries > ruby > php server > dart > java (gradle/maven) >
+// static index.html (Live Server). Empty array = kuch samajh nahi aaya.
 export async function detectAutoConfig(root) {
+  const configs = [];
   try {
-    if (!root) return null;
+    if (!root) return configs;
     const api = window.electronAPI;
-    if (!api?.readDirAll) return null;
+    if (!api?.readDirAll) return configs;
     let entries = [];
-    try { entries = (await api.readDirAll(root)) || []; } catch { return null; }
+    try { entries = (await api.readDirAll(root)) || []; } catch { return configs; }
     const files = entries.filter((e) => !e.isDir).map((e) => String(e.name || ""));
     const lower = new Set(files.map((f) => f.toLowerCase()));
     const has = (n) => lower.has(String(n).toLowerCase());
     const hasExt = (ext) => [...lower].some((f) => f.endsWith(ext));
     const real = (n) => entries.find((e) => !e.isDir && String(e.name).toLowerCase() === String(n).toLowerCase())?.name || n;
     const join = (n) => `${stripSlash(root)}/${n}`;
+    // ── 1. npm / bun / pnpm / yarn package.json scripts ──
     if (has("package.json")) {
       try {
         const pkg = JSON.parse((await api.readTextFile(join("package.json"))) || "{}");
         const scripts = pkg?.scripts && typeof pkg.scripts === "object" ? Object.keys(pkg.scripts) : [];
-        if (scripts.length) {
-          const pref = ["dev", "start", "serve", "watch"];
-          const pick = pref.find((s) => scripts.includes(s))
-            || scripts.find((s) => !/^(pre|post)/.test(s))
-            || scripts[0];
-          return { kind: "run", name: `npm run ${pick}`, cmd: RUNTIME_CMD.npm, args: ["run", pick], cwd: root };
+        const pkgName = pkg?.name && typeof pkg.name === "string" ? String(pkg.name) : null;
+        // Framework detection — badge/label ke liye
+        const allDeps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
+        const deps = Object.keys(allDeps);
+        const framework =
+          deps.includes("next") ? "Next.js" :
+          deps.includes("nuxt") || deps.includes("nuxt-edge") ? "Nuxt" :
+          deps.includes("astro") ? "Astro" :
+          deps.includes("@remix-run/react") || deps.includes("@remix-run/node") ? "Remix" :
+          deps.includes("svelte") || deps.includes("svelte-kit") ? "Svelte" :
+          deps.includes("@angular/core") ? "Angular" :
+          deps.includes("react-scripts") ? "Create React App" :
+          deps.includes("vite") ? "Vite" :
+          deps.includes("@vue/cli-service") ? "Vue CLI" :
+          deps.includes("vue") ? "Vue" :
+          deps.includes("react") ? "React" :
+          deps.includes("expo") ? "Expo" :
+          deps.includes("react-native") ? "React Native" :
+          deps.includes("electron") ? "Electron" :
+          deps.includes("tailwindcss") ? "Tailwind" :
+          deps.includes("@types/node") ? "Node.js" :
+          deps.includes("express") ? "Express" :
+          deps.includes("fastify") ? "Fastify" :
+          deps.includes("nest") || deps.includes("@nestjs/core") ? "NestJS" :
+          deps.includes("ts-node") || deps.includes("tsx") ? "TypeScript" :
+          null;
+        // Script priority order: jis order me list dikhna hai
+        const order = [
+          "dev", "develop", "start", "serve", "preview",
+          "watch", "hot", "build:watch",
+          "build", "compile", "make",
+          "test", "test:watch", "vitest", "jest", "e2e",
+          "lint", "format", "typecheck", "type-check", "check",
+        ];
+        const byPriority = (a, b) => {
+          const ai = order.indexOf(a);
+          const bi = order.indexOf(b);
+          const ap = ai >= 0 ? ai : 999;
+          const bp = bi >= 0 ? bi : 999;
+          if (ap !== bp) return ap - bp;
+          return a.localeCompare(b);
+        };
+        const sorted = [...scripts].sort(byPriority);
+        const npm = npmBin(null); // resolve later via probes; here just label
+        for (const s of sorted) {
+          const fw = framework ? `${framework} • ` : "";
+          const label = s === "dev" ? "Dev Server"
+            : s === "start" ? "Start"
+            : s === "build" ? "Build"
+            : s === "test" ? "Tests"
+            : s === "lint" ? "Lint"
+            : s === "watch" ? "Watch"
+            : s === "serve" || s === "preview" ? "Preview"
+            : s;
+          configs.push({
+            kind: "run",
+            category: "npm",
+            priority: 0,
+            name: `${fw}npm run ${s} — ${label}`,
+            shortName: `npm run ${s}`,
+            cmd: RUNTIME_CMD.npm,
+            args: ["run", s],
+            cwd: root,
+            badge: framework || "npm",
+          });
+        }
+        // bin: package.json me direct binary entry (custom servers)
+        if (pkg?.bin && typeof pkg.bin === "string" && pkgName) {
+          configs.push({
+            kind: "run", category: "npm", priority: 1,
+            name: `${pkgName} (package.json bin)`,
+            shortName: pkgName,
+            cmd: RUNTIME_CMD.npm, args: ["start"], cwd: root, badge: "bin",
+          });
         }
       } catch {}
     }
-    if (hasExt(".csproj") || hasExt(".sln")) return { kind: "run", name: "dotnet run", cmd: "dotnet", args: ["run"], cwd: root };
-    if (has("Cargo.toml")) return { kind: "run", name: "cargo run", cmd: "cargo", args: ["run"], cwd: root };
-    if (has("go.mod")) return { kind: "run", name: "go run .", cmd: "go", args: ["run", "."], cwd: root };
-    if (has("requirements.txt") || has("pyproject.toml") || has("setup.py") || has("manage.py") || has("main.py") || has("app.py")) {
-      const py = RUNTIME_CMD.python;
-      const entry = ["manage.py", "main.py", "app.py", "server.py"].find((f) => lower.has(f))
-        || [...lower].find((f) => f.endsWith(".py") && !f.startsWith("test"));
-      if (entry) {
-        const rn = real(entry);
-        if (entry === "manage.py") return { kind: "run", name: "python manage.py runserver", cmd: py, args: [join(rn), "runserver"], cwd: root };
-        return { kind: "run", name: `${py} ${rn}`, cmd: py, args: [join(rn)], cwd: root };
+    // ── 2. Makefile ──
+    if (has("Makefile") || has("makefile") || has("GNUmakefile")) {
+      try {
+        const mk = await api.readTextFile(join(has("Makefile") ? "Makefile" : has("GNUmakefile") ? "GNUmakefile" : "makefile"));
+        const targets = [...String(mk || "").matchAll(/^([A-Za-z0-9_./%-][A-Za-z0-9_./%-]*)\s*:(?!=)/gm)]
+          .map((m) => m[1]).filter((t) => !/^\./.test(t) && !["SUFFIXES", "PHONY", "DEFAULT", "PRECIOUS", "INTERMEDIATE", "SECONDARY", "DELETE_ON_ERROR"].includes(t));
+        const ordered = [];
+        const pref = ["all", "run", "start", "dev", "serve", "build", "compile", "test", "check", "lint", "clean", "install"];
+        for (const p of pref) if (targets.includes(p) && !ordered.includes(p)) ordered.push(p);
+        for (const t of targets) if (!ordered.includes(t)) ordered.push(t);
+        for (const t of ordered.slice(0, 12)) {
+          configs.push({
+            kind: "run", category: "make", priority: 10,
+            name: `make ${t}`, shortName: `make ${t}`,
+            cmd: "make", args: [t], cwd: root, badge: "Make",
+          });
+        }
+      } catch {
+        configs.push({
+          kind: "run", category: "make", priority: 10,
+          name: "make", shortName: "make",
+          cmd: "make", args: [], cwd: root, badge: "Make",
+        });
       }
     }
-    if (has("rakefile") || has("gemfile") || hasExt(".gemspec")) {
-      if (has("rakefile")) return { kind: "run", name: "rake", cmd: "rake", args: [], cwd: root };
-      const entry = ["main.rb", "app.rb", "server.rb"].find((f) => lower.has(f))
-        || [...lower].find((f) => f.endsWith(".rb"));
-      if (entry) return { kind: "run", name: `ruby ${real(entry)}`, cmd: "ruby", args: [join(real(entry))], cwd: root };
+    // ── 3. Docker Compose ──
+    if (has("docker-compose.yml") || has("docker-compose.yaml") || has("compose.yml") || has("compose.yaml")) {
+      configs.push({
+        kind: "run", category: "docker", priority: 15,
+        name: "Docker Compose — up", shortName: "docker compose up",
+        cmd: "docker", args: ["compose", "up"], cwd: root, badge: "Docker",
+      });
+      configs.push({
+        kind: "run", category: "docker", priority: 16,
+        name: "Docker Compose — up -d", shortName: "docker compose up -d",
+        cmd: "docker", args: ["compose", "up", "-d"], cwd: root, badge: "Docker",
+      });
+      configs.push({
+        kind: "run", category: "docker", priority: 17,
+        name: "Docker Compose — down", shortName: "docker compose down",
+        cmd: "docker", args: ["compose", "down"], cwd: root, badge: "Docker",
+      });
     }
-    if (has("composer.json")) return { kind: "run", name: "php server :8000", cmd: "php", args: ["-S", "127.0.0.1:8000", "-t", "."], cwd: root };
-    if (has("pubspec.yaml")) return { kind: "run", name: "dart run", cmd: "dart", args: ["run"], cwd: root };
+    // ── 4. Taskfile (go-task) / Justfile ──
+    if (has("Taskfile.yml") || has("Taskfile.yaml")) {
+      configs.push({
+        kind: "run", category: "task", priority: 18,
+        name: "task — list/run", shortName: "task --list-all",
+        cmd: "task", args: ["--list-all"], cwd: root, badge: "Task",
+      });
+    }
+    if (has("Justfile") || has("justfile")) {
+      configs.push({
+        kind: "run", category: "just", priority: 19,
+        name: "just — list recipes", shortName: "just --list",
+        cmd: "just", args: ["--list"], cwd: root, badge: "Just",
+      });
+    }
+    // ── 5. .NET / C# ──
+    if (hasExt(".csproj") || hasExt(".sln")) {
+      configs.push({
+        kind: "run", category: "dotnet", priority: 20,
+        name: ".NET — run", shortName: "dotnet run",
+        cmd: "dotnet", args: ["run"], cwd: root, badge: ".NET",
+      });
+      configs.push({
+        kind: "run", category: "dotnet", priority: 21,
+        name: ".NET — build", shortName: "dotnet build",
+        cmd: "dotnet", args: ["build"], cwd: root, badge: ".NET",
+      });
+      configs.push({
+        kind: "run", category: "dotnet", priority: 22,
+        name: ".NET — test", shortName: "dotnet test",
+        cmd: "dotnet", args: ["test"], cwd: root, badge: ".NET",
+      });
+      configs.push({
+        kind: "run", category: "dotnet", priority: 23,
+        name: ".NET — watch", shortName: "dotnet watch run",
+        cmd: "dotnet", args: ["watch", "run"], cwd: root, badge: ".NET",
+      });
+    }
+    // ── 6. Rust / Cargo ──
+    if (has("Cargo.toml")) {
+      configs.push({
+        kind: "run", category: "cargo", priority: 30,
+        name: "Cargo — run", shortName: "cargo run",
+        cmd: "cargo", args: ["run"], cwd: root, badge: "Rust",
+      });
+      configs.push({
+        kind: "run", category: "cargo", priority: 31,
+        name: "Cargo — build", shortName: "cargo build",
+        cmd: "cargo", args: ["build"], cwd: root, badge: "Rust",
+      });
+      configs.push({
+        kind: "run", category: "cargo", priority: 32,
+        name: "Cargo — test", shortName: "cargo test",
+        cmd: "cargo", args: ["test"], cwd: root, badge: "Rust",
+      });
+      configs.push({
+        kind: "run", category: "cargo", priority: 33,
+        name: "Cargo — check", shortName: "cargo check",
+        cmd: "cargo", args: ["check"], cwd: root, badge: "Rust",
+      });
+      configs.push({
+        kind: "run", category: "cargo", priority: 34,
+        name: "Cargo — watch", shortName: "cargo watch -x run",
+        cmd: "cargo", args: ["watch", "-x", "run"], cwd: root, badge: "Rust",
+      });
+    }
+    // ── 7. Go ──
+    if (has("go.mod")) {
+      configs.push({
+        kind: "run", category: "go", priority: 40,
+        name: "Go — run .", shortName: "go run .",
+        cmd: "go", args: ["run", "."], cwd: root, badge: "Go",
+      });
+      configs.push({
+        kind: "run", category: "go", priority: 41,
+        name: "Go — build", shortName: "go build",
+        cmd: "go", args: ["build"], cwd: root, badge: "Go",
+      });
+      configs.push({
+        kind: "run", category: "go", priority: 42,
+        name: "Go — test ./...", shortName: "go test ./...",
+        cmd: "go", args: ["test", "./..."], cwd: root, badge: "Go",
+      });
+      configs.push({
+        kind: "run", category: "go", priority: 43,
+        name: "Go — vet", shortName: "go vet ./...",
+        cmd: "go", args: ["vet", "./..."], cwd: root, badge: "Go",
+      });
+    }
+    // ── 8. Python entries ──
+    if (has("requirements.txt") || has("pyproject.toml") || has("setup.py") || has("manage.py") || has("main.py") || has("app.py") || hasExt(".py")) {
+      const py = RUNTIME_CMD.python;
+      const pyFiles = [...lower].filter((f) => f.endsWith(".py") && !/^(test_|_test|tests?)/.test(f));
+      const prefEntries = ["manage.py", "main.py", "app.py", "server.py", "run.py", "wsgi.py", "asgi.py"];
+      const seen = new Set();
+      for (const f of prefEntries) {
+        if (lower.has(f) && !seen.has(f)) {
+          seen.add(f);
+          const rn = real(f);
+          if (f === "manage.py") {
+            configs.push({
+              kind: "run", category: "python", priority: 50,
+              name: "Django — runserver", shortName: "python manage.py runserver",
+              cmd: py, args: [join(rn), "runserver"], cwd: root, badge: "Django",
+            });
+            configs.push({
+              kind: "run", category: "python", priority: 51,
+              name: "Django — migrations", shortName: "python manage.py migrate",
+              cmd: py, args: [join(rn), "migrate"], cwd: root, badge: "Django",
+            });
+            configs.push({
+              kind: "run", category: "python", priority: 52,
+              name: "Django — shell", shortName: "python manage.py shell",
+              cmd: py, args: [join(rn), "shell"], cwd: root, badge: "Django",
+            });
+          } else {
+            configs.push({
+              kind: "run", category: "python", priority: 50,
+              name: `Python — ${rn}`, shortName: `${py} ${rn}`,
+              cmd: py, args: [join(rn)], cwd: root, badge: "Python",
+            });
+          }
+        }
+      }
+      // Flask detect
+      if (has("pyproject.toml")) {
+        try {
+          const t = String(await api.readTextFile(join("pyproject.toml")) || "");
+          if (/flask/i.test(t) && !configs.some((c) => c.badge === "Flask")) {
+            configs.push({
+              kind: "run", category: "python", priority: 50,
+              name: "Flask — dev server", shortName: "flask run --debug",
+              cmd: py, args: ["-m", "flask", "run", "--debug"], cwd: root, badge: "Flask",
+            });
+          }
+          if (/fastapi/i.test(t) && !configs.some((c) => c.badge === "FastAPI")) {
+            configs.push({
+              kind: "run", category: "python", priority: 50,
+              name: "FastAPI — uvicorn", shortName: "uvicorn app:app --reload",
+              cmd: py, args: ["-m", "uvicorn", "app:app", "--reload"], cwd: root, badge: "FastAPI",
+            });
+          }
+        } catch {}
+      }
+      if (has("requirements.txt")) {
+        configs.push({
+          kind: "run", category: "python", priority: 55,
+          name: "pip — install deps", shortName: "pip install -r requirements.txt",
+          cmd: py, args: ["-m", "pip", "install", "-r", "requirements.txt"], cwd: root, badge: "pip",
+        });
+      }
+      if (has("pyproject.toml")) {
+        configs.push({
+          kind: "run", category: "python", priority: 56,
+          name: "pip — editable install", shortName: "pip install -e .",
+          cmd: py, args: ["-m", "pip", "install", "-e", "."], cwd: root, badge: "pip",
+        });
+      }
+      // Baaki .py files (top 5)
+      let extra = 0;
+      for (const f of pyFiles) {
+        if (seen.has(f)) continue;
+        if (extra >= 5) break;
+        seen.add(f); extra++;
+        const rn = real(f);
+        configs.push({
+          kind: "run", category: "python", priority: 58,
+          name: `Python — ${rn}`, shortName: `${py} ${rn}`,
+          cmd: py, args: [join(rn)], cwd: root, badge: "Python",
+        });
+      }
+    }
+    // ── 9. Ruby ──
+    if (has("rakefile") || has("gemfile") || hasExt(".gemspec") || hasExt(".rb")) {
+      if (has("rakefile")) {
+        configs.push({
+          kind: "run", category: "ruby", priority: 60,
+          name: "Rake — default", shortName: "rake",
+          cmd: "rake", args: [], cwd: root, badge: "Ruby",
+        });
+      }
+      if (has("gemfile")) {
+        configs.push({
+          kind: "run", category: "ruby", priority: 61,
+          name: "Bundler — install", shortName: "bundle install",
+          cmd: "bundle", args: ["install"], cwd: root, badge: "Ruby",
+        });
+      }
+      const rbEntries = ["main.rb", "app.rb", "server.rb", "config.ru"];
+      for (const f of rbEntries) {
+        if (lower.has(f)) {
+          configs.push({
+            kind: "run", category: "ruby", priority: 62,
+            name: `Ruby — ${real(f)}`, shortName: `ruby ${f}`,
+            cmd: "ruby", args: [join(real(f))], cwd: root, badge: "Ruby",
+          });
+        }
+      }
+      // Rails detect
+      if (has("config.ru") && (lower.has("gemfile"))) {
+        try {
+          const g = String(await api.readTextFile(join("Gemfile")) || "");
+          if (/rails/i.test(g)) {
+            configs.push({
+              kind: "run", category: "ruby", priority: 60,
+              name: "Rails — server", shortName: "rails server",
+              cmd: "rails", args: ["server"], cwd: root, badge: "Rails",
+            });
+          }
+        } catch {}
+      }
+    }
+    // ── 10. PHP / Laravel / Composer ──
+    if (has("composer.json") || hasExt(".php")) {
+      if (has("artisan")) {
+        configs.push({
+          kind: "run", category: "php", priority: 70,
+          name: "Laravel — serve", shortName: "php artisan serve",
+          cmd: "php", args: ["artisan", "serve"], cwd: root, badge: "Laravel",
+        });
+        configs.push({
+          kind: "run", category: "php", priority: 71,
+          name: "Laravel — migrate", shortName: "php artisan migrate",
+          cmd: "php", args: ["artisan", "migrate"], cwd: root, badge: "Laravel",
+        });
+      }
+      if (has("composer.json")) {
+        try {
+          const c = JSON.parse(String(await api.readTextFile(join("composer.json")) || "{}"));
+          const scripts = c?.scripts && typeof c.scripts === "object" ? Object.keys(c.scripts) : [];
+          for (const s of scripts.slice(0, 8)) {
+            configs.push({
+              kind: "run", category: "php", priority: 75,
+              name: `Composer — ${s}`, shortName: `composer ${s}`,
+              cmd: "composer", args: [s], cwd: root, badge: "Composer",
+            });
+          }
+        } catch {}
+        configs.push({
+          kind: "run", category: "php", priority: 76,
+          name: "Composer — install", shortName: "composer install",
+          cmd: "composer", args: ["install"], cwd: root, badge: "Composer",
+        });
+      }
+      if (!configs.some((c) => c.category === "php")) {
+        configs.push({
+          kind: "run", category: "php", priority: 77,
+          name: "PHP — dev server :8000", shortName: "php -S 127.0.0.1:8000 -t .",
+          cmd: "php", args: ["-S", "127.0.0.1:8000", "-t", "."], cwd: root, badge: "PHP",
+        });
+      }
+    }
+    // ── 11. Dart / Flutter ──
+    if (has("pubspec.yaml")) {
+      try {
+        const p = String(await api.readTextFile(join("pubspec.yaml")) || "");
+        const isFlutter = /^name\s*:\s*flutter\b/m.test(p) || /sdk\s*:\s*flutter/m.test(p) || /flutter\.sdk/m.test(p);
+        if (isFlutter) {
+          configs.push({
+            kind: "run", category: "dart", priority: 80,
+            name: "Flutter — run", shortName: "flutter run",
+            cmd: "flutter", args: ["run"], cwd: root, badge: "Flutter",
+          });
+          configs.push({
+            kind: "run", category: "dart", priority: 81,
+            name: "Flutter — test", shortName: "flutter test",
+            cmd: "flutter", args: ["test"], cwd: root, badge: "Flutter",
+          });
+          configs.push({
+            kind: "run", category: "dart", priority: 82,
+            name: "Flutter — pub get", shortName: "flutter pub get",
+            cmd: "flutter", args: ["pub", "get"], cwd: root, badge: "Flutter",
+          });
+        } else {
+          configs.push({
+            kind: "run", category: "dart", priority: 80,
+            name: "Dart — run", shortName: "dart run",
+            cmd: "dart", args: ["run"], cwd: root, badge: "Dart",
+          });
+          configs.push({
+            kind: "run", category: "dart", priority: 81,
+            name: "Dart — test", shortName: "dart test",
+            cmd: "dart", args: ["test"], cwd: root, badge: "Dart",
+          });
+          configs.push({
+            kind: "run", category: "dart", priority: 82,
+            name: "Dart — pub get", shortName: "dart pub get",
+            cmd: "dart", args: ["pub", "get"], cwd: root, badge: "Dart",
+          });
+        }
+      } catch {}
+    }
+    // ── 12. Java — Gradle / Maven / Spring ──
     if (has("build.gradle") || has("build.gradle.kts") || has("pom.xml")) {
-      if (has("gradlew") || has("gradlew.bat")) return { kind: "run", name: "gradle run", cmd: isWin ? "gradlew.bat" : "./gradlew", args: ["run"], cwd: root };
-      if (has("build.gradle") || has("build.gradle.kts")) return { kind: "run", name: "gradle run", cmd: "gradle", args: ["run"], cwd: root };
-      return { kind: "run", name: "mvn spring-boot:run", cmd: "mvn", args: ["spring-boot:run"], cwd: root };
+      if (has("gradlew") || has("gradlew.bat")) {
+        const g = isWin ? "gradlew.bat" : "./gradlew";
+        configs.push({
+          kind: "run", category: "java", priority: 90,
+          name: "Gradle (wrapper) — run", shortName: `${g} run`,
+          cmd: g, args: ["run"], cwd: root, badge: "Gradle",
+        });
+        configs.push({
+          kind: "run", category: "java", priority: 91,
+          name: "Gradle (wrapper) — build", shortName: `${g} build`,
+          cmd: g, args: ["build"], cwd: root, badge: "Gradle",
+        });
+        configs.push({
+          kind: "run", category: "java", priority: 92,
+          name: "Gradle (wrapper) — test", shortName: `${g} test`,
+          cmd: g, args: ["test"], cwd: root, badge: "Gradle",
+        });
+        configs.push({
+          kind: "run", category: "java", priority: 93,
+          name: "Gradle (wrapper) — bootRun", shortName: `${g} bootRun`,
+          cmd: g, args: ["bootRun"], cwd: root, badge: "Spring",
+        });
+      } else if (has("build.gradle") || has("build.gradle.kts")) {
+        configs.push({
+          kind: "run", category: "java", priority: 90,
+          name: "Gradle — run", shortName: "gradle run",
+          cmd: "gradle", args: ["run"], cwd: root, badge: "Gradle",
+        });
+        configs.push({
+          kind: "run", category: "java", priority: 93,
+          name: "Gradle — bootRun", shortName: "gradle bootRun",
+          cmd: "gradle", args: ["bootRun"], cwd: root, badge: "Spring",
+        });
+      } else if (has("mvnw") || has("mvnw.cmd")) {
+        const m = isWin ? "mvnw.cmd" : "./mvnw";
+        configs.push({
+          kind: "run", category: "java", priority: 90,
+          name: "Maven (wrapper) — spring-boot:run", shortName: `${m} spring-boot:run`,
+          cmd: m, args: ["spring-boot:run"], cwd: root, badge: "Spring",
+        });
+        configs.push({
+          kind: "run", category: "java", priority: 91,
+          name: "Maven (wrapper) — test", shortName: `${m} test`,
+          cmd: m, args: ["test"], cwd: root, badge: "Maven",
+        });
+      } else {
+        configs.push({
+          kind: "run", category: "java", priority: 90,
+          name: "Maven — spring-boot:run", shortName: "mvn spring-boot:run",
+          cmd: "mvn", args: ["spring-boot:run"], cwd: root, badge: "Spring",
+        });
+        configs.push({
+          kind: "run", category: "java", priority: 91,
+          name: "Maven — test", shortName: "mvn test",
+          cmd: "mvn", args: ["test"], cwd: root, badge: "Maven",
+        });
+      }
     }
-    if (has("index.html")) return { kind: "live", name: "Live Server", file: join(real("index.html")), cwd: root };
-    return null;
-  } catch { return null; }
+    // ── 13. ESLint / Prettier / TS — standalone (agar config files hain) ──
+    if (has(".eslintrc.js") || has(".eslintrc.cjs") || has(".eslintrc.json") || has("eslint.config.js") || has("eslint.config.mjs")) {
+      configs.push({
+        kind: "run", category: "tools", priority: 200,
+        name: "ESLint — fix all", shortName: "eslint . --fix",
+        cmd: "npx", args: ["eslint", ".", "--fix"], cwd: root, badge: "ESLint",
+      });
+    }
+    if (has(".prettierrc") || has(".prettierrc.js") || has(".prettierrc.json") || has("prettier.config.js")) {
+      configs.push({
+        kind: "run", category: "tools", priority: 201,
+        name: "Prettier — write all", shortName: "prettier --write .",
+        cmd: "npx", args: ["prettier", "--write", "."], cwd: root, badge: "Prettier",
+      });
+    }
+    // ── 14. Static Live Server — last (agar koi bhi nahi mila) ──
+    if (has("index.html")) {
+      configs.push({
+        kind: "live", category: "static", priority: 500,
+        name: "Live Server — index.html", shortName: "Live Server",
+        file: join(real("index.html")), cwd: root, badge: "HTML",
+      });
+    }
+    const htmls = [...lower].filter((f) => f.endsWith(".html") && f !== "index.html").slice(0, 5);
+    for (const h of htmls) {
+      configs.push({
+        kind: "live", category: "static", priority: 501,
+        name: `Live Server — ${real(h)}`, shortName: `Live Server ${h}`,
+        file: join(real(h)), cwd: root, badge: "HTML",
+      });
+    }
+    // Sort by priority, dedupe by shortName (same command repeat mat karo)
+    const seenShort = new Set();
+    const out = [];
+    for (const c of configs.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))) {
+      const k = `${c.category || "x"}:${c.shortName || c.name}`;
+      if (seenShort.has(k)) continue;
+      seenShort.add(k);
+      out.push(c);
+    }
+    return out;
+  } catch { return configs; }
 }
 const dirName = (p) => {
   const s = String(p || "");
@@ -416,16 +895,28 @@ const RunPanel = () => {
   const [npmScripts, setNpmScripts] = useState([]);
   const [customs, setCustoms] = useState(() => loadJson(lsKey(null), []));
   const [selected, setSelected] = useState("__current__");
-  const [auto, setAuto] = useState(null); // detectAutoConfig result
-  const autoRef = useRef(null);
-  autoRef.current = auto;
-  const [running, setRunning] = useState(null); // { runId, label, startedAt, cwd }
+  // MULTIPLE AUTO configs — detectAutoConfig ab array return karta hai
+  const [autos, setAutos] = useState([]); // [{ id, name, kind, cmd, args, cwd, badge, category }, ...]
+  const autosRef = useRef([]);
+  autosRef.current = autos;
+  // MULTIPLE RUNS — Map-like plain object taaki React re-render ho jab update karo
+  const [runs, setRuns] = useState({}); // { [runId]: { runId, label, startedAt, cwd, file, exitCode?, ms?, endedAt? } }
+  const [activeRunId, setActiveRunId] = useState(null); // konsa run console me dikh raha hai
+  const runsRef = useRef({});
+  runsRef.current = runs;
+  const activeRunIdRef = useRef(null);
+  activeRunIdRef.current = activeRunId;
+  // Per-run terminal buffer: har run ka output string buffer me save karke rakho;
+  // tab switch karne par buffer se xterm refill karo.
+  const runBuffersRef = useRef({}); // { [runId]: string }
+  // Last seen runId for per-run state (browser open, etc.)
+  const runBrowserRef = useRef({}); // { [runId]: true }
+  const runLastCwdRef = useRef({}); // { [runId]: cwd }
+
   const [history, setHistory] = useState(() => loadJson(histKey(null), []));
   const [err, setErr] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", cmd: "", args: "", cwd: "" });
-  const runningRef = useRef(null);
-  runningRef.current = running;
   const rootRef = useRef(projectRoot);
   rootRef.current = projectRoot;
   // doRun callback ke andar fresh values (stale closure se bachne ke liye)
@@ -439,8 +930,6 @@ const RunPanel = () => {
   const termWrapRef = useRef(null);
   const termRef = useRef(null);
   const fitRef = useRef(null);
-  const lastCwdRef = useRef(null);
-  const browserOpenedRef = useRef(false);
 
   const out = useCallback((msg, level) => {
     try { window.__outputLog?.("Run", msg, level || "info"); } catch {}
@@ -507,6 +996,62 @@ const RunPanel = () => {
     pendingExitRef.current = { runId, resolve };
   }), []);
 
+  // Multi-run helpers — immutably add / update / remove run in runs object
+  const addRun = (info) => {
+    const id = String(info.runId);
+    setRuns((prev) => ({ ...prev, [id]: { ...info, runId: id } }));
+    runBuffersRef.current[id] = "";
+    // Clear browser-open flag for new run (URL in output → browser tab ek baar kholo)
+    runBrowserRef.current[id] = false;
+    setActiveRunId((cur) => cur || id); // naya run aaya → agar koi active nahi to isko set karo
+  };
+  const updateRun = (id, patch) => {
+    id = String(id);
+    setRuns((prev) => prev[id] ? { ...prev, [id]: { ...prev[id], ...patch } } : prev);
+  };
+  const removeRun = (id) => {
+    id = String(id);
+    setRuns((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    // Active id was this one → switch to another (first remaining)
+    setActiveRunId((cur) => {
+      if (cur !== id) return cur;
+      const remaining = Object.keys(runsRef.current).filter((k) => k !== id);
+      return remaining[0] || null;
+    });
+    try { delete runBuffersRef.current[id]; } catch {}
+    try { delete runBrowserRef.current[id]; } catch {}
+    try { delete runLastCwdRef.current[id]; } catch {}
+  };
+  const switchRunTab = (id) => {
+    setActiveRunId(id);
+    const term = termRef.current;
+    if (!term) return;
+    try {
+      term.clear();
+      const buf = runBuffersRef.current[id] || "";
+      if (buf) term.write(buf);
+    } catch {}
+  };
+  const writeTermForRun = (runId, data) => {
+    const str = typeof data === "string" ? data : String(data ?? "");
+    // Save to buffer FIRST (agar write fail ho bhi jaye, bacha hua buffer me ho)
+    try {
+      const prev = runBuffersRef.current[runId] || "";
+      // Cap buffer 4MB per run (memory bloat se bachao)
+      const next = prev.length > 4 * 1024 * 1024
+        ? prev.slice(-3 * 1024 * 1024) + str
+        : prev + str;
+      runBuffersRef.current[runId] = next;
+    } catch {}
+    if (String(activeRunIdRef.current) === String(runId)) {
+      try { termRef.current?.write(str); } catch {}
+    }
+  };
+
   const miseInstallAndRespawn = useCallback(async ({ tool, cmd, args, cwd, label, file }) => {
     const api = window.electronAPI;
     try {
@@ -521,13 +1066,14 @@ const RunPanel = () => {
       const bin = ens.bin;
       try { await api?.miseTrust?.(cwd); } catch {}
       const runId = `run-mise-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      try { termRef.current?.writeln(`\x1b[33m[mise] installing ${tool}…\x1b[0m`); } catch {}
+      const banner = `\x1b[33m[mise] installing ${tool}…\x1b[0m\r\n`;
+      writeTermForRun(runId, banner);
       try { out(`[mise] installing ${tool}…`); } catch {}
-      setRunning({ runId, label: `mise install ${tool}`, startedAt: Date.now(), cwd: cwd || null, file: file || null });
+      addRun({ runId, label: `mise install ${tool}`, startedAt: Date.now(), cwd: cwd || null, file: file || null });
       let res = null;
       try { res = await api?.runStart?.({ runId, cmd: bin, args: ["install", tool], cwd, label: `mise install ${tool}` }); } catch (e) { res = { ok: false, error: e?.message || String(e) }; }
       if (!res?.ok) {
-        setRunning(null);
+        removeRun(runId);
         const msg = `mise install could not start: ${res?.error || "unknown"}`;
         setErr(msg);
         try { out(msg, "error"); } catch {}
@@ -535,7 +1081,6 @@ const RunPanel = () => {
       }
       const code = await waitRunExit(runId);
       if (Number(code) !== 0) {
-        setRunning(null);
         const msg = `mise install ${tool} failed (exit ${code}) — check output above`;
         setErr(msg);
         try { out(msg, "error"); } catch {}
@@ -543,7 +1088,8 @@ const RunPanel = () => {
         return false;
       }
       try { await refreshProbesRef.current?.(); } catch {}
-      try { termRef.current?.writeln(`\x1b[90m[mise] ${tool} ready — running via mise\x1b[0m`); } catch {}
+      const doneBanner = `\x1b[90m[mise] ${tool} ready — running via mise\x1b[0m\r\n`;
+      writeTermForRun(runId, doneBanner);
       if (spawnRunRef.current) {
         return await spawnRunRef.current(
           { cmd: bin, args: ["x", "--", cmd, ...(args || [])], cwd, label: `${label} (via mise)`, file },
@@ -552,7 +1098,6 @@ const RunPanel = () => {
       }
       return false;
     } catch (e) {
-      setRunning(null);
       setErr(e?.message || String(e));
       return false;
     }
@@ -582,18 +1127,14 @@ const RunPanel = () => {
     const allowMise = !opts || opts.allowMise !== false;
     setErr(null);
     try {
-      if (runningRef.current) {
-        try { await window.electronAPI?.runStop?.(runningRef.current.runId); } catch {}
-      }
+      // IMPORTANT: Purane run ko AUTO-KILL NAHI karte — multiple runs allow hain!
+      // (User manually tab pe Stop dabaye ga.)
       const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      try {
-        termRef.current?.clear?.();
-        termRef.current?.writeln(`\x1b[90m$ ${cmd} ${(args || []).join(" ")}\x1b[0m`);
-      } catch {}
-      lastCwdRef.current = cwd || null;
-      browserOpenedRef.current = false;
+      const cmdLine = `\x1b[90m$ ${cmd} ${(args || []).join(" ")}\x1b[0m\r\n`;
+      writeTermForRun(runId, cmdLine);
+      runLastCwdRef.current[runId] = cwd || null;
       // file bhi rakho taaki exit par runtime-errors Problems me file se jud sakein.
-      setRunning({ runId, label, startedAt: Date.now(), cwd: cwd || null, file: file || null });
+      addRun({ runId, label, startedAt: Date.now(), cwd: cwd || null, file: file || null });
       // Output panel kholo + uska channel "Run" par lao (warna logs App me chhupe rehte hain).
       try { window.dispatchEvent(new CustomEvent("add-output-panel", { detail: { channel: "Run" } })); } catch {}
       try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: "Run" } })); } catch {}
@@ -603,9 +1144,11 @@ const RunPanel = () => {
         // Spawn fail + binary mise se mil sakta hai → install karke retry.
         const tool = allowMise ? miseToolFor(cmd) : null;
         if (tool) {
+          // NOTE: spawn fail — is naye runId ko hatao taaki mise wali naya bana sake
+          removeRun(runId);
           return await miseInstallAndRespawn({ tool, cmd, args: args || [], cwd, label, file });
         }
-        setRunning(null);
+        updateRun(runId, { endedAt: Date.now(), exitCode: -1 });
         // Detected runtimes bhi batao taaki "py vs python" confusion turant clear ho.
         let det = "";
         try {
@@ -624,7 +1167,6 @@ const RunPanel = () => {
       }
       return true;
     } catch (e) {
-      setRunning(null);
       setErr(e?.message || String(e));
       return false;
     }
@@ -639,7 +1181,7 @@ const RunPanel = () => {
         setCustoms(loadJson(lsKey(projectRoot), []));
         setHistory(loadJson(histKey(projectRoot), []));
       } catch {}
-      if (!projectRoot) { if (!dead) { setNpmScripts([]); setAuto(null); } return; }
+      if (!projectRoot) { if (!dead) { setNpmScripts([]); setAutos([]); } return; }
       try {
         const pkgPath = `${projectRoot.replace(/[\\/]+$/, "")}/package.json`;
         const text = await window.electronAPI?.readTextFile?.(pkgPath);
@@ -649,9 +1191,14 @@ const RunPanel = () => {
         setNpmScripts(scripts);
       } catch { if (!dead) setNpmScripts([]); }
       try {
-        const a = await detectAutoConfig(projectRoot);
-        if (!dead) setAuto(a);
-      } catch { if (!dead) setAuto(null); }
+        const arr = await detectAutoConfig(projectRoot);
+        // Har auto config ko unique id de do taaki dropdown/react select kaam kare
+        const withIds = Array.isArray(arr) ? arr.map((a, i) => ({
+          ...a,
+          id: `auto:${a.category || "x"}:${(a.shortName || a.name || i).replace(/[^A-Za-z0-9_-]/g, "_")}:${i}`,
+        })) : [];
+        if (!dead) setAutos(withIds);
+      } catch { if (!dead) setAutos([]); }
     })();
     return () => { dead = true; };
   }, [projectRoot]);
@@ -659,59 +1206,61 @@ const RunPanel = () => {
   useEffect(() => { saveJson(lsKey(projectRoot), customs); }, [customs, projectRoot]);
   useEffect(() => { saveJson(histKey(projectRoot), history); }, [history, projectRoot]);
 
-  // Default select: project AUTO-command ko priority (npm run dev / ...),
-  // khuli runnable file uske baad. User ki explicit choice (npm/custom) ko
-  // nahi chhedo. Top ▾ dropdown se koi bhi option ek click me chalti hai.
+  // Default select: sabse pehla AUTO-command (priority sorted) ko select karo.
+  // User ki explicit choice (npm/custom/previous select) ko nahi chhedo.
   useEffect(() => {
     setSelected((s) => {
-      if (s !== "__current__" && s !== "__auto__") return s;
-      if (auto) return "__auto__";
+      // Agar user ne already explicitly koi specific auto/npm/custom choose kiya → wohi rakhne do
+      if (s && s !== "__current__" && !s.startsWith("__auto_")) return s;
+      if (autos && autos.length) return autos[0].id;
       return "__current__";
     });
-  }, [auto]);
+  }, [autos]);
 
-  // ── Engine events → xterm console + Output panel ────────────────────────
-  // RAW chunk xterm me (colors/spinners/progress as-is), stripped lines Output me.
-  const termWrite = useCallback((data) => {
-    try { termRef.current?.write(typeof data === "string" ? data : String(data ?? "")); } catch {}
-  }, []);
+  // ── Engine events → buffer + active xterm + Output panel ────────────────
+  // Per-run routing: har run ka data buffer me store + active tab ho to xterm me.
   useEffect(() => {
     const onData = ({ runId, data }) => {
       try {
-        if (!runningRef.current || String(runId) !== String(runningRef.current.runId)) return;
-        termWrite(data);
+        const id = String(runId);
+        // Don't filter by runningRef anymore — ALL runs ke data save karo,
+        // buffer bade ho jaye to truncate.
+        writeTermForRun(id, data);
         const clean = stripAnsi(data);
-        if (!browserOpenedRef.current) {
+        // URL detect: har run ke liye alag flag (pehli baar URL aaye → browser open)
+        if (!runBrowserRef.current[id]) {
           const browserUrl = clean.match(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s\u001b]*)?/i)?.[0];
           if (browserUrl) {
-            browserOpenedRef.current = true;
+            runBrowserRef.current[id] = true;
             window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url: browserUrl } }));
           }
         }
-        // \r\n par split (CRLF ka \r kha jao), lone trailing \r RAKHO —
-        // wo same-line overwrite hai, Output panel use write (bina newline) karta hai.
+        // lines ko output me bhejo — channel:"Run" (per-channel history hai)
         const lines = clean.split(/\r\n|\n/).map((l) => l.replace(/[ \t]+$/, "")).filter((l) => l.length > 0).slice(0, 200);
         for (const l of lines) out(l);
       } catch {}
     };
     const onExit = ({ runId, code, ms }) => {
       try {
+        const id = String(runId);
         // Chained setup step (mise install) → waiter ko resolve, normal
         // history/diagnostics handling skip (yeh setup tha, run nahi).
         const pend = pendingExitRef.current;
-        if (pend && String(runId) === String(pend.runId)) {
+        if (pend && String(id) === String(pend.runId)) {
           pendingExitRef.current = null;
           try { pend.resolve(Number(code)); } catch {}
           return;
         }
-        if (!runningRef.current || String(runId) !== String(runningRef.current.runId)) return;
-        const info = runningRef.current;
+        const info = runsRef.current[id];
+        if (!info) {
+          // Unknown run → still clean up pending exits if any
+          return;
+        }
         const label = info.label;
         const runFile = info.file || null;
-        setRunning(null);
-        try {
-          termRef.current?.writeln(`\x1b[90m[exit code ${code} in ${((Number(ms) || 0) / 1000).toFixed(1)}s]\x1b[0m`);
-        } catch {}
+        updateRun(id, { endedAt: Date.now(), exitCode: Number(code), ms: Number(ms) || 0 });
+        const tail = `\x1b[90m[exit code ${code} in ${((Number(ms) || 0) / 1000).toFixed(1)}s]\x1b[0m\r\n`;
+        writeTermForRun(id, tail);
         setHistory((prev) => [{ label, code: Number(code), ms: Number(ms) || 0, at: Date.now() }, ...prev].slice(0, HIST_MAX));
         // ── Problems panel sync ──────────────────────────────────────
         // Pass → us file ke purane runtime-errors clear; fail → tail se
@@ -725,8 +1274,8 @@ const RunPanel = () => {
             }
           } else {
             const buf = window.__outputBuffer?.Run || [];
-            const tail = buf.slice(-150).map((l) => l?.msg ?? "").join("\n");
-            for (const d of parseRuntimeDiagnostics(tail, runFile)) {
+            const tailStr = buf.slice(-150).map((l) => l?.msg ?? "").join("\n");
+            for (const d of parseRuntimeDiagnostics(tailStr, runFile)) {
               window.dispatchEvent(new CustomEvent("codemirror:diagnostics", { detail: d }));
             }
           }
@@ -737,7 +1286,7 @@ const RunPanel = () => {
     try { u1 = window.electronAPI?.onRunData?.(onData); } catch {}
     try { u2 = window.electronAPI?.onRunExit?.(onExit); } catch {}
     return () => { try { u1?.(); } catch {} try { u2?.(); } catch {} };
-  }, [out, termWrite]);
+  }, [out]);
 
   // ── xterm console lifecycle (Terminal wala pattern) ───────────────────────
   useEffect(() => {
@@ -754,9 +1303,11 @@ const RunPanel = () => {
         const line = parseInt(m[2] || "1", 10) || 1;
         const col = parseInt(m[3] || "1", 10) || 1;
         if (!p) return;
-        // relative → last run cwd se jodo
-        if (!/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(p) && lastCwdRef.current) {
-          p = `${String(lastCwdRef.current).replace(/[\\/]+$/, "")}/${p}`;
+        // relative → ACTIVE run ke cwd se jodo (multi-run ke liye)
+        const activeId = activeRunIdRef.current;
+        const lastCwd = activeId ? runLastCwdRef.current[activeId] : null;
+        if (!/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(p) && lastCwd) {
+          p = `${String(lastCwd).replace(/[\\/]+$/, "")}/${p}`;
         }
         window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: p } }));
         setTimeout(() => {
@@ -852,13 +1403,17 @@ const RunPanel = () => {
       term.writeln("\x1b[90mRun console — output here, full log in Output › Run. Type to send input to a running process.\x1b[0m");
     } catch {}
 
-    // Typing → chalti run ko stdin (idle ho to ignore)
+    // Typing → ACTIVE run ko stdin bhejo (idle ho to ignore)
     try {
       term.onData((data) => {
         try {
-          const r = runningRef.current;
-          if (!r) return;
-          window.electronAPI?.runWrite?.(r.runId, data)?.catch?.(() => {});
+          const activeId = activeRunIdRef.current;
+          if (!activeId) return;
+          const runInfo = runsRef.current?.[activeId];
+          if (!runInfo) return;
+          // exited/ended ho chuka to ignore (user ko pata lagna chahiye)
+          if (typeof runInfo.exitCode === "number") return;
+          window.electronAPI?.runWrite?.(activeId, data)?.catch?.(() => {});
         } catch {}
       });
     } catch {}
@@ -912,8 +1467,39 @@ const RunPanel = () => {
     return { cmd: resolveCmd(built.cmd, probes), ok: !!built.ok, hint: built.hint, missing: built.missing, file: activeFile };
   })();
 
+  // Badge color helper (category → CSS color var)
+  const badgeColor = (cat) => {
+    switch (cat) {
+      case "npm": return "var(--code-magenta)";
+      case "make": return "var(--code-yellow)";
+      case "docker": return "var(--code-blue)";
+      case "task": case "just": return "var(--text-highlight)";
+      case "dotnet": return "var(--code-cyan)";
+      case "cargo": return "var(--code-orange, var(--git-modified))";
+      case "go": return "var(--code-cyan)";
+      case "python": return "var(--code-yellow)";
+      case "ruby": return "var(--danger)";
+      case "php": return "var(--code-magenta)";
+      case "dart": return "var(--code-cyan)";
+      case "java": return "var(--code-orange, var(--git-modified))";
+      case "tools": return "var(--teal)";
+      case "static": return "var(--code-green, var(--teal))";
+      default: return "var(--text-muted)";
+    }
+  };
+
   const configs = [
-    ...(auto ? [{ id: "__auto__", name: `Auto — ${auto.name}`, hint: "detected from project", auto: true }] : []),
+    // ALL auto-detected configs (array me, priority sorted — detectAutoConfig returns sorted)
+    ...autos.map((a) => ({
+      id: a.id,
+      name: a.name,
+      hint: a.badge ? `[${a.badge}] ${a.shortName || a.name}` : (a.shortName || a.name),
+      badge: a.badge,
+      badgeCategory: a.category,
+      auto: true,
+      autoCfg: a,
+      run: a.kind === "live" ? { live: true, file: a.file, cwd: a.cwd } : { cmd: a.cmd, args: a.args, cwd: a.cwd },
+    })),
     {
       id: "__current__",
       name: activeFile ? `Current File — ${baseName(activeFile)}` : "Current File — (none open)",
@@ -924,6 +1510,8 @@ const RunPanel = () => {
           ? `no runner for ${extOf(activeFile) || "this type"}`
           : (currentRunner.live ? currentRunner.hint
             : (probes && !currentRunner.ok ? `${currentRunner.missing || currentRunner.cmd} not found — install it or pick another config` : currentRunner.hint)),
+      badge: activeFile ? extOf(activeFile).slice(1).toUpperCase() : null,
+      badgeCategory: "tools",
       run: currentRunner,
       file: activeFile,
     },
@@ -931,12 +1519,16 @@ const RunPanel = () => {
       id: `npm:${s}`,
       name: `npm run ${s}`,
       hint: `package.json script`,
+      badge: "npm",
+      badgeCategory: "npm",
       run: { cmd: RUNTIME_CMD.npm, args: ["run", s], cwd: projectRoot },
     })),
     ...customs.map((c) => ({
       id: `custom:${c.id}`,
       name: c.name,
       hint: [c.cmd, ...(c.args || [])].join(" ").slice(0, 80),
+      badge: "Custom",
+      badgeCategory: "tools",
       run: { cmd: c.cmd, args: c.args || [], cwd: c.cwd || projectRoot },
       customId: c.id,
     })),
@@ -983,98 +1575,97 @@ const RunPanel = () => {
     }
   }, [projectRoot, out]);
 
-  const doRun = useCallback(async (cfg) => {
+  // Helper: given a config id/auto entry, doRun me current-file fallback bhi karo
+  const resolveCfgToRun = useCallback(async (cfg) => {
     let c = cfg || active;
-    if (!c || c.disabled) {
-      // Disabled current-file par bhi wajah batao (silent fail nahi) —
-      // mise se mil sake to install karke chalao.
-      if (c?.id === "__current__" && activeFile) {
+    if (!c) return { err: "Nothing selected" };
+    if (c.disabled) {
+      if (c.id === "__current__" && activeFile) {
         const b = buildRunnerForFile(activeFile, probesRef.current);
         if (b && !b.ok) {
           const handled = await tryMiseForFile(activeFile, b.missing);
-          if (handled) return;
-          setErr(`${b.missing || "runtime"} not found — install it and press ↻, or pick another config`);
+          if (handled) return { handled: true };
+          return { err: `${b.missing || "runtime"} not found — install it and press ↻, or pick another config` };
         }
       }
-      return;
+      return { err: c.hint || "option disabled" };
     }
-    // Auto sentinel → resolve karo (NO recursion — resolved config seedha
-    // neeche chalti hai, warna __auto__ loop ban jata hai).
-    // Priority: project AUTO-command pehle (npm run dev / cargo run / ...),
-    // phir khuli runnable file. Koi file khuli nahi ya runnable nahi to auto
-    // hi chalta hai; auto nahi to current file. (Dropdown me explicit choice
-    // seedha usi config par jati hai — neeche run:runOption dekho.)
-    if (c.auto || c.id === "__auto__") {
-      const a = autoRef.current;
-      const f = activeFileRef.current;
-      const fb = buildRunnerForFile(f, probesRef.current);
-      const runCurrentFile = () => {
-        if (!f || !fb) return false;
-        if (fb.live) { runLive({ name: `Live Server — ${baseName(f)}`, file: fb.file, cwd: projectRootRef.current }); return true; }
-        if (fb.ok) {
-          c = { id: "__current__", name: `Current File — ${baseName(f)}`, run: { cmd: resolveCmd(fb.cmd, probesRef.current), args: fb.args }, file: f };
-          return true;
+    // AUTO entry — array wale entries ke liye seedha run use karo.
+    // "__auto__" purana sentinel agar kahi aa jaye → first auto ya current file.
+    if (c.id === "__auto__") {
+      const list = autosRef.current;
+      const first = list?.[0];
+      if (first && first.kind === "live") {
+        runLive(first);
+        return { handled: true };
+      }
+      if (first) {
+        c = { id: first.id, name: first.name, run: first.kind === "live" ? { live: true, file: first.file, cwd: first.cwd } : { cmd: first.cmd, args: first.args, cwd: first.cwd } };
+      } else {
+        // fallback: current file try
+        const f = activeFileRef.current;
+        const fb = buildRunnerForFile(f, probesRef.current);
+        if (f && fb) {
+          if (fb.live) { runLive({ name: `Live Server — ${baseName(f)}`, file: fb.file, cwd: projectRootRef.current }); return { handled: true }; }
+          if (fb.ok) { c = { id: "__current__", name: `Current File — ${baseName(f)}`, run: { cmd: resolveCmd(fb.cmd, probesRef.current), args: fb.args }, file: f }; }
+          else {
+            const handled = await tryMiseForFile(f, fb.missing);
+            if (handled) return { handled: true };
+            return { err: `${fb.missing || "runtime"} missing` };
+          }
+        } else {
+          return { err: "Nothing to run — open a code file or a project" };
         }
-        return false;
-      };
-      const runAutoCfg = () => {
-        if (!a) return false;
-        if (a.kind === "live") { runLive(a); return true; }
-        c = { id: "__auto_resolved__", name: a.name, run: { cmd: resolveCmd(a.cmd, probesRef.current), args: a.args, cwd: a.cwd } };
-        return true;
-      };
-      const done = runAutoCfg() || runCurrentFile();
-      if (!done) {
-        // Missing runtime mise se mil sake to install karke chalao.
-        if (fb && !fb.ok && f) {
-          const handled = await tryMiseForFile(f, fb.missing);
-          if (handled) return;
-        }
-        setErr(fb && !fb.ok
-          ? `${fb.missing || "runtime"} not found — install it and press ↻, or open a project (package.json / Cargo.toml / go.mod / *.csproj / python / index.html)`
-          : "Nothing to run — open a code file (.py .js .java .c .cpp .go .rs .rb .php …) or a project, then press Run");
-        out("Nothing runnable for Run button — open a file or pick a config", "warn");
-        return;
       }
     }
-    // Current-file config: probes fresh ho sakte hain — runner dobara build karo.
+    // Current-file config: runner dobara build karo
     if (c.id === "__current__") {
       const f = c.file || activeFileRef.current;
       const fb = buildRunnerForFile(f, probesRef.current);
-      if (!fb) { setErr(`No runner for ${extOf(f) || "this type"} yet`); return; }
-      if (fb.live) { runLive({ name: `Live Server — ${baseName(f)}`, file: fb.file, cwd: projectRootRef.current }); return; }
+      if (!fb) return { err: `No runner for ${extOf(f) || "this type"} yet` };
+      if (fb.live) { runLive({ name: `Live Server — ${baseName(f)}`, file: fb.file, cwd: projectRootRef.current }); return { handled: true }; }
       if (!fb.ok) {
         const handled = await tryMiseForFile(f, fb.missing);
-        if (handled) return;
-        setErr(`${fb.missing || "runtime"} not found — install it and press ↻`); out(`Cannot run ${baseName(f)}: ${fb.missing || "runtime"} missing`, "error"); return;
+        if (handled) return { handled: true };
+        return { err: `${fb.missing || "runtime"} not found — install it and press ↻` };
       }
       c = { ...c, run: { cmd: resolveCmd(fb.cmd, probesRef.current), args: fb.args } };
     }
-    if (!c.run) return;
+    if (!c.run) return { err: "no run spec" };
     const raw = { ...c.run, cmd: resolveCmd(c.run.cmd, probesRef.current) };
-    // Command field me poori line ho ("py main.py") to binary/args alag karo,
-    // phir alias resolve (py→probes.pythonCmd/"python").
     const sp = splitCmdLine(raw.cmd, raw.args);
     const run = { ...raw, cmd: resolveCmd(sp.cmd, probesRef.current), args: sp.args };
     const cwd = run.cwd || (c.id === "__current__" && (c.file || activeFileRef.current) ? (dirName(c.file || activeFileRef.current) || projectRootRef.current) : projectRootRef.current) || undefined;
     const args = run.args || [];
     const label = c.name;
-    // file bhi rakho taaki exit par runtime-errors Problems me file se jud sakein.
     const runFile = (c.id === "__current__" ? (c.file || activeFileRef.current) : null) || null;
-    // ── Deps auto-install (npm/pip/go mod) — pehle wali behavior, par ab
-    // chained PTY step (shell `&&` nahi) taaki mise flow ke saath compose ho.
+    return { run: run, cwd, args, label, runFile, live: run.live ? run : null, cfg: c };
+  }, [active, autosRef, tryMiseForFile, runLive]);
+
+  const doRun = useCallback(async (cfg) => {
+    const r = await resolveCfgToRun(cfg);
+    if (r?.handled) return;
+    if (r?.err) { setErr(r.err); out(r.err, "warn"); return; }
+    if (!r?.run) return;
+    const { run, cwd, args, label, runFile } = r;
+    // Live: runLive ne khud sambhal liya hoga
+    if (run.live) {
+      const liveCfg = r.cfg?.autoCfg || (r.cfg?.run?.live ? r.cfg?.run : null);
+      if (liveCfg) { await runLive({ name: label, file: liveCfg.file || liveCfg.cwd, cwd: liveCfg.cwd || cwd }); return; }
+    }
+    // ── Deps auto-install (npm/pip/go mod) — chained PTY step ──
     let autoInstall = null;
     try {
-      const rootForInstall = run.cwd || c.cwd || projectRootRef.current;
+      const rootForInstall = run.cwd || r.cfg?.cwd || projectRootRef.current;
       autoInstall = await getInstallCommand(rootForInstall, probesRef.current);
     } catch {}
     if (autoInstall) {
-      try {
-        termRef.current?.writeln(`\x1b[33m[auto-install] ${autoInstall.label}...\x1b[0m`);
-        out(`Auto-install: ${autoInstall.label}`);
-      } catch {}
-      const insId = `run-install-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      setRunning({ runId: insId, label: autoInstall.label, startedAt: Date.now(), cwd: autoInstall.cwd || null, file: runFile });
+      const banner = `\x1b[33m[auto-install] ${autoInstall.label}...\x1b[0m\r\n`;
+      const tmpId = `run-install-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      writeTermForRun(tmpId, banner);
+      out(`Auto-install: ${autoInstall.label}`);
+      const insId = tmpId;
+      addRun({ runId: insId, label: autoInstall.label, startedAt: Date.now(), cwd: autoInstall.cwd || null, file: runFile });
       let ires = null;
       try {
         ires = await window.electronAPI?.runStart?.({
@@ -1086,7 +1677,7 @@ const RunPanel = () => {
         });
       } catch (e) { ires = { ok: false, error: e?.message || String(e) }; }
       if (!ires?.ok) {
-        setRunning(null);
+        removeRun(insId);
         const msg = `Auto-install could not start: ${ires?.error || "unknown"}`;
         setErr(msg);
         out(msg, "error");
@@ -1094,7 +1685,6 @@ const RunPanel = () => {
       }
       const icode = await waitRunExit(insId);
       if (Number(icode) !== 0) {
-        setRunning(null);
         const msg = `${autoInstall.label} failed (exit ${icode}) — fix errors above, then Run again`;
         setErr(msg);
         out(msg, "error");
@@ -1102,37 +1692,82 @@ const RunPanel = () => {
         return;
       }
     }
-    // spawnRun: start karega; spawn fail + mise-tool mile to install→retry khud karega.
     return spawnRun({ cmd: run.cmd, args, cwd, label, file: runFile });
-  }, [active, out, runLive, spawnRun, tryMiseForFile, waitRunExit]);
+  }, [resolveCfgToRun, runLive, spawnRun, waitRunExit, out]);
 
-  const doStop = useCallback(async () => {
+  // Stop SPECIFIC run ya active run
+  const stopRun = useCallback(async (runId) => {
     try {
-      if (runningRef.current) await window.electronAPI?.runStop?.(runningRef.current.runId);
+      const id = runId || activeRunIdRef.current;
+      if (!id) return;
+      await window.electronAPI?.runStop?.(id);
+    } catch {}
+  }, []);
+  const doStop = useCallback(async () => {
+    await stopRun();
+  }, [stopRun]);
+
+  // Specific run ko restart (pehle roko, thoda wait, phir config dhundh ke dobara chalao — best-effort)
+  const restartRun = useCallback(async (runId) => {
+    try {
+      const id = runId || activeRunIdRef.current;
+      if (!id) { doRun(); return; }
+      const info = runsRef.current?.[id];
+      if (!info) return;
+      try { await window.electronAPI?.runStop?.(id); } catch {}
+      // Label se matching config dhundho; agar mille to usse launch karo
+      if (info.label) {
+        setTimeout(() => {
+          try {
+            const list = configsRef.current || [];
+            const same = list.find((c) => c.name === info.label);
+            if (same) doRun(same);
+          } catch {}
+        }, 200);
+      }
+    } catch {}
+  }, [doRun, stopRun]);
+
+  // Stop ALL (header ke right side ke liye helper — expose via window)
+  const stopAllRuns = useCallback(async () => {
+    try {
+      const all = Object.keys(runsRef.current || {});
+      for (const id of all) {
+        const info = runsRef.current[id];
+        if (info && typeof info.exitCode !== "number") {
+          try { await window.electronAPI?.runStop?.(id); } catch {}
+        }
+      }
     } catch {}
   }, []);
 
   // ── Status-bar button bridge ────────────────────────────────────────────
-  // window.__pendingAutoRun = { auto:true } → khuli runnable file pehle,
-  // warna project auto-command (doRun preferCurrent me khud decide karta hai).
-  // "run:stopCurrent" event → chalti run roko.
-  // Har running change par "run:status" broadcast (status button sunta hai).
+  // window.__pendingAutoRun = { auto:true } → sabse pehla auto option ya current file.
+  // "run:stopCurrent" event → active run roko.
+  // Har runs/activeRunId change par "run:status" broadcast (status button sunta hai).
   const doRunRef = useRef(null);
   doRunRef.current = doRun;
   useEffect(() => {
     const onRunRequest = () => {
       window.__pendingAutoRun = null;
-      try { doRunRef.current?.({ id: "__auto__", auto: true }); } catch {}
+      // Auto entries agar hain → sabse pehla auto (Vite/Next etc.), warna current-file fallback
+      const first = autosRef.current?.[0];
+      if (first) {
+        try { doRunRef.current?.({ id: first.id, name: first.name, auto: true, autoCfg: first, run: first.kind === "live" ? { live: true, file: first.file, cwd: first.cwd } : { cmd: first.cmd, args: first.args, cwd: first.cwd } }); } catch {}
+      } else {
+        try { doRunRef.current?.({ id: "__auto__", auto: true }); } catch {}
+      }
     };
     const iv = setInterval(() => {
       try {
         if (window.__pendingAutoRun) {
           window.__pendingAutoRun = null;
-          // doRun: auto → current-file fallback + visible error khud handle karta hai.
-          try { doRunRef.current?.({ id: "__auto__", auto: true }); } catch {}
+          try {
+            const first = autosRef.current?.[0];
+            if (first) doRunRef.current?.({ id: first.id, auto: true, autoCfg: first, run: first.kind === "live" ? { live: true, file: first.file, cwd: first.cwd } : { cmd: first.cmd, args: first.args, cwd: first.cwd } });
+            else doRunRef.current?.({ id: "__auto__", auto: true });
+          } catch {}
         }
-        // Top ▾ dropdown se chuni option (panel mount hone ke baad chalti hai —
-        // isliye poll, seedha event nahi: panel tabhi mount hota hai).
         if (window.__pendingRunOption) {
           const { id } = window.__pendingRunOption || {};
           window.__pendingRunOption = null;
@@ -1152,23 +1787,27 @@ const RunPanel = () => {
     window.addEventListener("run:request", onRunRequest);
     window.addEventListener("run:stopCurrent", onStopReq);
     return () => {
-      clearInterval(iv);
       window.removeEventListener("run:request", onRunRequest);
       window.removeEventListener("run:stopCurrent", onStopReq);
     };
-  }, [out, doStop]);
+  }, [out, doStop, autosRef]);
+  // Status broadcast: multiple runs ka count + active label
   useEffect(() => {
     try {
+      const runningIds = Object.values(runs || {}).filter((r) => typeof r.exitCode !== "number");
+      const activeInfo = activeRunId ? runs[activeRunId] : null;
       window.dispatchEvent(new CustomEvent("run:status", {
-        detail: running ? { running: true, label: running.label } : { running: false },
+        detail: runningIds.length
+          ? { running: true, count: runningIds.length, label: activeInfo?.label || `${runningIds.length} running` }
+          : { running: false },
       }));
     } catch {}
-  }, [running]);
+  }, [runs, activeRunId]);
 
   const deleteCustom = useCallback((id) => {
     setCustoms((prev) => prev.filter((c) => c.id !== id));
-    setSelected((s) => (s === `custom:${id}` ? "__current__" : s));
-  }, []);
+    setSelected((s) => (s === `custom:${id}` ? (autos?.[0]?.id || "__current__") : s));
+  }, [autos]);
 
   const addCustom = useCallback(() => {
     const name = form.name.trim();
@@ -1182,7 +1821,10 @@ const RunPanel = () => {
     setShowAdd(false);
   }, [form]);
 
-  const dot = running ? "var(--teal)" : "var(--text-muted)";
+  const runningArr = Object.entries(runs || {});
+  const runningCount = runningArr.filter(([, r]) => typeof r.exitCode !== "number").length;
+  const activeRunInfo = activeRunId ? runs[activeRunId] : null;
+  const dot = runningCount > 0 ? "var(--teal)" : "var(--text-muted)";
   const runtimeHint = probes
     ? ["node", "python", "php", "go", "java", "gcc", "gpp", "cargo", "rustc", "ruby", "dotnet", "dart", "tsx", "deno", "bun", "lua", "perl", "rscript", "julia"]
       .filter((k) => probes[k]).map((k) => `${k} ${String(probes[k]).split(" ")[0]}`).join(" • ") || "no runtimes found — install node/python/java/gcc and press ↻"
@@ -1209,31 +1851,88 @@ const RunPanel = () => {
 .run-console .xterm { height: 100%; padding: 0 !important; background: var(--bg-vscode) !important; }
 .run-console .xterm-viewport { scrollbar-width: thin; background: var(--bg-vscode) !important; }
 .run-console .xterm-screen { background: var(--bg-vscode) !important; }
-.run-console .xterm-rows { font-variant-ligatures: none; letter-spacing: normal; }`}</style>
+.run-console .xterm-rows { font-variant-ligatures: none; letter-spacing: normal; }
+.run-tab-row::-webkit-scrollbar { height: 4px; }
+.run-badge { display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; letter-spacing:.3px; margin-left:6px; line-height:1.4; }`}</style>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-12)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "var(--radius-round)", background: dot, boxShadow: running ? "0 0 6px var(--teal)" : "none", animation: running ? "pulse 1.4s infinite" : "none" }} />
+        <span style={{ width: 8, height: 8, borderRadius: "var(--radius-round)", background: dot, boxShadow: runningCount > 0 ? "0 0 6px var(--teal)" : "none", animation: runningCount > 0 ? "pulse 1.4s infinite" : "none" }} />
         <span style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-semibold)" }}>Run &amp; Debug</span>
-        {running && (
-          <span style={{ fontSize: "var(--fs-tiny)", background: "var(--teal-a22)", color: "var(--teal)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>
-            {running.label}
+        {runningCount > 0 && (
+          <span style={{ fontSize: "var(--fs-tiny)", background: "var(--teal-a22)", color: "var(--teal)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)" }}>
+            {runningCount} running
+          </span>
+        )}
+        {activeRunInfo && (
+          <span style={{ fontSize: "var(--fs-tiny)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260, color: "var(--text-muted)" }} title={activeRunInfo.label}>
+            {activeRunInfo.label}
+            {typeof activeRunInfo.exitCode === "number" ? ` · exit ${activeRunInfo.exitCode}` : ""}
           </span>
         )}
         <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-4)" }}>
-          {!running ? (
+          {!activeRunInfo || typeof activeRunInfo.exitCode === "number" ? (
             <button onClick={() => doRun()} disabled={!active || active.disabled} title={active?.disabled ? active.hint : `Run ${active?.name}`} style={{ ...btnPrimary, opacity: !active || active.disabled ? 0.45 : 1, cursor: !active || active.disabled ? "default" : "pointer" }}>
               <span>▶</span> Run
             </button>
           ) : (
-            <button onClick={doStop} title="Stop" style={{ ...btn, borderColor: "var(--error-border-short)", color: "var(--error-text)" }}>
+            <button onClick={() => stopRun(activeRunId)} title={`Stop ${activeRunInfo.label || ""}`} style={{ ...btn, borderColor: "var(--error-border-short)", color: "var(--error-text)" }}>
               <span>■</span> Stop
             </button>
           )}
-          <button onClick={() => { if (running) { doStop().finally(() => setTimeout(() => doRun(), 300)); } else doRun(); }} disabled={!active || active.disabled} title="Restart" style={{ ...btn, opacity: !active || active.disabled ? 0.45 : 1 }}>
+          <button onClick={() => restartRun(activeRunId)} disabled={!active || active.disabled} title={activeRunInfo ? "Restart active" : "Restart"} style={{ ...btn, opacity: !active || active.disabled ? 0.45 : 1 }}>
             <span>↻</span>
           </button>
+          {runningCount > 1 && (
+            <button onClick={stopAllRuns} title={`Stop all ${runningCount} runs`} style={{ ...btn, borderColor: "var(--error-border-short)", color: "var(--error-text)" }}>
+              <span>■■</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Run Tabs — multi run UI */}
+      {runningArr.length > 0 && (
+        <div className="run-tab-row" style={{ display: "flex", gap: 4, padding: "4px var(--space-12)", background: "var(--bg-vscode)", borderBottom: "1px solid var(--bg-active)", overflowX: "auto", flexShrink: 0, scrollbarWidth: "thin" }}>
+          {runningArr.map(([id, info]) => {
+            const isActive = id === activeRunId;
+            const isRunning = typeof info.exitCode !== "number";
+            return (
+              <div
+                key={id}
+                onClick={() => switchRunTab(id)}
+                title={info.label}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+                  padding: "4px 10px", borderRadius: "var(--radius-sm)",
+                  cursor: "pointer", fontSize: "var(--fs-tiny)",
+                  background: isActive ? "var(--bg-active)" : "transparent",
+                  border: `1px solid ${isActive ? "var(--border-light)" : "transparent"}`,
+                  color: isRunning ? "var(--text-bright)" : "var(--text-muted)",
+                  maxWidth: 240,
+                }}
+              >
+                <span style={{
+                  width: 6, height: 6, borderRadius: "var(--radius-round)", flexShrink: 0,
+                  background: isRunning ? "var(--teal)" : (info.exitCode === 0 ? "var(--teal)" : "var(--danger)"),
+                  boxShadow: isRunning ? "0 0 4px var(--teal)" : "none",
+                  animation: isRunning ? "pulse 1.4s infinite" : "none",
+                }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{info.label}</span>
+                <button
+                  onClick={(ev) => { ev.stopPropagation(); stopRun(id); }}
+                  title={`Stop ${info.label || ""}`}
+                  style={{
+                    background: "transparent", border: "none", color: isRunning ? "var(--error-text)" : "var(--text-muted)",
+                    cursor: "pointer", padding: 0, fontSize: 12, lineHeight: 1, opacity: isActive ? 1 : 0,
+                  }}
+                  onMouseEnter={(ev) => { ev.currentTarget.style.opacity = 1; }}
+                  onMouseLeave={(ev) => { ev.currentTarget.style.opacity = isActive ? 1 : 0; }}
+                >×</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-8) var(--space-12)", display: "flex", flexDirection: "column", gap: "var(--space-10)" }}>
         {err && (
@@ -1248,7 +1947,7 @@ const RunPanel = () => {
           <select
             value={active?.id || "__current__"}
             onChange={(e) => setSelected(e.target.value)}
-            style={{ ...inp, cursor: "pointer" }}
+            style={{ ...inp, cursor: "pointer", fontFamily: "var(--font-ui, sans-serif)" }}
           >
             {configs.map((c) => (
               <option key={c.id} value={c.id} disabled={!!c.disabled}>
@@ -1256,10 +1955,30 @@ const RunPanel = () => {
               </option>
             ))}
           </select>
-          <div style={{ fontSize: "var(--fs-tiny)", color: "var(--text-muted)", marginTop: "var(--space-4)", display: "flex", alignItems: "center", gap: "var(--space-6)" }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }} title={runtimeHint}>{runtimeHint}</span>
-            <button onClick={refreshProbes} title="Re-detect runtimes" style={{ background: "transparent", border: "none", color: "var(--icon)", cursor: "pointer", fontSize: "var(--fs-small)", padding: 0 }}>↻</button>
+          {/* Badges row — selected ke badges dikhao taaki category pata chale */}
+          <div style={{ marginTop: "var(--space-4)", display: "flex", alignItems: "center", gap: "var(--space-6)", flexWrap: "wrap" }}>
+            {active?.badge && (
+              <span
+                className="run-badge"
+                style={{
+                  background: `${badgeColor(active.badgeCategory || "tools")}22`,
+                  color: badgeColor(active.badgeCategory || "tools"),
+                  border: `1px solid ${badgeColor(active.badgeCategory || "tools")}44`,
+                }}
+              >
+                {active.badge}
+              </span>
+            )}
+            <span style={{ fontSize: "var(--fs-tiny)", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }} title={active?.hint || runtimeHint}>
+              {active?.hint || runtimeHint}
+            </span>
+            <button onClick={refreshProbes} title="Re-detect runtimes" style={{ background: "transparent", border: "none", color: "var(--icon)", cursor: "pointer", fontSize: "var(--fs-small)", padding: 0, flexShrink: 0 }}>↻</button>
           </div>
+          {autos?.length > 0 && (
+            <div style={{ fontSize: "var(--fs-tiny)", color: "var(--text-muted)", marginTop: "var(--space-4)" }}>
+              {autos.length} commands auto-detected from project files.
+            </div>
+          )}
           {!projectRoot && (
             <div style={{ fontSize: "var(--fs-small)", color: "var(--text-muted)", marginTop: "var(--space-4)" }}>No project open — runs use the file's folder. npm scripts need a project.</div>
           )}
@@ -1270,8 +1989,19 @@ const RunPanel = () => {
           <div style={{ fontSize: "var(--fs-tiny)", fontWeight: "var(--fw-bold)", letterSpacing: 0.5, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "var(--space-4)", display: "flex", alignItems: "center", gap: "var(--space-6)" }}>
             <span>Console</span>
             <span style={{ fontWeight: "var(--fw-medium)", textTransform: "none", letterSpacing: 0 }}>
-              {running ? "type to send input • links are clickable" : "full log → Output › Run"}
+              {activeRunInfo && typeof activeRunInfo.exitCode !== "number"
+                ? "type to send input • links are clickable"
+                : "full log → Output › Run"}
             </span>
+            {activeRunInfo && typeof activeRunInfo.exitCode === "number" && (
+              <span style={{
+                marginLeft: "auto", fontWeight: "var(--fw-medium)", textTransform: "none",
+                color: activeRunInfo.exitCode === 0 ? "var(--teal)" : "var(--error-text)",
+              }}>
+                {activeRunInfo.exitCode === 0 ? "✓ succeeded" : `✕ exit ${activeRunInfo.exitCode}`}
+                {activeRunInfo.ms ? ` · ${(Number(activeRunInfo.ms) / 1000).toFixed(1)}s` : ""}
+              </span>
+            )}
           </div>
           <div
             ref={termWrapRef}
@@ -1343,3 +2073,4 @@ const RunPanel = () => {
 };
 
 export default RunPanel;
+  
