@@ -16,6 +16,31 @@ body,
   background: var(--bg-app);
 }
 
+/* ── App-wide custom scrollbars (single UI everywhere) ────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
 /* Titlebar menu (custom-electron-titlebar) keyboard focus — Tab se dikhe */
 .cet-menubar-menu-button:focus {
   outline: none;
@@ -78,6 +103,13 @@ body,
 .cet-menubar-menu-button {
   pointer-events: auto !important;
   cursor: pointer !important;
+}
+/* CET titlebar absolute overlay hai (top 30px) jabki .cet-container bina
+   top ke full-viewport height leta hai — result: titlebar content ke upar
+   aata hai aur layout neeche khisak kar bottom se kat-ta hai. Container ko
+   titlebar ke neeche se shuru karo taaki app exactly bachi hui height le. */
+.cet-container {
+  top: 30px !important;
 }
 .cet-menubar-menu-button:hover {
   background: var(--bg-hover) !important;

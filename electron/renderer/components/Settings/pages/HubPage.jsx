@@ -7,6 +7,8 @@ import React, { useState, useEffect, useCallback } from "react";
 
 const HubPage = ({ settings, onSave }) => {
   const showHeatmap = settings.hubShowHeatmap !== false; // default true
+  const customCursor = settings.hubCustomCursor !== false; // default true (smart cursor)
+  const wallOpacity = Number(settings.hubWallpaperOpacity ?? 94);
   const [username, setUsername] = useState(settings.githubUsername || "");
   const [recentCount, setRecentCount] = useState(null);
   const [storedCount, setStoredCount] = useState(null);
@@ -148,6 +150,59 @@ const HubPage = ({ settings, onSave }) => {
             <span className="sw-toggle-thumb" />
           </button>
         </label>
+      </div>
+
+      {/* ── Custom Cursor ────────────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Custom Cursor</span>
+        <span className="sw-row__desc">
+          Hub me smart custom cursor. Band karo to normal OS cursor milega.
+        </span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{customCursor ? "Custom" : "Default OS"}</span>
+          <button
+            className={`sw-toggle-btn${customCursor ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => update({ hubCustomCursor: !customCursor })}
+            aria-checked={customCursor}
+            role="switch"
+            aria-label="Toggle custom cursor"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+
+      {/* ── Wallpaper Opacity ──────────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Wallpaper Opacity</span>
+        <span className="sw-row__desc">
+          Wallpaper laga ho to Hub panels kitne solid rahen (100 = full solid, kam = zyada transparent).
+        </span>
+        <div className="sw-inline-row">
+          <input
+            type="range"
+            className="sw-range"
+            min={20}
+            max={100}
+            step={1}
+            value={Number.isFinite(wallOpacity) ? wallOpacity : 94}
+            onChange={(e) => update({ hubWallpaperOpacity: parseInt(e.target.value, 10) })}
+            aria-label="Wallpaper opacity"
+          />
+          <input
+            type="number"
+            className="sw-input sw-input--small"
+            min={20}
+            max={100}
+            step={1}
+            value={Number.isFinite(wallOpacity) ? wallOpacity : 94}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (Number.isFinite(v)) update({ hubWallpaperOpacity: Math.min(100, Math.max(20, v)) });
+            }}
+            aria-label="Wallpaper opacity number"
+          />
+        </div>
       </div>
 
       {/* ── Reset Onboarding ─────────────────────────────────────────── */}

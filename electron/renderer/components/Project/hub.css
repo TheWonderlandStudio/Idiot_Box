@@ -4,7 +4,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
+  /* toolbar (30px) jitna bottom gap — frame screen-bottom se upar khatm ho */
+  height: calc(100% - 30px);
   background: var(--bg-workspace);
   font-family: var(--font-ui);
   font-size: var(--fs-body);
@@ -216,12 +217,13 @@
 .phub__panel {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  overflow-x: hidden;
+  overflow: visible;
+  overflow-x: visible;
   box-sizing: border-box;
 }
 /* ── Hub stacked layout: Note (top) + Recents (bottom) ─────────────────── */
@@ -234,15 +236,15 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  padding: 100px 32px 32px 32px;
+  gap: 20px;
+  padding: 32px 32px 24px 32px;
   overflow: visible;
   background: var(--bg-surface);
   box-sizing: border-box;
 }
 .phub__panel--note {
-  flex: 0 0 196px;
-  min-height: 178px;
+  flex: 0 1 196px;
+  min-height: 140px;
   max-height: 220px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -309,8 +311,6 @@
   min-height: 0;
   overflow: auto;
 }
-.phub__heat-scroll::-webkit-scrollbar { height: 4px; width: 4px; }
-.phub__heat-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-xs); }
 .phub__heat-table {
   display: inline-flex;
   flex-direction: column;
@@ -500,7 +500,7 @@
   flex-wrap: wrap;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   border-bottom: 1px solid var(--border);
   background: var(--bg-raised);
   box-sizing: border-box;
@@ -540,6 +540,7 @@
   overflow-x: hidden;
   flex: 1;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   display: flex;
   flex-direction: column;
@@ -577,6 +578,12 @@
 /* ── Create Project polished layout ───────────────────────────────────── */
 .phub__panel--create {
   flex: 0 0 auto;
+  align-self: center;
+  width: fit-content;
+  min-width: min(560px, 100%);
+  max-width: 860px;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 .phub__panel--create .phub__panel-body {
   flex: 0 0 auto;
@@ -758,10 +765,6 @@
   min-width: 0;
   max-width: 100%;
 }
-.phub__panel-list::-webkit-scrollbar       { width: 5px; }
-.phub__panel-list::-webkit-scrollbar-track { background: transparent; }
-.phub__panel-list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-xs); }
-.phub__panel-list::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
 .phub__panel-item {
   display: flex;
@@ -1290,8 +1293,6 @@
   min-width: 0;
   max-width: 100%;
 }
-.phub__dialog-results::-webkit-scrollbar { width: 4px; }
-.phub__dialog-results::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-xs); }
 .phub__dialog-result {
   background: var(--bg-raised);
   border: 1px solid var(--border);
@@ -1836,8 +1837,6 @@
   min-width: 0;
   max-width: 100%;
 }
-.phub__sidebar-results::-webkit-scrollbar { width: 4px; }
-.phub__sidebar-results::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--radius-xs); }
 .phub__sidebar-result {
   background: var(--bg-raised);
   border: 1px solid var(--border);
@@ -2147,6 +2146,22 @@
   }
 }
 
+/* ── Short screens: compact hub taaki buttons bahar na jayen ─────────── */
+@media (max-height: 720px) {
+  .phub__stack {
+    padding: 16px 16px 16px 16px;
+    gap: 14px;
+  }
+  .phub__panel--note {
+    flex-basis: 150px;
+    min-height: 110px;
+  }
+  .phub__panel-body {
+    padding: var(--space-10) var(--space-10);
+    gap: var(--space-10);
+  }
+}
+
 /* ── Very narrow / ensure no horizontal scroll ─────────────────────────── */
 @media (max-width: 360px) {
   .phub__panel-body {
@@ -2158,4 +2173,97 @@
   .phub__path-bar {
     padding: var(--space-6) var(--space-8);
   }
+}
+
+/* ── Hub wallpaper (user choice) ─────────────────────────────────────── */
+.phub {
+  position: relative;
+}
+.phub--wallpaper {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* Wallpaper dikhe isliye center/stack transparent, panels frosted glass */
+.phub--wallpaper .phub__center,
+.phub--wallpaper .phub__stack {
+  background: transparent;
+}
+.phub--wallpaper .phub__panel,
+.phub--wallpaper .phub__panel-body,
+.phub--wallpaper .phub__panel--note,
+.phub--wallpaper .phub__panel-header,
+.phub--wallpaper .phub__panel-footer {
+  background: color-mix(in srgb, var(--wall-tint, transparent) 6%, color-mix(in srgb, var(--bg-surface) var(--wall-opacity, 94%), transparent));
+}
+/* Sidebar + center par wallpaper ke rang ka halka tint */
+.phub--wallpaper .phub__sidebar {
+  background: color-mix(in srgb, var(--wall-tint, var(--bg-surface)) 28%, var(--bg-surface));
+  border-right-color: color-mix(in srgb, var(--wall-tint, var(--border)) 35%, var(--border));
+}
+.phub--wallpaper .phub__center {
+  background: color-mix(in srgb, var(--wall-tint, transparent) 10%, transparent);
+}
+.phub__wallwrap {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.phub__wallbtn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-vscode);
+  border: 1px solid var(--border-light);
+  color: var(--text-soft);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity var(--t-normal), transform var(--t-normal), color var(--t-normal), border-color var(--t-normal);
+}
+.phub__wallbtn:hover {
+  opacity: 1;
+  transform: scale(1.06);
+  color: var(--text-bright);
+  border-color: var(--accent);
+}
+.phub__wallbtn--on {
+  color: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
+}
+.phub__wallbtn--mini {
+  width: 20px;
+  height: 20px;
+  opacity: 0.7;
+}
+.phub__wallbtn--mini:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+/* Native OS cursor (Settings → Hub → Custom Cursor OFF) */
+.phub--native-cursor,
+.phub--native-cursor * {
+  cursor: auto !important;
+}
+
+/* Create panel flat — apne boxes nahi, sirf page/UI background */
+.phub__panel--create,
+.phub__panel--create .phub__panel-header,
+.phub__panel--create .phub__panel-body,
+.phub__panel--create .phub__create-actions {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Create actions center me */
+.phub__panel--create .phub__create-actions {
+  justify-content: center;
 }

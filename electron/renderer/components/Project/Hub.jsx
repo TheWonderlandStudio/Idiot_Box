@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -482,6 +482,97 @@ const ProjectHub = () => {
 
   const [showHeat, setShowHeat] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // ── Hub UI settings (Settings → Hub): cursor + wallpaper opacity ──
+  const [nativeCursor, setNativeCursor] = useState(false);
+  const [wallOpacity, setWallOpacity] = useState(94);
+  const lastHubUiRef = useRef({});
+  const applyHubUiSettings = useCallback((s) => {
+    const d = { ...lastHubUiRef.current, ...(s || {}) };
+    lastHubUiRef.current = d;
+    setNativeCursor(d.hubCustomCursor === false);
+    const o = Number(d.hubWallpaperOpacity);
+    setWallOpacity(Number.isFinite(o) ? Math.min(100, Math.max(20, o)) : 94);
+  }, []);
+  useEffect(() => {
+    window.electronAPI?.readSettings?.().then((s) => applyHubUiSettings(s || {})).catch(() => {});
+    let bc = null;
+    try {
+      bc = new BroadcastChannel("app-settings");
+      bc.onmessage = (e) => { if (e.data && typeof e.data === "object") applyHubUiSettings(e.data); };
+    } catch {}
+    const unsub = window.electronAPI?.onSettingsUpdated
+      ? window.electronAPI.onSettingsUpdated((p) => { if (p && typeof p === "object") applyHubUiSettings(p); })
+      : () => {};
+    return () => {
+      try { bc?.close(); } catch {}
+      try { unsub?.(); } catch {}
+    };
+  }, [applyHubUiSettings]);
+
+  // ── Hub wallpaper (user ki pasand — path persist, dataURL memory me) ──
+  const [wallpaper, setWallpaper] = useState(null); // dataURL
+  const [wallpaperName, setWallpaperName] = useState("");
+  const [wallTint, setWallTint] = useState(""); // wallpaper ka average color
+  // Image ko 32px par downscale karke average RGB — sidebar/center tint ke liye
+  const tintFromDataUrl = useCallback((url) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas");
+          c.width = 32; c.height = 32;
+          const ctx = c.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0, 32, 32);
+          const d = ctx.getImageData(0, 0, 32, 32).data;
+          let r = 0, g = 0, b = 0, n = 0;
+          for (let i = 0; i < d.length; i += 16) {
+            r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+          }
+          if (n > 0) setWallTint(`rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`);
+        } catch {}
+      };
+      img.onerror = () => {};
+      img.src = url;
+    } catch {}
+  }, []);
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const p = localStorage.getItem("ibx:hubWallpaper");
+        if (!p) return;
+        const url = await window.electronAPI?.readFileAsDataUrl?.(p);
+        if (!dead && url) {
+          setWallpaper(url);
+          setWallpaperName(String(p).split(/[\\/]/).pop() || "");
+          tintFromDataUrl(url);
+        } else if (!dead) {
+          try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
+        }
+      } catch {
+        try { if (!dead) localStorage.removeItem("ibx:hubWallpaper"); } catch {}
+      }
+    })();
+    return () => { dead = true; };
+  }, []);
+  const pickWallpaper = useCallback(async () => {
+    try {
+      const p = await window.electronAPI?.openImage?.();
+      if (!p) return;
+      const url = await window.electronAPI?.readFileAsDataUrl?.(p);
+      if (!url) return;
+      setWallpaper(url);
+      setWallpaperName(String(p).split(/[\\/]/).pop() || "");
+      tintFromDataUrl(url);
+      try { localStorage.setItem("ibx:hubWallpaper", p); } catch {}
+    } catch {}
+  }, []);
+  const clearWallpaper = useCallback(() => {
+    setWallpaper(null);
+    setWallpaperName("");
+    setWallTint("");
+    try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
+  }, []);
 
   const resolveGhUser = useCallback(async () => {
     let user = null;
@@ -991,8 +1082,14 @@ const ProjectHub = () => {
   }, [cloneUrl, newProjectLocation, projectPath]);
 
   return (
-    <div className="phub">
-      <CustomCursor />
+    <div
+      className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}`}
+      style={{
+        ...(wallpaper ? { backgroundImage: `url("${wallpaper}")`, "--wall-tint": wallTint || undefined } : {}),
+        "--wall-opacity": `${wallOpacity}%`,
+      }}
+    >
+      {!nativeCursor && <CustomCursor />}
 
       {projectPath && (
         <div className={`phub__path-bar${sidebarCollapsed ? " phub__path-bar--collapsed" : ""}`}>
@@ -1706,6 +1803,28 @@ const ProjectHub = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Wallpaper — right side bottom, chhota button */}
+      <div className="phub__wallwrap">
+        {wallpaper && (
+          <button
+            className="phub__wallbtn phub__wallbtn--mini"
+            onClick={clearWallpaper}
+            title="Wallpaper hatao"
+            aria-label="Remove wallpaper"
+          >
+            <X size={12} />
+          </button>
+        )}
+        <button
+          className={`phub__wallbtn${wallpaper ? " phub__wallbtn--on" : ""}`}
+          onClick={pickWallpaper}
+          title={wallpaper ? `Wallpaper: ${wallpaperName} — badalne ke liye click karo` : "Apna wallpaper lagao"}
+          aria-label="Choose hub wallpaper"
+        >
+          <ImageIcon size={16} />
+        </button>
       </div>
 
       {confirmDelete && deletingPath && (

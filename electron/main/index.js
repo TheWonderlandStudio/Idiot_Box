@@ -46,6 +46,8 @@ let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch (e) { console.warn("[main] electron-updater not available:", e.message); }
 let aiService = null;
 try { aiService = require("./ai-service"); } catch (e) { console.warn("[main] ai-service not available:", e.message); }
+let miseService = null;
+try { miseService = require("./mise-service"); } catch (e) { console.warn("[main] mise-service not available:", e.message); }
 let androidManager = null;
 try { androidManager = require("./android"); } catch (e) { console.warn("[main] android manager not available:", e.message); }
 
@@ -635,6 +637,13 @@ try {
     aiService.setupAiIpc({ ipcMain, BrowserWindow, readSettings });
   }
 } catch (e) { console.warn("[main] ai-service setup failed:", e.message); }
+
+// ─── mise — on-demand runtimes for the Run button (https://mise.jdx.dev) ───
+try {
+  if (miseService && typeof miseService.setupMiseIpc === "function") {
+    miseService.setupMiseIpc({ ipcMain });
+  }
+} catch (e) { console.warn("[main] mise-service setup failed:", e.message); }
 
 // ─── Android Emulator — SDK rooted at <userData>/.appdata/android ───────────
 // All sdkmanager/avdmanager/emulator/adb spawns use absolute sdk paths (no PATH).
@@ -1286,6 +1295,15 @@ ipcMain.handle("dialog:openFolder", async (event) => {
 });
 ipcMain.handle("dialog:browseFolder", async () => {
   const r = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
+  if (r.canceled || !r.filePaths.length) return null;
+  return r.filePaths[0];
+});
+ipcMain.handle("dialog:openImage", async () => {
+  const r = await dialog.showOpenDialog({
+    title: "Choose wallpaper",
+    properties: ["openFile"],
+    filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"] }],
+  });
   if (r.canceled || !r.filePaths.length) return null;
   return r.filePaths[0];
 });
@@ -5794,6 +5812,43 @@ app.whenReady().then(async () => {
   if (ElectronChromeExtensions) {
     try { ElectronChromeExtensions.handleCRXProtocol(session.defaultSession); } catch (e) { console.warn("[electron-chrome-extensions] handleCRXProtocol failed:", e.message); }
   }
+  // ── Extension action icon fallback ───────────────────────────────────
+  // Manifest me default_icon nahi (jaise iconless unpacked extensions) →
+  // crx://extension-icon 400 + console spam + broken toolbar tile. Aise
+  // extensions ke icon requests ko app icon par redirect karo.
+  try {
+    const { pathToFileURL } = require("url");
+    let fallbackHref = null;
+    try {
+      const p = path.join(__dirname, "..", "renderer", "assets", "idot_box.png");
+      if (fs.existsSync(p)) fallbackHref = pathToFileURL(p).href;
+    } catch {}
+    const extensionHasNoIcon = (id) => {
+      try {
+        const entries = readChromeExtensionEntries();
+        const e = entries.find((x) => x && typeof x === "object" && x.id === id);
+        const dir = e && e.path;
+        if (!dir) return false;
+        const mf = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
+        const iconObj = mf.action?.default_icon || mf.browser_action?.default_icon || mf.page_action?.default_icon || mf.icons;
+        if (!iconObj) return true;
+        const files = typeof iconObj === "string" ? [iconObj] : Object.values(iconObj || {});
+        return !files.some((f) => { try { return fs.existsSync(path.join(dir, String(f))); } catch { return false; } });
+      } catch { return false; }
+    };
+    if (fallbackHref) {
+      session.defaultSession.webRequest.onBeforeRequest(
+        { urls: ["crx://extension-icon/*"] },
+        (details, callback) => {
+          try {
+            const m = /crx:\/\/extension-icon\/([^/]+)\//.exec(details.url || "");
+            if (m && m[1] && extensionHasNoIcon(m[1])) return callback({ redirectURL: fallbackHref });
+          } catch {}
+          callback({});
+        }
+      );
+    }
+  } catch (e) { console.warn("[main] ext icon fallback failed:", e.message); }
   if (ElectronChromeExtensions) {
   chromeExt = new ElectronChromeExtensions({
     license: "GPL-3.0",

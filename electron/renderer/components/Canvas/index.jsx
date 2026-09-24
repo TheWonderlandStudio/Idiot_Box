@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import ReactDOM from "react-dom/client";
 import * as ReactDOMPkg from "react-dom";
 import * as ReactJSXRuntime from "react/jsx-runtime";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Excalidraw } from "@excalidraw/excalidraw";
 // NOTE: "./index.css" only exposes development/production export conditions,
 // so build-renderer.cjs sets conditions: ["production", ...] for it to resolve.
@@ -1066,8 +1067,8 @@ const CanvasPanel = ({ config }) => {
           {statusText}
         </span>
         <span className="excalidraw-toolbar__spacer" />
-        <button className="excalidraw-toolbar__btn" onClick={() => setShowComps((s) => !s)} title="Show/hide project components sidebar">
-          {showComps ? "Hide Components" : "Components"}
+        <button className="excalidraw-toolbar__btn" onClick={() => setShowComps((s) => !s)} title={showComps ? "Hide components sidebar" : "Show components sidebar"} aria-label={showComps ? "Hide components sidebar" : "Show components sidebar"} aria-pressed={showComps}>
+          {showComps ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
         </button>
         <button className="excalidraw-toolbar__btn" onClick={doSave} disabled={loading || saving || (!fileMode && !rootPath)} title="Save drawing now">
           Save

@@ -3,6 +3,11 @@
 // message, level). Main-process logs arrive via preload onOutputLog bridge.
 // Lines are buffered in-memory (cap per channel) so early logs survive.
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import "@xterm/xterm/css/xterm.css";
+import { cssVar } from "../shared/theme.js";
 
 // ── User-supplied Output icon (branch/flow glyph, 20×20, currentColor) ────
 export const OutputIcon = ({ size = 14, style } = {}) => (
@@ -77,10 +82,59 @@ const fmtTime = (ts) => {
   } catch { return ""; }
 };
 
-const levelColor = (level) => {
-  if (level === "error") return "var(--danger)";
-  if (level === "warn") return "var(--git-modified)";
-  return "var(--text-muted)";
+// ── xterm theme (Terminal panel wali palette — cssVar runtime resolve) ──
+const makeXtermTheme = () => {
+  const bg = cssVar("--bg-surface", "#1e1e1e");
+  return {
+    background: bg,
+    foreground: cssVar("--text-bright", "#cccccc"),
+    cursor: bg, // log view me cursor invisible
+    cursorAccent: bg,
+    selectionBackground: cssVar("--term-selection", "#2c4f6e"),
+    selectionInactiveBackground: cssVar("--selection", "#264f78"),
+    black: cssVar("--border", "#333333"),
+    red: cssVar("--danger", "#f44747"),
+    green: cssVar("--teal", "#4ec9b0"),
+    yellow: cssVar("--code-yellow", "#dcdcaa"),
+    blue: cssVar("--code-blue", "#569cd6"),
+    magenta: cssVar("--code-magenta", "#c586c0"),
+    cyan: cssVar("--code-cyan", "#9cdcfe"),
+    white: cssVar("--text-highlight", "#d4d4d4"),
+    brightBlack: cssVar("--term-bright-black", "#767676"),
+    brightRed: cssVar("--danger", "#f44747"),
+    brightGreen: cssVar("--teal", "#4ec9b0"),
+    brightYellow: cssVar("--code-yellow", "#dcdcaa"),
+    brightBlue: cssVar("--code-blue", "#569cd6"),
+    brightMagenta: cssVar("--code-magenta", "#c586c0"),
+    brightCyan: cssVar("--code-cyan", "#9cdcfe"),
+    brightWhite: cssVar("--text-inverse", "#ffffff"),
+  };
+};
+
+// ANSI hata kar visible length (same-line overwrite ki padding ke liye)
+const visibleLen = (s) => {
+  try {
+    return String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "").length;
+  } catch { return String(s).length; }
+};
+// Trailing-\r pieces (progress bars, spinners — same line overwrite) newline
+// ke BINA likhe jate hain taaki agli write usi line par overwrite kare.
+// Har row: { text, newline }.
+const formatLine = (l) => {
+  const ts = fmtTime(l.ts);
+  const lvl = l.level === "error" ? "\x1b[31merror\x1b[0m"
+    : l.level === "warn" ? "\x1b[33mwarn\x1b[0m"
+    : "\x1b[90minfo\x1b[0m";
+  const head = `\x1b[90m${ts}\x1b[0m ${lvl} `;
+  const body = l.level === "error" ? `\x1b[31m${l.msg}\x1b[0m` : String(l.msg ?? "");
+  // multi-line message → alag-alag rows (staircase se bachne ke liye)
+  const rows = String(head + body).split(/\r?\n/);
+  // final "\n" se bana khaali tail hatado (warna har message ke baad blank line)
+  if (rows.length > 1 && rows[rows.length - 1] === "") rows.pop();
+  return rows.map((row) => {
+    const cr = /\r$/.test(row);
+    return { text: cr ? row.slice(0, -1) : row, newline: !cr };
+  });
 };
 
 const OutputPanel = () => {
@@ -89,9 +143,15 @@ const OutputPanel = () => {
     try { return [...(window.__outputBuffer?.["App"] || [])]; } catch { return []; }
   });
   const [stick, setStick] = useState(true); // autoscroll lock
-  const bodyRef = useRef(null);
   const channelRef = useRef(channel);
   useEffect(() => { channelRef.current = channel; }, [channel]);
+  // ── xterm refs ──
+  const termRef = useRef(null);
+  const fitRef = useRef(null);
+  const xtermElRef = useRef(null);
+  const stickRef = useRef(true);
+  const renderedRef = useRef({ channel: null, lastId: 0, crLen: 0 });
+  useEffect(() => { stickRef.current = stick; }, [stick]);
 
   const pullChannel = useCallback((ch) => {
     try { setLines([...(window.__outputBuffer?.[ch] || [])]); } catch { setLines([]); }
@@ -159,23 +219,151 @@ const OutputPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Autoscroll when locked
+  // ── xterm lifecycle (read-only log view — koi input nahi) ──
   useEffect(() => {
-    if (!stick) return;
+    let term = null;
+    let fit = null;
+    let ro = null;
+    let rafId = 0;
+    let disposed = false;
     try {
-      const el = bodyRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
-    } catch {}
-  }, [lines, stick]);
-
-  const onScroll = useCallback(() => {
+      term = new Terminal({
+        cursorBlink: false,
+        fontFamily: "Consolas, 'Courier New', Courier, monospace",
+        fontSize: 12,
+        lineHeight: 1.2,
+        letterSpacing: 0,
+        scrollback: 2000,
+        allowTransparency: false,
+        theme: makeXtermTheme(),
+      });
+    } catch { return undefined; }
+    fit = new FitAddon();
+    try { term.loadAddon(fit); } catch {}
     try {
-      const el = bodyRef.current;
-      if (!el) return;
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-      setStick(atBottom);
+      term.loadAddon(new WebLinksAddon((_event, uri) => {
+        try {
+          if (/^https?:\/\//i.test(uri) || uri.includes("localhost") || uri.includes("127.0.0.1") || /^\d+\.\d+\.\d+\.\d+/.test(uri)) {
+            window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url: uri, config: { type: "browser", title: "Browser", url: uri } } }));
+          } else {
+            window.electronAPI?.openUrl?.(uri);
+          }
+        } catch {
+          try { window.electronAPI?.openUrl?.(uri); } catch {}
+        }
+      }));
     } catch {}
+    const el = xtermElRef.current;
+    if (!el) { try { term.dispose(); } catch {} return undefined; }
+    try {
+      el.innerHTML = "";
+      term.open(el);
+    } catch { try { term.dispose(); } catch {} return undefined; }
+    termRef.current = term;
+    fitRef.current = fit;
+    // user ne upar scroll kiya → follow todo (neeche aaya → follow wapas)
+    try {
+      term.onScroll(() => {
+        try {
+          const buf = term.buffer.active;
+          const atBottom = buf.viewportY >= buf.baseY;
+          if (stickRef.current !== atBottom) {
+            stickRef.current = atBottom;
+            setStick(atBottom);
+          }
+        } catch {}
+      });
+    } catch {}
+    // select-to-copy (log view me copy hi main interaction hai)
+    try {
+      term.onSelectionChange(() => {
+        try {
+          const sel = term.getSelection();
+          if (sel) {
+            try { window.electronAPI?.clipboardWrite?.(sel); } catch {}
+            try { navigator.clipboard.writeText(sel); } catch {}
+          }
+        } catch {}
+      });
+    } catch {}
+    const safeFit = () => {
+      if (disposed || !fit || !term || !el) return;
+      if (el.offsetWidth === 0 || el.offsetHeight === 0) return;
+      try { fit.fit(); } catch {}
+    };
+    try {
+      ro = new ResizeObserver(() => safeFit());
+      ro.observe(el);
+    } catch {}
+    rafId = requestAnimationFrame(() => {
+      if (disposed) return;
+      safeFit();
+      setTimeout(safeFit, 100);
+      setTimeout(safeFit, 300);
+    });
+    // app theme badla → xterm palette refresh
+    let bc = null;
+    let unsubSettings = null;
+    const refreshTheme = () => {
+      try { if (termRef.current) termRef.current.options.theme = makeXtermTheme(); } catch {}
+    };
+    try {
+      bc = new BroadcastChannel("app-settings");
+      bc.onmessage = () => refreshTheme();
+    } catch {}
+    try {
+      unsubSettings = window.electronAPI?.onSettingsUpdated?.(() => refreshTheme());
+    } catch {}
+    return () => {
+      disposed = true;
+      try { cancelAnimationFrame(rafId); } catch {}
+      try { ro?.disconnect(); } catch {}
+      try { bc?.close(); } catch {}
+      try { unsubSettings?.(); } catch {}
+      try { term.dispose(); } catch {}
+      termRef.current = null;
+      fitRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── buffer → xterm sync (incremental; channel switch par full rewrite) ──
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    try {
+      const r = renderedRef.current;
+      const list = lines.slice(-MAX_LINES);
+      if (r.channel !== channel) {
+        try { term.clear(); } catch {}
+        r.channel = channel;
+        r.lastId = 0;
+        r.crLen = 0;
+      }
+      for (const l of list) {
+        if (!l || typeof l.id !== "number" || l.id <= r.lastId) continue;
+        for (const row of formatLine(l)) {
+          try {
+            if (row.newline) {
+              term.writeln(row.text);
+              r.crLen = 0;
+            } else {
+              // same-line update: pichli \r-write se chhota ho to tail
+              // spaces se dhako, phir cursor wapas line-start par.
+              const pad = Math.max(0, (r.crLen || 0) - visibleLen(row.text));
+              term.write(row.text + (pad ? " ".repeat(pad) : "") + "\r");
+              r.crLen = visibleLen(row.text);
+            }
+          } catch {}
+        }
+        r.lastId = l.id;
+      }
+      if (stickRef.current) {
+        try { term.scrollToBottom(); } catch {}
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, channel]);
 
   const switchChannel = useCallback((ch) => {
     setChannel(ch);
@@ -187,6 +375,8 @@ const OutputPanel = () => {
     try {
       if (window.__outputBuffer) window.__outputBuffer[channel] = [];
       setLines([]);
+      renderedRef.current = { channel, lastId: 0, crLen: 0 };
+      try { termRef.current?.clear(); } catch {}
     } catch {}
   }, [channel]);
 
@@ -250,29 +440,19 @@ const OutputPanel = () => {
         </div>
       </div>
 
-      {/* Body */}
-      <div
-        ref={bodyRef}
-        onScroll={onScroll}
-        style={{ flex: 1, overflowY: "auto", padding: "var(--space-6) var(--space-8)", fontFamily: "var(--font-code)", fontSize: "var(--fs-body)" }}
-      >
+      {/* Body — xterm.js log view */}
+      <div style={{ flex: 1, minHeight: 0, position: "relative", background: "var(--bg-surface)" }}>
+        <div ref={xtermElRef} style={{ position: "absolute", inset: 0, padding: "var(--space-6) var(--space-8)" }} />
         {lines.length === 0 && (
-          <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)", fontFamily: "sans-serif" }}>
-            No output yet
-            <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>
-              Git, Updater, Live Server &amp; Run logs appear here — or log from anywhere via window.__outputLog
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 32, color: "var(--text-muted)", fontFamily: "sans-serif", pointerEvents: "none" }}>
+            <div>
+              No output yet
+              <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>
+                Git, Updater, Live Server &amp; Run logs appear here — or log from anywhere via window.__outputLog
+              </div>
             </div>
           </div>
         )}
-        {lines.slice(-MAX_LINES).map((l) => (
-          <div key={l.id} style={{ display: "flex", gap: "var(--space-8)", padding: "1px var(--space-4)", lineHeight: "var(--lh-md)", wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
-            <span style={{ color: "var(--text-placeholder)", flexShrink: 0, userSelect: "none" }}>{fmtTime(l.ts)}</span>
-            <span style={{ color: levelColor(l.level), flexShrink: 0, userSelect: "none", width: 38 }}>
-              {l.level === "error" ? "error" : l.level === "warn" ? "warn" : "info"}
-            </span>
-            <span style={{ color: l.level === "error" ? "var(--error-text)" : "var(--text-bright)", flex: 1, minWidth: 0 }}>{l.msg}</span>
-          </div>
-        ))}
       </div>
     </div>
   );

@@ -16,8 +16,9 @@ const HIST_MAX = 10;
 const stripAnsi = (s) =>
   String(s ?? "")
     .replace(/\x1b\][^\x07]*\x07/g, "")
-    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
-    .replace(/\r/g, "");
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "");
+// NOTE: \r DELETE nahi karte — progress bars/spinners same-line overwrite
+// ke liye \r bhejte hain; Output panel usse handle karta hai.
 
 // ── Shell helpers (compiled languages compile+run ek pty me) ──────────────
 const SHELL_BIN = isWin ? "cmd.exe" : "sh";
@@ -208,6 +209,27 @@ const splitCmdLine = (cmd, extraArgs) => {
 // probe key -> actual command to spawn (legacy; python/lua/npm probes se resolve hota hai.
 // python default "python" — "py" sirf tab jab probes.pythonCmd wahi bataye.)
 const RUNTIME_CMD = { node: "node", python: "python", php: "php", go: "go", npm: isWin ? "npm.cmd" : "npm" };
+// Spawn binary (basename, lowercase, no ext) -> mise tool id. Only tools
+// mise can actually provide — system toolchains (gcc, kotlinc…) stay on the
+// old "not found" error path.
+const MISE_TOOL = {
+  node: "node", "npm": "node", "npx": "node",
+  bun: "bun", deno: "deno",
+  python: "python", python3: "python", py: "python", pip: "python", pip3: "python",
+  go: "go", cargo: "rust", rustc: "rust",
+  dotnet: "dotnet",
+  java: "java", mvn: "maven", gradle: "gradle",
+  ruby: "ruby", bundle: "ruby",
+  php: "php", composer: "php",
+  dart: "dart", flutter: "flutter",
+  lua: "lua", perl: "perl",
+};
+const miseToolFor = (cmd) => {
+  try {
+    const base = String(cmd || "").split(/[\\/]/).pop().toLowerCase().replace(/\.(exe|cmd|bat)$/, "");
+    return MISE_TOOL[base] || null;
+  } catch { return null; }
+};
 // Spawn se pehle alias resolve: py/python/python3, npm, lua variants → probes wala binary.
 // probes abhi unknown ho to "py" ko "python" par lao (launcher aksar missing hota hai;
 // main-engine bhi py→python→python3 retry karta hai, ye sirf display/hint sahi rakhta hai).
@@ -470,6 +492,145 @@ const RunPanel = () => {
   }, []);
   useEffect(() => { refreshProbes(); }, [refreshProbes]);
 
+  // ── mise fallback refs/helpers ──────────────────────────────────────
+  // Missing runtime → `mise install <tool>` (xterm me progress, stoppable)
+  // → retry wrapped as `mise x -- <cmd>`. Success path mise ko chhoota
+  // bhi nahi — sirf failure par kaam aata hai.
+  const pendingExitRef = useRef(null); // { runId, resolve } — chained setup steps
+  const refreshProbesRef = useRef(null);
+  const spawnRunRef = useRef(null);
+  useEffect(() => {
+    refreshProbesRef.current = refreshProbes;
+  });
+
+  const waitRunExit = useCallback((runId) => new Promise((resolve) => {
+    pendingExitRef.current = { runId, resolve };
+  }), []);
+
+  const miseInstallAndRespawn = useCallback(async ({ tool, cmd, args, cwd, label, file }) => {
+    const api = window.electronAPI;
+    try {
+      let ens = null;
+      try { ens = await api?.miseEnsure?.(); } catch (e) { ens = { ok: false, error: e?.message || String(e) }; }
+      if (!ens?.ok || !ens?.bin) {
+        const msg = `mise unavailable — cannot auto-install ${tool}${ens?.error ? `: ${ens.error}` : ""}`;
+        setErr(msg);
+        try { out(msg, "error"); } catch {}
+        return false;
+      }
+      const bin = ens.bin;
+      try { await api?.miseTrust?.(cwd); } catch {}
+      const runId = `run-mise-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      try { termRef.current?.writeln(`\x1b[33m[mise] installing ${tool}…\x1b[0m`); } catch {}
+      try { out(`[mise] installing ${tool}…`); } catch {}
+      setRunning({ runId, label: `mise install ${tool}`, startedAt: Date.now(), cwd: cwd || null, file: file || null });
+      let res = null;
+      try { res = await api?.runStart?.({ runId, cmd: bin, args: ["install", tool], cwd, label: `mise install ${tool}` }); } catch (e) { res = { ok: false, error: e?.message || String(e) }; }
+      if (!res?.ok) {
+        setRunning(null);
+        const msg = `mise install could not start: ${res?.error || "unknown"}`;
+        setErr(msg);
+        try { out(msg, "error"); } catch {}
+        return false;
+      }
+      const code = await waitRunExit(runId);
+      if (Number(code) !== 0) {
+        setRunning(null);
+        const msg = `mise install ${tool} failed (exit ${code}) — check output above`;
+        setErr(msg);
+        try { out(msg, "error"); } catch {}
+        try { setHistory((prev) => [{ label: `mise install ${tool}`, code: Number(code), ms: 0, at: Date.now() }, ...prev].slice(0, HIST_MAX)); } catch {}
+        return false;
+      }
+      try { await refreshProbesRef.current?.(); } catch {}
+      try { termRef.current?.writeln(`\x1b[90m[mise] ${tool} ready — running via mise\x1b[0m`); } catch {}
+      if (spawnRunRef.current) {
+        return await spawnRunRef.current(
+          { cmd: bin, args: ["x", "--", cmd, ...(args || [])], cwd, label: `${label} (via mise)`, file },
+          { allowMise: false }
+        );
+      }
+      return false;
+    } catch (e) {
+      setRunning(null);
+      setErr(e?.message || String(e));
+      return false;
+    }
+  }, [out, waitRunExit]);
+
+  // Missing-runtime file (current-file flow) → patched probes se runner
+  // banao (cmd/args nikalo), phir mise chain. Tool unknown → false (purana error).
+  const tryMiseForFile = useCallback(async (file, miss) => {
+    try {
+      const clean = String(miss || "").toLowerCase().replace(/\.(exe|cmd|bat)$/, "");
+      const tool = MISE_TOOL[clean];
+      if (!tool || !file) return false;
+      const patched = { ...(probesRef.current || {}), [clean]: "__mise__" };
+      const fb2 = buildRunnerForFile(file, patched);
+      if (!fb2?.ok || !fb2.cmd) return false;
+      const bin = clean;
+      const cmd = String(fb2.cmd).split("__mise__").join(bin);
+      const args = (fb2.args || []).map((a) => String(a).split("__mise__").join(bin));
+      const cwd = (typeof dirName === "function" ? dirName(file) : null) || projectRootRef.current;
+      const label = `Current File — ${baseName(file)}`;
+      await miseInstallAndRespawn({ tool, cmd, args, cwd, label, file });
+      return true; // took over (error bhi khud set kiya agar fail hua)
+    } catch { return false; }
+  }, [out, miseInstallAndRespawn]);
+
+  const spawnRun = useCallback(async ({ cmd, args, cwd, label, file }, opts) => {
+    const allowMise = !opts || opts.allowMise !== false;
+    setErr(null);
+    try {
+      if (runningRef.current) {
+        try { await window.electronAPI?.runStop?.(runningRef.current.runId); } catch {}
+      }
+      const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      try {
+        termRef.current?.clear?.();
+        termRef.current?.writeln(`\x1b[90m$ ${cmd} ${(args || []).join(" ")}\x1b[0m`);
+      } catch {}
+      lastCwdRef.current = cwd || null;
+      browserOpenedRef.current = false;
+      // file bhi rakho taaki exit par runtime-errors Problems me file se jud sakein.
+      setRunning({ runId, label, startedAt: Date.now(), cwd: cwd || null, file: file || null });
+      // Output panel kholo + uska channel "Run" par lao (warna logs App me chhupe rehte hain).
+      try { window.dispatchEvent(new CustomEvent("add-output-panel", { detail: { channel: "Run" } })); } catch {}
+      try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: "Run" } })); } catch {}
+      out(`—— ${label} ——`);
+      const res = await window.electronAPI?.runStart?.({ runId, cmd, args: args || [], cwd, label });
+      if (!res?.ok) {
+        // Spawn fail + binary mise se mil sakta hai → install karke retry.
+        const tool = allowMise ? miseToolFor(cmd) : null;
+        if (tool) {
+          return await miseInstallAndRespawn({ tool, cmd, args: args || [], cwd, label, file });
+        }
+        setRunning(null);
+        // Detected runtimes bhi batao taaki "py vs python" confusion turant clear ho.
+        let det = "";
+        try {
+          const p = probesRef.current;
+          det = !p
+            ? " (runtimes abhi detect ho rahe hain — ↻ dabao)"
+            : ` (detected: python=${p.python ? `${p.python} via ${p.pythonCmd || "?"}` : "MISSING"}, node=${p.node || "MISSING"})`;
+        } catch {}
+        const hint = /Could not start/i.test(res?.error || "")
+          ? `${res?.error} — is "${cmd}" installed and on PATH?${det}`
+          : (res?.error || "Could not start");
+        setErr(hint);
+        out(`FAILED: ${hint}`, "error");
+        setHistory((prev) => [{ label, code: -1, ms: 0, at: Date.now() }, ...prev].slice(0, HIST_MAX));
+        return false;
+      }
+      return true;
+    } catch (e) {
+      setRunning(null);
+      setErr(e?.message || String(e));
+      return false;
+    }
+  }, [out, miseInstallAndRespawn]);
+  useEffect(() => { spawnRunRef.current = spawnRun; });
+
   // ── npm scripts + persisted customs/history per project ─────────────────
   useEffect(() => {
     let dead = false;
@@ -527,12 +688,22 @@ const RunPanel = () => {
             window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url: browserUrl } }));
           }
         }
-        const lines = clean.split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => l.length > 0).slice(0, 200);
+        // \r\n par split (CRLF ka \r kha jao), lone trailing \r RAKHO —
+        // wo same-line overwrite hai, Output panel use write (bina newline) karta hai.
+        const lines = clean.split(/\r\n|\n/).map((l) => l.replace(/[ \t]+$/, "")).filter((l) => l.length > 0).slice(0, 200);
         for (const l of lines) out(l);
       } catch {}
     };
     const onExit = ({ runId, code, ms }) => {
       try {
+        // Chained setup step (mise install) → waiter ko resolve, normal
+        // history/diagnostics handling skip (yeh setup tha, run nahi).
+        const pend = pendingExitRef.current;
+        if (pend && String(runId) === String(pend.runId)) {
+          pendingExitRef.current = null;
+          try { pend.resolve(Number(code)); } catch {}
+          return;
+        }
         if (!runningRef.current || String(runId) !== String(runningRef.current.runId)) return;
         const info = runningRef.current;
         const label = info.label;
@@ -815,10 +986,15 @@ const RunPanel = () => {
   const doRun = useCallback(async (cfg) => {
     let c = cfg || active;
     if (!c || c.disabled) {
-      // Disabled current-file par bhi wajah batao (silent fail nahi).
+      // Disabled current-file par bhi wajah batao (silent fail nahi) —
+      // mise se mil sake to install karke chalao.
       if (c?.id === "__current__" && activeFile) {
         const b = buildRunnerForFile(activeFile, probesRef.current);
-        if (b && !b.ok) setErr(`${b.missing || "runtime"} not found — install it and press ↻, or pick another config`);
+        if (b && !b.ok) {
+          const handled = await tryMiseForFile(activeFile, b.missing);
+          if (handled) return;
+          setErr(`${b.missing || "runtime"} not found — install it and press ↻, or pick another config`);
+        }
       }
       return;
     }
@@ -849,6 +1025,11 @@ const RunPanel = () => {
       };
       const done = runAutoCfg() || runCurrentFile();
       if (!done) {
+        // Missing runtime mise se mil sake to install karke chalao.
+        if (fb && !fb.ok && f) {
+          const handled = await tryMiseForFile(f, fb.missing);
+          if (handled) return;
+        }
         setErr(fb && !fb.ok
           ? `${fb.missing || "runtime"} not found — install it and press ↻, or open a project (package.json / Cargo.toml / go.mod / *.csproj / python / index.html)`
           : "Nothing to run — open a code file (.py .js .java .c .cpp .go .rs .rb .php …) or a project, then press Run");
@@ -862,14 +1043,29 @@ const RunPanel = () => {
       const fb = buildRunnerForFile(f, probesRef.current);
       if (!fb) { setErr(`No runner for ${extOf(f) || "this type"} yet`); return; }
       if (fb.live) { runLive({ name: `Live Server — ${baseName(f)}`, file: fb.file, cwd: projectRootRef.current }); return; }
-      if (!fb.ok) { setErr(`${fb.missing || "runtime"} not found — install it and press ↻`); out(`Cannot run ${baseName(f)}: ${fb.missing || "runtime"} missing`, "error"); return; }
+      if (!fb.ok) {
+        const handled = await tryMiseForFile(f, fb.missing);
+        if (handled) return;
+        setErr(`${fb.missing || "runtime"} not found — install it and press ↻`); out(`Cannot run ${baseName(f)}: ${fb.missing || "runtime"} missing`, "error"); return;
+      }
       c = { ...c, run: { cmd: resolveCmd(fb.cmd, probesRef.current), args: fb.args } };
     }
     if (!c.run) return;
-    // ── Auto-install missing deps before run ───────────────────────
+    const raw = { ...c.run, cmd: resolveCmd(c.run.cmd, probesRef.current) };
+    // Command field me poori line ho ("py main.py") to binary/args alag karo,
+    // phir alias resolve (py→probes.pythonCmd/"python").
+    const sp = splitCmdLine(raw.cmd, raw.args);
+    const run = { ...raw, cmd: resolveCmd(sp.cmd, probesRef.current), args: sp.args };
+    const cwd = run.cwd || (c.id === "__current__" && (c.file || activeFileRef.current) ? (dirName(c.file || activeFileRef.current) || projectRootRef.current) : projectRootRef.current) || undefined;
+    const args = run.args || [];
+    const label = c.name;
+    // file bhi rakho taaki exit par runtime-errors Problems me file se jud sakein.
+    const runFile = (c.id === "__current__" ? (c.file || activeFileRef.current) : null) || null;
+    // ── Deps auto-install (npm/pip/go mod) — pehle wali behavior, par ab
+    // chained PTY step (shell `&&` nahi) taaki mise flow ke saath compose ho.
     let autoInstall = null;
     try {
-      const rootForInstall = c.run?.cwd || c.cwd || projectRootRef.current;
+      const rootForInstall = run.cwd || c.cwd || projectRootRef.current;
       autoInstall = await getInstallCommand(rootForInstall, probesRef.current);
     } catch {}
     if (autoInstall) {
@@ -877,64 +1073,38 @@ const RunPanel = () => {
         termRef.current?.writeln(`\x1b[33m[auto-install] ${autoInstall.label}...\x1b[0m`);
         out(`Auto-install: ${autoInstall.label}`);
       } catch {}
-      const mainRaw = { ...c.run, cmd: resolveCmd(c.run.cmd, probesRef.current) };
-      const mainSp = splitCmdLine(mainRaw.cmd, mainRaw.args);
-      const mainCmd = resolveCmd(mainSp.cmd, probesRef.current);
-      const installStr = `${q(autoInstall.cmd)} ${autoInstall.args.map(q).join(" ")}`;
-      const mainStr = `${q(mainCmd)} ${mainSp.args.map(q).join(" ")}`;
-      const combined = `${installStr} && ${mainStr}`;
-      c = { ...c, name: `${autoInstall.label} && ${c.name}`, run: { cmd: SHELL_BIN, args: [SHELL_FLAG, combined], cwd: autoInstall.cwd } };
-    }
-    setErr(null);
-    try {
-      if (runningRef.current) {
-        try { await window.electronAPI?.runStop?.(runningRef.current.runId); } catch {}
-      }
-      const raw = { ...c.run, cmd: resolveCmd(c.run.cmd, probesRef.current) };
-      // Command field me poori line ho ("py main.py") to binary/args alag karo,
-      // phir alias resolve (py→probes.pythonCmd/"python").
-      const sp = splitCmdLine(raw.cmd, raw.args);
-      const run = { ...raw, cmd: resolveCmd(sp.cmd, probesRef.current), args: sp.args };
-      const cwd = run.cwd || (c.id === "__current__" && (c.file || activeFileRef.current) ? (dirName(c.file || activeFileRef.current) || projectRootRef.current) : projectRootRef.current) || undefined;
-      const args = run.args || [];
-      const label = c.name;
-      const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const insId = `run-install-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      setRunning({ runId: insId, label: autoInstall.label, startedAt: Date.now(), cwd: autoInstall.cwd || null, file: runFile });
+      let ires = null;
       try {
-        termRef.current?.clear?.();
-        termRef.current?.writeln(`\x1b[90m$ ${run.cmd} ${(args || []).join(" ")}\x1b[0m`);
-      } catch {}
-      lastCwdRef.current = cwd || null;
-      browserOpenedRef.current = false;
-      // file bhi rakho taaki exit par runtime-errors Problems me file se jud sakein.
-      const runFile = (c.id === "__current__" ? (c.file || activeFileRef.current) : null) || null;
-      setRunning({ runId, label, startedAt: Date.now(), cwd: cwd || null, file: runFile });
-      // Output panel kholo + uska channel "Run" par lao (warna logs App me chhupe rehte hain).
-      try { window.dispatchEvent(new CustomEvent("add-output-panel", { detail: { channel: "Run" } })); } catch {}
-      try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: "Run" } })); } catch {}
-      out(`—— ${label} ——`);
-      const res = await window.electronAPI?.runStart?.({ runId, cmd: run.cmd, args, cwd, label });
-      if (!res?.ok) {
+        ires = await window.electronAPI?.runStart?.({
+          runId: insId,
+          cmd: resolveCmd(autoInstall.cmd, probesRef.current),
+          args: autoInstall.args || [],
+          cwd: autoInstall.cwd,
+          label: autoInstall.label,
+        });
+      } catch (e) { ires = { ok: false, error: e?.message || String(e) }; }
+      if (!ires?.ok) {
         setRunning(null);
-        // Detected runtimes bhi batao taaki "py vs python" confusion turant clear ho.
-        let det = "";
-        try {
-          const p = probesRef.current;
-          det = !p
-            ? " (runtimes abhi detect ho rahe hain — ↻ dabao)"
-            : ` (detected: python=${p.python ? `${p.python} via ${p.pythonCmd || "?"}` : "MISSING"}, node=${p.node || "MISSING"})`;
-        } catch {}
-        const hint = /Could not start/i.test(res?.error || "")
-          ? `${res?.error} — is "${run.cmd}" installed and on PATH?${det}`
-          : (res?.error || "Could not start");
-        setErr(hint);
-        out(`FAILED: ${hint}`, "error");
-        setHistory((prev) => [{ label, code: -1, ms: 0, at: Date.now() }, ...prev].slice(0, HIST_MAX));
+        const msg = `Auto-install could not start: ${ires?.error || "unknown"}`;
+        setErr(msg);
+        out(msg, "error");
+        return;
       }
-    } catch (e) {
-      setRunning(null);
-      setErr(e?.message || String(e));
+      const icode = await waitRunExit(insId);
+      if (Number(icode) !== 0) {
+        setRunning(null);
+        const msg = `${autoInstall.label} failed (exit ${icode}) — fix errors above, then Run again`;
+        setErr(msg);
+        out(msg, "error");
+        try { setHistory((prev) => [{ label: autoInstall.label, code: Number(icode), ms: 0, at: Date.now() }, ...prev].slice(0, HIST_MAX)); } catch {}
+        return;
+      }
     }
-  }, [active, out, runLive]);
+    // spawnRun: start karega; spawn fail + mise-tool mile to install→retry khud karega.
+    return spawnRun({ cmd: run.cmd, args, cwd, label, file: runFile });
+  }, [active, out, runLive, spawnRun, tryMiseForFile, waitRunExit]);
 
   const doStop = useCallback(async () => {
     try {

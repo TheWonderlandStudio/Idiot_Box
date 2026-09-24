@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Directory access ───────────────────────────────────────────────────────
   openFolder:  ()      => ipcRenderer.invoke("dialog:openFolder"),
   browseFolder: ()     => ipcRenderer.invoke("dialog:browseFolder"),
+  openImage:   ()      => ipcRenderer.invoke("dialog:openImage"),
   getDefaultLocation: () => ipcRenderer.invoke("dialog:getDefaultLocation"),
   showAppMenu: (id)    => ipcRenderer.invoke("menu:popup", id),
   readDir:     (dir)   => ipcRenderer.invoke("fs:readDir",    dir),
@@ -399,4 +400,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("ai:error", handler);
     return () => ipcRenderer.removeListener("ai:error", handler);
   },
+
+  // ── mise — on-demand runtimes for the Run button (https://mise.jdx.dev) ──
+  // miseEnsure -> { ok, bin?, version?, source?, error? } (downloads if needed)
+  // miseTrust(dir) -> { ok } (best-effort project trust for mise.toml/.env)
+  miseEnsure: () => ipcRenderer.invoke("mise:ensure"),
+  miseTrust: (dir) => ipcRenderer.invoke("mise:trust", dir),
 });
