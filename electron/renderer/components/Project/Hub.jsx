@@ -546,6 +546,7 @@ const ProjectHub = () => {
           setWallpaper(url);
           setWallpaperName(String(p).split(/[\\/]/).pop() || "");
           tintFromDataUrl(url);
+          setRecentWalls([{ path: p, url }]);
         } else if (!dead) {
           try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
         }
@@ -555,18 +556,32 @@ const ProjectHub = () => {
     })();
     return () => { dead = true; };
   }, []);
+  // Recents — sirf memory me (persist NAHI hote). Current choice persist hoti hai.
+  const [recentWalls, setRecentWalls] = useState([]);
+  const [wallMenuOpen, setWallMenuOpen] = useState(false);
+  // Custom right-click menu (native nahi) — cell options ke liye
+  const [wallCtx, setWallCtx] = useState(null); // { x, y, path }
+  const applyWallpaper = useCallback((p, url) => {
+    setWallpaper(url);
+    setWallpaperName(String(p).split(/[\\/]/).pop() || "");
+    tintFromDataUrl(url);
+    try { localStorage.setItem("ibx:hubWallpaper", p); } catch {}
+    // recents me sabse upar (memory only, cap 6)
+    setRecentWalls((prev) => {
+      const rest = (prev || []).filter((w) => w && w.path !== p);
+      return [{ path: p, url }, ...rest].slice(0, 6);
+    });
+    setWallMenuOpen(false);
+  }, [tintFromDataUrl]);
   const pickWallpaper = useCallback(async () => {
     try {
       const p = await window.electronAPI?.openImage?.();
       if (!p) return;
       const url = await window.electronAPI?.readFileAsDataUrl?.(p);
       if (!url) return;
-      setWallpaper(url);
-      setWallpaperName(String(p).split(/[\\/]/).pop() || "");
-      tintFromDataUrl(url);
-      try { localStorage.setItem("ibx:hubWallpaper", p); } catch {}
+      applyWallpaper(p, url);
     } catch {}
-  }, []);
+  }, [applyWallpaper]);
   const clearWallpaper = useCallback(() => {
     setWallpaper(null);
     setWallpaperName("");
@@ -1963,23 +1978,93 @@ const ProjectHub = () => {
         </div>
       )}
 
-      {/* Wallpaper — right side bottom, chhota button */}
-      <div className="phub__wallwrap">
-        {wallpaper && (
-          <button
-            className="phub__wallbtn phub__wallbtn--mini"
-            onClick={clearWallpaper}
-            title="Wallpaper hatao"
-            aria-label="Remove wallpaper"
+      {/* Custom right-click menu (native nahi) */}
+      {wallCtx && (
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 500 }}
+            onClick={() => setWallCtx(null)}
+            onContextMenu={(e) => { e.preventDefault(); setWallCtx(null); }}
+          />
+          <div
+            className="phub__wallmenu"
+            role="menu"
+            aria-label="Wallpaper actions"
+            style={{ position: "fixed", left: Math.min(wallCtx.x, window.innerWidth - 190), top: Math.min(wallCtx.y, window.innerHeight - 110), bottom: "auto", right: "auto", zIndex: 501 }}
+            onContextMenu={(e) => e.preventDefault()}
           >
-            <X size={12} />
-          </button>
+            <button
+              className="phub__wallmenu-item"
+              onClick={() => {
+                const w = recentWalls.find((r) => r.path === wallCtx.path);
+                if (w) applyWallpaper(w.path, w.url);
+                setWallCtx(null);
+              }}
+              role="menuitem"
+            >
+              <ImageIcon size={14} />
+              <span>Apply wallpaper</span>
+            </button>
+            <button
+              className="phub__wallmenu-item"
+              onClick={() => {
+                setRecentWalls((prev) => (prev || []).filter((r) => r.path !== wallCtx.path));
+                setWallCtx(null);
+              }}
+              role="menuitem"
+            >
+              <X size={14} />
+              <span>Remove from recents</span>
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Wallpaper — right side bottom, chhota button + popup menu */}
+      <div className="phub__wallwrap">
+        {wallMenuOpen && (
+          <div className="phub__wallmenu" role="menu" aria-label="Wallpapers">
+            <div className="phub__wallmenu-grid">
+              <button
+                className="phub__wallmenu-cell phub__wallmenu-add"
+                onClick={pickWallpaper}
+                role="menuitem"
+                title="Choose new wallpaper…"
+              >
+                <Plus size={18} />
+              </button>
+              {recentWalls.map((w) => {
+                const name = String(w.path).split(/[\\/]/).pop() || w.path;
+                const isOn = wallpaperName ? w.path.endsWith(wallpaperName) : false;
+                return (
+                    <button
+                      key={w.path}
+                      className={`phub__wallmenu-cell${isOn ? " phub__wallmenu-cell--on" : ""}`}
+                      onClick={() => { if (isOn) { clearWallpaper(); setWallMenuOpen(false); } else applyWallpaper(w.path, w.url); }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setWallCtx({ x: e.clientX, y: e.clientY, path: w.path });
+                      }}
+                      role="menuitem"
+                      title={isOn ? `${name} — click again to remove` : name}
+                    >
+                    {w.url ? <img src={w.url} alt={name} draggable={false} /> : <ImageIcon size={16} />}
+                    <span>{name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
         <button
-          className={`phub__wallbtn${wallpaper ? " phub__wallbtn--on" : ""}`}
-          onClick={pickWallpaper}
-          title={wallpaper ? `Wallpaper: ${wallpaperName} — badalne ke liye click karo` : "Apna wallpaper lagao"}
-          aria-label="Choose hub wallpaper"
+          className="phub__wallbtn"
+          onClick={() => setWallMenuOpen((v) => !v)}
+          onBlur={() => setTimeout(() => setWallMenuOpen(false), 150)}
+          title="Wallpaper options"
+          aria-label="Wallpaper options"
+          aria-haspopup="menu"
+          aria-expanded={wallMenuOpen}
         >
           <ImageIcon size={16} />
         </button>

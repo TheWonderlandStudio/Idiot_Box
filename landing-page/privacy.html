@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy - Idiot Box</title>
+  <meta name="description" content="Privacy Policy for Idiot Box: what data the desktop app and this site store, what leaves your machine, and how to contact us." />
+  <meta name="keywords" content="Idiot Box privacy policy, data privacy, open source IDE" />
+  <meta name="author" content="The Wonderland Studio" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#1e1e1e" />
+  <link rel="canonical" href="https://thewonderlandstudio.github.io/Idiot_Box/privacy.html" />
+  <link rel="icon" type="image/png" href="./logo.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Idiot Box" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="Privacy Policy - Idiot Box" />
+  <meta property="og:description" content="What data Idiot Box stores, what leaves your machine, and how to contact us." />
+  <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/privacy.html" />
+  <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
+  <meta property="og:image:alt" content="Idiot Box logo" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Privacy Policy - Idiot Box" />
+  <meta name="twitter:description" content="What data Idiot Box stores, what leaves your machine, and how to contact us." />
+  <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="privacy.css" />
+  <link rel="stylesheet" href="page-transition.css" />
+</head>
+
+<body class="is-entering" data-bgm="privacy">
+  <div class="wipe" aria-hidden="true"><span>Idiot Box</span></div>
+
+  <div class="background">
+    <div class="bg-video-wrap" aria-hidden="true">
+      <img id="privacy-bg" src="https://files.catbox.moe/zxle4v.jpg" alt="" />
+    </div>
+    <a class="card" href="index.html">Privacy</a>
+    <nav class="nav-card">
+      <div class="nav-links">
+        <a href="chatlog.html">Chatlog</a>
+        <a href="features.html">Features</a>
+        <a href="privacy.html" aria-current="page">Privacy</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+      </div>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </nav>
+    <div class="menu-panel" id="menu-panel">
+      <a href="chatlog.html">Chatlog</a>
+      <a href="features.html">Features</a>
+      <a href="privacy.html" aria-current="page">Privacy</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+    </div>
+    <main class="feed">
+      <h1 class="sr-only">Idiot Box privacy policy</h1>
+      <article class="doc-card">
+        <h2 class="doc-title">Privacy Policy</h2>
+        <p class="doc-meta"><strong>Effective:</strong> September 24, 2026<br><strong>App:</strong> Idiot Box by The Wonderland Studio</p>
+
+        <p>Idiot Box is a free, open-source desktop IDE. Your code, settings, API keys, and chat history stay on your machine. We do not run user accounts or servers that collect your data.</p>
+
+        <h3>1. What stays on your device</h3>
+        <p>Idiot Box stores its app data locally in your system's app-data folder, such as <code>%AppData%/idiot-box</code> on Windows.</p>
+        <p>This includes:</p>
+        <ul>
+          <li><strong>Settings:</strong> Your theme, fonts, AI provider and model choices, GitHub username, cursor and wallpaper preferences.</li>
+          <li><strong>Projects:</strong> Recent and pinned project paths, open tabs, canvas drawings, and project-specific app state. Your actual project files are never moved or copied.</li>
+          <li><strong>AI API keys:</strong> These are stored only in your local <code>settings.json</code>. They are sent directly from your machine to the AI provider you selected. We never see, log, or store them on our servers.</li>
+          <li><strong>Chat history:</strong> Your AI conversations are stored locally on your device.</li>
+        </ul>
+        <p>You can view or delete this data through the app's storage controls, or by deleting the app-data folder. Uninstalling Idiot Box does not delete your project files.</p>
+
+        <h3>2. When Idiot Box connects to the internet</h3>
+        <p>Idiot Box can work offline. Internet access is only used by features you choose to use.</p>
+        <p>Depending on the features you enable, the app may connect to:</p>
+        <ul>
+          <li><strong>AI providers</strong> such as OpenAI, Anthropic, Google, OpenRouter, Groq, Together, DeepSeek, xAI, Mistral, Ollama, OpenCode Zen, Pollinations, or a server you provide.</li>
+          <li><strong>GitHub API</strong> for contribution information and checking releases or updates.</li>
+          <li><strong>Ollama or custom local servers</strong> when you configure them.</li>
+          <li><strong>Public icon CDNs</strong> such as vscode-icons and devicons for project and file icons.</li>
+        </ul>
+        <p>When using an AI provider, your prompts, attached files, and tool results may be sent to that provider. Each provider has its own privacy policy.</p>
+
+        <h3>3. This website</h3>
+        <p>The Idiot Box website is a static site hosted on GitHub Pages.</p>
+        <p>We do not use accounts, cookies, or our own analytics. The website may load fonts from Google Fonts, background videos from public CDNs, and release information from the public GitHub API.</p>
+        <p>Download and source-code buttons simply take you to GitHub.</p>
+
+        <h3>4. Browsing inside the app</h3>
+        <p>The built-in Browser panel allows you to browse the web directly.</p>
+        <p>Websites you visit through it are responsible for their own privacy practices. Idiot Box does not proxy, record, or monitor your browser traffic.</p>
+
+        <h3>5. Children</h3>
+        <p>Idiot Box is a general-purpose developer tool and is not specifically designed for children under 13.</p>
+        <p>We do not knowingly collect personal information from anyone, including children.</p>
+
+        <h3>6. Changes and contact</h3>
+        <p>If this privacy policy changes, the updated version will be published here with a new effective date.</p>
+        <p>If you have any questions, open an issue on our GitHub repository:</p>
+        <p><strong>github.com/TheWonderlandStudio/Idiot_Box</strong></p>
+
+        <h3>7. Your responsibility</h3>
+        <p>Idiot Box is just a tool. What you do with it is entirely your own responsibility. That includes the code you write, the files you open, edit, delete or share, the projects you work on, and anything you send to AI providers.</p>
+        <p>The creators of Idiot Box and everyone else involved have no part in any of that. The app collects no data, so there is nothing on our side that can be misused, leaked or held against anyone.</p>
+        <p><strong>The Wonderland Studio</strong></p>
+      </article>
+    </main>
+  </div>
+
+  <script src="page-transition.js"></script>
+  <script>
+    (function () {
+      // Hamburger menu (mobile)
+      var bg = document.querySelector('.background');
+      var btn = document.querySelector('.hamburger');
+      var panel = document.getElementById('menu-panel');
+      if (btn && panel) {
+        function setOpen(open) {
+          bg.classList.toggle('menu-open', open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          setOpen(!bg.classList.contains('menu-open'));
+        });
+        panel.addEventListener('click', function (e) {
+          if (e.target.closest('a')) setOpen(false);
+        });
+        document.addEventListener('click', function (e) {
+          if (!e.target.closest('.menu-panel') && !e.target.closest('.hamburger')) setOpen(false);
+        });
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') setOpen(false);
+        });
+      }
+    })();
+  </script>
+</body>
+
+</html>
