@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback } from "react";
 const HubPage = ({ settings, onSave }) => {
   const showHeatmap = settings.hubShowHeatmap !== false; // default true
   const customCursor = settings.hubCustomCursor !== false; // default true (smart cursor)
+  const clickSound = settings.hubClickSound !== false; // default true
   const wallOpacity = Number(settings.hubWallpaperOpacity ?? 94);
   const [username, setUsername] = useState(settings.githubUsername || "");
   const [recentCount, setRecentCount] = useState(null);
@@ -166,6 +167,26 @@ const HubPage = ({ settings, onSave }) => {
             aria-checked={customCursor}
             role="switch"
             aria-label="Toggle custom cursor"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+
+      {/* ── Click Sounds ─────────────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Click Sounds</span>
+        <span className="sw-row__desc">
+          Soft click sound on Hub buttons. Turn off to stay silent.
+        </span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{clickSound ? "On" : "Off"}</span>
+          <button
+            className={`sw-toggle-btn${clickSound ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => update({ hubClickSound: !clickSound })}
+            aria-checked={clickSound}
+            role="switch"
+            aria-label="Toggle click sounds"
           >
             <span className="sw-toggle-thumb" />
           </button>

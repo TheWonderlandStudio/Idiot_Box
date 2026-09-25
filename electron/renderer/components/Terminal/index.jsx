@@ -84,6 +84,50 @@ const useGlobalTerms = () => useSyncExternalStore(
   () => GlobalTerms.snapshot()
 );
 
+// ── Project switch/close: purane root ke PTY sessions kill ──────────────
+// index.jsx `terminals:killAll` dispatch karta hai (detail.root = old root).
+// cwd root ke andar ho tabhi kill — emulator mirror jaise bahari sessions
+// bachte hain. Store me fresh session, taaki naya project clean shell paye.
+if (typeof window !== "undefined" && !window.__termsKillHooked) {
+  window.__termsKillHooked = true;
+  window.addEventListener("terminals:killAll", (e) => {
+    try {
+      const norm = (p) => String(p || "").replace(/[\\/]+$/, "").toLowerCase();
+      const root = e?.detail?.root ? norm(e.detail.root) : null;
+      const snap = GlobalTerms.snapshot();
+      const killed = new Set();
+      for (const s of [...(snap.sessions || [])]) {
+        const cwd = GlobalTerms.cwdMap[s.id];
+        // cwd null = kabhi start hi nahi hua (PTY nahi) → reset list me jayega
+        const match = !root || !cwd || norm(cwd).startsWith(root);
+        if (!match) continue;
+        killed.add(s.id);
+        if (cwd) {
+          try { window.electronAPI.closeTerminal(s.id); } catch {}
+        }
+      }
+      const kept = (snap.sessions || []).filter((s) => !killed.has(s.id));
+      const restCwd = {};
+      for (const [k, v] of Object.entries(GlobalTerms.cwdMap || {})) {
+        if (!killed.has(k)) restCwd[k] = v;
+      }
+      GlobalTerms.cwdMap = restCwd;
+      if (!kept.length) {
+        GlobalTerms.counter += 1;
+        const fresh = { id: genSessionId(), n: GlobalTerms.counter };
+        GlobalTerms.sessions = [fresh];
+        GlobalTerms.activeId = fresh.id;
+      } else {
+        GlobalTerms.sessions = kept;
+        if (!kept.some((s) => s.id === GlobalTerms.activeId)) {
+          GlobalTerms.activeId = kept[0].id;
+        }
+      }
+      GlobalTerms.emit();
+    } catch {}
+  });
+}
+
 // ─── Custom xterm CSS overrides (injected once) ────────────────────────────
 // IMPORTANT: the app's global `* { font-family: 'Fredoka' }` rule applies to
 // every element INCLUDING xterm's glyph spans (an explicit rule beats

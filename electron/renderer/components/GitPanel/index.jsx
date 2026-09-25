@@ -1,6 +1,7 @@
 // GitPanel — full-featured Source Control, production ready
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
+import GitGraph from "./GitGraph.jsx";
 
 // ── helpers ──────────────────────────────────────────────────────────
 function statusColor(st, x, y) {
@@ -84,6 +85,7 @@ export default function GitPanel({ nodeId }){
   const [openDiff,setOpenDiff]=useState(null);
   const [busy,setBusy]=useState("");
   const [showLog,setShowLog]=useState(false);
+  const [logView,setLogView]=useState("list"); // "list" | "graph"
   const [showCommitDetail,setShowCommitDetail]=useState(null); // {hash,diff,stat,loading}
   const [collapsed,setCollapsed]=useState({ staged:false, changes:false, untracked:false, conflicts:false });
   const [lastRefresh,setLastRefresh]=useState(null);
@@ -725,12 +727,33 @@ export default function GitPanel({ nodeId }){
           </div>
           {showLog && (
             <div>
-              <div style={{padding:"var(--space-6) var(--space-8)",display:"flex",gap:"var(--space-6)",background:"var(--bg-surface)",borderBottom:"var(--space-1) solid var(--border-row)"}}>
-                <input value={logQuery} onChange={e=>setLogQuery(e.target.value)} placeholder="Search commits (hash, message, author)…" style={{...s.input, padding:"var(--space-6) var(--space-8)",background:"var(--bg-vscode)",border:"var(--space-1) solid var(--border-light)",fontSize:"var(--fs-small)"}} />
+              <div style={{padding:"var(--space-6) var(--space-8)",display:"flex",gap:"var(--space-6)",background:"var(--bg-surface)",borderBottom:"var(--space-1) solid var(--border-row)",alignItems:"center"}}>
+                <input value={logQuery} onChange={e=>setLogQuery(e.target.value)} placeholder="Search commits (hash, message, author)…" style={{...s.input, flex:1, minWidth:0, padding:"var(--space-6) var(--space-8)",background:"var(--bg-vscode)",border:"var(--space-1) solid var(--border-light)",fontSize:"var(--fs-small)"}} />
                 {logQuery && <button onClick={()=>setLogQuery("")} style={s.btnGhost}>✕</button>}
+                <span style={{display:"flex",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",overflow:"hidden",flexShrink:0}}>
+                  {(["list", "graph"]).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setLogView(v)}
+                      title={v === "list" ? "Commit list" : "Branch graph"}
+                      style={{
+                        background: logView === v ? "var(--editor-blue)" : "transparent",
+                        color: logView === v ? "var(--text-inverse)" : "var(--text-soft)",
+                        border: "none", padding: "var(--space-4) var(--space-8)",
+                        fontSize: "var(--fs-small)", fontWeight: "var(--fw-semibold)",
+                        cursor: "pointer", textTransform: "capitalize",
+                      }}
+                    >
+                      {v === "list" ? "☰ List" : "⑂ Graph"}
+                    </button>
+                  ))}
+                </span>
               </div>
               {filteredLog.length===0 && <div style={{padding:"var(--space-14)",fontSize:"var(--fs-small)",color:"var(--text-muted)",textAlign:"center"}}>{log.length===0 ? "No commits yet — make your first commit above" : "No matching commits"}</div>}
-              {filteredLog.map(c=>(
+              {logView === "graph" ? (
+                <GitGraph commits={filteredLog} onSelect={(c) => viewCommit(c)} selectedHash={showCommitDetail?.fullHash} />
+              ) : (
+              filteredLog.map(c=>(
                 <div key={c.fullHash} style={{padding:"var(--space-8) var(--space-10)",borderBottom:"var(--space-1) solid var(--border-row)",fontSize:"var(--fs-small)",background:"var(--bg-deep)"}} title={c.fullHash + "\n" + c.author + " <" + c.email + ">\n" + (c.refs||"")}>
                   <div style={{display:"flex",gap:7,alignItems:"center"}}>
                     <button onClick={()=>copyHash(c.fullHash)} title="Copy full hash" style={{color:"var(--code-blue)",fontFamily:"var(--font-code)",fontSize:"var(--fs-tiny)",background:"var(--bg-vscode)",padding:"var(--space-2) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid var(--bg-active)",cursor:"pointer"}}>{c.hash}</button>
@@ -745,7 +768,8 @@ export default function GitPanel({ nodeId }){
                     </span>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           )}
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
+import { playClick, setClickEnabled } from "../shared/clickSound.js";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -482,6 +483,64 @@ const ProjectHub = () => {
 
   const [showHeat, setShowHeat] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // ── Hub view history (Back/Forward + mouse side buttons) ──
+  // Views: main | new | clone | fw — sidebar/dialogs inhe set karte hain,
+  // ye effect history banata hai; Back/Forward + mouse (btn 3/4) us par chalte hain.
+  const backRef = useRef([]);
+  const fwdRef = useRef([]);
+  const currentViewRef = useRef("main");
+  const navLockRef = useRef(false);
+  const [, bumpNav] = useState(0);
+  const hubView = showNewProjectDialog ? "new" : showCloneDialog ? "clone" : showFrameworks ? "fw" : "main";
+  const applyHubView = useCallback((v) => {
+    setShowNewProjectDialog(v === "new");
+    setShowCloneDialog(v === "clone");
+    setShowFrameworks(v === "fw");
+  }, []);
+  useEffect(() => {
+    if (navLockRef.current) {
+      navLockRef.current = false;
+      currentViewRef.current = hubView;
+    } else if (currentViewRef.current !== hubView) {
+      backRef.current = [...backRef.current.slice(-19), currentViewRef.current];
+      currentViewRef.current = hubView;
+      fwdRef.current = [];
+    }
+    bumpNav((x) => x + 1);
+  }, [hubView]);
+  const goBack = useCallback(() => {
+    const prev = backRef.current.pop();
+    if (prev == null) return;
+    fwdRef.current = [...fwdRef.current.slice(-19), currentViewRef.current];
+    navLockRef.current = true;
+    applyHubView(prev);
+    bumpNav((x) => x + 1);
+  }, [applyHubView]);
+  const goFwd = useCallback(() => {
+    const next = fwdRef.current.pop();
+    if (next == null) return;
+    backRef.current = [...backRef.current.slice(-19), currentViewRef.current];
+    navLockRef.current = true;
+    applyHubView(next);
+    bumpNav((x) => x + 1);
+  }, [applyHubView]);
+  // Mouse side buttons: 3 = back, 4 = forward (browser jaisa)
+  useEffect(() => {
+    const onMouse = (e) => {
+      try {
+        if (e.button === 3) {
+          e.preventDefault();
+          goBack();
+        } else if (e.button === 4) {
+          e.preventDefault();
+          goFwd();
+        }
+      } catch {}
+    };
+    window.addEventListener("mousedown", onMouse);
+    return () => window.removeEventListener("mousedown", onMouse);
+  }, [goBack, goFwd]);
   // ── Hub UI settings (Settings → Hub): cursor + wallpaper opacity ──
   const [nativeCursor, setNativeCursor] = useState(false);
   const [wallOpacity, setWallOpacity] = useState(94);
@@ -490,6 +549,7 @@ const ProjectHub = () => {
     const d = { ...lastHubUiRef.current, ...(s || {}) };
     lastHubUiRef.current = d;
     setNativeCursor(d.hubCustomCursor === false);
+    try { setClickEnabled(d.hubClickSound !== false); } catch {}
     const o = Number(d.hubWallpaperOpacity);
     setWallOpacity(Number.isFinite(o) ? Math.min(100, Math.max(20, o)) : 94);
   }, []);
@@ -1245,6 +1305,12 @@ const ProjectHub = () => {
       onDragOver={onHubDragOver}
       onDragLeave={onHubDragLeave}
       onDrop={onHubDrop}
+      onClick={(e) => {
+        // Sirf interactive cheezo par click sound (khali jagah par nahi)
+        try {
+          if (e.target && e.target.closest && e.target.closest('button, a, input, select, [role="button"]')) playClick();
+        } catch {}
+      }}
     >
       {!nativeCursor && <CustomCursor />}
 

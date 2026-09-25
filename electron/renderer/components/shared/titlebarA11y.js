@@ -1,14 +1,12 @@
-// ─── Titlebar menu keyboard access (Tab) ────────────────────────────────────
-// custom-electron-titlebar apne menubar buttons (File/Edit/View/…) ko
-// tabindex="-1" se render karta hai, isliye Tab kabhi titlebar menu tak
-// pahunchta hi nahi. Ye bridge (node_modules patch kiye bina):
-//   1. har .cet-menubar-menu-button ko tabindex="0" deta hai — menu rebuilds
-//      par bhi (MutationObserver ke through),
-//   2. Enter/Space se menu kholta/band karta hai (click dispatch → CET khud
-//      open karke apni arrow/Esc navigation sambhalta hai),
-//   3. ArrowDown (band menu par) se kholta hai, ArrowLeft/Right se padosi
-//      menu button par focus le jata hai.
+// ─── Titlebar menu keyboard access (Alt-toggled menu mode) ───────────────
+// Default: Tab sirf app me ghumta hai, toolbar skip hota hai.
+// Alt akele dabao (ya titlebar par Alt+click) → menu mode ON: menubar
+// buttons Tab se reachable + pehle button par focus. Dobara Alt / Escape →
+// mode OFF, Tab wapas sirf app me. (node_modules patch kiye bina —
+// MutationObserver rebuilds par bhi nazar rakhta hai.)
 const BTN_SEL = ".cet-menubar-menu-button";
+
+let menuMode = false;
 
 function menubarButtons() {
   try {
@@ -20,14 +18,33 @@ function menubarButtons() {
   }
 }
 
+// Menu mode ON/OFF — buttons ko Tab order me dalo/nikalo.
+export function setTitlebarMenuMode(on) {
+  menuMode = !!on;
+  try {
+    const btns = menubarButtons();
+    btns.forEach((el) => {
+      try { el.setAttribute("tabindex", menuMode ? "0" : "-1"); } catch {}
+    });
+    if (menuMode) {
+      if (btns[0]) btns[0].focus();
+    } else if (document.activeElement && document.activeElement.matches?.(BTN_SEL)) {
+      try { document.activeElement.blur(); } catch {}
+    }
+  } catch {}
+}
+
+export function isTitlebarMenuMode() {
+  return menuMode;
+}
+
 function armButton(el) {
   if (!el || el.__ibxA11yArmed) return;
   el.__ibxA11yArmed = true;
-  // Set tabindex="0" so Tab navigates through these buttons
+  // Default app-mode: Tab toolbar skip kare (menu mode me "0")
   try {
-    el.setAttribute("tabindex", "0");
+    el.setAttribute("tabindex", menuMode ? "0" : "-1");
   } catch {}
-  // Optionally still allow Arrow navigation within menu if needed
   el.addEventListener("keydown", (e) => {
     try {
       if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -42,8 +59,25 @@ function armButton(el) {
               : btns[(i - 1 + btns.length) % btns.length];
           if (n) n.focus();
         }
+      } else if (e.key === "Enter" || e.key === " ") {
+        // Menu mode me Enter/Space se menu kholo (click → CET khud open
+        // karke apni arrow/Esc navigation sambhalta hai).
+        if (!menuMode) return;
+        e.preventDefault();
+        e.stopPropagation();
+        el.click();
+      } else if (e.key === "ArrowDown") {
+        if (!menuMode) return;
+        if (el.classList.contains("open")) return; // khula ho to CET sambhale
+        e.preventDefault();
+        e.stopPropagation();
+        el.click();
+      } else if (e.key === "Escape") {
+        if (!menuMode) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setTitlebarMenuMode(false);
       }
-      // DO NOT handle Enter/Space — let browser handle normal behavior
     } catch {}
   });
 }
@@ -73,6 +107,55 @@ export function setupTitlebarA11y() {
       } catch {}
     }
   }, 500);
+  // ── Alt mnemonic (Windows jaisa): akele Alt dabao → menu mode toggle.
+  // Alt+combo (Alt+Left wagera) me toggle NA ho — isliye keyup par, aur
+  // beech me koi aur key dab gayi to cancel.
+  let altAlone = false;
+  try {
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        try {
+          if (e.key === "Alt" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+            altAlone = true;
+            return;
+          }
+          altAlone = false;
+        } catch {}
+      },
+      true
+    );
+    window.addEventListener(
+      "keyup",
+      (e) => {
+        try {
+          if (e.key === "Alt" && altAlone) {
+            altAlone = false;
+            setTitlebarMenuMode(!menuMode);
+          } else {
+            altAlone = false;
+          }
+        } catch {}
+      },
+      true
+    );
+    // Titlebar par Alt+click → menu mode ON (mouse users ke liye)
+    document.addEventListener("click", (e) => {
+      try {
+        if (e.altKey && e.target instanceof Node && e.target.closest?.(".cet-titlebar")) {
+          setTitlebarMenuMode(true);
+        }
+      } catch {}
+    });
+    // App me kahin click → menu mode OFF (Tab wapas sirf app me)
+    document.addEventListener("mousedown", (e) => {
+      try {
+        if (!menuMode) return;
+        if (e.target instanceof Node && e.target.closest?.(".cet-titlebar")) return;
+        setTitlebarMenuMode(false);
+      } catch {}
+    });
+  } catch {}
 }
 
 try {

@@ -474,7 +474,8 @@ const App = () => {
     return () => { delete window.__flexModel; delete window.__getLayoutJSON; };
   }, []);
 
-  // ── Save current open editor tabs to .project_config/tabs.json ────────────
+  // ── Save current open editor tabs per project ──────────────────────────
+  // Har project ki apni tabs.json (uske store folder me) — koi shared config nahi.
   const doSaveProjectTabs = () => {
     const rootPath = currentProjectRef.current;
     if (!rootPath) return;
@@ -483,6 +484,25 @@ const App = () => {
     const tabs = collectEditorTabs(m.getRoot());
     window.electronAPI.writeProjectTabs(rootPath, { tabs }).catch(() => {});
   };
+
+  // ── Per-project isolation: purane project ke processes/activity roko ───
+  // Layout khud save/load hota hai (doSaveProjectTabs/loadProjectLayout) —
+  // isliye tabs delete NAHI karte, sirf: terminal PTY kill, chalti run stop,
+  // output reset. Git/Output/Problems/Ports panels REHTE hain — wo current
+  // project se khud rebind hote hain.
+  const closeProjectTabs = useCallback((oldRoot) => {
+    // Terminal PTYs: sirf purane root wale kill (emulator mirror bachte hain)
+    try { window.dispatchEvent(new CustomEvent("terminals:killAll", { detail: { root: oldRoot || null } })); } catch {}
+    // Chalti run roko (RunPanel sunta hai)
+    try { window.dispatchEvent(new CustomEvent("run:stopCurrent")); } catch {}
+    // Output reset — saare channels khaali
+    try {
+      if (window.__outputBuffer) {
+        for (const k of Object.keys(window.__outputBuffer)) window.__outputBuffer[k] = [];
+      }
+      window.dispatchEvent(new CustomEvent("output:log", { detail: { channel: "App" } }));
+    } catch {}
+  }, []);
 
   const scheduleSaveProjectTabs = () => {
     clearTimeout(saveTabsTimer.current);
@@ -712,16 +732,26 @@ const App = () => {
     const handleOpen = async (folderPath) => {
       // Save tabs for whatever project was open before switching
       doSaveProjectTabs();
+      // Purane project ke panels/process/output yahin khatm — naya project clean slate
+      closeProjectTabs(currentProjectRef.current);
       currentProjectRef.current = folderPath;
       window.__currentProjectPath = folderPath;
       setHasProject(true);
       // Notify editor panels
       window.dispatchEvent(new CustomEvent("project:opened", { detail: { path: folderPath } }));
+      // Har project ke liye PURA layout reset (fresh default) — phir sirf
+      // us project ki apni tabs restore. Koi shared/purana state nahi.
+      try {
+        modelRef.current = Model.fromJson(DEFAULT_JSON);
+        setTick((t) => t + 1);
+        try { forceLayoutRedraw(modelRef.current); } catch {}
+      } catch {}
       await restoreProjectTabs(folderPath);
     };
 
     const handleClose = () => {
       doSaveProjectTabs();
+      closeProjectTabs(currentProjectRef.current);
       currentProjectRef.current = null;
       window.__currentProjectPath = null;
       setHasProject(false);

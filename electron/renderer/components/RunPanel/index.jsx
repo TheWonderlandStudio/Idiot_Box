@@ -1054,6 +1054,7 @@ const RunPanel = () => {
 
   const miseInstallAndRespawn = useCallback(async ({ tool, cmd, args, cwd, label, file }) => {
     const api = window.electronAPI;
+    const rootBefore = projectRootRef.current || null;
     try {
       let ens = null;
       try { ens = await api?.miseEnsure?.(); } catch (e) { ens = { ok: false, error: e?.message || String(e) }; }
@@ -1080,6 +1081,10 @@ const RunPanel = () => {
         return false;
       }
       const code = await waitRunExit(runId);
+      // Beech me project switch ho gaya to purane project me respawn mat karo
+      try {
+        if ((projectRootRef.current || null) !== rootBefore) return false;
+      } catch {}
       if (Number(code) !== 0) {
         const msg = `mise install ${tool} failed (exit ${code}) — check output above`;
         setErr(msg);
@@ -1683,7 +1688,9 @@ const RunPanel = () => {
         out(msg, "error");
         return;
       }
+      const rootBeforeInstall = projectRootRef.current || null;
       const icode = await waitRunExit(insId);
+      if ((projectRootRef.current || null) !== rootBeforeInstall) return; // switch ho gaya — purane me aage mat badho
       if (Number(icode) !== 0) {
         const msg = `${autoInstall.label} failed (exit ${icode}) — fix errors above, then Run again`;
         setErr(msg);

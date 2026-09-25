@@ -1826,11 +1826,11 @@ ipcMain.handle("git:log", async (_e, rootPath, limit = 20) => {
   const p = (async () => {
     try {
       const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50); // cap 50 vs 100 to lighten
-      const fmt = "%H%x1f%an%x1f%ae%x1f%ar%x1f%s%x1f%D";
+      const fmt = "%H%x1f%an%x1f%ae%x1f%ar%x1f%s%x1f%D%x1f%P";
       const out = await gitExec(["log", "--oneline", "-n", String(n), `--pretty=format:${fmt}`], rootPath, 3000);
       return out.split("\n").filter(Boolean).map((l) => {
-        const [hash, author, email, relTime, msg, refs] = l.split("\x1f");
-        return { hash: hash?.slice(0, 7), fullHash: hash, author, email, relTime, msg, refs: refs || "" };
+        const [hash, author, email, relTime, msg, refs, parents] = l.split("\x1f");
+        return { hash: hash?.slice(0, 7), fullHash: hash, author, email, relTime, msg, refs: refs || "", parents: (parents || "").trim() };
       });
     } catch { return []; }
   })();
@@ -5564,6 +5564,7 @@ function buildMenu() {
             }
           }},
         { label: "View Releases", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases") },
+        { label: "Privacy Policy", click: () => shell.openExternal("https://thewonderlandstudio.github.io/Idiot_Box/privacy.html") },
         { type: "separator" },
         { label: "Keyboard Shortcuts", accelerator: "CmdOrCtrl+K CmdOrCtrl+S", click: () => sendToRenderer("menu:commandPalette", null) },
         { label: "Toggle Developer Tools", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
