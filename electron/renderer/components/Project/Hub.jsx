@@ -600,15 +600,33 @@ const ProjectHub = () => {
     (async () => {
       try {
         const p = localStorage.getItem("ibx:hubWallpaper");
-        if (!p) return;
-        const url = await window.electronAPI?.readFileAsDataUrl?.(p);
-        if (!dead && url) {
-          setWallpaper(url);
-          setWallpaperName(String(p).split(/[\\/]/).pop() || "");
-          tintFromDataUrl(url);
-          setRecentWalls([{ path: p, url }]);
-        } else if (!dead) {
+        let saved = [];
+        try { saved = JSON.parse(localStorage.getItem("ibx:hubWallpapers") || "[]") || []; } catch {}
+        if (!Array.isArray(saved)) saved = [];
+        // current sabse pehle, phir saved recents (dedupe, cap 6)
+        const ordered = [p, ...saved].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).slice(0, 6);
+        const resolved = [];
+        for (const rp of ordered) {
+          if (dead) return;
+          try {
+            const u = await window.electronAPI?.readFileAsDataUrl?.(rp);
+            if (u) resolved.push({ path: rp, url: u });
+          } catch {}
+        }
+        if (dead) return;
+        if (!resolved.length) {
           try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
+          try { localStorage.removeItem("ibx:hubWallpapers"); } catch {}
+          return;
+        }
+        const cur = p && resolved.find((w) => w.path === p);
+        const first = cur || resolved[0];
+        setWallpaper(first.url);
+        setWallpaperName(String(first.path).split(/[\\/]/).pop() || "");
+        tintFromDataUrl(first.url);
+        setRecentWalls(resolved);
+        if (!p) {
+          try { localStorage.setItem("ibx:hubWallpaper", first.path); } catch {}
         }
       } catch {
         try { if (!dead) localStorage.removeItem("ibx:hubWallpaper"); } catch {}
@@ -616,9 +634,15 @@ const ProjectHub = () => {
     })();
     return () => { dead = true; };
   }, []);
-  // Recents — sirf memory me (persist NAHI hote). Current choice persist hoti hai.
+  // Recents — paths persist hote hain (images nahi), dataURL memory me.
   const [recentWalls, setRecentWalls] = useState([]);
   const [wallMenuOpen, setWallMenuOpen] = useState(false);
+  const persistRecentPaths = useCallback((list) => {
+    try {
+      const paths = (list || []).map((w) => w && w.path).filter(Boolean).slice(0, 6);
+      localStorage.setItem("ibx:hubWallpapers", JSON.stringify(paths));
+    } catch {}
+  }, []);
   // Custom right-click menu (native nahi) — cell options ke liye
   const [wallCtx, setWallCtx] = useState(null); // { x, y, path }
   const applyWallpaper = useCallback((p, url) => {
@@ -626,13 +650,15 @@ const ProjectHub = () => {
     setWallpaperName(String(p).split(/[\\/]/).pop() || "");
     tintFromDataUrl(url);
     try { localStorage.setItem("ibx:hubWallpaper", p); } catch {}
-    // recents me sabse upar (memory only, cap 6)
+    // recents me sabse upar (cap 6) + persist
     setRecentWalls((prev) => {
       const rest = (prev || []).filter((w) => w && w.path !== p);
-      return [{ path: p, url }, ...rest].slice(0, 6);
+      const next = [{ path: p, url }, ...rest].slice(0, 6);
+      persistRecentPaths(next);
+      return next;
     });
     setWallMenuOpen(false);
-  }, [tintFromDataUrl]);
+  }, [tintFromDataUrl, persistRecentPaths]);
   const pickWallpaper = useCallback(async () => {
     try {
       const p = await window.electronAPI?.openImage?.();
@@ -2074,7 +2100,11 @@ const ProjectHub = () => {
             <button
               className="phub__wallmenu-item"
               onClick={() => {
-                setRecentWalls((prev) => (prev || []).filter((r) => r.path !== wallCtx.path));
+                setRecentWalls((prev) => {
+                  const next = (prev || []).filter((r) => r.path !== wallCtx.path);
+                  persistRecentPaths(next);
+                  return next;
+                });
                 setWallCtx(null);
               }}
               role="menuitem"
