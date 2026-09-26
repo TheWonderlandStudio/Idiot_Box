@@ -4062,11 +4062,16 @@ ipcMain.handle("panel:addMenu", async (event) => {
 });
 
 ipcMain.handle("open:url", async (_e, url) => {
-  const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-  if (win && require("electron").shell) {
-    require("electron").shell.openExternal(url);
-    return true;
-  }
+  // Allowlist: sirf http(s)/mailto/file — javascript:/data:/vbscript: kabhi nahi.
+  try {
+    const u = String(url || "").trim();
+    if (!/^(https?:\/\/|mailto:|file:\/\/)/i.test(u)) return false;
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    if (win && require("electron").shell) {
+      require("electron").shell.openExternal(u);
+      return true;
+    }
+  } catch {}
   return false;
 });
 

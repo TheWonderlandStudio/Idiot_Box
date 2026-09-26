@@ -476,12 +476,23 @@ const App = () => {
 
   // ── Save current open editor tabs per project ──────────────────────────
   // Har project ki apni tabs.json (uske store folder me) — koi shared config nahi.
+  // Sirf us project ke ANDAR ki files save hoti hain (doosre project ki leak nahi).
+  const pathInsideRoot = (filePath, rootPath) => {
+    try {
+      const r = String(rootPath || "").replace(/[\\/]+$/, "");
+      const f = String(filePath || "");
+      if (!r || !f) return false;
+      const rl = r.toLowerCase().replace(/\//g, "\\");
+      const fl = f.toLowerCase().replace(/\//g, "\\");
+      return fl === rl || fl.startsWith(rl + "\\");
+    } catch { return false; }
+  };
   const doSaveProjectTabs = () => {
     const rootPath = currentProjectRef.current;
     if (!rootPath) return;
     const m = modelRef.current;
     if (!m) return;
-    const tabs = collectEditorTabs(m.getRoot());
+    const tabs = collectEditorTabs(m.getRoot()).filter((t) => pathInsideRoot(t, rootPath));
     window.electronAPI.writeProjectTabs(rootPath, { tabs }).catch(() => {});
   };
 
@@ -519,7 +530,9 @@ const App = () => {
     } catch {}
     let data = null;
     try { data = await window.electronAPI.readProjectTabs(rootPath); } catch {}
-    const tabs = Array.isArray(data?.tabs) ? data.tabs.filter(Boolean) : [];
+    // Sirf is project ke andar ki files (purani mixed entries bahar)
+    const tabs = (Array.isArray(data?.tabs) ? data.tabs.filter(Boolean) : [])
+      .filter((t) => pathInsideRoot(t, rootPath));
     if (!tabs.length) return;
 
     const m = modelRef.current;

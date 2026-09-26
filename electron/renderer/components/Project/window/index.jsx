@@ -298,11 +298,15 @@ const ProjectWindow = () => {
       if (e.button === 3) { e.preventDefault(); handleBack(); }
       if (e.button === 4) { e.preventDefault(); handleForward(); }
     };
-    document.addEventListener("mouseup", handler);
-    document.addEventListener("mousedown", (e) => {
+    const guard = (e) => {
       if (e.button === 3 || e.button === 4) e.preventDefault();
-    });
-    return () => document.removeEventListener("mouseup", handler);
+    };
+    document.addEventListener("mouseup", handler);
+    document.addEventListener("mousedown", guard);
+    return () => {
+      document.removeEventListener("mouseup", handler);
+      document.removeEventListener("mousedown", guard);
+    };
   }, [handleBack, handleForward]);
 
   // ── Chokidar watcher ─────────────────────────────────────────────────────
