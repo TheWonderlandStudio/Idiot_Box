@@ -81,7 +81,7 @@
     "custom-electron-titlebar": "^4.4.1",
     "electron-chrome-extensions": "^4.9.0",
     "electron-updater": "^6.8.9",
-    "esbuild": "^0.25.6",
+    "esbuild": "^0.28.2",
     "flexlayout-react": "^0.8.19",
     "lucide-react": "^1.34.0",
     "motion": "^13.2.0",
