@@ -2,6 +2,7 @@
   "name": "idiot-box",
   "version": "0.1.23",
   "private": true,
+  "license": "GPL-3.0-only",
   "description": "Idiot Box - Code-OSS-backed desktop IDE built with Electron and React",
   "author": {
     "name": "TheWonderlandStudio",

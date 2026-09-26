@@ -569,6 +569,15 @@ const ProjectHub = () => {
     };
   }, [applyHubUiSettings]);
 
+  // ── Drag & drop badge message (wallpaper picker bhi use karta hai) ──
+  const [dropMsg, setDropMsg] = useState(null);
+  const dropMsgTimerRef = useRef(null);
+  const flashDropMsg = useCallback((t) => {
+    setDropMsg(t);
+    try { clearTimeout(dropMsgTimerRef.current); } catch {}
+    dropMsgTimerRef.current = setTimeout(() => setDropMsg(null), 4000);
+  }, []);
+
   // ── Hub wallpaper (user ki pasand — path persist, dataURL memory me) ──
   const [wallpaper, setWallpaper] = useState(null); // dataURL
   const [wallpaperName, setWallpaperName] = useState("");
@@ -690,14 +699,7 @@ const ProjectHub = () => {
 
   // ── Drag & drop: bahar se koi bhi folder Hub me khincho → import ──
   const [dropActive, setDropActive] = useState(false);
-  const [dropMsg, setDropMsg] = useState(null);
   const dragDepthRef = useRef(0);
-  const dropMsgTimerRef = useRef(null);
-  const flashDropMsg = useCallback((t) => {
-    setDropMsg(t);
-    try { clearTimeout(dropMsgTimerRef.current); } catch {}
-    dropMsgTimerRef.current = setTimeout(() => setDropMsg(null), 4000);
-  }, []);
   const hasFiles = (e) => {
     try {
       const types = Array.from(e?.dataTransfer?.types || []);
