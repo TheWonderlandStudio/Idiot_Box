@@ -661,13 +661,26 @@ const ProjectHub = () => {
   }, [tintFromDataUrl, persistRecentPaths]);
   const pickWallpaper = useCallback(async () => {
     try {
-      const p = await window.electronAPI?.openImage?.();
+      if (typeof window.electronAPI?.openImage !== "function") {
+        flashDropMsg("App restart karo — wallpaper picker ke liye naya version chahiye");
+        return;
+      }
+      const p = await window.electronAPI.openImage();
       if (!p) return;
-      const url = await window.electronAPI?.readFileAsDataUrl?.(p);
-      if (!url) return;
+      if (typeof window.electronAPI?.readFileAsDataUrl !== "function") {
+        flashDropMsg("App restart karo — wallpaper picker ke liye naya version chahiye");
+        return;
+      }
+      const url = await window.electronAPI.readFileAsDataUrl(p);
+      if (!url) {
+        flashDropMsg("Ye image khul nahi payi — doosri try karo (png/jpg, 10MB tak)");
+        return;
+      }
       applyWallpaper(p, url);
-    } catch {}
-  }, [applyWallpaper]);
+    } catch (err) {
+      flashDropMsg(`Wallpaper fail: ${err?.message || err || "unknown"}`);
+    }
+  }, [applyWallpaper, flashDropMsg]);
   const clearWallpaper = useCallback(() => {
     setWallpaper(null);
     setWallpaperName("");
