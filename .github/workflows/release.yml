@@ -46,14 +46,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installers-${{ matrix.os }}
           path: ${{ matrix.artifact-glob }}
           if-no-files-found: error
 
       - name: Upload update metadata (for in-app auto-updater)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: update-meta-${{ matrix.os }}
           path: |
