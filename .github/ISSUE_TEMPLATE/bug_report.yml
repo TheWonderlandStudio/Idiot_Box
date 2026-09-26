@@ -1,0 +1,41 @@
+name: Bug report
+description: Something is broken in the app
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong instead?
+      placeholder: Pressing Run on a Python project shows...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact clicks/keys to hit the bug again.
+      placeholder: 1. Open Hub 2. Drop folder 3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: From the About dialog or release tag (e.g. v0.1.23).
+      placeholder: v0.1.23
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors (if any)
+      description: Press Ctrl+Shift+I, open the Console tab, paste red error lines.
+      render: text
+  - type: checkboxes
+    id: restarted
+    attributes:
+      label: Did you restart the app after updating?
+      options:
+        - label: Yes, I restarted and the bug is still there
+          required: false

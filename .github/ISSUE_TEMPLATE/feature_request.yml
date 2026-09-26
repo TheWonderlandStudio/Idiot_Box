@@ -1,0 +1,30 @@
+name: Feature request
+description: An idea for the app or site
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What should happen?
+      description: Describe the feature in one or two sentences.
+      placeholder: Hub should remember window size...
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it useful?
+      description: Who benefits and in what situation?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Hub
+        - Editor
+        - Terminal / Run
+        - Browser
+        - AI panel
+        - Git / Canvas
+        - Landing site
+        - Something else
