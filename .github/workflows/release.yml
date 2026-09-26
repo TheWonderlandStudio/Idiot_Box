@@ -85,7 +85,7 @@ jobs:
           node -e 'const fs=require("fs");const md=fs.readFileSync("CHANGELOG.md","utf8");const ver=String(process.env.GITHUB_REF_NAME||"").replace(/^v/,"");const lines=md.split(/\r?\n/);let out=[],cap=false;for(const ln of lines){const m=ln.match(/^## \[(.+?)\]/);if(m){if(cap)break;if(m[1]===ver){cap=true;continue;}}else if(cap)out.push(ln);}let body=out.join("\n").trim();if(!body)body="See CHANGELOG.md for details.";fs.writeFileSync("release-notes.md",body+"\n");console.log("notes for v"+ver+":",body.length,"chars");'
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           # Explicit list: installer + updater feed (latest*.yml) + differential
           # blockmap zaroor attach hon — `dist/*` se builder-debug junk bhi
