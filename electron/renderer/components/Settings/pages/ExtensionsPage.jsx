@@ -31,6 +31,21 @@ const ExtensionsPage = () => {
     else refresh();
   };
 
+  const installCrx = async () => {
+    setError("");
+    setBusyId("crx");
+    try {
+      const res = await window.electronAPI.loadChromeCrx
+        ? await window.electronAPI.loadChromeCrx()
+        : { ok: false, error: "Restart the app to enable CRX install" };
+      if (res?.error || res?.ok === false) setError(res?.error || "CRX install failed");
+      else refresh();
+    } catch (e) {
+      setError(String((e && e.message) || e));
+    }
+    setBusyId("");
+  };
+
   const openStore = async () => {
     setError("");
     try {
@@ -64,9 +79,14 @@ const ExtensionsPage = () => {
         <span className="sw-row__desc" style={{ margin: 0 }}>
           Chrome extensions loaded into the browser. Installed paths are kept in userData and auto-loaded on startup.
         </span>
-        <button className="sw-btn" onClick={loadNew} style={{ marginLeft: "var(--space-12)", flexShrink: 0 }}>
-          + Load Extension
-        </button>
+        <div style={{ display: "flex", gap: "var(--space-8)", marginLeft: "var(--space-12)", flexShrink: 0 }}>
+          <button className="sw-btn" onClick={installCrx} disabled={busyId === "crx"} title="Pick a .crx file to install">
+            {busyId === "crx" ? "Installing…" : "+ Install .CRX"}
+          </button>
+          <button className="sw-btn" onClick={loadNew} style={{ flexShrink: 0 }}>
+            + Load Extension
+          </button>
+        </div>
       </div>
 
       <div
@@ -76,7 +96,7 @@ const ExtensionsPage = () => {
         <div style={{ flex: 1, minWidth: 0 }}>
           <span className="sw-row__label" style={{ marginBottom: "var(--space-2)" }}>Get more extensions</span>
           <div className="sw-row__desc" style={{ margin: 0 }}>
-            Download extensions from the Chrome Web Store, extract them to a folder, then click &ldquo;Load Extension&rdquo; and pick the unpacked folder (the one with manifest.json).
+            Download a <b>.crx</b> file and install it directly, or extract an extension to a folder and load it unpacked (the folder with manifest.json).
           </div>
         </div>
         <button className="sw-btn" onClick={openStore} style={{ flexShrink: 0, marginLeft: "var(--space-8)" }}>

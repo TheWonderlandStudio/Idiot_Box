@@ -1067,9 +1067,6 @@ const CanvasPanel = ({ config }) => {
           {statusText}
         </span>
         <span className="excalidraw-toolbar__spacer" />
-        <button className="excalidraw-toolbar__btn" onClick={() => setShowComps((s) => !s)} title={showComps ? "Hide components sidebar" : "Show components sidebar"} aria-label={showComps ? "Hide components sidebar" : "Show components sidebar"} aria-pressed={showComps}>
-          {showComps ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
-        </button>
         <button className="excalidraw-toolbar__btn" onClick={doSave} disabled={loading || saving || (!fileMode && !rootPath)} title="Save drawing now">
           Save
         </button>
@@ -1104,10 +1101,18 @@ const CanvasPanel = ({ config }) => {
       </div>
 
       <div className="excalidraw-body">
+        {!showComps && (
+          <button className="excalidraw-comps__show" onClick={() => setShowComps(true)} title="Show components sidebar" aria-label="Show components sidebar">
+            <PanelLeftOpen size={13} />
+          </button>
+        )}
         {showComps && (
           <div className="excalidraw-comps">
             <div className="excalidraw-comps__head">
               <span>Components{compGroups.total ? ` · ${compGroups.total}` : ""}</span>
+              <button className="excalidraw-comps__refresh" onClick={() => setShowComps(false)} title="Hide components sidebar" aria-label="Hide components sidebar">
+                <PanelLeftClose size={13} />
+              </button>
               <button className="excalidraw-comps__refresh" onClick={refreshComponents} title="Rescan project">
                 ⟳
               </button>

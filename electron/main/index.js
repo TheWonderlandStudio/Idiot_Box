@@ -4054,6 +4054,7 @@ ipcMain.handle("panel:addMenu", async (event) => {
       { label: "Run and Debug", click: () => act("runDebug") },
       { label: "AI Panel", click: () => act("ai") },
       { label: "Android Emulator", click: () => act("android") },
+      { label: "Community", click: () => act("community") },
     ];
     const menu = Menu.buildFromTemplate(items);
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -5123,6 +5124,96 @@ ipcMain.handle("chrome:loadExtension", async () => {
     return { ok: true, id: ext.id, name: ext.name };
   } catch (err) {
     return { ok: false, error: String(err) };
+  }
+});
+
+// ── CRX upload: .crx file → unzip to userData/extensions → load ─────────
+// CRX3: Cr24 | ver(3) | header_len | header | zip. CRX2: Cr24 | ver(2) |
+// pubkey_len | sig_len | pubkey | sig | zip. Zip part nikaal kar extract karo.
+function crxZipOffset(buf) {
+  try {
+    if (!buf || buf.length < 16) return -1;
+    if (buf.toString("ascii", 0, 4) !== "Cr24") return -1;
+    const ver = buf.readUInt32LE(4);
+    if (ver === 3) {
+      const headerLen = buf.readUInt32LE(8);
+      const off = 12 + headerLen;
+      if (headerLen < 0 || off > buf.length) return -1;
+      return off;
+    }
+    if (ver === 2) {
+      const pubLen = buf.readUInt32LE(8);
+      const sigLen = buf.readUInt32LE(12);
+      const off = 16 + pubLen + sigLen;
+      if (pubLen < 0 || sigLen < 0 || off > buf.length) return -1;
+      return off;
+    }
+    return -1;
+  } catch { return -1; }
+}
+
+async function extractZipFile(zipPath, destDir) {
+  const { execFile } = require("child_process");
+  const run = (bin, args, timeoutMs) => new Promise((resolve) => {
+    try {
+      execFile(bin, args, { timeout: timeoutMs || 60000, windowsHide: true }, (err, stdout, stderr) => {
+        if (err) resolve({ ok: false, error: String(stderr || err.message || err).slice(0, 200) });
+        else resolve({ ok: true, output: String(stdout || "") });
+      });
+    } catch (e) {
+      resolve({ ok: false, error: String((e && e.message) || e).slice(0, 200) });
+    }
+  });
+  // bsdtar (Win10+ built-in, macOS/Linux) handles zip too
+  let r = await run("tar", ["-xf", zipPath, "-C", destDir]);
+  if (!r.ok && process.platform === "win32") {
+    r = await run("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${destDir}" -Force`,
+    ]);
+  }
+  return r;
+}
+
+ipcMain.handle("chrome:loadCrx", async () => {
+  if (!chromeExt) return { ok: false, error: "Extensions not available" };
+  const r = await dialog.showOpenDialog({
+    title: "Install extension (.crx)",
+    properties: ["openFile"],
+    filters: [{ name: "Chrome extensions", extensions: ["crx"] }],
+  });
+  if (r.canceled || !r.filePaths.length) return { ok: false };
+  try {
+    const buf = fs.readFileSync(r.filePaths[0]);
+    if (buf.length > 100 * 1024 * 1024) return { ok: false, error: "CRX too large (>100 MB)" };
+    const off = crxZipOffset(buf);
+    if (off < 0) return { ok: false, error: "Not a valid .crx file" };
+    if (buf[off] !== 0x50 || buf[off + 1] !== 0x4b) return { ok: false, error: "CRX has no zip payload" };
+    const base = path.basename(r.filePaths[0], ".crx").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "extension";
+    let extRoot = null;
+    try { extRoot = path.join(app.getPath("userData"), "extensions"); } catch {}
+    if (!extRoot) return { ok: false, error: "No user data folder" };
+    let dest = path.join(extRoot, base);
+    let i = 1;
+    while (fs.existsSync(dest)) { i += 1; dest = path.join(extRoot, `${base}-${i}`); }
+    const tmpZip = path.join(extRoot, `.crx-${Date.now()}.zip`);
+    try {
+      fs.mkdirSync(extRoot, { recursive: true });
+      fs.mkdirSync(dest, { recursive: true });
+      fs.writeFileSync(tmpZip, buf.subarray(off));
+      const ex = await extractZipFile(tmpZip, dest);
+      if (!ex.ok) throw new Error(ex.error || "Extract failed");
+      if (!fs.existsSync(path.join(dest, "manifest.json"))) {
+        throw new Error("No manifest.json inside — not a valid extension");
+      }
+      const ext = await chromeExtensionsApi().loadExtension(dest);
+      saveChromeExtensionEntry({ path: dest, id: ext.id, enabled: true });
+      return { ok: true, id: ext.id, name: ext.name };
+    } finally {
+      try { fs.rmSync(tmpZip, { force: true }); } catch {}
+    }
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err).slice(0, 300) };
   }
 });
 

@@ -106,6 +106,16 @@ const I = {
       <circle cx="24" cy="24" r=".75" fill="currentColor" stroke="none" />
     </svg>
   ),
+  community: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="8" r="3.5" />
+        <path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5" />
+        <circle cx="17.5" cy="9" r="2.5" />
+        <path d="M16 15.2c2.9.3 4.9 1.9 5.5 4.8" />
+      </g>
+    </svg>
+  ),
 };
 
 const PANEL_TYPES = [
@@ -233,6 +243,15 @@ const PANEL_TYPES = [
     description: "Chat assistant (Vercel AI SDK) — ask about your code, attach files, read the project",
     accent: "var(--teal)",
     icon: I.ai,
+    config: {},
+  },
+  {
+    id: "community",
+    name: "Community",
+    component: "community",
+    description: "Stars, contributors, issues, releases — get involved",
+    accent: "var(--code-yellow)",
+    icon: I.community,
     config: {},
   },
 ];

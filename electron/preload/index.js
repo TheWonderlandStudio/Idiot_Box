@@ -169,6 +169,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Chrome extensions ───────────────────────────────────────────────────────
   loadChromeExtension: () => ipcRenderer.invoke("chrome:loadExtension"),
+  loadChromeCrx: () => ipcRenderer.invoke("chrome:loadCrx"),
   listChromeExtensions: () => ipcRenderer.invoke("chrome:listExtensions"),
   setChromeExtensionEnabled: (id, enabled) => ipcRenderer.invoke("chrome:setExtensionEnabled", id, enabled),
   removeChromeExtension: (id) => ipcRenderer.invoke("chrome:removeExtension", id),

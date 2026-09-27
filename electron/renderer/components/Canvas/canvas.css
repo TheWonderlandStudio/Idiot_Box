@@ -94,6 +94,25 @@
   min-height: 0;
 }
 
+/* Slim edge strip to bring the sidebar back when hidden */
+.excalidraw-comps__show {
+  width: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--space-10);
+  background: var(--bg-surface);
+  border: none;
+  border-right: 1px solid var(--bg-active);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.excalidraw-comps__show:hover {
+  color: var(--text-bright);
+  background: var(--bg-hover);
+}
+
 .excalidraw-comps__head {
   display: flex;
   align-items: center;

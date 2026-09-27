@@ -19,6 +19,7 @@ import NotebookPanel from "./components/Notebook/index.jsx";
 import TerminalPanel from "./components/Terminal/index.jsx";
 import BlankPanel from "./components/Blank/index.jsx";
 import ComponentPreview from "./components/ComponentPreview/index.jsx";
+import CommunityPanel from "./components/CommunityPanel/index.jsx";
 import CanvasPanel from "./components/Canvas/index.jsx";
 import CommandPalette from "./components/CommandPalette/index.jsx";
 import OnboardingPage from "./components/Onboarding/index.jsx";
@@ -98,6 +99,7 @@ const factory = (node) => {
     case "terminal":          return <TerminalPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "blank":             return <BlankPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
+    case "community":        return <CommunityPanel nodeId={node.getId()} />;
     case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
   case "problems":          return <ProblemsPanel />;
   case "runDebug":          return <RunPanel />;
@@ -591,7 +593,7 @@ const App = () => {
             // "notebook" stays allowed as a compat shim (interim builds saved
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
@@ -972,6 +974,20 @@ const App = () => {
     };
     const onBrowser = (e) => addPanel("panel3", "Browser", e.detail?.config || { type: "browser", title: "Browser", url: e.detail?.url || "https://www.google.com" });
     const onPreview = () => addPanel("componentPreview", "Component Preview", {});
+    const onCommunity = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findCommunity = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "community") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findCommunity(c); if (r) return r; }
+          return null;
+        };
+        const existing = findCommunity(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("community", "Community", {});
+    };
     // Canvas (Excalidraw): optional detail { filePath } opens a file-backed
     // drawing; otherwise opens the per-project scratch drawing. Reuses an
     // existing canvas tab for the same file instead of duplicating it.
@@ -1131,6 +1147,7 @@ const App = () => {
     };
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-component-preview-panel", onPreview);
+    window.addEventListener("add-community-panel", onCommunity);
     window.addEventListener("add-canvas-panel", onCanvas);
     window.addEventListener("add-ports-panel", onPorts);
     window.addEventListener("add-output-panel", onOutput);
@@ -1141,6 +1158,7 @@ const App = () => {
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
       window.removeEventListener("add-component-preview-panel", onPreview);
+      window.removeEventListener("add-community-panel", onCommunity);
       window.removeEventListener("add-canvas-panel", onCanvas);
       window.removeEventListener("add-ports-panel", onPorts);
       window.removeEventListener("add-output-panel", onOutput);
@@ -1949,6 +1967,7 @@ const App = () => {
                 else if (action === "runDebug") window.dispatchEvent(new CustomEvent("add-run-panel"));
                 else if (action === "ai") window.dispatchEvent(new CustomEvent("add-ai-panel"));
                 else if (action === "android") window.dispatchEvent(new CustomEvent("add-android-panel"));
+                else if (action === "community") window.dispatchEvent(new CustomEvent("add-community-panel"));
                 else if (!action) { /* menu dismiss — kuch mat karo */ }
                 else blank();
               } catch {}
