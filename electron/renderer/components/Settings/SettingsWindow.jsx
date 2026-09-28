@@ -7,7 +7,6 @@ import EditorPage      from "./pages/EditorPage.jsx";
 import TerminalPage    from "./pages/TerminalPage.jsx";
 import GitPage         from "./pages/GitPage.jsx";
 import CanvasPage      from "./pages/CanvasPage.jsx";
-import AIPage          from "./pages/AIPage.jsx";
 import KeybindingsPage from "./pages/KeybindingsPage.jsx";
 import ExtensionsPage  from "./pages/ExtensionsPage.jsx";
 import "../../variables.css";
@@ -22,7 +21,6 @@ const NAV = [
   { id: "terminal",    label: "Terminal",    desc: "Font, cursor, scrollback and shell preferences.", group: "Preferences", icon: Terminal },
   { id: "git",         label: "Git",         desc: "Commit, fetch and gutter preferences.", group: "Workspace", icon: GitBranch },
   { id: "canvas",      label: "Canvas",      desc: "Drawing surface and preview preferences.", group: "Workspace", icon: Palette },
-  { id: "ai",          label: "AI",          desc: "Providers, models and API keys.", group: "Workspace", icon: Bot },
   { id: "keybindings", label: "Keybindings", desc: "Keyboard shortcuts.", group: "System", icon: Keyboard },
   { id: "extensions",  label: "Extensions",  desc: "Manage installed extensions.", group: "System", icon: Blocks },
 ];
@@ -100,7 +98,6 @@ const SettingsWindow = () => {
       case "terminal":    return <TerminalPage settings={settings} onSave={updateSettings} />;
       case "git":         return <GitPage settings={settings} onSave={updateSettings} />;
       case "canvas":      return <CanvasPage settings={settings} onSave={updateSettings} />;
-      case "ai":          return <AIPage settings={settings} onSave={updateSettings} />;
       case "keybindings": return <KeybindingsPage />;
       case "extensions":  return <ExtensionsPage />;
       default:            return null;

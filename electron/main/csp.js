@@ -19,7 +19,7 @@
 //   img-src / media-src: https:/http: allowed — markdown, AI chat, notebook
 //     outputs and Excalidraw embeds legitimately render remote images/video.
 //   connect-src: https:/wss: allowed — AI providers are user-configurable
-//     (OpenAI, Anthropic, Gemini, Pollinations, Vercel Gateway, custom
+//     (OpenAI, Anthropic, Gemini, Pollinations, AI Gateway, custom
 //     OpenAI-compatible LAN hosts, Ollama). http:/ws: additionally allowed
 //     ONLY for localhost/loopback dev servers; LAN http custom endpoints also
 //     need it. Keep remote *script* blocked even though connect is open.

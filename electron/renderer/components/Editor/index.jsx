@@ -19,12 +19,11 @@ import {
 } from "@codemirror/commands";
 import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/search";
 import NotebookPanel from "../Notebook/index.jsx";
-// Shared editor state (dirty flags, AI bridge, settings sync) — engine-agnostic.
+// Shared editor state (dirty flags, settings sync) — engine-agnostic.
 import {
   baseNames, dirtyFlags,
   getActiveEditorPath, setActiveEditorPath,
   isAutoSaveEnabled, setAutoSaveEnabled,
-  aiEditorTabs, aiNotifyContext,
   updateTabName, setDirty,
   getEditorSettings, settingsListeners,
 } from "./shared.js";
@@ -133,13 +132,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     setTimeout(() => { setStatusMsg(null); }, 3000);
   };
 
-  // ── AI bridge registration ──
-  useEffect(() => {
-    aiEditorTabs.set(nodeId, { filePath, editorRef });
-    aiNotifyContext(true);
-    return () => { aiEditorTabs.delete(nodeId); aiNotifyContext(true); };
-  }, [nodeId, filePath]);
-
   // ── Settings load + live sync ──
   useEffect(() => {
     getEditorSettings().then((s) => {
@@ -225,7 +217,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     bridgeRef.current = bridge;
     editorRef.current = bridge;
     setActiveEditorPath(pathRef.current);
-    aiNotifyContext(true);
     try {
       const pos = view.state.selection.main.head;
       const p = offsetToPos(view.state.doc, pos);
@@ -251,7 +242,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     try {
       window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: p, code: value } }));
     } catch {}
-    aiNotifyContext(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
 
@@ -269,7 +259,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       }
       if (viewUpdate.focusChanged && viewUpdate.view.hasFocus) {
         setActiveEditorPath(pathRef.current);
-        aiNotifyContext(true);
         try {
           window.dispatchEvent(new CustomEvent("editor:fileActivated", { detail: { path: pathRef.current } }));
         } catch {}

@@ -1,6 +1,6 @@
 // cm/bridge.js — Monaco-compat shim over a CodeMirror EditorView.
 //
-// AI panel (shared.js: __aiGetEditorContext / ai:insert-code), SearchPanel
+// Editor <-> CodeMirror bridge (SearchPanel, diagnostics, cursor sync).
 // (editor:revealLine) aur Notebook (focus) Monaco-style API bolte hain:
 //   getValue() / getModel() -> { getValue(), getValueInRange(range),
 //     getLineCount() } / getSelection() -> { startLineNumber, startColumn,

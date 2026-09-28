@@ -44,8 +44,6 @@ let ElectronChromeExtensions = null;
 try { ({ ElectronChromeExtensions } = require("electron-chrome-extensions")); } catch (e) { console.warn("[main] electron-chrome-extensions not available:", e.message); }
 let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch (e) { console.warn("[main] electron-updater not available:", e.message); }
-let aiService = null;
-try { aiService = require("./ai-service"); } catch (e) { console.warn("[main] ai-service not available:", e.message); }
 let miseService = null;
 try { miseService = require("./mise-service"); } catch (e) { console.warn("[main] mise-service not available:", e.message); }
 let androidManager = null;
@@ -630,13 +628,6 @@ ipcMain.handle("settings:write", (_e, data) => {
   }
   return ok;
 });
-
-// ─── AI panel — Vercel AI SDK streaming (https://ai-sdk.dev) ─────────────────
-try {
-  if (aiService && typeof aiService.setupAiIpc === "function") {
-    aiService.setupAiIpc({ ipcMain, BrowserWindow, readSettings });
-  }
-} catch (e) { console.warn("[main] ai-service setup failed:", e.message); }
 
 // ─── mise — on-demand runtimes for the Run button (https://mise.jdx.dev) ───
 try {
@@ -4052,7 +4043,6 @@ ipcMain.handle("panel:addMenu", async (event) => {
       { label: "Terminal", click: () => act("terminal") },
       { label: "Output Panel", click: () => act("output") },
       { label: "Run and Debug", click: () => act("runDebug") },
-      { label: "AI Panel", click: () => act("ai") },
       { label: "Android Emulator", click: () => act("android") },
       { label: "Community", click: () => act("community") },
     ];
@@ -5495,7 +5485,6 @@ function buildMenu() {
         { label: "Split Editor Right", accelerator: "CmdOrCtrl+\\", click: () => sendToRenderer("menu:splitEditorRight", null) },
         { type: "separator" },
         { label: "Ports", click: () => sendToRenderer("menu:openPorts", null) },
-        { label: "AI Panel", accelerator: "CmdOrCtrl+Shift+A", click: () => sendToRenderer("menu:openAI", null) },
         { label: "Android Emulator", click: () => sendToRenderer("menu:openAndroid", null) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },

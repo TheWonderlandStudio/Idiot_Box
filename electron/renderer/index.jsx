@@ -31,7 +31,6 @@ import OutputPanel, { OutputIcon } from "./components/Output/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
 import AndroidEmulatorPanel from "./components/AndroidEmulator/index.jsx";
-import AIPanel from "./components/AIPanel/index.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 
 const DEFAULT_JSON = {
@@ -107,7 +106,6 @@ const factory = (node) => {
   case "gitPanel":          return <GitPanel nodeId={node.getId()} />;
   case "ports":             return <PortsPanel />;
   case "androidEmulator":   return <AndroidEmulatorPanel />;
-  case "aiPanel":           return <AIPanel nodeId={node.getId()} />;
   default:                  return null;
   }
 };
@@ -593,7 +591,7 @@ const App = () => {
             // "notebook" stays allowed as a compat shim (interim builds saved
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","aiPanel","builder","docs"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
@@ -733,9 +731,7 @@ const App = () => {
           cleanEmpty2(json.layout);
         } catch {}
       })();
-      // NOTE: AI panel default layout me nahi hai (user choice) — purane saved
-      // sessions me agar aiPanel tab hai to wahi render hoga, naya inject nahi hota.
-      // AI kholo via: New Panel launcher, status-bar AI button, Ctrl+Shift+A.
+      // NOTE: AI panel removed — purane saved sessions me agar aiPanel tab hai to blank render hoga.
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
       setTick((t) => t + 1);
@@ -1100,20 +1096,6 @@ const App = () => {
       }
       addPanel("gitPanel", "Git", {});
     };
-    const onAI = () => {
-      const m = modelRef.current;
-      if (m) {
-        const findAI = (node) => {
-          if (node.getType?.() === "tab" && node.getComponent?.() === "aiPanel") return node;
-          const ch = node.getChildren?.();
-          if (ch) for (const c of ch) { const r = findAI(c); if (r) return r; }
-          return null;
-        };
-        const existing = findAI(m.getRoot());
-        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
-      }
-      addPanel("aiPanel", "AI", {});
-    };
     const onAndroid = () => {
       const m = modelRef.current;
       if (m) {
@@ -1153,7 +1135,6 @@ const App = () => {
     window.addEventListener("add-output-panel", onOutput);
     window.addEventListener("add-run-panel", onRunDebug);
     window.addEventListener("add-git-panel", onGit);
-    window.addEventListener("add-ai-panel", onAI);
     window.addEventListener("add-android-panel", onAndroid);
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
@@ -1164,7 +1145,6 @@ const App = () => {
       window.removeEventListener("add-output-panel", onOutput);
       window.removeEventListener("add-run-panel", onRunDebug);
       window.removeEventListener("add-git-panel", onGit);
-      window.removeEventListener("add-ai-panel", onAI);
       window.removeEventListener("add-android-panel", onAndroid);
     };
   }, []);
@@ -1262,31 +1242,6 @@ const App = () => {
     });
     return unsub;
   }, []);
-  // ── AI panel: View → AI Panel (Ctrl+Shift+A) + renderer fallback ──────
-  // Monaco can swallow the native accelerator, so also listen here (capture).
-  useEffect(() => {
-    const unsub = window.electronAPI.onMenuEvent("menu:openAI", () => {
-      window.dispatchEvent(new CustomEvent("add-ai-panel"));
-    });
-    const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey &&
-          String(e.key || "").toLowerCase() === "a") {
-        e.preventDefault();
-        e.stopPropagation();
-        try { e.stopImmediatePropagation(); } catch {}
-        window.dispatchEvent(new CustomEvent("add-ai-panel"));
-        return false;
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      try { unsub(); } catch {}
-      window.removeEventListener("keydown", onKey, true);
-      document.removeEventListener("keydown", onKey, true);
-    };
-  }, []);
-
   // Open settings window when browser panel requests it
   useEffect(() => {
     const handler = (e) => {
@@ -1965,7 +1920,6 @@ const App = () => {
                 else if (action === "terminal") window.dispatchEvent(new CustomEvent("add-terminal-panel"));
                 else if (action === "output") window.dispatchEvent(new CustomEvent("add-output-panel"));
                 else if (action === "runDebug") window.dispatchEvent(new CustomEvent("add-run-panel"));
-                else if (action === "ai") window.dispatchEvent(new CustomEvent("add-ai-panel"));
                 else if (action === "android") window.dispatchEvent(new CustomEvent("add-android-panel"));
                 else if (action === "community") window.dispatchEvent(new CustomEvent("add-community-panel"));
                 else if (!action) { /* menu dismiss — kuch mat karo */ }
@@ -1999,16 +1953,6 @@ const App = () => {
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)" }}>
           <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: "var(--space-10)" }} />
           <UpdaterNavButton />
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent("add-ai-panel"))}
-            title="Open AI Panel (Ctrl+Shift+A) — chat assistant powered by the Vercel AI SDK"
-            style={{
-              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
-              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
-            }}
-          >
-            AI
-          </button>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-ports-panel"))}
             title="Open Ports — forwarded & running dev servers"

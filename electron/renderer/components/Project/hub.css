@@ -579,7 +579,11 @@
 }
 /* ── Create Project polished layout ───────────────────────────────────── */
 .phub__panel--create {
-  flex: 0 0 auto;
+  /* shrink:1 + max-height so the setup terminal takes space from the body
+     instead of growing the panel past the viewport */
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 100%;
   align-self: center;
   width: fit-content;
   min-width: min(560px, 100%);
@@ -588,7 +592,8 @@
   margin-bottom: auto;
 }
 .phub__panel--create .phub__panel-body {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 0;
   max-width: 860px;
   width: 100%;
   align-self: center;
@@ -1443,6 +1448,107 @@
 }
 .phub__clone-xterm .xterm-screen {
   background: #0a0a0a !important;
+}
+/* ── Editable setup commands (create panel, right column) ─────────────── */
+.phub__cmds {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0a0a0a;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.phub__cmds-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+.phub__cmds-head > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phub__cmds-head .phub__btn--tiny {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.phub__cmds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 132px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.phub__cmds-empty {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 2px 0;
+}
+.phub__cmds-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.phub__cmds-prompt {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: #4ec9b0;
+  flex-shrink: 0;
+  user-select: none;
+}
+.phub__cmds-input {
+  flex: 1;
+  min-width: 0;
+  background: #111111;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: #4ec9b0;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 3px 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+.phub__cmds-input:focus {
+  border-color: var(--accent-border);
+  background: #141414;
+}
+.phub__cmds-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.phub__cmds-x {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.phub__cmds-x:hover {
+  background: rgba(244, 71, 71, 0.12);
+  border-color: rgba(244, 71, 71, 0.4);
+  color: #f44747;
+}
+.phub__cmds-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 .phub__dialog-result-main {
   display: flex;

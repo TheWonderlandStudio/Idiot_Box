@@ -20,7 +20,6 @@ const COMMANDS = [
   { id: "add-run",        title: "View: Show Run & Debug", run: () => window.dispatchEvent(new CustomEvent("add-run-panel")) },
   { id: "add-android",    title: "Open Android Emulator",  run: () => window.dispatchEvent(new CustomEvent("add-android-panel")) },
   { id: "add-git",        title: "Add Git Panel",          run: () => window.dispatchEvent(new CustomEvent("add-git-panel")) },
-  { id: "add-ai",         title: "Open AI Panel",          run: () => window.dispatchEvent(new CustomEvent("add-ai-panel")) },
   { type: "separator" },
   { id: "reset-layout",   title: "Reset Window Layout",    run: () => window.dispatchEvent(new CustomEvent("menu:action", { detail: { cmd: "resetLayout" } })) },
   { id: "toggle-fullscreen", title: "Toggle Full Screen",  run: () => window.dispatchEvent(new CustomEvent("app:fullscreen")) },

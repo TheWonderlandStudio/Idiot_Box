@@ -158,7 +158,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:fullscreen",
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
       "menu:clearTerminal","menu:killTerminal",
-      "menu:openPorts","menu:openGit","menu:openAI","menu:openAndroid",
+      "menu:openPorts","menu:openGit","menu:openAndroid",
       "menu:runAuto","menu:runStop","menu:openRunPanel"
     ];
     if (!valid.includes(channel)) return () => {};
@@ -380,28 +380,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Session ─────────────────────────────────────────────────────────────────
   saveSession:   (data) => ipcRenderer.invoke("session:save", data),
   loadSession:   ()     => ipcRenderer.invoke("session:load"),
-
-  // ── AI Panel — Vercel AI SDK streaming via main (https://ai-sdk.dev) ─────
-  // invoke aiChat -> { ok, requestId?, error? }; stream arrives on ai:stream,
-  // completion on ai:done, failures on ai:error (all carry requestId).
-  aiChat:     (payload) => ipcRenderer.invoke("ai:chat", payload),
-  aiAbort:    (requestId) => ipcRenderer.invoke("ai:abort", requestId),
-  aiValidate: (config) => ipcRenderer.invoke("ai:validate", config || {}),
-  onAiStream: (callback) => {
-    const handler = (_e, payload) => callback(payload);
-    ipcRenderer.on("ai:stream", handler);
-    return () => ipcRenderer.removeListener("ai:stream", handler);
-  },
-  onAiDone: (callback) => {
-    const handler = (_e, payload) => callback(payload);
-    ipcRenderer.on("ai:done", handler);
-    return () => ipcRenderer.removeListener("ai:done", handler);
-  },
-  onAiError: (callback) => {
-    const handler = (_e, payload) => callback(payload);
-    ipcRenderer.on("ai:error", handler);
-    return () => ipcRenderer.removeListener("ai:error", handler);
-  },
 
   // ── mise — on-demand runtimes for the Run button (https://mise.jdx.dev) ──
   // miseEnsure -> { ok, bin?, version?, source?, error? } (downloads if needed)

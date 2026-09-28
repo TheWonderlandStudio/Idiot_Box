@@ -61,6 +61,29 @@ function MessageSquareIconFallback(props) {
 const FRAMEWORK_CATEGORIES = ["All", "Frontend", "Backend", "Python", "Bots", "Mobile", "Others", "Tools"];
 
 // ─── Real setup commands — official CLIs run live in the create terminal ───
+// Editable command line → argv tokens. Quotes may open mid-token
+// (--flag="a b") and an explicit "" still counts as one empty arg.
+const tokenizeCommand = (line) => {
+  const out = [];
+  let cur = "";
+  let quote = null;
+  let quoted = false;
+  for (const ch of String(line || "")) {
+    if (quote) {
+      if (ch === quote) quote = null;
+      else cur += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { quote = ch; quoted = true; continue; }
+    if (/\s/.test(ch)) {
+      if (cur || quoted) { out.push(cur); cur = ""; quoted = false; }
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur || quoted) out.push(cur);
+  return out;
+};
 // null = no reliable non-interactive CLI → starter files (getFrameworkFiles).
 // mode parent: CLI creates <loc>/<safe> itself | target: files go in chosen dir.
 const scaffoldSafeName = (name, fallback) => {
@@ -1103,15 +1126,87 @@ const ProjectHub = () => {
   const scafTermRef = useRef(null);
   const scafFitRef = useRef(null);
   const scafContainerRef = useRef(null);
-  const scafPrevLenRef = useRef(0);
   const scafRunIdRef = useRef(null);
   const scafPlanRef = useRef(null);
   const scafCancelledRef = useRef(false);
   const scaffoldingRef = useRef(false);
-  const [scafLogs, setScafLogs] = useState([]);
+  const [scafVisible, setScafVisible] = useState(false);
   const [scaffolding, setScaffolding] = useState(false);
   const [scafStatus, setScafStatus] = useState(""); // "" | "done" | "error"
   useEffect(() => { scaffoldingRef.current = scaffolding; }, [scaffolding]);
+
+  // ── Editable setup commands (seeded from the spec, user owns them after) ─
+  const [cmdLines, setCmdLines] = useState([]);
+  const cmdKeyRef = useRef("");    // framework + language the drafts were seeded for
+  const cmdDirtyRef = useRef(false); // user typed something — never re-seed over it
+  const cmdText = createSpec ? createSpec.steps.map((s) => `${s.cmd} ${s.args.join(" ")}`) : [];
+
+  // new framework or language → fresh drafts
+  useEffect(() => {
+    if (!createSpec) { cmdKeyRef.current = ""; cmdDirtyRef.current = false; return; }
+    const key = `${selectedFramework?.id || ""}\u0001${frameworkLang}`;
+    if (cmdKeyRef.current === key) return;
+    cmdKeyRef.current = key;
+    cmdDirtyRef.current = false;
+  }, [selectedFramework?.id, frameworkLang, createSpec]);
+
+  // project name changed → refresh drafts only while untouched
+  useEffect(() => {
+    if (!createSpec || cmdDirtyRef.current) return;
+    setCmdLines(cmdText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cmdText.join("\n")]);
+
+  const resetCmdLines = useCallback(() => {
+    cmdDirtyRef.current = false;
+    setCmdLines(createSpec ? createSpec.steps.map((s) => `${s.cmd} ${s.args.join(" ")}`) : []);
+  }, [createSpec]);
+
+  const editCmdLine = useCallback((i, value) => {
+    cmdDirtyRef.current = true;
+    setCmdLines((prev) => prev.map((l, k) => (k === i ? value : l)));
+  }, []);
+
+  const removeCmdLine = useCallback((i) => {
+    cmdDirtyRef.current = true;
+    setCmdLines((prev) => prev.filter((_, k) => k !== i));
+  }, []);
+
+  const addCmdLine = useCallback(() => {
+    cmdDirtyRef.current = true;
+    setCmdLines((prev) => [...prev, "npm install"]);
+  }, []);
+
+  // drafts → runnable steps, keeping each step's original cwd
+  const editedSteps = useMemo(() => {
+    if (!createSpec) return [];
+    return cmdLines
+      .map((line, i) => {
+        const tokens = tokenizeCommand(line);
+        if (!tokens.length) return null;
+        return { cmd: tokens[0], args: tokens.slice(1), cwd: createSpec.steps[i]?.cwd || "parent" };
+      })
+      .filter(Boolean);
+  }, [createSpec, cmdLines]);
+
+  // Folder the parent-mode CLI will actually create. If the user renamed the
+  // project-name argument in the first command, that wins over the name field,
+  // otherwise "open project" would target a directory that was never made.
+  const editedProjName = useMemo(() => {
+    if (!createSpec) return "";
+    const base = createSpec.safe;
+    if (createSpec.mode !== "parent" || !cmdDirtyRef.current) return base;
+    const firstEdited = editedSteps[0];
+    const firstSpec = createSpec.steps[0];
+    if (!firstEdited || !firstSpec) return base;
+    const safeIdx = firstSpec.args.indexOf(base);
+    if (safeIdx < 0) return base;
+    // only trust it when the step is still the same command with the same shape
+    if (firstEdited.cmd !== firstSpec.cmd || firstEdited.args.length !== firstSpec.args.length) return base;
+    const candidate = firstEdited.args[safeIdx];
+    if (!candidate || candidate === base || /[\\/:*?"<>|]/.test(candidate)) return base;
+    return scaffoldSafeName(candidate, base);
+  }, [createSpec, editedSteps]);
 
   useEffect(() => {
     if (!showCloneDialog) return;
@@ -1119,7 +1214,8 @@ const ProjectHub = () => {
     const el = cloneContainerRef.current;
     if (!el || cloneTermRef.current) return;
     const term = new Terminal({
-      convertEol: true,
+      // no convertEol — git/PTY output already carries real \r\n, and forcing
+      // this on resets the column on every \n and fights \r redraws
       disableStdin: true,
       cursorBlink: false,
       cursorStyle: "block",
@@ -1144,7 +1240,7 @@ const ProjectHub = () => {
     cloneFitRef.current = fit;
     // write existing logs
     if (cloneLogs.length) {
-      term.write(cloneLogs.join("").replace(/\r?\n/g, "\r\n"));
+      term.write(cloneLogs.join(""));
       clonePrevLenRef.current = cloneLogs.length;
     }
     const ro = new ResizeObserver(() => { try { fit.fit(); } catch {} });
@@ -1176,27 +1272,35 @@ const ProjectHub = () => {
       return;
     }
     if (cloneLogs.length < clonePrevLenRef.current) {
-      try { term.clear(); term.write(cloneLogs.join("").replace(/\r?\n/g, "\r\n")); } catch {}
+      try { term.clear(); term.write(cloneLogs.join("")); } catch {}
       clonePrevLenRef.current = cloneLogs.length;
       return;
     }
     const newChunks = cloneLogs.slice(clonePrevLenRef.current);
     for (const chunk of newChunks) {
-      try { term.write(String(chunk).replace(/\r?\n/g, "\r\n")); } catch {}
+      try { term.write(String(chunk)); } catch {}
     }
     clonePrevLenRef.current = cloneLogs.length;
   }, [cloneLogs]);
 
   // ── Scaffold terminal lifecycle (clone pattern, stdin ON for prompts) ──
+  // PTY bytes go straight into xterm. They must NOT round-trip through React
+  // state: a busy CLI fires hundreds of chunks/sec, and the capped log array
+  // triggered term.clear() + full replay whenever it overflowed — that is what
+  // mangled \r redraws and made arrow keys reprint over and over.
+  const scafPendingRef = useRef([]);
+
   useEffect(() => {
     if (!showNewProjectDialog) return;
-    if (!(scaffolding || scafLogs.length > 0 || scafStatus)) return;
+    if (!scafVisible) return;
     const el = scafContainerRef.current;
     if (!el || scafTermRef.current) return;
     let term = null;
     try {
       term = new Terminal({
-        convertEol: true,
+        // no convertEol: node-pty already emits real \r\n. convertEol is also a
+        // live device mode (DECSET 20) — forcing it on made \n reset the column
+        // and fight the shell's own \r redraws.
         disableStdin: false,
         cursorBlink: true,
         cursorStyle: "bar",
@@ -1217,12 +1321,15 @@ const ProjectHub = () => {
     const fit = new FitAddon();
     try { term.loadAddon(fit); } catch {}
     try { term.open(el); } catch { return undefined; }
-    try { fit.fit(); } catch {}
     scafTermRef.current = term;
     scafFitRef.current = fit;
-    if (scafLogs.length) {
-      try { term.write(scafLogs.join("").replace(/\r?\n/g, "\r\n")); } catch {}
-      scafPrevLenRef.current = scafLogs.length;
+    const doFit = () => { try { fit.fit(); } catch {} };
+    // fit after the browser settles the freshly inserted flex row
+    const raf = requestAnimationFrame(doFit);
+    // flush anything written before the term existed — verbatim, no rewriting
+    if (scafPendingRef.current.length) {
+      try { term.write(scafPendingRef.current.join("")); } catch {}
+      scafPendingRef.current = [];
     }
     // type answers straight into prompts (create-next-app etc.)
     try {
@@ -1233,29 +1340,40 @@ const ProjectHub = () => {
         } catch {}
       });
     } catch {}
-    const ro = new ResizeObserver(() => { try { fit.fit(); } catch {} });
+    // ResizeObserver must outlive log chunks — it is the only thing that keeps
+    // columns correct when the panel reflows while the CLI is still running.
+    const ro = new ResizeObserver(() => doFit());
     try { ro.observe(el); } catch {}
-    const onResize = () => { try { fit.fit(); } catch {} };
-    window.addEventListener("resize", onResize);
+    window.addEventListener("resize", doFit);
     return () => {
-      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", doFit);
       try { ro.disconnect(); } catch {}
     };
-  }, [showNewProjectDialog, scaffolding, scafLogs.length, scafStatus]);
+  }, [showNewProjectDialog, scafVisible]);
 
   useEffect(() => {
     if (!showNewProjectDialog) {
       if (scafTermRef.current) { try { scafTermRef.current.dispose(); } catch {} scafTermRef.current = null; scafFitRef.current = null; }
-      scafPrevLenRef.current = 0;
+      scafPendingRef.current = [];
     }
   }, [showNewProjectDialog]);
 
+  // hub unmounts the moment the project opens — never leak the term
+  useEffect(() => () => {
+    if (scafTermRef.current) { try { scafTermRef.current.dispose(); } catch {} scafTermRef.current = null; scafFitRef.current = null; }
+  }, []);
+
   // ── Scaffold engine: sequential CLI steps over the run engine ──────────
+  // Raw PTY passthrough — no newline rewriting, no batching, no state.
   const scafPush = useCallback((chunk) => {
-    setScafLogs((prev) => {
-      const next = [...prev, String(chunk ?? "")];
-      return next.length > 800 ? next.slice(-800) : next;
-    });
+    const text = String(chunk ?? "");
+    if (!text) return;
+    const term = scafTermRef.current;
+    if (term) { try { term.write(text); } catch {} return; }
+    // terminal not mounted yet — hold it, flushed verbatim on open
+    if (scafPendingRef.current.length < 400) scafPendingRef.current.push(text);
+    setScafVisible(true);
   }, []);
 
   const writeTemplateFiles = useCallback(async (fwId, name, lang, baseDir, skip = []) => {
@@ -1299,9 +1417,12 @@ const ProjectHub = () => {
     setNewProjectLocation("");
     setSelectedFramework(null);
     setShowTemplateFiles(false);
-    setScafLogs([]);
+    scafPendingRef.current = [];
+    setScafVisible(false);
     setScafStatus("");
     setShowNewProjectDialog(false);
+    cmdDirtyRef.current = false;
+    setCmdLines([]);
   }, []);
 
   const scafFallback = async (plan, reason) => {
@@ -1364,7 +1485,15 @@ const ProjectHub = () => {
     let u1 = null, u2 = null;
     try {
       u1 = window.electronAPI?.onRunData?.(({ runId, data }) => {
-        try { if (runId && runId === scafRunIdRef.current) scafPush(String(data ?? "")); } catch {}
+        try {
+          if (!runId || runId !== scafRunIdRef.current) return;
+          const text = String(data ?? "");
+          if (!text) return;
+          const term = scafTermRef.current;
+          // straight to the canvas — the PTY stream must stay a byte stream
+          if (term) { try { term.write(text); } catch {} }
+          else scafPush(text);
+        } catch {}
       });
     } catch {}
     try {
@@ -1384,27 +1513,6 @@ const ProjectHub = () => {
     if (id) { try { window.electronAPI.runStop(id); } catch {} }
     else { setScaffolding(false); }
   }, []);
-
-  useEffect(() => {
-    const term = scafTermRef.current;
-    if (!term) { scafPrevLenRef.current = scafLogs.length; return; }
-    if (scafLogs.length === 0) {
-      try { term.clear(); } catch {}
-      scafPrevLenRef.current = 0;
-      return;
-    }
-    if (scafLogs.length < scafPrevLenRef.current) {
-      try { term.clear(); term.write(scafLogs.join("").replace(/\r?\n/g, "\r\n")); } catch {}
-      scafPrevLenRef.current = scafLogs.length;
-      return;
-    }
-    const newChunks = scafLogs.slice(scafPrevLenRef.current);
-    for (const chunk of newChunks) {
-      try { term.write(String(chunk).replace(/\r?\n/g, "\r\n")); } catch {}
-    }
-    scafPrevLenRef.current = scafLogs.length;
-    try { term.scrollToBottom(); } catch {}
-  }, [scafLogs]);
 
   useEffect(() => {
     const unsubLog = window.electronAPI.onCloneLog?.((data) => {
@@ -1623,6 +1731,8 @@ const ProjectHub = () => {
     const name = newProjectName.trim() || fw?.name || "app";
     let spec = fw ? getScaffoldSpec(fw.id, name, frameworkLang) : null;
     const loc = newProjectLocation.trim();
+    // user cleared every command → fall back to starter files, nothing to run
+    if (spec && !editedSteps.length) spec = null;
     // parent-mode needs a real parent dir — else starter files
     if (spec && spec.mode === "parent" && !loc) spec = null;
     if (!spec) {
@@ -1644,10 +1754,10 @@ const ProjectHub = () => {
     if (scaffoldingRef.current) return;
     const sep = loc.includes("\\") ? "\\" : "/";
     const parentDir = loc.replace(/[\\/]+$/, "") || target;
-    const projDir = spec.mode === "parent" ? parentDir + sep + spec.safe : target;
+    const projDir = spec.mode === "parent" ? parentDir + sep + (editedProjName || spec.safe) : target;
     scafCancelledRef.current = false;
-    scafPrevLenRef.current = 0;
-    setScafLogs([]);
+    scafPendingRef.current = [];
+    setScafVisible(true);
     setScafStatus("");
     setScaffolding(true);
     try {
@@ -1665,12 +1775,12 @@ const ProjectHub = () => {
       return;
     }
     const runId = `scaffold-${Date.now()}`;
-    const plan = { runId, steps: spec.steps, idx: 0, parentDir, projDir, fwId: fw.id, name, lang: frameworkLang, spec };
+    const plan = { runId, steps: editedSteps, idx: 0, parentDir, projDir, fwId: fw.id, name, lang: frameworkLang, spec };
     scafPlanRef.current = plan;
     scafRunIdRef.current = runId;
     const started = await startScafStep(plan, 0);
     if (!started) await scafFallback(plan, "could not start first command");
-  }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, scafPush, writeTemplateFiles, startScafStep, finishScaffold, closeCreateDialog]);
+  }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, scafPush, writeTemplateFiles, startScafStep, finishScaffold, closeCreateDialog]);
 
   const handleDelete = useCallback(async (folderPath) => {
     const target = folderPath || deletingPath;
@@ -1993,7 +2103,7 @@ const ProjectHub = () => {
                     // parent-mode CLI creates <loc>/<safe> itself — show that
                     if (createSpec && createSpec.mode === "parent" && loc) {
                       const sep = loc.includes("\\") ? "\\" : "/";
-                      const preview = loc.replace(/[\\/]+$/, "") + sep + createSpec.safe;
+                      const preview = loc.replace(/[\\/]+$/, "") + sep + (editedProjName || createSpec.safe);
                       return (
                         <div className="phub__dialog-field phub__dialog-field--preview">
                           <label className="phub__dialog-label">Project will be created at</label>
@@ -2026,18 +2136,45 @@ const ProjectHub = () => {
                       <FolderOpen size={12} style={{ color: "var(--text-muted)" }} />
                       <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 500 }}>
                         {createSpec
-                          ? `Real setup — ${createSpec.steps.length} command${createSpec.steps.length > 1 ? "s" : ""} run live below`
+                          ? `Real setup — ${editedSteps.length} command${editedSteps.length === 1 ? "" : "s"} run live below`
                           : `${Object.keys(getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang)).length} files will be created`}
                       </span>
                     </div>
                     {createSpec && (
-                      <div style={{ border: "1px solid var(--border)", borderRadius: 6, background: "#0a0a0a", padding: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 150, overflowY: "auto" }}>
-                        {createSpec.steps.map((st, i) => (
-                          <div key={i} style={{ fontFamily: "Consolas, monospace", fontSize: 11, color: "#4ec9b0", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                            $ {st.cmd} {st.args.join(" ")}
-                          </div>
-                        ))}
-                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                      <div className="phub__cmds">
+                        <div className="phub__cmds-head">
+                          <span>Setup commands — edit before creating</span>
+                          <button className="phub__btn--tiny" onClick={resetCmdLines} disabled={scaffolding} title="Restore the official commands">Reset</button>
+                        </div>
+                        <div className="phub__cmds-list">
+                          {cmdLines.length === 0 && (
+                            <div className="phub__cmds-empty">No commands — starter files will be written instead.</div>
+                          )}
+                          {cmdLines.map((line, i) => (
+                            <div className="phub__cmds-row" key={i}>
+                              <span className="phub__cmds-prompt">$</span>
+                              <input
+                                className="phub__cmds-input"
+                                type="text"
+                                spellCheck={false}
+                                autoComplete="off"
+                                value={line}
+                                disabled={scaffolding}
+                                onChange={(e) => editCmdLine(i, e.target.value)}
+                                aria-label={`Setup command ${i + 1}`}
+                              />
+                              {!scaffolding && cmdLines.length > 1 && (
+                                <button className="phub__cmds-x" onClick={() => removeCmdLine(i)} title="Remove step" type="button">
+                                  <X size={11} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {!scaffolding && (
+                          <button className="phub__btn--tiny" onClick={addCmdLine} type="button">+ Add command</button>
+                        )}
+                        <div className="phub__cmds-hint">
                           {createSpec.write === false
                             ? "Official CLI generates the project. Tool missing? Starter files are written instead."
                             : "Starter files + real dependency install. Prompts appear in the terminal — type to answer."}
@@ -2095,7 +2232,7 @@ const ProjectHub = () => {
                 <input value={newProjectPath} onChange={(e) => setNewProjectPath(e.target.value)} />
               </div>
             </div>
-            {(scaffolding || scafLogs.length > 0 || scafStatus) && (
+            {(scaffolding || scafVisible || scafStatus) && (
               <div className="phub__clone-logs" style={{ margin: "0 12px 8px" }}>
                 <div className="phub__clone-logs-header">
                   Setup Terminal
@@ -2118,7 +2255,8 @@ const ProjectHub = () => {
                   scafPlanRef.current = null;
                   scafCancelledRef.current = false;
                   setScaffolding(false);
-                  setScafLogs([]);
+                  scafPendingRef.current = [];
+                  setScafVisible(false);
                   setScafStatus("");
                   setShowNewProjectDialog(false);
                   setNewProjectName("");
