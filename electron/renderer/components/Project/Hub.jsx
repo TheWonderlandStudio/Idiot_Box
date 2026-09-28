@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import { playClick, setClickEnabled } from "../shared/clickSound.js";
+import GitGraph from "../GitPanel/GitGraph.jsx";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -58,6 +59,100 @@ function MessageSquareIconFallback(props) {
   return <Send {...props} />;
 }
 const FRAMEWORK_CATEGORIES = ["All", "Frontend", "Backend", "Python", "Bots", "Mobile", "Others", "Tools"];
+
+// ─── Real setup commands — official CLIs run live in the create terminal ───
+// null = no reliable non-interactive CLI → starter files (getFrameworkFiles).
+// mode parent: CLI creates <loc>/<safe> itself | target: files go in chosen dir.
+const scaffoldSafeName = (name, fallback) => {
+  const s = String(name || fallback || "app").trim().toLowerCase().replace(/[^a-z0-9-_]/g, "-").replace(/^-+|-+$/g, "");
+  return s || "app";
+};
+const getScaffoldSpec = (fwId, displayName, lang = "TypeScript") => {
+  const safe = scaffoldSafeName(displayName, fwId);
+  const isTS = lang === "TypeScript";
+  const tmpl = (ts, js) => (isTS ? ts : js);
+  const vite = (t) => ({
+    mode: "parent", safe, write: false,
+    steps: [
+      { cmd: "npm", args: ["create", `vite@latest`, safe, "--", "--template", t], cwd: "parent" },
+      { cmd: "npm", args: ["install"], cwd: "proj" },
+    ],
+  });
+  const npmInstall = () => ({
+    mode: "target", safe, write: "before",
+    steps: [{ cmd: "npm", args: ["install"], cwd: "proj" }],
+  });
+  const pipInstall = (...pkgs) => ({
+    mode: "target", safe, write: "before",
+    steps: [{ cmd: "python", args: ["-m", "pip", "install", ...pkgs], cwd: "proj" }],
+  });
+  switch (fwId) {
+    case "react": return vite(tmpl("react-ts", "react"));
+    case "vue": return vite(tmpl("vue-ts", "vue"));
+    case "svelte": return vite(tmpl("svelte-ts", "svelte"));
+    case "nextjs": return {
+      mode: "parent", safe, write: false,
+      steps: [{ cmd: "npx", args: ["-y", "create-next-app@latest", safe, isTS ? "--typescript" : "--javascript", "--eslint", "--tailwind", "--app", "--no-src-dir", "--import-alias", "@/*", "--use-npm"], cwd: "parent" }],
+    };
+    case "angular": return {
+      mode: "parent", safe, write: false,
+      steps: [{ cmd: "npx", args: ["-y", "@angular/cli@latest", "new", safe, "--defaults", "--skip-git", "--package-manager", "npm"], cwd: "parent" }],
+    };
+    case "astro": return {
+      mode: "parent", safe, write: false,
+      steps: [
+        { cmd: "npm", args: ["create", "astro@latest", safe, "--", "--template", "basics", "--typescript", "strict", "--no-install", "--no-git", "--yes"], cwd: "parent" },
+        { cmd: "npm", args: ["install"], cwd: "proj" },
+      ],
+    };
+    case "nuxt": return {
+      mode: "parent", safe, write: false,
+      steps: [{ cmd: "npx", args: ["-y", "nuxi@latest", "init", safe], cwd: "parent" }],
+    };
+    case "nestjs": return {
+      mode: "parent", safe, write: false,
+      steps: [{ cmd: "npx", args: ["-y", "@nestjs/cli@latest", "new", safe, "--skip-git", "--package-manager", "npm"], cwd: "parent" }],
+    };
+    case "expo": return {
+      mode: "parent", safe, write: false,
+      steps: [{ cmd: "npx", args: ["-y", "create-expo-app@latest", safe, "--template", isTS ? "blank-typescript" : "blank"], cwd: "parent" }],
+    };
+    case "flutter": return {
+      mode: "parent", safe, write: false,
+      steps: [{ cmd: "flutter", args: ["create", "--project-name", safe, safe], cwd: "parent" }],
+    };
+    case "php": return {
+      mode: "parent", safe, write: false,
+      steps: [{ cmd: "composer", args: ["create-project", "laravel/laravel", safe], cwd: "parent" }],
+    };
+    case "express": case "fastify": case "hono":
+    case "discord-node": case "telegram-node": case "slack":
+    case "whatsapp": case "twitter": case "cli":
+      return npmInstall();
+    case "flask": return pipInstall("flask");
+    case "fastapi": return pipInstall("fastapi", "uvicorn");
+    case "streamlit": return pipInstall("streamlit");
+    case "gradio": return pipInstall("gradio");
+    case "discord-py": return pipInstall("discord.py");
+    case "telegram-py": return pipInstall("python-telegram-bot");
+    case "django": return {
+      mode: "target", safe, write: false,
+      steps: [
+        { cmd: "python", args: ["-m", "pip", "install", "django"], cwd: "proj" },
+        { cmd: "django-admin", args: ["startproject", "config", "."], cwd: "proj" },
+      ],
+    };
+    case "go": return {
+      mode: "target", safe, write: "before", skipFiles: ["go.mod"],
+      steps: [{ cmd: "go", args: ["mod", "init", safe], cwd: "proj" }],
+    };
+    case "rust": return {
+      mode: "target", safe, write: "after", skipFiles: ["Cargo.toml"],
+      steps: [{ cmd: "cargo", args: ["init", "--name", safe], cwd: "proj" }],
+    };
+    default: return null;
+  }
+};
 
 // Minimal starter file maps per framework — proper files for each, supports JS/TS variants
 const getFrameworkFiles = (id, projectName, lang = "TypeScript") => {
@@ -493,6 +588,7 @@ const ProjectHub = () => {
   const navLockRef = useRef(false);
   const [, bumpNav] = useState(0);
   const hubView = showNewProjectDialog ? "new" : showCloneDialog ? "clone" : showFrameworks ? "fw" : "main";
+  const createSpec = selectedFramework ? getScaffoldSpec(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang) : null;
   const applyHubView = useCallback((v) => {
     setShowNewProjectDialog(v === "new");
     setShowCloneDialog(v === "clone");
@@ -576,6 +672,69 @@ const ProjectHub = () => {
     setDropMsg(t);
     try { clearTimeout(dropMsgTimerRef.current); } catch {}
     dropMsgTimerRef.current = setTimeout(() => setDropMsg(null), 4000);
+  }, []);
+
+  // ── Hub view switcher (checkbox rows → center view) ──
+  // views: projects (default stack) | gitgraph (repo graph). Drawing jaisa:
+  // sidebar me checkbox squares + label pills, ek time par ek view.
+  const [centerView, setCenterView] = useState("gitgraph");
+  const [graphProject, setGraphProject] = useState(null);
+  const [graphLog, setGraphLog] = useState([]);
+  const [graphQuery, setGraphQuery] = useState("");
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [graphDetail, setGraphDetail] = useState(null);
+  const recentPaths = useMemo(
+    () => (recentProjects || []).map((e) => (typeof e === "string" ? e : e?.path)).filter(Boolean),
+    [recentProjects]
+  );
+  useEffect(() => {
+    if (centerView !== "gitgraph") return;
+    let dead = false;
+    (async () => {
+      if (!graphProject) {
+        const first = recentPaths[0] || null;
+        if (!first || dead) return;
+        setGraphProject(first);
+        return;
+      }
+      setGraphLoading(true);
+      try {
+        const lg = await window.electronAPI?.gitLog?.(graphProject, 50);
+        if (!dead) setGraphLog(Array.isArray(lg) ? lg : []);
+      } catch {
+        if (!dead) setGraphLog([]);
+      }
+      if (!dead) setGraphLoading(false);
+    })();
+    return () => { dead = true; };
+  }, [centerView, graphProject, recentPaths]);
+  const filteredGraph = useMemo(() => {
+    const q = graphQuery.trim().toLowerCase();
+    if (!q) return graphLog;
+    return graphLog.filter((c) =>
+      (c.msg || "").toLowerCase().includes(q) ||
+      (c.hash || "").toLowerCase().includes(q) ||
+      (c.author || "").toLowerCase().includes(q)
+    );
+  }, [graphLog, graphQuery]);
+  const viewGraphCommit = useCallback(async (c) => {
+    if (!c) return;
+    setGraphDetail({ hash: c.hash, fullHash: c.fullHash, loading: true, stat: "", diff: "" });
+    try {
+      const [stat, diff] = await Promise.all([
+        window.electronAPI?.gitCommitShow ? window.electronAPI.gitCommitShow(graphProject, c.fullHash) : Promise.resolve(""),
+        window.electronAPI?.gitCommitDiff ? window.electronAPI.gitCommitDiff(graphProject, c.fullHash) : Promise.resolve(""),
+      ]);
+      setGraphDetail({ hash: c.hash, fullHash: c.fullHash, loading: false, stat: stat || "", diff: diff || "" });
+    } catch (e) {
+      setGraphDetail({ hash: c.hash, fullHash: c.fullHash, loading: false, stat: "", diff: "Error: " + (e?.message || e) });
+    }
+  }, [graphProject]);
+  const copyGraphHash = useCallback(async (h) => {
+    try {
+      if (window.electronAPI?.clipboardWrite) await window.electronAPI.clipboardWrite(h);
+      else await navigator.clipboard.writeText(h);
+    } catch {}
   }, []);
 
   // ── Hub wallpaper (user ki pasand — path persist, dataURL memory me) ──
@@ -940,6 +1099,20 @@ const ProjectHub = () => {
   const cloneContainerRef = useRef(null);
   const clonePrevLenRef = useRef(0);
 
+  // ── Xterm console for framework setup (real CLI, live output) ──────────
+  const scafTermRef = useRef(null);
+  const scafFitRef = useRef(null);
+  const scafContainerRef = useRef(null);
+  const scafPrevLenRef = useRef(0);
+  const scafRunIdRef = useRef(null);
+  const scafPlanRef = useRef(null);
+  const scafCancelledRef = useRef(false);
+  const scaffoldingRef = useRef(false);
+  const [scafLogs, setScafLogs] = useState([]);
+  const [scaffolding, setScaffolding] = useState(false);
+  const [scafStatus, setScafStatus] = useState(""); // "" | "done" | "error"
+  useEffect(() => { scaffoldingRef.current = scaffolding; }, [scaffolding]);
+
   useEffect(() => {
     if (!showCloneDialog) return;
     if (!(cloning || cloneLogs.length > 0)) return;
@@ -1013,6 +1186,225 @@ const ProjectHub = () => {
     }
     clonePrevLenRef.current = cloneLogs.length;
   }, [cloneLogs]);
+
+  // ── Scaffold terminal lifecycle (clone pattern, stdin ON for prompts) ──
+  useEffect(() => {
+    if (!showNewProjectDialog) return;
+    if (!(scaffolding || scafLogs.length > 0 || scafStatus)) return;
+    const el = scafContainerRef.current;
+    if (!el || scafTermRef.current) return;
+    let term = null;
+    try {
+      term = new Terminal({
+        convertEol: true,
+        disableStdin: false,
+        cursorBlink: true,
+        cursorStyle: "bar",
+        fontFamily: "Consolas, 'Cascadia Code', 'Courier New', monospace",
+        fontSize: 12,
+        lineHeight: 1.2,
+        theme: {
+          background: "#0a0a0a",
+          foreground: "#cccccc",
+          cursor: "#4ec9b0",
+          selectionBackground: "#264f78",
+          black: "#0a0a0a",
+          white: "#cccccc",
+        },
+        scrollback: 5000,
+      });
+    } catch { return undefined; }
+    const fit = new FitAddon();
+    try { term.loadAddon(fit); } catch {}
+    try { term.open(el); } catch { return undefined; }
+    try { fit.fit(); } catch {}
+    scafTermRef.current = term;
+    scafFitRef.current = fit;
+    if (scafLogs.length) {
+      try { term.write(scafLogs.join("").replace(/\r?\n/g, "\r\n")); } catch {}
+      scafPrevLenRef.current = scafLogs.length;
+    }
+    // type answers straight into prompts (create-next-app etc.)
+    try {
+      term.onData((d) => {
+        try {
+          const id = scafRunIdRef.current;
+          if (id && scaffoldingRef.current) window.electronAPI.runWrite(id, d);
+        } catch {}
+      });
+    } catch {}
+    const ro = new ResizeObserver(() => { try { fit.fit(); } catch {} });
+    try { ro.observe(el); } catch {}
+    const onResize = () => { try { fit.fit(); } catch {} };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      try { ro.disconnect(); } catch {}
+    };
+  }, [showNewProjectDialog, scaffolding, scafLogs.length, scafStatus]);
+
+  useEffect(() => {
+    if (!showNewProjectDialog) {
+      if (scafTermRef.current) { try { scafTermRef.current.dispose(); } catch {} scafTermRef.current = null; scafFitRef.current = null; }
+      scafPrevLenRef.current = 0;
+    }
+  }, [showNewProjectDialog]);
+
+  // ── Scaffold engine: sequential CLI steps over the run engine ──────────
+  const scafPush = useCallback((chunk) => {
+    setScafLogs((prev) => {
+      const next = [...prev, String(chunk ?? "")];
+      return next.length > 800 ? next.slice(-800) : next;
+    });
+  }, []);
+
+  const writeTemplateFiles = useCallback(async (fwId, name, lang, baseDir, skip = []) => {
+    const files = getFrameworkFiles(fwId, name, lang);
+    const sep = baseDir.includes("\\") ? "\\" : "/";
+    const base = baseDir.replace(/[\\/]+$/, "");
+    for (const [rel, content] of Object.entries(files)) {
+      if (skip.includes(rel)) continue;
+      const filePath = base + sep + rel.replace(/\//g, sep);
+      try { await window.electronAPI.writeFileText(filePath, content); } catch (e) { console.warn("template write failed", rel, e); }
+    }
+  }, []);
+
+  const startScafStep = useCallback(async (plan, idx) => {
+    const step = plan.steps[idx];
+    if (!step) return false;
+    const cwd = step.cwd === "proj" ? plan.projDir : plan.parentDir;
+    scafPush(`\r\n$ ${step.cmd} ${step.args.join(" ")}  [${cwd}]\r\n`);
+    let res = null;
+    try {
+      res = await window.electronAPI.runStart({ runId: plan.runId, cmd: step.cmd, args: step.args, cwd, label: `scaffold:${plan.fwId}` });
+    } catch (err) { res = { ok: false, error: err?.message || String(err) }; }
+    if (!res || !res.ok) {
+      scafPush(`Could not start (${step.cmd}) — ${res?.error || "unknown error"}\r\n`);
+      return false;
+    }
+    return true;
+  }, [scafPush]);
+
+  const finishScaffold = useCallback((ok, msg) => {
+    scafRunIdRef.current = null;
+    scafPlanRef.current = null;
+    setScaffolding(false);
+    setScafStatus(ok ? "done" : "error");
+    if (msg) scafPush(msg);
+  }, [scafPush]);
+
+  const closeCreateDialog = useCallback(() => {
+    setNewProjectPath("");
+    setNewProjectName("");
+    setNewProjectLocation("");
+    setSelectedFramework(null);
+    setShowTemplateFiles(false);
+    setScafLogs([]);
+    setScafStatus("");
+    setShowNewProjectDialog(false);
+  }, []);
+
+  const scafFallback = async (plan, reason) => {
+    scafPush(`\r\nNative setup failed (${reason}) — writing starter files instead…\r\n`);
+    try {
+      await window.electronAPI.menuNewProject(plan.projDir);
+      await writeTemplateFiles(plan.fwId, plan.name, plan.lang, plan.projDir, []);
+      await window.electronAPI.menuOpenProject(plan.projDir);
+      scafPush("Starter files ready — opening project…\r\n");
+      scafRunIdRef.current = null;
+      scafPlanRef.current = null;
+      setScaffolding(false);
+      setScafStatus("done");
+      closeCreateDialog();
+    } catch (err) {
+      finishScaffold(false, `Fallback also failed — ${err?.message || err}\r\n`);
+    }
+  };
+
+  const scafExitRef = useRef(null);
+  scafExitRef.current = async (code) => {
+    const plan = scafPlanRef.current;
+    if (!plan) return;
+    if (scafCancelledRef.current) {
+      scafPush("\r\nStopped.\r\n");
+      scafRunIdRef.current = null;
+      scafPlanRef.current = null;
+      setScaffolding(false);
+      return;
+    }
+    if (code === 0) {
+      const next = plan.idx + 1;
+      if (next < plan.steps.length) {
+        plan.idx = next;
+        const started = await startScafStep(plan, next);
+        if (!started) await scafFallback(plan, "next step failed to start");
+        return;
+      }
+      if (plan.spec.write === "after") {
+        try { await writeTemplateFiles(plan.fwId, plan.name, plan.lang, plan.projDir, plan.spec.skipFiles || []); } catch {}
+      }
+      scafPush("\r\nSetup complete — opening project…\r\n");
+      try {
+        await window.electronAPI.menuOpenProject(plan.projDir);
+        scafRunIdRef.current = null;
+        scafPlanRef.current = null;
+        setScaffolding(false);
+        setScafStatus("done");
+        closeCreateDialog();
+      } catch (err) {
+        finishScaffold(false, `\r\nCould not open ${plan.projDir} — ${err?.message || err}\r\n`);
+      }
+      return;
+    }
+    await scafFallback(plan, `exit code ${code}`);
+  };
+
+  // run bus subscription (own runIds only — RunPanel traffic untouched)
+  useEffect(() => {
+    let u1 = null, u2 = null;
+    try {
+      u1 = window.electronAPI?.onRunData?.(({ runId, data }) => {
+        try { if (runId && runId === scafRunIdRef.current) scafPush(String(data ?? "")); } catch {}
+      });
+    } catch {}
+    try {
+      u2 = window.electronAPI?.onRunExit?.((info) => {
+        try {
+          const rid = info?.runId;
+          if (rid && rid === scafRunIdRef.current && scafExitRef.current) scafExitRef.current(info?.code);
+        } catch {}
+      });
+    } catch {}
+    return () => { try { u1?.(); } catch {} try { u2?.(); } catch {} };
+  }, [scafPush]);
+
+  const stopScaffold = useCallback(() => {
+    const id = scafRunIdRef.current;
+    scafCancelledRef.current = true;
+    if (id) { try { window.electronAPI.runStop(id); } catch {} }
+    else { setScaffolding(false); }
+  }, []);
+
+  useEffect(() => {
+    const term = scafTermRef.current;
+    if (!term) { scafPrevLenRef.current = scafLogs.length; return; }
+    if (scafLogs.length === 0) {
+      try { term.clear(); } catch {}
+      scafPrevLenRef.current = 0;
+      return;
+    }
+    if (scafLogs.length < scafPrevLenRef.current) {
+      try { term.clear(); term.write(scafLogs.join("").replace(/\r?\n/g, "\r\n")); } catch {}
+      scafPrevLenRef.current = scafLogs.length;
+      return;
+    }
+    const newChunks = scafLogs.slice(scafPrevLenRef.current);
+    for (const chunk of newChunks) {
+      try { term.write(String(chunk).replace(/\r?\n/g, "\r\n")); } catch {}
+    }
+    scafPrevLenRef.current = scafLogs.length;
+    try { term.scrollToBottom(); } catch {}
+  }, [scafLogs]);
 
   useEffect(() => {
     const unsubLog = window.electronAPI.onCloneLog?.((data) => {
@@ -1228,30 +1620,57 @@ const ProjectHub = () => {
     const target = full || legacy;
     if (!target) return;
     const fw = selectedFramework;
-    try {
-      await window.electronAPI.menuNewProject(target);
-      // if framework selected — populate starter files
-      if (fw) {
-        const files = getFrameworkFiles(fw.id, newProjectName.trim() || fw.name, frameworkLang);
-        const sep = target.includes("\\") ? "\\" : "/";
-        const base = target.replace(/[\\/]+$/, "");
-        for (const [rel, content] of Object.entries(files)) {
-          const filePath = base + sep + rel.replace(/\//g, sep);
-          try { await window.electronAPI.writeFileText(filePath, content); } catch (e) { console.warn("template write failed", rel, e); }
+    const name = newProjectName.trim() || fw?.name || "app";
+    let spec = fw ? getScaffoldSpec(fw.id, name, frameworkLang) : null;
+    const loc = newProjectLocation.trim();
+    // parent-mode needs a real parent dir — else starter files
+    if (spec && spec.mode === "parent" && !loc) spec = null;
+    if (!spec) {
+      try {
+        await window.electronAPI.menuNewProject(target);
+        // if framework selected — populate starter files
+        if (fw) {
+          await writeTemplateFiles(fw.id, newProjectName.trim() || fw.name, frameworkLang, target, []);
+          // reopen to refresh file tree
+          try { await window.electronAPI.menuOpenProject(target); } catch {}
         }
-        // reopen to refresh file tree
-        try { await window.electronAPI.menuOpenProject(target); } catch {}
+        closeCreateDialog();
+      } catch (err) {
+        console.error("Failed to create project:", err);
       }
-      setNewProjectPath("");
-      setNewProjectName("");
-      setNewProjectLocation("");
-      setSelectedFramework(null);
-      setShowTemplateFiles(false);
-      setShowNewProjectDialog(false);
-    } catch (err) {
-      console.error("Failed to create project:", err);
+      return;
     }
-  }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, frameworkLang]);
+    // ── real CLI scaffold with live terminal ──
+    if (scaffoldingRef.current) return;
+    const sep = loc.includes("\\") ? "\\" : "/";
+    const parentDir = loc.replace(/[\\/]+$/, "") || target;
+    const projDir = spec.mode === "parent" ? parentDir + sep + spec.safe : target;
+    scafCancelledRef.current = false;
+    scafPrevLenRef.current = 0;
+    setScafLogs([]);
+    setScafStatus("");
+    setScaffolding(true);
+    try {
+      if (spec.mode === "target") {
+        await window.electronAPI.menuNewProject(target);
+        if (spec.write === "before") {
+          scafPush("Writing starter files…\r\n");
+          await writeTemplateFiles(fw.id, name, frameworkLang, target, spec.skipFiles || []);
+        }
+      } else {
+        scafPush(`Scaffolding ${fw.name} → ${projDir}\r\n(interactive prompt? type your answer below)\r\n`);
+      }
+    } catch (err) {
+      finishScaffold(false, `Setup failed — ${err?.message || err}\r\n`);
+      return;
+    }
+    const runId = `scaffold-${Date.now()}`;
+    const plan = { runId, steps: spec.steps, idx: 0, parentDir, projDir, fwId: fw.id, name, lang: frameworkLang, spec };
+    scafPlanRef.current = plan;
+    scafRunIdRef.current = runId;
+    const started = await startScafStep(plan, 0);
+    if (!started) await scafFallback(plan, "could not start first command");
+  }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, scafPush, writeTemplateFiles, startScafStep, finishScaffold, closeCreateDialog]);
 
   const handleDelete = useCallback(async (folderPath) => {
     const target = folderPath || deletingPath;
@@ -1571,6 +1990,21 @@ const ProjectHub = () => {
                   {(() => {
                     const full = getFullProjectPath();
                     const loc = newProjectLocation.trim();
+                    // parent-mode CLI creates <loc>/<safe> itself — show that
+                    if (createSpec && createSpec.mode === "parent" && loc) {
+                      const sep = loc.includes("\\") ? "\\" : "/";
+                      const preview = loc.replace(/[\\/]+$/, "") + sep + createSpec.safe;
+                      return (
+                        <div className="phub__dialog-field phub__dialog-field--preview">
+                          <label className="phub__dialog-label">Project will be created at</label>
+                          <div className="phub__dialog-path-preview" title={preview}>
+                            <FolderOpen size={12} className="phub__dialog-path-icon" />
+                            <span>{preview}</span>
+                          </div>
+                          <span className="phub__dialog-hint">Official {selectedFramework.name} CLI runs in the terminal below</span>
+                        </div>
+                      );
+                    }
                     const preview = full || loc;
                     if (!preview) return null;
                     const isFull = !!full;
@@ -1582,18 +2016,35 @@ const ProjectHub = () => {
                           <span>{preview}{!isFull && loc ? "/<project-name>" : ""}</span>
                         </div>
                         {!isFull && loc ? <span className="phub__dialog-hint">Enter project name to see full path</span> : null}
-                      </div>
-                    );
-                  })()}
+                    </div>
+                  );
+                  })}
                 </div>
                 {selectedFramework && (
                   <div className="phub__create-files">
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <FolderOpen size={12} style={{ color: "var(--text-muted)" }} />
                       <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 500 }}>
-                        {Object.keys(getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang)).length} files will be created
+                        {createSpec
+                          ? `Real setup — ${createSpec.steps.length} command${createSpec.steps.length > 1 ? "s" : ""} run live below`
+                          : `${Object.keys(getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang)).length} files will be created`}
                       </span>
                     </div>
+                    {createSpec && (
+                      <div style={{ border: "1px solid var(--border)", borderRadius: 6, background: "#0a0a0a", padding: 8, display: "flex", flexDirection: "column", gap: 4, maxHeight: 150, overflowY: "auto" }}>
+                        {createSpec.steps.map((st, i) => (
+                          <div key={i} style={{ fontFamily: "Consolas, monospace", fontSize: 11, color: "#4ec9b0", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                            $ {st.cmd} {st.args.join(" ")}
+                          </div>
+                        ))}
+                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                          {createSpec.write === false
+                            ? "Official CLI generates the project. Tool missing? Starter files are written instead."
+                            : "Starter files + real dependency install. Prompts appear in the terminal — type to answer."}
+                        </div>
+                      </div>
+                    )}
+                    {(!createSpec || createSpec.write !== false) && (
                     <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-surface)", padding: 4, minHeight: 180 }}>
                       {(() => {
                         const files = getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang);
@@ -1636,7 +2087,7 @@ const ProjectHub = () => {
                         };
                         return <>{renderNode(tree)}</>;
                       })()}
-                    </div>
+                    </div>)}
                   </div>
                 )}
               </div>
@@ -1644,10 +2095,31 @@ const ProjectHub = () => {
                 <input value={newProjectPath} onChange={(e) => setNewProjectPath(e.target.value)} />
               </div>
             </div>
+            {(scaffolding || scafLogs.length > 0 || scafStatus) && (
+              <div className="phub__clone-logs" style={{ margin: "0 12px 8px" }}>
+                <div className="phub__clone-logs-header">
+                  Setup Terminal
+                  {scaffolding && <Loader2 size={12} className="phub__spin" />}
+                  {!scaffolding && scafStatus === "done" && <span style={{ color: "#4ec9b0" }}> — done</span>}
+                  {!scaffolding && scafStatus === "error" && <span style={{ color: "#f44747" }}> — failed</span>}
+                  {scaffolding && (
+                    <button className="phub__btn--tiny" style={{ marginLeft: "auto" }} onClick={stopScaffold}>Stop</button>
+                  )}
+                </div>
+                <div ref={scafContainerRef} className="phub__clone-logs-body phub__clone-xterm" />
+              </div>
+            )}
             <div className="phub__panel-footer phub__create-actions">
               <button
                 className="phub__dialog-cancel"
                 onClick={() => {
+                  try { const id = scafRunIdRef.current; if (id) window.electronAPI.runStop(id); } catch {}
+                  scafRunIdRef.current = null;
+                  scafPlanRef.current = null;
+                  scafCancelledRef.current = false;
+                  setScaffolding(false);
+                  setScafLogs([]);
+                  setScafStatus("");
                   setShowNewProjectDialog(false);
                   setNewProjectName("");
                   setNewProjectLocation("");
@@ -1658,8 +2130,8 @@ const ProjectHub = () => {
               >
                 Cancel
               </button>
-              <button className="phub__dialog-create" onClick={createNewProject} disabled={!getFullProjectPath() && !newProjectPath.trim()}>
-                Create
+              <button className="phub__dialog-create" onClick={createNewProject} disabled={scaffolding || (!getFullProjectPath() && !newProjectPath.trim())}>
+                {scaffolding ? (<><Loader2 size={14} className="phub__spin" /> Creating…</>) : "Create"}
               </button>
             </div>
           </div>
@@ -1817,8 +2289,8 @@ const ProjectHub = () => {
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
               {FRAMEWORKS.filter(fw => {
                 const q = frameworkSearch.trim().toLowerCase();
                 if (frameworkCategory !== "All" && fw.category !== frameworkCategory) return false;
@@ -1831,8 +2303,14 @@ const ProjectHub = () => {
           </div>
         ) : (
           <div className="phub__stack">
-            {showHeat && (
-            <div className="phub__panel phub__panel--note">
+            {(showHeat || centerView === "gitgraph") && (
+            <div className="phub__note-wrap">
+            <div className={`phub__panel phub__panel--note${centerView === "gitgraph" ? " phub__panel--note--graph" : ""}`}>
+              {centerView === "gitgraph" ? (
+              <div className="phub__panel-body phub__note-body phub__note-graph">
+                <div className="phub__note-graphscroll" />
+              </div>
+              ) : (
               <div className="phub__panel-body phub__note-body phub__heat">
                 <div className="phub__heat-head">
                   {ghUser ? (
@@ -1862,6 +2340,7 @@ const ProjectHub = () => {
                       />
                     </>
                   )}
+
                 </div>
                 <div className="phub__heat-scroll">
                   {ghLoading && (
@@ -1924,6 +2403,21 @@ const ProjectHub = () => {
                   )}
                 </div>
               </div>
+              )}
+            </div>
+            <div className="phub__note-side" aria-label="Note view">
+              {[["gitgraph", "Chat"], ["projects", "Contribution heatmap"]].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setCenterView(id)}
+                  title={label}
+                  aria-label={label}
+                  aria-pressed={centerView === id}
+                  className={`phub__note-sidebtn${centerView === id ? " phub__note-sidebtn--on" : ""}`}
+                >
+                </button>
+              ))}
+            </div>
             </div>
             )}
             <div className="phub__panel phub__panel--recents">
@@ -2180,6 +2674,37 @@ const ProjectHub = () => {
           <ImageIcon size={16} />
         </button>
       </div>
+
+      {/* Graph commit detail */}
+      {graphDetail && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "var(--overlay-a55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500, padding: "var(--space-12)" }}
+          onClick={() => setGraphDetail(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 680, maxHeight: "86%", background: "var(--bg-surface)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "var(--space-8) var(--space-10)", background: "var(--bg-vscode)", borderBottom: "1px solid var(--bg-active)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-8)" }}>
+              <span style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-bold)" }}>
+                Commit {graphDetail.hash}{" "}
+                <span style={{ fontWeight: "var(--fw-regular)", color: "var(--icon)", fontFamily: "var(--font-code)", fontSize: "var(--fs-tiny)" }}>{graphDetail.fullHash}</span>
+              </span>
+              <span style={{ display: "flex", gap: "var(--space-6)" }}>
+                <button onClick={() => copyGraphHash(graphDetail.fullHash)} className="phub__btn phub__btn--secondary phub__btn--tiny">Copy Hash</button>
+                <button onClick={() => setGraphDetail(null)} className="phub__btn phub__btn--secondary phub__btn--tiny">✕ Close</button>
+              </span>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: 0 }}>
+              {graphDetail.loading ? (
+                <div style={{ padding: "var(--space-20)", color: "var(--icon)", textAlign: "center" }}>Loading…</div>
+              ) : (
+                <>
+                  {graphDetail.stat && <pre style={{ margin: 0, padding: "var(--space-8) var(--space-10)", background: "var(--bg-deep)", borderBottom: "1px solid var(--bg-active)", fontFamily: "var(--font-code)", fontSize: "var(--fs-small)", whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text-bright)" }}>{graphDetail.stat}</pre>}
+                  <pre style={{ margin: 0, padding: "var(--space-8) var(--space-10)", fontFamily: "var(--font-code)", fontSize: "var(--fs-small)", whiteSpace: "pre-wrap", wordBreak: "break-word", color: "var(--text-bright)", maxHeight: 420, overflow: "auto" }}>{graphDetail.diff || "(no diff)"}</pre>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmDelete && deletingPath && (
         <div className="phub__dialog-overlay">

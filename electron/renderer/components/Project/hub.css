@@ -236,6 +236,7 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 20px;
   padding: 32px 32px 24px 32px;
   overflow: visible;
@@ -243,8 +244,8 @@
   box-sizing: border-box;
 }
 .phub__panel--note {
-  flex: 0 1 196px;
-  min-height: 140px;
+  flex: 0 0 196px;
+  min-height: 178px;
   max-height: 220px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -409,8 +410,9 @@
   to { opacity: 1; transform: scale(1); }
 }
 .phub__panel--recents {
-  flex: 1;
-  min-height: 180px;
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 100%;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -757,8 +759,9 @@
 }
 
 /* ── Panel list ─────────────────────────────────────────────────────────── */
-.phub__panel-list {
-  flex: 1;
+.phub__panel--recents .phub__panel-list {
+  flex: 0 1 auto;
+  max-height: 336px;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-4) 0;
@@ -2152,10 +2155,7 @@
     padding: 16px 16px 16px 16px;
     gap: 14px;
   }
-  .phub__panel--note {
-    flex-basis: 150px;
-    min-height: 110px;
-  }
+
   .phub__panel-body {
     padding: var(--space-10) var(--space-10);
     gap: var(--space-10);
@@ -2447,3 +2447,123 @@
   flex-direction: row;
 }
 
+
+/* Hub view switcher (drawing style: checkbox + label pill) */
+.phub__viewrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.phub__viewbox {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text-inverse);
+}
+.phub__viewbox--on {
+  background: var(--select-blue);
+  border-color: var(--select-blue);
+}
+.phub__viewlabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-body);
+  color: var(--text-soft);
+  background: var(--bg-active);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+}
+.phub__viewrow:hover .phub__viewlabel {
+  color: var(--text-bright);
+  border-color: var(--accent);
+}
+.phub__sidebar--collapsed .phub__viewlabel {
+  display: none;
+}
+.phub__sidebar--collapsed .phub__viewrow {
+  justify-content: center;
+  padding: 6px 4px;
+}
+.phub__panel--graph {
+  min-height: 0;
+}
+
+/* Note panel me graph view (view switcher selection) */
+
+.phub__note-graph {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.phub__note-graphscroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Note panel + side view buttons (box ke bahar, right side) */
+
+
+
+
+
+
+
+/* Note side buttons: panel ke bahar right me float (panel width untouched) */
+.phub__note-wrap {
+  position: relative;
+  display: flex;
+}
+.phub__note-wrap > .phub__panel {
+  flex: 1;
+  min-width: 0;
+}
+.phub__note-side {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.phub__note-sidebtn {
+  background: var(--bg-active);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  cursor: pointer;
+}
+.phub__note-sidebtn:hover {
+  color: var(--text-bright);
+  border-color: var(--accent);
+}
+.phub__note-sidebtn--on {
+  background: var(--editor-blue);
+  border-color: var(--editor-blue);
+  color: var(--text-inverse);
+}
+@media (max-width: 1000px) {
+  .phub__note-side {
+    display: none;
+  }
+}
