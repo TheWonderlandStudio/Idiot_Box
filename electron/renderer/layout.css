@@ -51,18 +51,32 @@ body,
   background: var(--bg-hover);
 }
 
-/* FlexLayout base theme overrides */
+/* FlexLayout base theme overrides — seamless: koi bhi divider line na dikhe */
 .flexlayout__layout {
   background: var(--bg-app);
+  --color-tabset-divider-line: transparent;
+  --color-border-divider-line: transparent;
+  --color-border-tab-content: transparent;
+  --color-border-background: transparent;
+  --color-border-tab-selected: transparent;
+  --color-border-tab-unselected: transparent;
+  --color-drag-rect-border: var(--accent);
+  --color-splitter: transparent;
+  --color-splitter-hover: var(--bg-hover);
+  --color-splitter-drag: var(--bg-hover-strong);
 }
 
 .flexlayout__splitter {
-  background: var(--bg-app);
+  background: var(--bg-panel);
+  transition: background var(--t-med) ease;
 }
 
-.flexlayout__splitter:hover,
-.flexlayout__splitter_drag {
+.flexlayout__splitter:hover {
   background: var(--bg-hover);
+}
+
+.flexlayout__splitter_drag {
+  background: var(--accent);
 }
 
 /* Hide the tabset header bar entirely — we want bare panels */
@@ -81,13 +95,13 @@ body,
   padding: 0;
 }
 
-/* The visible panel card */
+/* The visible panel card — borderless (flat seamless look) */
 .panel {
   width: 100%;
   height: 100%;
   background: var(--bg-panel);
-  border: 1px solid var(--white-a10);
-  border-radius: var(--radius-sm);
+  border: none;
+  border-radius: 0;
 }
 
 /* Terminal side tab close button — visible on tab hover */
@@ -118,6 +132,39 @@ body,
   pointer-events: auto !important;
 }
 
+/* ── Title bar right: Workspaces box (window controls ke just left) ──────── */
+.tb-workspaces {
+  /* flex order: box left cluster ke baad, window controls se pehle */
+  order: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  height: 20px;
+  /* auto margin → left cluster khatm hone ke baad yahi se right cluster shuru */
+  margin: 0 10px 0 auto;
+  padding: 0 9px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+/* Window controls ab sabse last (order 2), auto margin box ko khud right
+   kheenchne dega — warna CET ka margin-left:auto box ko left cluster me chhodta.
+   (macOS controls left side hote — sirf right-side platforms par override.) */
+.cet-titlebar.cet-windows .cet-window-controls,
+.cet-titlebar.cet-linux .cet-window-controls,
+.cet-titlebar.cet-freebsd .cet-window-controls {
+  order: 2;
+  margin-left: 0;
+}
+
 /* ── Browser panel (Panel3) ───────────────────────────────────────────────── */
 .browser {
   display: flex;
@@ -133,7 +180,7 @@ body,
   gap: var(--space-2);
   padding: var(--space-4) var(--space-8);
   background: var(--bg-surface);
-  border-bottom: 1px solid var(--bg-hover);
+  border-bottom: none;
   flex-shrink: 0;
 }
 .browser__btn {
@@ -398,4 +445,36 @@ body,
   gap: var(--space-8);
   margin-top: var(--space-6);
 }
+
+/* ── Smooth flat UI — consistent micro-transitions (visual only) ─────────── */
+button,
+[role="button"],
+input,
+select,
+textarea,
+a,
+li,
+.flexlayout__tab,
+.pw-tree-row,
+.pw-sidebar__action-btn,
+.phub__btn {
+  transition:
+    background-color var(--t-med) ease,
+    border-color var(--t-med) ease,
+    color var(--t-med) ease,
+    box-shadow var(--t-med) ease,
+    opacity var(--t-med) ease;
+}
+
+/* Overlay fade-in (CommandPalette / QuickOpen panels) */
+@keyframes ui-pop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes ui-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.ui-pop  { animation: ui-pop-in var(--t-slow) ease both; }
+.ui-scrim { animation: ui-scrim-in var(--t-normal) ease both; }
 

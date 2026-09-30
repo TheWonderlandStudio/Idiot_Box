@@ -87,6 +87,23 @@ const DEFAULT_JSON = {
   },
 };
 
+// Blank workspace layout (Create Project → "Blank workspace"): sirf ek blank
+// panel — user khud panels kholta hai. tabs.json ka `layout: "blank"` isko trigger karta hai.
+const BLANK_JSON = {
+  global: { ...DEFAULT_JSON.global },
+  layout: {
+    type: "row",
+    weight: 100,
+    children: [
+      {
+        type: "tabset",
+        weight: 100,
+        children: [{ type: "tab", name: "New Panel", component: "blank" }],
+      },
+    ],
+  },
+};
+
 const factory = (node) => {
   switch (node.getComponent()) {
     case "mediaViewer":       return <MediaViewer />;
@@ -318,6 +335,18 @@ const RunStatusButton = () => {
   );
 };
 
+// ── Title bar left: Workspaces box (workspace hub kholta hai) ──────────────
+const WorkspacesBox = ({ onClick }) => (
+  <button
+    className="tb-workspaces"
+    onClick={onClick}
+    title="Workspaces"
+    aria-label="Workspaces"
+  >
+    <span>Workspaces</span>
+  </button>
+);
+
 // ── Helpers to walk the flex model tree ────────────────────────────────────
 // NOTE: no isNotebookPath helper here on purpose — .ipynb files open as
 // plain editor tabs (EditorPanel embeds the notebook cell UI itself), so all
@@ -364,6 +393,44 @@ const findEditorTabset = (node) => {
   return null;
 };
 
+// Blank layout me editor tabset nahi hota — files kholne ke liye
+// kisi bhi tabset (blank panel wala) ko target banate hain.
+const findAnyTabset = (node) => {
+  if (node.getType?.() === "tabset") return node;
+  const children = node.getChildren?.();
+  if (children) for (const c of children) { const r = findAnyTabset(c); if (r) return r; }
+  return null;
+};
+
+// ── Per-project panel layout sanitize (tabs.json → panels) ─────────────────
+// Saved layout kisi aur version me bana ho to unknown components blank me
+// badal do — factory me nahi to empty/crash tab milega.
+const PROJECT_PANEL_COMPONENTS = new Set([
+  "mediaViewer", "panel3", "projectPanel", "editor", "notebook", "terminal",
+  "blank", "componentPreview", "community", "canvas", "problems", "output",
+  "runDebug", "gitPanel", "ports", "androidEmulator",
+]);
+const sanitizeProjectPanels = (json) => {
+  try {
+    const walk = (node) => {
+      if (!node || typeof node !== "object") return;
+      if (node.type === "tab") {
+        // .ipynb ab editor tabs me render hote hain (session migration jaisa)
+        if (node.component === "notebook") node.component = "editor";
+        if (!PROJECT_PANEL_COMPONENTS.has(node.component)) {
+          node.component = "blank";
+          node.name = "New Panel";
+          node.config = {};
+        }
+      }
+      if (Array.isArray(node.children)) node.children.forEach(walk);
+    };
+    if (json?.layout) walk(json.layout);
+    if (Array.isArray(json?.borders)) json.borders.forEach(walk);
+  } catch {}
+  return json;
+};
+
 const forceLayoutRedraw = (m) => {
   try {
     [...m.getwindowsMap().values()].forEach((lw) => lw?.layout?.redraw?.("force"));
@@ -377,8 +444,11 @@ const App = () => {
   const saveTabsTimer     = useRef(null);
   const lastBrowserTabsetRef = useRef(null);
   const [hasProject, setHasProject] = useState(false);
+  // Current project ka layout mode — "blank" (Create Project ke 2 buttons me se)
+  const projectLayoutRef = useRef(null);
   const [, setTick] = useState(0);
   const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
+  const [titlebarHost, setTitlebarHost] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // ── Onboarding check — sirf first launch (ya data remove hone par) ──────
@@ -398,8 +468,10 @@ const App = () => {
     let attempts = 0;
     let timer = null;
     const findTitlebarMenu = () => {
+      const tb = document.querySelector(".cet-titlebar");
+      if (tb) setTitlebarHost(tb);
       const host = document.querySelector(".cet-titlebar .cet-menubar");
-      if (host) { setTitlebarMenuHost(host); return; }
+      if (host && tb) { setTitlebarMenuHost(host); return; }
       if (attempts++ < 40) timer = setTimeout(findTitlebarMenu, 50);
     };
     findTitlebarMenu();
@@ -493,7 +565,13 @@ const App = () => {
     const m = modelRef.current;
     if (!m) return;
     const tabs = collectEditorTabs(m.getRoot()).filter((t) => pathInsideRoot(t, rootPath));
-    window.electronAPI.writeProjectTabs(rootPath, { tabs }).catch(() => {});
+    // layout mode ("blank") preserve — warna har save par preference udd jati
+    const payload = { tabs };
+    if (projectLayoutRef.current === "blank") payload.layout = "blank";
+    // Poora panel layout (kaunse panels khule the, unki arrangement) — project
+    // dobara khulte par waisa hi restore ho.
+    try { payload.panels = m.toJson(); } catch {}
+    window.electronAPI.writeProjectTabs(rootPath, payload).catch(() => {});
   };
 
   // ── Per-project isolation: purane project ke processes/activity roko ───
@@ -519,6 +597,18 @@ const App = () => {
     clearTimeout(saveTabsTimer.current);
     saveTabsTimer.current = setTimeout(doSaveProjectTabs, 600);
   };
+
+  // Window band hone par current project ka layout/tab data turant save
+  // (debounce 600ms ka best-effort backup).
+  useEffect(() => {
+    const save = () => { try { doSaveProjectTabs(); } catch {} };
+    window.addEventListener("beforeunload", save);
+    window.addEventListener("pagehide", save);
+    return () => {
+      window.removeEventListener("beforeunload", save);
+      window.removeEventListener("pagehide", save);
+    };
+  }, []);
 
   // ── Restore editor tabs from .project_config/tabs.json ───────────────────
   const restoreProjectTabs = async (rootPath) => {
@@ -557,7 +647,7 @@ const App = () => {
         m.doAction(Actions.selectTab(empty.getId()));
         forceLayoutRedraw(m);
       } else {
-        const tabset = findEditorTabset(m.getRoot());
+        const tabset = findEditorTabset(m.getRoot()) || findAnyTabset(m.getRoot());
         const parentId = tabset ? tabset.getId() : m.getRoot().getId();
         m.doAction(Actions.addNode({
           type: "tab", component: "editor", name, enableClose: true,
@@ -747,23 +837,49 @@ const App = () => {
       closeProjectTabs(currentProjectRef.current);
       currentProjectRef.current = folderPath;
       window.__currentProjectPath = folderPath;
+      // Project data padho: layout mode ("blank") + saved panel layout
+      let saved = null;
+      try { saved = await window.electronAPI.readProjectTabs(folderPath); } catch {}
+      projectLayoutRef.current = saved?.layout === "blank" ? "blank" : null;
+      // Saved panels (jaise user ne chhoda tha) — sirf jab tak session
+      // restore ON hai (General → Restore Previous Session).
+      let savedPanels = saved?.panels && typeof saved.panels === "object" && saved.panels.layout ? saved.panels : null;
+      if (savedPanels) {
+        try {
+          const st = await window.electronAPI.readSettings().catch(() => ({}));
+          if (st?.restoreTabs === false) savedPanels = null;
+        } catch {}
+      }
       setHasProject(true);
       // Notify editor panels
       window.dispatchEvent(new CustomEvent("project:opened", { detail: { path: folderPath } }));
-      // Har project ke liye PURA layout reset (fresh default) — phir sirf
-      // us project ki apni tabs restore. Koi shared/purana state nahi.
+      // Saved panel layout → waisa hi restore; nahi to default/blank layout.
+      let restored = false;
+      if (savedPanels) {
+        try {
+          const json = sanitizeProjectPanels(JSON.parse(JSON.stringify(savedPanels)));
+          modelRef.current = Model.fromJson(json);
+          restored = true;
+        } catch {}
+      }
+      if (!restored) {
+        try {
+          modelRef.current = Model.fromJson(projectLayoutRef.current === "blank" ? BLANK_JSON : DEFAULT_JSON);
+        } catch {}
+      }
       try {
-        modelRef.current = Model.fromJson(DEFAULT_JSON);
         setTick((t) => t + 1);
         try { forceLayoutRedraw(modelRef.current); } catch {}
       } catch {}
-      await restoreProjectTabs(folderPath);
+      // Panels restore ho chuke hain to editor tabs usi me maujood hain
+      if (!restored) await restoreProjectTabs(folderPath);
     };
 
     const handleClose = () => {
       doSaveProjectTabs();
       closeProjectTabs(currentProjectRef.current);
       currentProjectRef.current = null;
+      projectLayoutRef.current = null;
       window.__currentProjectPath = null;
       setHasProject(false);
       // Notify editor panels
@@ -776,7 +892,9 @@ const App = () => {
     const u4 = window.electronAPI.onMenuEvent("menu:loadExtension", () => {
       window.electronAPI.loadChromeExtension();
     });
-    return () => { u1(); u2(); u3(); u4(); };
+    // Title bar ka Workspaces box isse hub par wapas bhejta hai
+    window.__ibxCloseProject = handleClose;
+    return () => { u1(); u2(); u3(); u4(); delete window.__ibxCloseProject; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Chrome extension tabs (chrome.tabs.create) ─────────────────────────
@@ -1172,10 +1290,10 @@ const App = () => {
     return () => window.removeEventListener("close-flex-tab", handler);
   }, []);
 
-  // Reset panels to default layout
+  // Reset panels to default layout (blank project par bhi blank layout)
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:resetLayout", () => {
-      modelRef.current = Model.fromJson(DEFAULT_JSON);
+      modelRef.current = Model.fromJson(projectLayoutRef.current === "blank" ? BLANK_JSON : DEFAULT_JSON);
       setTick((t) => t + 1);
     });
     return unsub;
@@ -1742,13 +1860,26 @@ const App = () => {
         }
       }
     } catch {}
+    // Panel close/add/move/split — koi bhi layout change save karo (debounced).
+    // Tab select jaise non-layout actions chhod dete hain.
+    try {
+      if (!action || action.type !== Actions.SELECT_TAB) scheduleSaveProjectTabs();
+    } catch {}
     return action;
+  };
+
+  // Title bar Workspaces box → project hub (workspace list) par wapas.
+  // NOTE: plain function (hook nahi) — showOnboarding early-return ke baad
+  // hook lagana React ka "Rendered more hooks" error deta hai (blank screen).
+  const openWorkspaces = () => {
+    try { if (hasProject) window.__ibxCloseProject?.(); } catch {}
   };
 
   if (!hasProject) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
         <UpdaterBanner />
+        {titlebarHost && createPortal(<WorkspacesBox onClick={openWorkspaces} />, titlebarHost)}
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <ProjectHub />
         </div>
@@ -1763,6 +1894,7 @@ const App = () => {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
       <UpdaterBanner />
       {titlebarMenuHost && createPortal(<RunStatusButton />, titlebarMenuHost)}
+      {titlebarHost && createPortal(<WorkspacesBox onClick={openWorkspaces} />, titlebarHost)}
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <Layout

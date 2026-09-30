@@ -549,6 +549,25 @@ const ProjectHub = () => {
   const [selectedFramework, setSelectedFramework] = useState(null);
   const [frameworkLang, setFrameworkLang] = useState("TypeScript");
   const [showTemplateFiles, setShowTemplateFiles] = useState(false);
+  // ── Create Project layout choice: default panels | blank workspace ───────
+  // "blank" → project sirf ek blank panel se khulta hai (panel picker),
+  // user apne hisaab se panels kholta hai. tabs.json me layout:"blank"
+  // persist hota hai, har open par index.jsx ise padhta hai.
+  const [createLayout, setCreateLayout] = useState("default");
+  const createLayoutRef = useRef("default");
+  useEffect(() => { createLayoutRef.current = createLayout; }, [createLayout]);
+
+  const markBlankLayout = useCallback(async (dir) => {
+    if (!dir || createLayoutRef.current !== "blank") return;
+    try {
+      const cur = (await window.electronAPI.readProjectTabs(dir)) || {};
+      await window.electronAPI.writeProjectTabs(dir, {
+        ...cur,
+        tabs: Array.isArray(cur.tabs) ? cur.tabs : [],
+        layout: "blank",
+      });
+    } catch {}
+  }, []);
 
   // ── GitHub heatmap (note panel) ────────────────────────────────────────
   const [ghUser, setGhUser] = useState(null);
@@ -701,6 +720,7 @@ const ProjectHub = () => {
   // views: projects (default stack) | gitgraph (repo graph). Drawing jaisa:
   // sidebar me checkbox squares + label pills, ek time par ek view.
   const [centerView, setCenterView] = useState("gitgraph");
+  const [hubChatText, setHubChatText] = useState("");
   const [graphProject, setGraphProject] = useState(null);
   const [graphLog, setGraphLog] = useState([]);
   const [graphQuery, setGraphQuery] = useState("");
@@ -1417,6 +1437,7 @@ const ProjectHub = () => {
     setNewProjectLocation("");
     setSelectedFramework(null);
     setShowTemplateFiles(false);
+    setCreateLayout("default");
     scafPendingRef.current = [];
     setScafVisible(false);
     setScafStatus("");
@@ -1428,6 +1449,7 @@ const ProjectHub = () => {
   const scafFallback = async (plan, reason) => {
     scafPush(`\r\nNative setup failed (${reason}) — writing starter files instead…\r\n`);
     try {
+      await markBlankLayout(plan.projDir);
       await window.electronAPI.menuNewProject(plan.projDir);
       await writeTemplateFiles(plan.fwId, plan.name, plan.lang, plan.projDir, []);
       await window.electronAPI.menuOpenProject(plan.projDir);
@@ -1737,6 +1759,7 @@ const ProjectHub = () => {
     if (spec && spec.mode === "parent" && !loc) spec = null;
     if (!spec) {
       try {
+        await markBlankLayout(target);
         await window.electronAPI.menuNewProject(target);
         // if framework selected — populate starter files
         if (fw) {
@@ -1755,6 +1778,7 @@ const ProjectHub = () => {
     const sep = loc.includes("\\") ? "\\" : "/";
     const parentDir = loc.replace(/[\\/]+$/, "") || target;
     const projDir = spec.mode === "parent" ? parentDir + sep + (editedProjName || spec.safe) : target;
+    await markBlankLayout(projDir);
     scafCancelledRef.current = false;
     scafPendingRef.current = [];
     setScafVisible(true);
@@ -2068,6 +2092,29 @@ const ProjectHub = () => {
                       </div>
                     </div>
                   )}
+                  <div className="phub__dialog-field">
+                    <label className="phub__dialog-label">Layout</label>
+                    <div className="phub__layout-opts">
+                      <button
+                        type="button"
+                        className={`phub__layout-opt${createLayout === "default" ? " phub__layout-opt--on" : ""}`}
+                        onClick={() => setCreateLayout("default")}
+                        aria-pressed={createLayout === "default"}
+                      >
+                        <span className="phub__layout-opt-title">Default panels</span>
+                        <span className="phub__layout-opt-desc">Editor, Project, Terminal & more — ready layout</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`phub__layout-opt${createLayout === "blank" ? " phub__layout-opt--on" : ""}`}
+                        onClick={() => setCreateLayout("blank")}
+                        aria-pressed={createLayout === "blank"}
+                      >
+                        <span className="phub__layout-opt-title">Blank workspace</span>
+                        <span className="phub__layout-opt-desc">Sirf blank panel — panels apne hisaab se kholein</span>
+                      </button>
+                    </div>
+                  </div>
                   <div className="phub__dialog-field">
                     <label className="phub__dialog-label">Project Name</label>
                     <input
@@ -2446,8 +2493,31 @@ const ProjectHub = () => {
             <div className={`phub__panel phub__panel--note${centerView === "gitgraph" ? " phub__panel--note--graph" : ""}`}>
               {centerView === "gitgraph" ? (
               <div className="phub__panel-body phub__note-body phub__note-graph">
-                <div className="phub__note-graphscroll" />
-              </div>
+                <div className="phub__chat">
+                  <textarea
+                    className="phub__chat-input"
+                    value={hubChatText}
+                    onChange={(e) => setHubChatText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        setHubChatText("");
+                      }
+                    }}
+                    placeholder="Type a message…"
+                    rows={3}
+                    spellCheck={false}
+                    aria-label="Message"
+                  />
+                  <button
+                    className="phub__chat-send"
+                    onClick={() => setHubChatText("")}
+                    title="Send"
+                    aria-label="Send"
+                  >
+                    <Send size={14} />
+                  </button>
+                </div>              </div>
               ) : (
               <div className="phub__panel-body phub__note-body phub__heat">
                 <div className="phub__heat-head">
