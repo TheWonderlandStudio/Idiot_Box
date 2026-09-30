@@ -2937,6 +2937,11 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
     const has = (n) => selectedPaths.length >= n;
     const sep = { type: "separator" };
 
+    // NOTE: single-chord accelerators only. Electron 43 / Chromium's
+    // KeyboardUtil splits the whole string on "+", so a two-step chord like
+    // "Ctrl+K Ctrl+Alt+C" parses "K Ctrl" as a modifier token, logs
+    // "Invalid accelerator token" and silently drops the binding.
+
     let items = [];
 
     if (type === "breadcrumb") {
@@ -2960,7 +2965,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")  },
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
-        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+Alt+C", click: () => act("copyRelativePath") },
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh") },
       ];
     } else if (type === "multi") {
@@ -2971,7 +2976,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Cut",                     accelerator: "Ctrl+X", click: () => act("cut")  },
         sep,
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
-        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+Alt+C", click: () => act("copyRelativePath") },
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal") },
         { label: "Refresh",                 accelerator: "F5", click: () => act("refresh") },
@@ -2995,7 +3000,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")   },
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
-        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+Alt+C", click: () => act("copyRelativePath") },
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh")  },
       ];
     } else if (type === "folder") {
@@ -3017,7 +3022,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")   },
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
-        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+Alt+C", click: () => act("copyRelativePath") },
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh")  },
       ];
     } else if (type === "file") {
@@ -3056,7 +3061,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal")   },
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
-        { label: "Copy Relative Path",       accelerator: "Ctrl+K Ctrl+Alt+C", click: () => act("copyRelativePath") },
+        { label: "Copy Relative Path",       accelerator: "Ctrl+Alt+C", click: () => act("copyRelativePath") },
         sep,
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh") },
       ];
@@ -5444,7 +5449,10 @@ function buildMenu() {
     {
       id: "menu-view", label: "View", submenu: [
         { label: "Command Palette…", accelerator: "CmdOrCtrl+Shift+P", click: () => sendToRenderer("menu:commandPalette", null) },
-        { label: "Quick Open…", accelerator: "CmdOrCtrl+P", click: () => sendToRenderer("menu:commandPalette", null) },
+        // NOTE: menu:quickOpen, NOT menu:commandPalette — Quick Open ka apna
+        // Ctrl+P handler bhi fire hota hai, isliye dono ek hi overlay kholte
+        // hain (pehle ye commandPalette bhejta tha → dono stacked ho jate the).
+        { label: "Quick Open…", accelerator: "CmdOrCtrl+P", click: () => sendToRenderer("menu:quickOpen", null) },
         { type: "separator" },
         { label: "Toggle Full Screen", accelerator: "F11", click: () => sendToRenderer("menu:fullscreen", null) },
         { type: "separator" },
@@ -5651,7 +5659,11 @@ function buildMenu() {
         { label: "View Releases", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases") },
         { label: "Privacy Policy", click: () => shell.openExternal("https://thewonderlandstudio.github.io/Idiot_Box/privacy.html") },
         { type: "separator" },
-        { label: "Keyboard Shortcuts", accelerator: "CmdOrCtrl+K CmdOrCtrl+S", click: () => sendToRenderer("menu:commandPalette", null) },
+        // Label aur action ab match karte hain — Settings ▸ Keybindings kholta
+        // hai. Pehle ye "CmdOrCtrl+K CmdOrCtrl+S" pe Command Palette kholta
+        // tha, jo (a) Electron 43 chords parse nahi karta (binding drop) aur
+        // (b) View ▸ Command Palette… ka duplicate tha.
+        { label: "Keyboard Shortcuts", click: () => openSettingsWindow("keybindings") },
         { label: "Toggle Developer Tools", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
         { type: "separator" },
         { label: "Report Issue", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/issues") },
@@ -5907,43 +5919,16 @@ app.whenReady().then(async () => {
   if (ElectronChromeExtensions) {
     try { ElectronChromeExtensions.handleCRXProtocol(session.defaultSession); } catch (e) { console.warn("[electron-chrome-extensions] handleCRXProtocol failed:", e.message); }
   }
-  // ── Extension action icon fallback ───────────────────────────────────
-  // Manifest me default_icon nahi (jaise iconless unpacked extensions) →
-  // crx://extension-icon 400 + console spam + broken toolbar tile. Aise
-  // extensions ke icon requests ko app icon par redirect karo.
-  try {
-    const { pathToFileURL } = require("url");
-    let fallbackHref = null;
-    try {
-      const p = path.join(__dirname, "..", "renderer", "assets", "idot_box.png");
-      if (fs.existsSync(p)) fallbackHref = pathToFileURL(p).href;
-    } catch {}
-    const extensionHasNoIcon = (id) => {
-      try {
-        const entries = readChromeExtensionEntries();
-        const e = entries.find((x) => x && typeof x === "object" && x.id === id);
-        const dir = e && e.path;
-        if (!dir) return false;
-        const mf = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
-        const iconObj = mf.action?.default_icon || mf.browser_action?.default_icon || mf.page_action?.default_icon || mf.icons;
-        if (!iconObj) return true;
-        const files = typeof iconObj === "string" ? [iconObj] : Object.values(iconObj || {});
-        return !files.some((f) => { try { return fs.existsSync(path.join(dir, String(f))); } catch { return false; } });
-      } catch { return false; }
-    };
-    if (fallbackHref) {
-      session.defaultSession.webRequest.onBeforeRequest(
-        { urls: ["crx://extension-icon/*"] },
-        (details, callback) => {
-          try {
-            const m = /crx:\/\/extension-icon\/([^/]+)\//.exec(details.url || "");
-            if (m && m[1] && extensionHasNoIcon(m[1])) return callback({ redirectURL: fallbackHref });
-          } catch {}
-          callback({});
-        }
-      );
-    }
-  } catch (e) { console.warn("[main] ext icon fallback failed:", e.message); }
+  // NOTE: iconless extensions ke liye koi extra fallback register NAHI hota.
+  // Pehle yahan ek webRequest.onBeforeRequest({ urls: ["crx://extension-icon/*"] })
+  // tha jo har launch pe fail hota tha —
+  //   [main] ext icon fallback failed: Invalid url pattern crx://…: Wrong scheme type
+  // kyunki Electron ke webRequest URL filters custom schemes match hi nahi karte
+  // (sirf http/https/file/ftp/ws/wss/blob/data), to binding kabhi register hi
+  // nahi hui. Zaroorat bhi nahi: electron-chrome-extensions khud icon load fail
+  // hone par .action.no-icon + data-letter se styled letter-tile render karta
+  // hai (browser-action.js `img.onerror`), jo per-extension distinguish karta
+  // hai — app logo se behtar.
   if (ElectronChromeExtensions) {
   chromeExt = new ElectronChromeExtensions({
     license: "GPL-3.0",

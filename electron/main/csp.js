@@ -9,20 +9,19 @@
 // Design notes — why each source exists (do NOT widen without a reason):
 //   script-src: 'self' + file:/ibx-file:/blob: only. NO https:, NO 'unsafe-inline'.
 //     'unsafe-eval' + 'wasm-unsafe-eval' are REQUIRED: ComponentEmbed / preview
-//     use `new Function()` to evaluate esbuild bundles, and shiki/CodeMirror/
-//     Excalidraw pull in wasm that Chromium gates behind wasm-unsafe-eval.
+//     use `new Function()` to evaluate esbuild bundles, and CodeMirror/Excalidraw
+//     pull in wasm that Chromium gates behind wasm-unsafe-eval.
 //     Remote scripts are intentionally blocked — a compromised CDN or pasted
 //     <script src=https> must never execute in the privileged app shell.
 //   style-src: 'unsafe-inline' is REQUIRED (React inline styles everywhere +
 //     xterm/CodeMirror dynamic styles). Remote styles limited to Google Fonts.
 //   font-src: local bundle (esbuild inlines woff2 as data:) + Google Fonts.
-//   img-src / media-src: https:/http: allowed — markdown, AI chat, notebook
+//   img-src / media-src: https:/http: allowed — markdown, notebook
 //     outputs and Excalidraw embeds legitimately render remote images/video.
-//   connect-src: https:/wss: allowed — AI providers are user-configurable
-//     (OpenAI, Anthropic, Gemini, Pollinations, AI Gateway, custom
-//     OpenAI-compatible LAN hosts, Ollama). http:/ws: additionally allowed
-//     ONLY for localhost/loopback dev servers; LAN http custom endpoints also
-//     need it. Keep remote *script* blocked even though connect is open.
+//   connect-src: https:/wss: allowed — the Browser panel and the extension
+//     host talk to arbitrary remote origins. http:/ws: additionally allowed
+//     ONLY for localhost/loopback dev servers (live-server ports, local APIs).
+//     Keep remote *script* blocked even though connect is open.
 //   worker-src blob:: CodeMirror/xterm/extension-host spawn blob workers.
 //   frame-src: local only — preview uses srcDoc (not remote src), external
 //     pages MUST open in the Browser <webview>/OS browser, never in an iframe.
@@ -46,8 +45,8 @@ const APP_CSP_DIRECTIVES = [
   "font-src 'self' file: ibx-file: blob: data: https://fonts.gstatic.com https://fonts.googleapis.com",
   "img-src 'self' file: ibx-file: blob: data: https: http:",
   "media-src 'self' file: ibx-file: blob: data: https: http:",
-  // https:/wss: = user-configurable AI endpoints; http:/ws: localhost dev
-  // servers (Ollama :11434, live-server ports, custom LAN endpoints).
+  // https:/wss: = remote origins (browser panel, extension host);
+  // http:/ws: localhost dev servers (live-server ports, local APIs).
   "connect-src 'self' file: ibx-file: blob: data: https: wss: ws: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
   "worker-src 'self' file: ibx-file: blob:",
   "child-src 'self' file: ibx-file: blob:",

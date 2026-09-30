@@ -44,7 +44,8 @@ const EditorPage = ({ settings, onSave }) => {
   const autocompletion = s.autocompletion !== false; // default true
   const tabAcceptsCompletion = s.tabAcceptsCompletion !== false; // default true
   const autoSave = s.autoSave === true || s.autoSave === "afterDelay"; // default false
-  const vimMode = s.vim !== false; // default false (disabled)
+  const vimMode = s.vim === true; // default false (disabled)
+  const snippets = s.snippets !== false; // default true
   const fontSize = Number.isFinite(s.fontSize) ? s.fontSize : 14;
   const fontFamily = s.fontFamily || "Consolas";
   const tabSize = Number.isFinite(s.tabSize) ? s.tabSize : 2;
@@ -202,6 +203,9 @@ const EditorPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+
+      {/* ── Snippets ── */}
+      <ToggleRow flagKey="snippets" on={snippets} label="Snippets" desc="Code snippets in autocomplete (for, if, class, etc.)" />
 
       {/* ── Vim Mode ── */}
       <div className="sw-row">

@@ -88,8 +88,9 @@ const CommandPalette = () => {
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: "var(--z-palette)" }} onClick={() => setOpen(false)} />
+      <div className="ui-scrim" style={{ position: "fixed", inset: 0, zIndex: "var(--z-palette)" }} onClick={() => setOpen(false)} />
       <div
+        className="ui-pop"
         style={{
           position: "fixed", top: "12%", left: "50%", transform: "translateX(-50%)",
           width: 560, maxWidth: "90vw", zIndex: "var(--z-palette-top)",

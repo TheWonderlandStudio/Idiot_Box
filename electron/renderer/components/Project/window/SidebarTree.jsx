@@ -988,6 +988,15 @@ const SidebarTree = ({
       } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
       return;
     }
+    // Ctrl+Alt+C → Copy Relative Path (native menu accelerator ke saath match
+    // karta hai). Pehle check karna zaroori: neeche wala Ctrl+C branch
+    // altKey ignore karta hai, isliye wahan se pehle ye match ho jayega.
+    if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      const rel = rootPath && selectedPath.startsWith(rootPath) ? selectedPath.slice(rootPath.length + 1) : selectedPath;
+      navigator.clipboard.writeText(rel);
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
       e.preventDefault();
       onClipboardChange?.({ paths: [selectedPath], mode: "copy" });

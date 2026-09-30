@@ -68,8 +68,8 @@ async function main() {
     // "production" first so @excalidraw/excalidraw's "./index.css"
     // (development/production only) resolves to dist/prod/index.css.
     conditions: ['production', 'browser', 'import', 'module', 'default'],
-    // automatic JSX runtime: vendored AI Elements (.tsx) don't import React
-    // for JSX; existing .jsx files keep working unchanged.
+    // automatic JSX runtime: .jsx sources don't import React for JSX;
+    // they keep working unchanged.
     jsx: 'automatic',
     loader: {
       '.css': 'css',

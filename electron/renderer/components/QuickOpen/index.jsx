@@ -53,7 +53,9 @@ const QuickOpen = () => {
         show();
       }
     };
-    const unsub = window.electronAPI.onMenuEvent ? window.electronAPI.onMenuEvent("menu:find", () => {}) : () => {};
+    // View ▸ Quick Open… menu item. Isi `show()` pe Ctrl+P keydown bhi jaata
+    // hai, isliye dono ek hi overlay kholte hain — duplicate nahi hota.
+    const unsub = window.electronAPI.onMenuEvent ? window.electronAPI.onMenuEvent("menu:quickOpen", show) : () => {};
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("quickopen:open", show);
     return () => {
@@ -77,8 +79,9 @@ const QuickOpen = () => {
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: "var(--z-quick)" }} onClick={() => setOpen(false)} />
+      <div className="ui-scrim" style={{ position: "fixed", inset: 0, zIndex: "var(--z-quick)" }} onClick={() => setOpen(false)} />
       <div
+        className="ui-pop"
         style={{
           position: "fixed", top: "12%", left: "50%", transform: "translateX(-50%)",
           width: 640, maxWidth: "90vw", zIndex: "var(--z-quick-top)",

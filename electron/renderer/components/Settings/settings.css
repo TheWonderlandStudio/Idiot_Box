@@ -37,7 +37,7 @@ html, body, #settings-root {
 .sw-sidebar {
   width: 232px;
   background: var(--bg-sidebar-dark);
-  border-right: 1px solid var(--border);
+  border-right: none;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -135,7 +135,7 @@ html, body, #settings-root {
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   background: var(--bg-surface);
   flex-shrink: 0;
 }

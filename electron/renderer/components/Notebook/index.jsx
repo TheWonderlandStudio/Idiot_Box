@@ -8,6 +8,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap } from "@codemirror/commands";
 import { autocompletion } from "@codemirror/autocomplete";
+import { vim } from "@replit/codemirror-vim";
 import { bracketMatching, indentOnInput } from "@codemirror/language";
 import { python } from "@codemirror/lang-python";
 import { vscodeDark, vscodeLight } from "@uiw/codemirror-theme-vscode";
@@ -186,6 +187,7 @@ const useNbEditorSettings = () => {
     wordWrap: "on",
     lineNumbers: "on",
     theme: "dark",
+    vim: false,
   });
   useEffect(() => {
     let cancelled = false;
@@ -198,11 +200,12 @@ const useNbEditorSettings = () => {
         wordWrap: (all.lineWrapping !== undefined ? all.lineWrapping : all.wordWrap) !== false ? "on" : "off",
         lineNumbers: all.lineNumbers !== false ? "on" : "off",
         theme: nbMigrateTheme(all.theme || all.editorTheme || "dark"),
+        vim: all.vim === true,
       });
     }).catch(() => {});
     const h = (patch) => {
       if (!patch || typeof patch !== "object") return;
-      if (!["fontSize", "fontFamily", "tabSize", "wordWrap", "lineWrapping", "lineNumbers", "minimap", "theme", "editorTheme"].some((k) => k in patch)) return;
+      if (!["fontSize", "fontFamily", "tabSize", "wordWrap", "lineWrapping", "lineNumbers", "minimap", "theme", "editorTheme", "vim"].some((k) => k in patch)) return;
       setS((prev) => {
         const next = { ...prev };
         if ("fontSize" in patch && Number.isFinite(patch.fontSize)) next.fontSize = Math.min(32, Math.max(8, patch.fontSize));
@@ -214,6 +217,7 @@ const useNbEditorSettings = () => {
         }
         if ("lineNumbers" in patch) next.lineNumbers = patch.lineNumbers !== false ? "on" : "off";
         if ("theme" in patch || "editorTheme" in patch) next.theme = nbMigrateTheme(patch.theme || patch.editorTheme);
+        if ("vim" in patch) next.vim = patch.vim === true;
         return next;
       });
     };
@@ -346,10 +350,11 @@ const CodeCellEditor = ({ cellId, value, settings, onChange, onRunKey, onCmFaile
       bracketMatching(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
     ];
+    if (settings.vim) list.push(vim());
     if ((settings.lineNumbers || "on") !== "off") list.push(lineNumbers());
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.theme, settings.fontSize, settings.fontFamily, settings.lineNumbers]);
+  }, [settings.theme, settings.fontSize, settings.fontFamily, settings.lineNumbers, settings.vim]);
 
   return (
     <div

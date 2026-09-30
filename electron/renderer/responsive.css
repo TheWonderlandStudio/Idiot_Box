@@ -50,7 +50,7 @@
     width: 100% !important;
     max-height: 140px !important;
     border-right: none !important;
-    border-bottom: 1px solid var(--border) !important;
+    border-bottom: none !important;
     min-width: 0 !important;
   }
   .pw-sidebar__resize { display: none !important; }
@@ -91,7 +91,7 @@
 
 /* Touch-friendly splitters */
 @media (max-width: 700px) {
-  .flexlayout__splitter { background: transparent !important; }
+  .flexlayout__splitter { background: var(--bg-panel) !important; transition: background var(--t-med) ease !important; }
   .flexlayout__splitter:hover { background: var(--bg-hover) !important; }
   /* Larger hit area via extra */
   .flexlayout__splitter--horizontal,

@@ -1,0 +1,416 @@
+import { snippetCompletion, completeFromList, ifIn, ifNotIn } from "@codemirror/autocomplete";
+
+const SNIPPET_DEFS = {
+  javascript: [
+    { label: "log", detail: "console.log", type: "keyword", info: "console.log()", template: "console.log(${1:message});" },
+    { label: "warn", detail: "console.warn", type: "keyword", info: "console.warn()", template: "console.warn(${1:message});" },
+    { label: "error", detail: "console.error", type: "keyword", info: "console.error()", template: "console.error(${1:message});" },
+    { label: "for", detail: "for loop", type: "keyword", info: "for (let i = 0; i < n; i++)", template: "for (let ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n\t${3}\n}" },
+    { label: "forof", detail: "for...of loop", type: "keyword", info: "for (const item of items)", template: "for (const ${1:item} of ${2:items}) {\n\t${3}\n}" },
+    { label: "forin", detail: "for...in loop", type: "keyword", info: "for (const key in obj)", template: "for (const ${1:key} in ${2:obj}) {\n\t${3}\n}" },
+    { label: "foreach", detail: "forEach", type: "keyword", info: "array.forEach()", template: "${1:array}.forEach((${2:item}) => {\n\t${3}\n});" },
+    { label: "map", detail: "array.map()", type: "keyword", info: "array.map()", template: "${1:array}.map((${2:item}) => ${3:item});" },
+    { label: "filter", detail: "array.filter()", type: "keyword", info: "array.filter()", template: "${1:array}.filter((${2:item}) => ${3:condition});" },
+    { label: "reduce", detail: "array.reduce()", type: "keyword", info: "array.reduce()", template: "${1:array}.reduce((${2:acc}, ${3:cur}) => ${4:acc + cur}, ${5:0});" },
+    { label: "if", detail: "if statement", type: "keyword", info: "if (condition)", template: "if (${1:condition}) {\n\t${2}\n}" },
+    { label: "ifelse", detail: "if...else", type: "keyword", info: "if (condition) {} else {}", template: "if (${1:condition}) {\n\t${2}\n} else {\n\t${3}\n}" },
+    { label: "while", detail: "while loop", type: "keyword", info: "while (condition)", template: "while (${1:condition}) {\n\t${2}\n}" },
+    { label: "switch", detail: "switch", type: "keyword", info: "switch (value) {}", template: "switch (${1:value}) {\n\tcase ${2:case}:\n\t\t${3}\n\t\tbreak;\n\tdefault:\n\t\t${4}\n}" },
+    { label: "try", detail: "try...catch", type: "keyword", info: "try {} catch (e) {}", template: "try {\n\t${1}\n} catch (${2:error}) {\n\t${3}\n}" },
+    { label: "tryfinally", detail: "try...finally", type: "keyword", info: "try {} finally {}", template: "try {\n\t${1}\n} finally {\n\t${2}\n}" },
+    { label: "function", detail: "function", type: "keyword", info: "function name() {}", template: "function ${1:name}(${2:params}) {\n\t${3}\n}" },
+    { label: "arrow", detail: "arrow function", type: "keyword", info: "const fn = () => {}", template: "const ${1:name} = (${2:params}) => {\n\t${3}\n};" },
+    { label: "async", detail: "async function", type: "keyword", info: "async function", template: "async function ${1:name}(${2:params}) {\n\t${3}\n}" },
+    { label: "await", detail: "await", type: "keyword", info: "await promise", template: "await ${1:promise};" },
+    { label: "promise", detail: "new Promise", type: "keyword", info: "new Promise((resolve, reject) => {})", template: "new Promise((resolve, reject) => {\n\t${1}\n});" },
+    { label: "then", detail: ".then()", type: "keyword", info: "promise.then()", template: "${1:promise}.then((${2:result}) => {\n\t${3}\n});" },
+    { label: "class", detail: "class", type: "keyword", info: "class Name {}", template: "class ${1:Name} {\n\tconstructor(${2:params}) {\n\t\t${3}\n\t}\n}" },
+    { label: "import", detail: "import", type: "keyword", info: "import { x } from 'mod'", template: "import { ${1:module} } from '${2:package}';" },
+    { label: "export", detail: "export", type: "keyword", info: "export default", template: "export default ${1:module};" },
+    { label: "jsonparse", detail: "JSON.parse", type: "keyword", info: "JSON.parse()", template: "JSON.parse(${1:json});" },
+    { label: "jsonstringify", detail: "JSON.stringify", type: "keyword", info: "JSON.stringify()", template: "JSON.stringify(${1:obj}, null, ${2:2});" },
+    { label: "settimeout", detail: "setTimeout", type: "keyword", info: "setTimeout()", template: "setTimeout(() => {\n\t${2}\n}, ${1:1000});" },
+    { label: "setinterval", detail: "setInterval", type: "keyword", info: "setInterval()", template: "setInterval(() => {\n\t${2}\n}, ${1:1000});" },
+    { label: "fetch", detail: "fetch", type: "keyword", info: "fetch(url)", template: "fetch(${1:url})\n\t.then(res => res.json())\n\t.then(data => ${2:console.log(data)})\n\t.catch(err => ${3:console.error(err)});" },
+    { label: "describe", detail: "describe (test)", type: "keyword", info: "describe('name', () => {})", template: "describe('${1:name}', () => {\n\t${2}\n});" },
+    { label: "it", detail: "it (test)", type: "keyword", info: "it('should', () => {})", template: "it('${1:should}', () => {\n\t${2}\n});" },
+    { label: "test", detail: "test (test)", type: "keyword", info: "test('name', () => {})", template: "test('${1:name}', () => {\n\t${2}\n});" },
+  ],
+  typescript: [
+    { label: "interface", detail: "interface", type: "keyword", info: "interface Name {}", template: "interface ${1:Name} {\n\t${2:property}: ${3:type};\n}" },
+    { label: "type", detail: "type alias", type: "keyword", info: "type Name = {}", template: "type ${1:Name} = {\n\t${2:property}: ${3:type};\n};" },
+    { label: "enum", detail: "enum", type: "keyword", info: "enum Name {}", template: "enum ${1:Name} {\n\t${2:Value1} = '${3:value1}',\n\t${4:Value2} = '${5:value2}',\n}" },
+    { label: "generic", detail: "generic function", type: "keyword", info: "function fn<T>(arg: T)", template: "function ${1:name}<${2:T}>(${3:arg}: ${2:T}): ${2:T} {\n\t${4}\n}" },
+    { label: "log", detail: "console.log", type: "keyword", info: "console.log()", template: "console.log(${1:message});" },
+    { label: "for", detail: "for loop", type: "keyword", info: "for (let i = 0; i < n; i++)", template: "for (let ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n\t${3}\n}" },
+    { label: "forof", detail: "for...of loop", type: "keyword", info: "for (const item of items)", template: "for (const ${1:item} of ${2:items}) {\n\t${3}\n}" },
+    { label: "if", detail: "if statement", type: "keyword", info: "if (condition)", template: "if (${1:condition}) {\n\t${2}\n}" },
+    { label: "ifelse", detail: "if...else", type: "keyword", info: "if (condition) {} else {}", template: "if (${1:condition}) {\n\t${2}\n} else {\n\t${3}\n}" },
+    { label: "while", detail: "while loop", type: "keyword", info: "while (condition)", template: "while (${1:condition}) {\n\t${2}\n}" },
+    { label: "switch", detail: "switch", type: "keyword", info: "switch (value) {}", template: "switch (${1:value}) {\n\tcase ${2:case}:\n\t\t${3}\n\t\tbreak;\n\tdefault:\n\t\t${4}\n}" },
+    { label: "try", detail: "try...catch", type: "keyword", info: "try {} catch (e) {}", template: "try {\n\t${1}\n} catch (${2:error}) {\n\t${3}\n}" },
+    { label: "function", detail: "function", type: "keyword", info: "function name() {}", template: "function ${1:name}(${2:params}) {\n\t${3}\n}" },
+    { label: "arrow", detail: "arrow function", type: "keyword", info: "const fn = () => {}", template: "const ${1:name} = (${2:params}) => {\n\t${3}\n};" },
+    { label: "async", detail: "async function", type: "keyword", info: "async function", template: "async function ${1:name}(${2:params}) {\n\t${3}\n}" },
+    { label: "class", detail: "class", type: "keyword", info: "class Name {}", template: "class ${1:Name} {\n\tconstructor(${2:params}) {\n\t\t${3}\n\t}\n}" },
+    { label: "import", detail: "import", type: "keyword", info: "import { x } from 'mod'", template: "import { ${1:module} } from '${2:package}';" },
+    { label: "export", detail: "export", type: "keyword", info: "export default", template: "export default ${1:module};" },
+  ],
+  python: [
+    { label: "def", detail: "function", type: "keyword", info: "def name():", template: "def ${1:name}(${2:params}):\n\t${3:pass}" },
+    { label: "class", detail: "class", type: "keyword", info: "class Name:", template: "class ${1:Name}:\n\tdef __init__(self${2}):\n\t\t${3:pass}" },
+    { label: "if", detail: "if", type: "keyword", info: "if condition:", template: "if ${1:condition}:\n\t${2:pass}" },
+    { label: "ifelse", detail: "if...else", type: "keyword", info: "if condition: ... else:", template: "if ${1:condition}:\n\t${2:pass}\nelse:\n\t${3:pass}" },
+    { label: "elif", detail: "elif", type: "keyword", info: "elif condition:", template: "elif ${1:condition}:\n\t${2:pass}" },
+    { label: "for", detail: "for loop", type: "keyword", info: "for i in range(n):", template: "for ${1:i} in range(${2:n}):\n\t${3:pass}" },
+    { label: "forin", detail: "for...in", type: "keyword", info: "for item in items:", template: "for ${1:item} in ${2:items}:\n\t${3:pass}" },
+    { label: "while", detail: "while", type: "keyword", info: "while condition:", template: "while ${1:condition}:\n\t${2:pass}" },
+    { label: "try", detail: "try...except", type: "keyword", info: "try: ... except:", template: "try:\n\t${1:pass}\nexcept ${2:Exception} as ${3:e}:\n\t${4:pass}" },
+    { label: "tryfinally", detail: "try...finally", type: "keyword", info: "try: ... finally:", template: "try:\n\t${1:pass}\nfinally:\n\t${2:pass}" },
+    { label: "with", detail: "with", type: "keyword", info: "with open() as f:", template: "with open(${1:filename}, '${2:r}') as ${3:f}:\n\t${4:pass}" },
+    { label: "import", detail: "import", type: "keyword", info: "import module", template: "import ${1:module}" },
+    { label: "from", detail: "from...import", type: "keyword", info: "from module import name", template: "from ${1:module} import ${2:name}" },
+    { label: "print", detail: "print", type: "keyword", info: "print()", template: "print(${1:message})" },
+    { label: "lambda", detail: "lambda", type: "keyword", info: "lambda x: x", template: "lambda ${1:x}: ${2:x}" },
+    { label: "list", detail: "list comprehension", type: "keyword", info: "[x for x in items]", template: "[${1:x} for ${1:x} in ${2:items}]" },
+    { label: "dict", detail: "dict comprehension", type: "keyword", info: "{k: v for k, v in items}", template: "{${1:k}: ${2:v} for ${1:k}, ${2:v} in ${3:items}}" },
+    { label: "main", detail: "if __name__", type: "keyword", info: "if __name__ == '__main__':", template: "if __name__ == '__main__':\n\t${1:main()}" },
+    { label: "async", detail: "async def", type: "keyword", info: "async def name():", template: "async def ${1:name}(${2:params}):\n\t${3:pass}" },
+    { label: "await", detail: "await", type: "keyword", info: "await coroutine", template: "await ${1:coroutine}" },
+  ],
+  java: [
+    { label: "main", detail: "main method", type: "keyword", info: "public static void main", template: "public static void main(String[] args) {\n\t${1}\n}" },
+    { label: "class", detail: "class", type: "keyword", info: "public class Name", template: "public class ${1:Name} {\n\t${2}\n}" },
+    { label: "method", detail: "method", type: "keyword", info: "public void method()", template: "public ${1:void} ${2:method}(${3:params}) {\n\t${4}\n}" },
+    { label: "if", detail: "if", type: "keyword", info: "if (condition)", template: "if (${1:condition}) {\n\t${2}\n}" },
+    { label: "ifelse", detail: "if...else", type: "keyword", info: "if (condition) {} else {}", template: "if (${1:condition}) {\n\t${2}\n} else {\n\t${3}\n}" },
+    { label: "for", detail: "for loop", type: "keyword", info: "for (int i = 0; i < n; i++)", template: "for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n\t${3}\n}" },
+    { label: "foreach", detail: "enhanced for", type: "keyword", info: "for (Type item : items)", template: "for (${1:Type} ${2:item} : ${3:items}) {\n\t${4}\n}" },
+    { label: "while", detail: "while", type: "keyword", info: "while (condition)", template: "while (${1:condition}) {\n\t${2}\n}" },
+    { label: "switch", detail: "switch", type: "keyword", info: "switch (value) {}", template: "switch (${1:value}) {\n\tcase ${2:case}:\n\t\t${3}\n\t\tbreak;\n\tdefault:\n\t\t${4}\n}" },
+    { label: "try", detail: "try...catch", type: "keyword", info: "try {} catch (e) {}", template: "try {\n\t${1}\n} catch (${2:Exception} ${3:e}) {\n\t${4}\n}" },
+    { label: "tryfinally", detail: "try...finally", type: "keyword", info: "try {} finally {}", template: "try {\n\t${1}\n} finally {\n\t${2}\n}" },
+    { label: "sout", detail: "System.out.println", type: "keyword", info: "System.out.println()", template: "System.out.println(${1:message});" },
+    { label: "serr", detail: "System.err.println", type: "keyword", info: "System.err.println()", template: "System.err.println(${1:message});" },
+    { label: "public", detail: "public method", type: "keyword", info: "public ReturnType method()", template: "public ${1:ReturnType} ${2:method}(${3:params}) {\n\t${4}\n}" },
+    { label: "private", detail: "private method", type: "keyword", info: "private ReturnType method()", template: "private ${1:ReturnType} ${2:method}(${3:params}) {\n\t${4}\n}" },
+    { label: "protected", detail: "protected method", type: "keyword", info: "protected ReturnType method()", template: "protected ${1:ReturnType} ${2:method}(${3:params}) {\n\t${4}\n}" },
+    { label: "static", detail: "static method", type: "keyword", info: "static ReturnType method()", template: "static ${1:ReturnType} ${2:method}(${3:params}) {\n\t${4}\n}" },
+    { label: "interface", detail: "interface", type: "keyword", info: "interface Name {}", template: "public interface ${1:Name} {\n\t${2}\n}" },
+    { label: "enum", detail: "enum", type: "keyword", info: "enum Name {}", template: "public enum ${1:Name} {\n\t${2:VALUE1},\n\t${3:VALUE2}\n}" },
+    { label: "import", detail: "import", type: "keyword", info: "import package.Class", template: "import ${1:package}.${2:Class};" },
+    { label: "package", detail: "package", type: "keyword", info: "package com.example;", template: "package ${1:com.example};" },
+  ],
+  cpp: [
+    { label: "main", detail: "main function", type: "keyword", info: "int main()", template: "int main(int argc, char* argv[]) {\n\t${1}\n\treturn 0;\n}" },
+    { label: "class", detail: "class", type: "keyword", info: "class Name {}", template: "class ${1:Name} {\npublic:\n\t${2}\n};" },
+    { label: "struct", detail: "struct", type: "keyword", info: "struct Name {}", template: "struct ${1:Name} {\n\t${2}\n};" },
+    { label: "if", detail: "if", type: "keyword", info: "if (condition)", template: "if (${1:condition}) {\n\t${2}\n}" },
+    { label: "ifelse", detail: "if...else", type: "keyword", info: "if (condition) {} else {}", template: "if (${1:condition}) {\n\t${2}\n} else {\n\t${3}\n}" },
+    { label: "for", detail: "for loop", type: "keyword", info: "for (int i = 0; i < n; i++)", template: "for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++) {\n\t${3}\n}" },
+    { label: "foreach", detail: "range-based for", type: "keyword", info: "for (auto& item : items)", template: "for (auto& ${1:item} : ${2:items}) {\n\t${3}\n}" },
+    { label: "while", detail: "while", type: "keyword", info: "while (condition)", template: "while (${1:condition}) {\n\t${2}\n}" },
+    { label: "switch", detail: "switch", type: "keyword", info: "switch (value) {}", template: "switch (${1:value}) {\n\tcase ${2:case}:\n\t\t${3}\n\t\tbreak;\n\tdefault:\n\t\t${4}\n}" },
+    { label: "try", detail: "try...catch", type: "keyword", info: "try {} catch (e) {}", template: "try {\n\t${1}\n} catch (const ${2:exception}& ${3:e}) {\n\t${4}\n}" },
+    { label: "cout", detail: "std::cout", type: "keyword", info: "std::cout <<", template: "std::cout << ${1:message} << std::endl;" },
+    { label: "cin", detail: "std::cin", type: "keyword", info: "std::cin >>", template: "std::cin >> ${1:variable};" },
+    { label: "vector", detail: "std::vector", type: "keyword", info: "std::vector<Type>", template: "std::vector<${1:Type}> ${2:name};" },
+    { label: "map", detail: "std::map", type: "keyword", info: "std::map<K, V>", template: "std::map<${1:Key}, ${2:Value}> ${3:name};" },
+    { label: "include", detail: "#include", type: "keyword", info: "#include <header>", template: "#include <${1:header}>" },
+    { label: "def", detail: "#define", type: "keyword", info: "#define VALUE", template: "#define ${1:VALUE} ${2:value}" },
+    { label: "namespace", detail: "namespace", type: "keyword", info: "namespace name {}", template: "namespace ${1:name} {\n\t${2}\n}" },
+    { label: "template", detail: "template", type: "keyword", info: "template<typename T>", template: "template<typename ${1:T}>\n${2:void} ${3:function}(${1:T} ${4:arg}) {\n\t${5}\n}" },
+    { label: "uniqueptr", detail: "std::unique_ptr", type: "keyword", info: "std::unique_ptr<Type>", template: "std::unique_ptr<${1:Type}> ${2:name} = std::make_unique<${1:Type}>(${3});" },
+    { label: "sharedptr", detail: "std::shared_ptr", type: "keyword", info: "std::shared_ptr<Type>", template: "std::shared_ptr<${1:Type}> ${2:name} = std::make_shared<${1:Type}>(${3});" },
+  ],
+  html: [
+    { label: "html", detail: "HTML5 boilerplate", type: "keyword", info: "<!DOCTYPE html>", template: "<!DOCTYPE html>\n<html lang=\"${1:en}\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n\t<title>${2:Document}</title>\n</head>\n<body>\n\t${3}\n</body>\n</html>" },
+    { label: "div", detail: "<div>", type: "keyword", info: "<div></div>", template: "<div${1}>\n\t${2}\n</div>" },
+    { label: "span", detail: "<span>", type: "keyword", info: "<span></span>", template: "<span${1}>${2}</span>" },
+    { label: "p", detail: "<p>", type: "keyword", info: "<p></p>", template: "<p>${1}</p>" },
+    { label: "a", detail: "<a>", type: "keyword", info: "<a href=\"\"></a>", template: "<a href=\"${1}\">${2:Link}</a>" },
+    { label: "img", detail: "<img>", type: "keyword", info: "<img src=\"\" alt=\"\">", template: "<img src=\"${1}\" alt=\"${2}\" />" },
+    { label: "ul", detail: "<ul>", type: "keyword", info: "<ul><li></li></ul>", template: "<ul>\n\t<li>${1}</li>\n</ul>" },
+    { label: "ol", detail: "<ol>", type: "keyword", info: "<ol><li></li></ol>", template: "<ol>\n\t<li>${1}</li>\n</ol>" },
+    { label: "li", detail: "<li>", type: "keyword", info: "<li></li>", template: "<li>${1}</li>" },
+    { label: "table", detail: "<table>", type: "keyword", info: "<table><tr><td></td></tr></table>", template: "<table>\n\t<tr>\n\t\t<td>${1}</td>\n\t</tr>\n</table>" },
+    { label: "form", detail: "<form>", type: "keyword", info: "<form action=\"\" method=\"\">", template: "<form action=\"${1}\" method=\"${2}\">\n\t${3}\n</form>" },
+    { label: "input", detail: "<input>", type: "keyword", info: "<input type=\"\" />", template: "<input type=\"${1}\" name=\"${2}\" />" },
+    { label: "button", detail: "<button>", type: "keyword", info: "<button></button>", template: "<button type=\"${1}\">${2:Click}</button>" },
+    { label: "link", detail: "<link>", type: "keyword", info: "<link rel=\"stylesheet\" href=\"\">", template: "<link rel=\"stylesheet\" href=\"${1}\" />" },
+    { label: "script", detail: "<script>", type: "keyword", info: "<script src=\"\"></script>", template: "<script src=\"${1}\"></script>" },
+    { label: "style", detail: "<style>", type: "keyword", info: "<style></style>", template: "<style>\n\t${1}\n</style>" },
+    { label: "meta", detail: "<meta>", type: "keyword", info: "<meta name=\"\" content=\"\">", template: "<meta name=\"${1}\" content=\"${2}\" />" },
+    { label: "title", detail: "<title>", type: "keyword", info: "<title></title>", template: "<title>${1}</title>" },
+    { label: "h1", detail: "<h1>", type: "keyword", info: "<h1></h1>", template: "<h1>${1}</h1>" },
+    { label: "h2", detail: "<h2>", type: "keyword", info: "<h2></h2>", template: "<h2>${1}</h2>" },
+    { label: "h3", detail: "<h3>", type: "keyword", info: "<h3></h3>", template: "<h3>${1}</h3>" },
+    { label: "br", detail: "<br>", type: "keyword", info: "<br />", template: "<br />" },
+    { label: "hr", detail: "<hr>", type: "keyword", info: "<hr />", template: "<hr />" },
+    { label: "section", detail: "<section>", type: "keyword", info: "<section></section>", template: "<section>\n\t${1}\n</section>" },
+    { label: "article", detail: "<article>", type: "keyword", info: "<article></article>", template: "<article>\n\t${1}\n</article>" },
+    { label: "header", detail: "<header>", type: "keyword", info: "<header></header>", template: "<header>\n\t${1}\n</header>" },
+    { label: "footer", detail: "<footer>", type: "keyword", info: "<footer></footer>", template: "<footer>\n\t${1}\n</footer>" },
+    { label: "nav", detail: "<nav>", type: "keyword", info: "<nav></nav>", template: "<nav>\n\t${1}\n</nav>" },
+    { label: "main", detail: "<main>", type: "keyword", info: "<main></main>", template: "<main>\n\t${1}\n</main>" },
+    { label: "aside", detail: "<aside>", type: "keyword", info: "<aside></aside>", template: "<aside>\n\t${1}\n</aside>" },
+    { label: "label", detail: "<label>", type: "keyword", info: "<label for=\"\"></label>", template: "<label for=\"${1}\">${2:Label}</label>" },
+    { label: "select", detail: "<select>", type: "keyword", info: "<select><option></option></select>", template: "<select name=\"${1}\">\n\t<option value=\"${2}\">${3:Option}</option>\n</select>" },
+    { label: "textarea", detail: "<textarea>", type: "keyword", info: "<textarea></textarea>", template: "<textarea name=\"${1}\">${2}</textarea>" },
+    { label: "iframe", detail: "<iframe>", type: "keyword", info: "<iframe src=\"\"></iframe>", template: "<iframe src=\"${1}\" width=\"${2}\" height=\"${3}\"></iframe>" },
+    { label: "canvas", detail: "<canvas>", type: "keyword", info: "<canvas></canvas>", template: "<canvas id=\"${1}\" width=\"${2}\" height=\"${3}\"></canvas>" },
+    { label: "svg", detail: "<svg>", type: "keyword", info: "<svg></svg>", template: "<svg width=\"${1}\" height=\"${2}\">\n\t${3}\n</svg>" },
+    { label: "video", detail: "<video>", type: "keyword", info: "<video src=\"\"></video>", template: "<video src=\"${1}\" controls>\n\t${2}\n</video>" },
+    { label: "audio", detail: "<audio>", type: "keyword", info: "<audio src=\"\"></audio>", template: "<audio src=\"${1}\" controls>\n\t${2}\n</audio>" },
+  ],
+  css: [
+    { label: "flex", detail: "display: flex", type: "keyword", info: "display: flex;", template: "display: flex;\njustify-content: ${1:center};\nalign-items: ${2:center};" },
+    { label: "grid", detail: "display: grid", type: "keyword", info: "display: grid;", template: "display: grid;\ngrid-template-columns: ${1:1fr};\ngap: ${2:1rem};" },
+    { label: "center", detail: "flex center", type: "keyword", info: "Perfect center", template: "display: flex;\njustify-content: center;\nalign-items: center;" },
+    { label: "absolute", detail: "position: absolute", type: "keyword", info: "position: absolute;", template: "position: absolute;\ntop: ${1:0};\nleft: ${2:0};\nwidth: ${3:100%};\nheight: ${4:100%};" },
+    { label: "relative", detail: "position: relative", type: "keyword", info: "position: relative;", template: "position: relative;" },
+    { label: "fixed", detail: "position: fixed", type: "keyword", info: "position: fixed;", template: "position: fixed;\ntop: ${1:0};\nleft: ${2:0};\nwidth: ${3:100%};" },
+    { label: "sticky", detail: "position: sticky", type: "keyword", info: "position: sticky;", template: "position: sticky;\ntop: ${1:0};\nz-index: ${2:100};" },
+    { label: "margin", detail: "margin", type: "keyword", info: "margin: 0;", template: "margin: ${1:0};" },
+    { label: "padding", detail: "padding", type: "keyword", info: "padding: 0;", template: "padding: ${1:0};" },
+    { label: "border", detail: "border", type: "keyword", info: "border: 1px solid;", template: "border: ${1:1px} solid ${2:#000};" },
+    { label: "radius", detail: "border-radius", type: "keyword", info: "border-radius: 4px;", template: "border-radius: ${1:4px};" },
+    { label: "shadow", detail: "box-shadow", type: "keyword", info: "box-shadow: 0 2px 4px;", template: "box-shadow: ${1:0} ${2:2px} ${3:4px} ${4:rgba(0,0,0,0.1)};" },
+    { label: "transition", detail: "transition", type: "keyword", info: "transition: all 0.3s;", template: "transition: ${1:all} ${2:0.3s} ${3:ease};" },
+    { label: "transform", detail: "transform", type: "keyword", info: "transform: translateX();", template: "transform: ${1:translateX}(${2:0});" },
+    { label: "animation", detail: "animation", type: "keyword", info: "animation: name 1s;", template: "animation: ${1:name} ${2:1s} ${3:ease} ${4:infinite};" },
+    { label: "hover", detail: ":hover", type: "keyword", info: "hover state", template: ":hover {\n\t${1}\n}" },
+    { label: "focus", detail: ":focus", type: "keyword", info: "focus state", template: ":focus {\n\t${1}\n}" },
+    { label: "active", detail: ":active", type: "keyword", info: "active state", template: ":active {\n\t${1}\n}" },
+    { label: "before", detail: "::before", type: "keyword", info: "pseudo-element", template: "::before {\n\tcontent: '${1}';\n\t${2}\n}" },
+    { label: "after", detail: "::after", type: "keyword", info: "pseudo-element", template: "::after {\n\tcontent: '${1}';\n\t${2}\n}" },
+    { label: "media", detail: "@media", type: "keyword", info: "@media (max-width: 768px)", template: "@media (max-width: ${1:768px}) {\n\t${2}\n}" },
+    { label: "keyframes", detail: "@keyframes", type: "keyword", info: "@keyframes name", template: "@keyframes ${1:name} {\n\tfrom {\n\t\t${2}\n\t}\n\tto {\n\t\t${3}\n\t}\n}" },
+    { label: "import", detail: "@import", type: "keyword", info: "@import url();", template: "@import url('${1}');" },
+    { label: "font-face", detail: "@font-face", type: "keyword", info: "@font-face", template: "@font-face {\n\tfont-family: '${1}';\n\tsrc: url('${2}');\n}" },
+    { label: "var", detail: "CSS variable", type: "keyword", info: "--name: value;", template: "--${1:name}: ${2:value};" },
+    { label: "calc", detail: "calc()", type: "keyword", info: "calc(100% - 20px)", template: "calc(${1:100%} - ${2:20px});" },
+    { label: "important", detail: "!important", type: "keyword", info: "value !important;", template: "${1:value} !important;" },
+  ],
+  json: [
+    { label: "obj", detail: "object", type: "keyword", info: "{}", template: "{\n\t${1}\n}" },
+    { label: "arr", detail: "array", type: "keyword", info: "[]", template: "[\n\t${1}\n]" },
+    { label: "key", detail: "key-value", type: "keyword", info: "\"key\": value", template: "\"${1:key}\": ${2:value}," },
+    { label: "str", detail: "string value", type: "keyword", info: "\"key\": \"value\"", template: "\"${1:key}\": \"${2:value}\"," },
+    { label: "num", detail: "number value", type: "keyword", info: "\"key\": 0", template: "\"${1:key}\": ${2:0}," },
+    { label: "bool", detail: "boolean value", type: "keyword", info: "\"key\": true", template: "\"${1:key}\": ${2:true}," },
+    { label: "null", detail: "null value", type: "keyword", info: "\"key\": null", template: "\"${1:key}\": null," },
+  ],
+  markdown: [
+    { label: "h1", detail: "# Heading", type: "keyword", info: "# Heading 1", template: "# ${1:Heading}" },
+    { label: "h2", detail: "## Heading", type: "keyword", info: "## Heading 2", template: "## ${1:Heading}" },
+    { label: "h3", detail: "### Heading", type: "keyword", info: "### Heading 3", template: "### ${1:Heading}" },
+    { label: "bold", detail: "**bold**", type: "keyword", info: "**bold**", template: "**${1:bold}**" },
+    { label: "italic", detail: "*italic*", type: "keyword", info: "*italic*", template: "*${1:italic}*" },
+    { label: "code", detail: "`code`", type: "keyword", info: "`code`", template: "`${1:code}`" },
+    { label: "codeblock", detail: "```", type: "keyword", info: "```code block```", template: "```${1:lang}\n${2}\n```" },
+    { label: "link", detail: "[text](url)", type: "keyword", info: "[text](url)", template: "[${1:text}](${2:url})" },
+    { label: "img", detail: "![alt](url)", type: "keyword", info: "![alt](url)", template: "![${1:alt}](${2:url})" },
+    { label: "ul", detail: "- item", type: "keyword", info: "- item", template: "- ${1:item}" },
+    { label: "ol", detail: "1. item", type: "keyword", info: "1. item", template: "1. ${1:item}" },
+    { label: "task", detail: "- [ ] task", type: "keyword", info: "- [ ] task", template: "- [ ] ${1:task}" },
+    { label: "quote", detail: "> quote", type: "keyword", info: "> quote", template: "> ${1:quote}" },
+    { label: "hr", detail: "---", type: "keyword", info: "---", template: "---" },
+    { label: "table", detail: "| col | col |", type: "keyword", info: "| col1 | col2 |", template: "| ${1:Header} | ${2:Header} |\n| --- | --- |\n| ${3:Cell} | ${4:Cell} |" },
+    { label: "details", detail: "<details>", type: "keyword", info: "<details><summary>", template: "<details>\n<summary>${1:Title}</summary>\n\n${2}\n\n</details>" },
+  ],
+  sql: [
+    { label: "select", detail: "SELECT", type: "keyword", info: "SELECT * FROM table", template: "SELECT ${1:*} FROM ${2:table};" },
+    { label: "selectwhere", detail: "SELECT WHERE", type: "keyword", info: "SELECT * FROM table WHERE", template: "SELECT ${1:*} FROM ${2:table} WHERE ${3:condition};" },
+    { label: "insert", detail: "INSERT", type: "keyword", info: "INSERT INTO table VALUES", template: "INSERT INTO ${1:table} (${2:columns}) VALUES (${3:values});" },
+    { label: "update", detail: "UPDATE", type: "keyword", info: "UPDATE table SET", template: "UPDATE ${1:table} SET ${2:column} = ${3:value} WHERE ${4:condition};" },
+    { label: "delete", detail: "DELETE", type: "keyword", info: "DELETE FROM table WHERE", template: "DELETE FROM ${1:table} WHERE ${2:condition};" },
+    { label: "create", detail: "CREATE TABLE", type: "keyword", info: "CREATE TABLE name", template: "CREATE TABLE ${1:name} (\n\t${2:id} ${3:SERIAL} PRIMARY KEY,\n\t${4:column} ${5:VARCHAR(255)}\n);" },
+    { label: "alter", detail: "ALTER TABLE", type: "keyword", info: "ALTER TABLE name ADD", template: "ALTER TABLE ${1:name} ADD ${2:column} ${3:VARCHAR(255)};" },
+    { label: "join", detail: "JOIN", type: "keyword", info: "SELECT * FROM a JOIN b", template: "SELECT ${1:*} FROM ${2:table1} JOIN ${3:table2} ON ${2:table1}.${4:id} = ${3:table2}.${4:id};" },
+    { label: "leftjoin", detail: "LEFT JOIN", type: "keyword", info: "SELECT * FROM a LEFT JOIN b", template: "SELECT ${1:*} FROM ${2:table1} LEFT JOIN ${3:table2} ON ${2:table1}.${4:id} = ${3:table2}.${4:id};" },
+    { label: "groupby", detail: "GROUP BY", type: "keyword", info: "SELECT col, COUNT(*) FROM t GROUP BY", template: "SELECT ${1:column}, COUNT(*) FROM ${2:table} GROUP BY ${1:column};" },
+    { label: "orderby", detail: "ORDER BY", type: "keyword", info: "SELECT * FROM t ORDER BY", template: "SELECT ${1:*} FROM ${2:table} ORDER BY ${3:column} ${4:ASC};" },
+    { label: "limit", detail: "LIMIT", type: "keyword", info: "SELECT * FROM t LIMIT", template: "SELECT ${1:*} FROM ${2:table} LIMIT ${3:10};" },
+    { label: "count", detail: "COUNT", type: "keyword", info: "SELECT COUNT(*) FROM t", template: "SELECT COUNT(*) FROM ${1:table};" },
+    { label: "sum", detail: "SUM", type: "keyword", info: "SELECT SUM(col) FROM t", template: "SELECT SUM(${1:column}) FROM ${2:table};" },
+    { label: "avg", detail: "AVG", type: "keyword", info: "SELECT AVG(col) FROM t", template: "SELECT AVG(${1:column}) FROM ${2:table};" },
+    { label: "max", detail: "MAX", type: "keyword", info: "SELECT MAX(col) FROM t", template: "SELECT MAX(${1:column}) FROM ${2:table};" },
+    { label: "min", detail: "MIN", type: "keyword", info: "SELECT MIN(col) FROM t", template: "SELECT MIN(${1:column}) FROM ${2:table};" },
+    { label: "distinct", detail: "DISTINCT", type: "keyword", info: "SELECT DISTINCT col FROM t", template: "SELECT DISTINCT ${1:column} FROM ${2:table};" },
+    { label: "having", detail: "HAVING", type: "keyword", info: "HAVING condition", template: "HAVING ${1:condition};" },
+    { label: "union", detail: "UNION", type: "keyword", info: "SELECT ... UNION SELECT ...", template: "SELECT ${1:*} FROM ${2:table1}\nUNION\nSELECT ${1:*} FROM ${3:table2};" },
+    { label: "subquery", detail: "subquery", type: "keyword", info: "SELECT * FROM (SELECT ...)", template: "SELECT ${1:*} FROM (\n\tSELECT ${2:*} FROM ${3:table}\n) AS ${4:subquery};" },
+    { label: "index", detail: "CREATE INDEX", type: "keyword", info: "CREATE INDEX idx ON table", template: "CREATE INDEX ${1:idx_name} ON ${2:table} (${3:column});" },
+    { label: "view", detail: "CREATE VIEW", type: "keyword", info: "CREATE VIEW name AS SELECT", template: "CREATE VIEW ${1:name} AS\nSELECT ${2:*} FROM ${3:table};" },
+    { label: "transaction", detail: "BEGIN/COMMIT", type: "keyword", info: "BEGIN; ... COMMIT;", template: "BEGIN;\n${1}\nCOMMIT;" },
+  ],
+  xml: [
+    { label: "tag", detail: "<tag></tag>", type: "keyword", info: "<tag></tag>", template: "<${1:tag}>\n\t${2}\n</${1:tag}>" },
+    { label: "selfclose", detail: "<tag />", type: "keyword", info: "<tag />", template: "<${1:tag} ${2} />" },
+    { label: "attr", detail: "<tag attr=\"\">", type: "keyword", info: "<tag attr=\"\">", template: "<${1:tag} ${2:attr}=\"${3}\">\n\t${4}\n</${1:tag}>" },
+    { label: "comment", detail: "<!-- -->", type: "keyword", info: "<!-- comment -->", template: "<!-- ${1:comment} -->" },
+    { label: "cdata", detail: "<![CDATA[]]>", type: "keyword", info: "<![CDATA[content]]>", template: "<![CDATA[\n\t${1}\n]]>" },
+    { label: "xml", detail: "<?xml?>", type: "keyword", info: "<?xml version=\"1.0\"?>", template: "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n${1}" },
+  ],
+  yaml: [
+    { label: "key", detail: "key: value", type: "keyword", info: "key: value", template: "${1:key}: ${2:value}" },
+    { label: "list", detail: "- item", type: "keyword", info: "- item", template: "- ${1:item}" },
+    { label: "nested", detail: "nested key", type: "keyword", info: "parent:\n  child: value", template: "${1:parent}:\n  ${2:child}: ${3:value}" },
+    { label: "comment", detail: "# comment", type: "keyword", info: "# comment", template: "# ${1:comment}" },
+    { label: "anchor", detail: "&anchor", type: "keyword", info: "&anchor value", template: "&${1:anchor} ${2:value}" },
+    { label: "alias", detail: "*alias", type: "keyword", info: "*alias", template: "*${1:alias}" },
+    { label: "multiline", detail: "|", type: "keyword", info: "key: |\n  text", template: "${1:key}: |\n  ${2:text}" },
+    { label: "folded", detail: ">", type: "keyword", info: "key: >\n  text", template: "${1:key}: >\n  ${2:text}" },
+  ],
+  php: [
+    { label: "php", detail: "<?php ?>", type: "keyword", info: "<?php\n\n?>", template: "<?php\n\n${1}\n\n?>" },
+    { label: "echo", detail: "echo", type: "keyword", info: "echo 'hello';", template: "echo '${1}';" },
+    { label: "function", detail: "function", type: "keyword", info: "function name() {}", template: "function ${1:name}(${2:params}) {\n\t${3}\n}" },
+    { label: "if", detail: "if", type: "keyword", info: "if ($condition)", template: "if (${1:condition}) {\n\t${2}\n}" },
+    { label: "ifelse", detail: "if...else", type: "keyword", info: "if ($condition) {} else {}", template: "if (${1:condition}) {\n\t${2}\n} else {\n\t${3}\n}" },
+    { label: "for", detail: "for", type: "keyword", info: "for ($i = 0; $i < $n; $i++)", template: "for ($${1:i} = 0; $${1:i} < $${2:n}; $${1:i}++) {\n\t${3}\n}" },
+    { label: "foreach", detail: "foreach", type: "keyword", info: "foreach ($items as $item)", template: "foreach ($${1:items} as $${2:item}) {\n\t${3}\n}" },
+    { label: "while", detail: "while", type: "keyword", info: "while ($condition)", template: "while ($${1:condition}) {\n\t\t${2}\n}" },
+    { label: "switch", detail: "switch", type: "keyword", info: "switch ($value) {}", template: "switch ($${1:value}) {\n\tcase ${2:case}:\n\t\t${3}\n\t\tbreak;\n\tdefault:\n\t\t${4}\n}" },
+    { label: "try", detail: "try...catch", type: "keyword", info: "try {} catch (Exception $e) {}", template: "try {\n\t${1}\n} catch (Exception $${2:e}) {\n\t${3}\n}" },
+    { label: "class", detail: "class", type: "keyword", info: "class Name {}", template: "class ${1:Name} {\n\t${2}\n}" },
+    { label: "array", detail: "array()", type: "keyword", info: "array()", template: "array(${1})" },
+    { label: "isset", detail: "isset()", type: "keyword", info: "isset($var)", template: "isset($${1:var})" },
+    { label: "empty", detail: "empty()", type: "keyword", "info": "empty($var)", template: "empty($${1:var})" },
+    { label: "require", detail: "require", type: "keyword", info: "require 'file.php';", template: "require '${1:file}.php';" },
+    { label: "include", detail: "include", type: "keyword", info: "include 'file.php';", template: "include '${1:file}.php';" },
+    { label: "require_once", detail: "require_once", type: "keyword", info: "require_once 'file.php';", template: "require_once '${1:file}.php';" },
+    { label: "include_once", detail: "include_once", type: "keyword", info: "include_once 'file.php';", template: "include_once '${1:file}.php';" },
+  ],
+  rust: [
+    { label: "fn", detail: "function", type: "keyword", info: "fn name() {}", template: "fn ${1:name}(${2:params}) {\n\t${3}\n}" },
+    { label: "main", detail: "fn main", type: "keyword", info: "fn main() {}", template: "fn main() {\n\t${1}\n}" },
+    { label: "struct", detail: "struct", type: "keyword", info: "struct Name {}", template: "struct ${1:Name} {\n\t${2:field}: ${3:Type},\n}" },
+    { label: "enum", detail: "enum", type: "keyword", info: "enum Name {}", template: "enum ${1:Name} {\n\t${2:Variant1},\n\t${3:Variant2},\n}" },
+    { label: "impl", detail: "impl", type: "keyword", info: "impl Name {}", template: "impl ${1:Name} {\n\t${2}\n}" },
+    { label: "trait", detail: "trait", type: "keyword", info: "trait Name {}", template: "trait ${1:Name} {\n\t${2}\n}" },
+    { label: "if", detail: "if", type: "keyword", info: "if condition {}", template: "if ${1:condition} {\n\t${2}\n}" },
+    { label: "ifelse", detail: "if...else", type: "keyword", info: "if condition {} else {}", template: "if ${1:condition} {\n\t${2}\n} else {\n\t${3}\n}" },
+    { label: "match", detail: "match", type: "keyword", info: "match value {}", template: "match ${1:value} {\n\t${2:pattern} => ${3},\n\t_ => ${4},\n}" },
+    { label: "for", detail: "for", type: "keyword", info: "for item in items {}", template: "for ${1:item} in ${2:items} {\n\t${3}\n}" },
+    { label: "while", detail: "while", type: "keyword", info: "while condition {}", template: "while ${1:condition} {\n\t${2}\n}" },
+    { label: "loop", detail: "loop", type: "keyword", info: "loop {}", template: "loop {\n\t${1}\n}" },
+    { label: "let", detail: "let", type: "keyword", info: "let x = value;", template: "let ${1:x} = ${2:value};" },
+    { label: "letmut", detail: "let mut", type: "keyword", "info": "let mut x = value;", template: "let mut ${1:x} = ${2:value};" },
+    { label: "const", detail: "const", type: "keyword", info: "const X: Type = value;", template: "const ${1:X}: ${2:Type} = ${3:value};" },
+    { label: "static", detail: "static", type: "keyword", info: "static X: Type = value;", template: "static ${1:X}: ${2:Type} = ${3:value};" },
+    { label: "use", detail: "use", type: "keyword", info: "use crate::module;", template: "use ${1:crate::module};" },
+    { label: "mod", detail: "mod", type: "keyword", info: "mod name {}", template: "mod ${1:name} {\n\t${2}\n}" },
+    { label: "pub", detail: "pub fn", type: "keyword", info: "pub fn name() {}", template: "pub fn ${1:name}(${2:params}) {\n\t${3}\n}" },
+    { label: "println", detail: "println!", type: "keyword", info: "println!()", template: "println!(\"${1}\");" },
+    { label: "print", detail: "print!", type: "keyword", info: "print!()", template: "print!(\"${1}\");" },
+    { label: "vec", detail: "Vec", type: "keyword", info: "Vec::new()", template: "let ${1:v} = Vec::new();" },
+    { label: "hashmap", detail: "HashMap", type: "keyword", info: "HashMap::new()", template: "let ${1:m} = std::collections::HashMap::new();" },
+    { label: "option", detail: "Option", type: "keyword", info: "Option::Some/None", template: "let ${1:x}: Option<${2:Type}> = None;" },
+    { label: "result", detail: "Result", type: "keyword", info: "Result::Ok/Err", template: "let ${1:x}: Result<${2:OkType}, ${3:ErrType}> = Ok(${4:value});" },
+    { label: "derive", detail: "#[derive]", type: "keyword", info: "#[derive(Debug, Clone)]", template: "#[derive(${1:Debug, Clone})]" },
+    { label: "test", detail: "#[test]", type: "keyword", info: "#[test]\nfn test() {}", template: "#[test]\nfn ${1:test_name}() {\n\t${2}\n}" },
+    { label: "cfg", detail: "#[cfg(test)]", type: "keyword", info: "#[cfg(test)]\nmod tests {}", template: "#[cfg(test)]\nmod ${1:tests} {\n\t${2}\n}" },
+  ],
+};
+
+const SNIPPET_KEYWORDS = new Set([
+  "if", "else", "for", "while", "switch", "try", "catch", "finally",
+  "function", "class", "interface", "enum", "struct", "trait", "impl",
+  "def", "fn", "let", "const", "var", "import", "export", "from",
+  "return", "break", "continue", "new", "delete", "typeof", "instanceof",
+  "public", "private", "protected", "static", "async", "await", "yield",
+  "do", "case", "default", "throw", "extends", "implements", "package",
+  "use", "mod", "pub", "mut", "ref", "move", "unsafe", "extern", "macro",
+  "echo", "print", "println", "cout", "cin", "sout", "serr",
+  "lambda", "pass", "with", "raise", "assert", "global", "nonlocal",
+  "super", "this", "self", "nil", "null", "true", "false", "None",
+  "True", "False", "undefined", "void", "abstract", "final", "override",
+  "virtual", "template", "namespace", "typedef", "sizeof", "auto",
+  "inline", "explicit", "friend", "operator", "volatile", "register",
+  "goto", "union", "volatile", "wchar_t", "char", "int", "float",
+  "double", "long", "short", "unsigned", "signed", "bool", "string",
+  "list", "dict", "set", "tuple", "array", "map", "vector", "stack",
+  "queue", "deque", "priority_queue", "unordered_map", "unordered_set",
+  "span", "view", "optional", "expected", "variant", "any", "anyhow",
+  "format", "vec", "some", "ok", "err", "result", "option",
+]);
+
+const SNIPPET_KEYWORDS_REGEX = new RegExp(`\\b(${[...SNIPPET_KEYWORDS].join("|")})\\b`, "i");
+
+const buildSnippetCompletions = (defs) =>
+  defs.map((d) => snippetCompletion(d.template, {
+    label: d.label,
+    detail: d.detail,
+    type: d.type,
+    info: d.info,
+    boost: 1,
+  }));
+
+const buildKeywordCompletions = (defs) =>
+  defs.map((d) => ({
+    label: d.label,
+    detail: d.detail,
+    type: d.type,
+    info: d.info,
+    boost: 0,
+  }));
+
+const ALL_SNIPPET_COMPLETIONS = {};
+const ALL_KEYWORD_COMPLETIONS = {};
+
+for (const [lang, defs] of Object.entries(SNIPPET_DEFS)) {
+  ALL_SNIPPET_COMPLETIONS[lang] = buildSnippetCompletions(defs);
+  ALL_KEYWORD_COMPLETIONS[lang] = buildKeywordCompletions(defs);
+}
+
+export const getSnippetCompletions = (languageId) => {
+  const lang = languageId || "plaintext";
+  return ALL_SNIPPET_COMPLETIONS[lang] || [];
+};
+
+export const getKeywordCompletions = (languageId) => {
+  const lang = languageId || "plaintext";
+  return ALL_KEYWORD_COMPLETIONS[lang] || [];
+};
+
+export const getSnippetCompletionSource = (languageId) => {
+  const lang = languageId || "plaintext";
+  const snippets = ALL_SNIPPET_COMPLETIONS[lang] || [];
+  const keywords = ALL_KEYWORD_COMPLETIONS[lang] || [];
+  const all = [...snippets, ...keywords];
+  if (!all.length) return null;
+  const items = all.map((c) => ({
+    ...c,
+    apply: c.apply || ((view, completion, from, to) => {
+      const insert = completion.label;
+      view.dispatch({
+        changes: { from, to, insert },
+        selection: { anchor: from + insert.length },
+      });
+    }),
+  }));
+  return ifIn(
+    ["Comment", "String", "TemplateString"],
+    completeFromList([]),
+    completeFromList(items),
+  );
+};
+
+export const getAllSnippetCompletions = () => {
+  const all = [];
+  for (const lang of Object.keys(SNIPPET_DEFS)) {
+    all.push(...ALL_SNIPPET_COMPLETIONS[lang]);
+  }
+  return all;
+};
+
+export const isSnippetKeyword = (word) => SNIPPET_KEYWORDS_REGEX.test(word);
+
+export const getSnippetCount = (languageId) => {
+  const lang = languageId || "plaintext";
+  return (SNIPPET_DEFS[lang] || []).length;
+};
+
+export const getSnippetLanguages = () => Object.keys(SNIPPET_DEFS);

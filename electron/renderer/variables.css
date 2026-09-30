@@ -17,8 +17,7 @@
  *     kyunki pehle ye hardcoded same rehte the.
  *  4. Entry points: electron/renderer/index.jsx aur SettingsWindow.jsx dono
  *     sabse pehle isi file ko import karte hain, isliye ye tokens main window
- *     + settings window + saare panels me available hain. (AI panel ka Tailwind
- *     Shadow-DOM CSS alag build hota hai — uske bridge tokens §12 me hain.)
+ *     + settings window + saare panels me available hain.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {

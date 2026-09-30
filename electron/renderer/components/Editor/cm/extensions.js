@@ -2,10 +2,10 @@
 //
 // Fixed sensible set; sirf chand flags settings se aate hain (theme, font,
 // tabSize, indentUnit, lineNumbers, lineWrapping, autocompletion,
-// tabAcceptsCompletion). Koi LSP, lint, vim, custom highlights,
-// whitespace-dots ya snippet-merging nahi — language package jo deta hai
-// wahi milta hai. Find = CodeMirror ka built-in search panel
-// (openSearchPanel); Tab = suggestion accept (khula ho to), warna indent.
+// tabAcceptsCompletion, vim, snippets). Koi LSP, lint, custom highlights,
+// ya whitespace-dots nahi — language package jo deta hai wahi milta hai.
+// Find = CodeMirror ka built-in search panel (openSearchPanel);
+// Tab = suggestion accept (khula ho to), warna indent.
 
 import { EditorState, Prec } from "@codemirror/state";
 import {
@@ -46,8 +46,10 @@ import {
   acceptCompletion,
 } from "@codemirror/autocomplete";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { vim } from "@replit/codemirror-vim";
 import { vscodeDark, vscodeLight } from "@uiw/codemirror-theme-vscode";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { getSnippetCompletionSource } from "./snippets.js";
 
 export const themeExtensionFor = (theme) => {
   if (theme === "light") return vscodeLight;
@@ -61,7 +63,7 @@ const withMonoFallback = (f) => {
   return /monospace/i.test(s) ? s : `${s}, monospace`;
 };
 
-export const buildCmExtensions = ({ settings, languageSupport = [] }) => {
+export const buildCmExtensions = ({ settings, languageSupport = [], languageId = "plaintext" }) => {
   const s = settings || {};
   const ext = [];
 
@@ -107,7 +109,11 @@ export const buildCmExtensions = ({ settings, languageSupport = [] }) => {
   catch { ext.push(syntaxHighlighting(defaultHighlightStyle)); }
   ext.push(bracketMatching());
   ext.push(foldGutter());
-  if (s.autocompletion !== false) ext.push(autocompletion());
+  if (s.autocompletion !== false) {
+    const snippetSource = s.snippets ? getSnippetCompletionSource(languageId) : null;
+    ext.push(autocompletion({ override: snippetSource ? [snippetSource] : null }));
+  }
+  if (s.vim) ext.push(vim());
   ext.push(closeBrackets());
   ext.push(history());
   if (s.lineWrapping !== false) ext.push(EditorView.lineWrapping);

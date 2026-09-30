@@ -4,11 +4,11 @@
 // dirty ● markers go through flexlayout itself.
 //
 // Plain by design: file load/save, highlighting, basic editing, AI bridge.
-// No LSP, lint, git gutter, vim, snippets merging, formatter, or custom
-// find UI — CodeMirror defaults (built-in search panel, indent-Tab).
-// Engine details: ./cm/extensions.js, ./cm/languages.js, ./cm/settings.js.
-// AI-panel contract: ./cm/bridge.js (getValue/getModel/getSelection/
-// getPosition/executeEdits/focus) — shared.js untouched.
+// No LSP, lint, git gutter, formatter, or custom find UI — CodeMirror
+// defaults (built-in search panel, indent-Tab). Vim + snippets optional
+// (settings flags). Engine: ./cm/extensions.js, ./cm/languages.js,
+// ./cm/settings.js, ./cm/snippets.js. AI-panel contract: ./cm/bridge.js
+// (getValue/getModel/getSelection/getPosition/executeEdits/focus).
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Actions } from "flexlayout-react";
@@ -199,6 +199,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const extensions = useMemo(() => buildCmExtensions({
     settings: cmSettings,
     languageSupport: getLanguageSupport(languageId),
+    languageId,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [cmSettings, languageId]);
 

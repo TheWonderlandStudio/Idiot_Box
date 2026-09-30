@@ -514,6 +514,14 @@ const ContentArea = ({
       if (paths.length) execAction("delete", paths, cp);
       return;
     }
+    // Ctrl+Alt+C → Copy Relative Path (native menu accelerator ke saath match
+    // karta hai). Pehle check karna zaroori: neeche wala Ctrl+C branch
+    // altKey ignore karta hai, isliye wahan se pehle ye match ho jayega.
+    if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      execAction("copyRelativePath", paths, cp);
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === "c") {
       e.preventDefault();
       if (paths.length) execAction("copy", paths, cp);

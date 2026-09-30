@@ -34,7 +34,7 @@
 /* ── Sidebar — resizable ─────────────────────────────────────────────────── */
 .pw-sidebar {
   background: var(--bg-raised);
-  border-right: 1px solid var(--border);
+  border-right: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -62,7 +62,7 @@
   height: var(--bar-h);
   padding: 0 var(--space-4) 0 var(--space-8);
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   background: var(--bg-header-dark);
 }
 .pw-sidebar__title {
@@ -319,7 +319,7 @@
   justify-content: space-between;
   padding: 0 var(--space-8);
   background: var(--bg-raised);
-  border-top: 1px solid var(--border);
+  border-top: none;
   flex-shrink: 0;
   gap: var(--space-8);
 }
@@ -388,7 +388,7 @@
   height: var(--bar-h);
   padding: 0 var(--space-4) 0 var(--space-8);
   background: var(--bg-bar);
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   flex-shrink: 0;
   gap: var(--space-4);
   overflow: hidden;
