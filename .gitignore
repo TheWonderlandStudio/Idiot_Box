@@ -44,3 +44,6 @@ yarn-error.log*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# generated Tailwind CSS string module for AI Elements shadow DOM
+electron/renderer/components/ai-elements/ai-tw-css.js

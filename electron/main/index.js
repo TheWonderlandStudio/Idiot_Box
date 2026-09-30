@@ -48,6 +48,8 @@ let miseService = null;
 try { miseService = require("./mise-service"); } catch (e) { console.warn("[main] mise-service not available:", e.message); }
 let androidManager = null;
 try { androidManager = require("./android"); } catch (e) { console.warn("[main] android manager not available:", e.message); }
+// Hub chat → Pollinations free AI (main process se fetch, renderer se nahi)
+try { require("./ai-chat").registerAiChat(); } catch (e) { console.warn("[main] ai-chat not available:", e.message); }
 
 // ─── Guard stdio EPIPE — prevent crash when parent closes pipes ──────────────
 // When stdout/stderr is a pipe whose reader has gone away, writes throw EPIPE

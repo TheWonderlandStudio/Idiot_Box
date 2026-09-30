@@ -665,6 +665,56 @@
 .phub__layout-opt--on .phub__layout-opt-title {
   color: var(--text-bright);
 }
+/* Layout preview ka SVG wireframe */
+.phub__layout-opt-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 120 / 64;
+  background: #101010;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  transition: background var(--t-normal, 120ms), border-color var(--t-normal, 120ms);
+}
+.phub__layout-opt-svg .lp-frame {
+  fill: none;
+  stroke: var(--border-input);
+  stroke-width: 1;
+}
+.phub__layout-opt-svg .lp-fill {
+  fill: var(--bg-active);
+}
+.phub__layout-opt-svg .lp-dash {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: var(--border-input);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.phub__layout-opt-svg .lp-plus {
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+}
+.phub__layout-opt:hover .phub__layout-opt-svg {
+  border-color: var(--text-muted);
+}
+.phub__layout-opt--on .phub__layout-opt-svg {
+  background: rgba(0, 122, 204, 0.12);
+  border-color: var(--accent);
+}
+.phub__layout-opt--on .lp-frame,
+.phub__layout-opt--on .lp-dash {
+  stroke: var(--accent);
+}
+.phub__layout-opt--on .lp-fill {
+  fill: var(--accent);
+  opacity: 0.6;
+}
+.phub__layout-opt--on .lp-plus {
+  stroke: var(--accent);
+  opacity: 1;
+}
 .phub__create-files {
   flex: 0 0 300px;
   width: 300px;
@@ -2657,8 +2707,8 @@
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-  /* text box poori black area fill kare — koi margin/padding nahi */
-  padding: 0;
+  /* black area + chat box ke beech gap — box edge na chipke */
+  padding: 10px;
 }
 .phub__note-graphscroll {
   flex: 1;
@@ -2684,9 +2734,9 @@
   font-family: inherit;
   font-size: var(--fs-small);
   line-height: 1.5;
-  padding: 0;
-  /* send button ke liye jagah — text uske neeche na aaye */
-  padding-right: 34px;
+  /* text ke chaaro taraf margin — corner se chipka na ho;
+     send button ke liye right me jagah */
+  padding: 12px 44px 12px 14px;
   outline: none;
 }
 .phub__chat-input:focus {
@@ -2697,23 +2747,32 @@
 }
 .phub__chat-send {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  right: 8px;
+  bottom: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 26px;
-  height: 24px;
+  height: 26px;
   padding: 0;
   background: var(--accent);
   border: none;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   color: var(--text-inverse);
   cursor: pointer;
-  transition: filter var(--t-normal);
+  transition: filter var(--t-normal), opacity var(--t-normal);
 }
-.phub__chat-send:hover {
+.phub__chat-send:hover:not(:disabled) {
   filter: brightness(1.12);
+}
+.phub__chat-send:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.phub__chat-send:disabled {
+  background: var(--bg-active);
+  color: var(--text-placeholder);
+  cursor: default;
+  opacity: 0.8;
 }
 
 /* Note panel + side view buttons (box ke bahar, right side) */
@@ -2743,13 +2802,18 @@
   flex-shrink: 0;
 }
 .phub__note-sidebtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--bg-active);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
+  color: var(--text-secondary);
   cursor: pointer;
+  transition: color var(--t-normal), border-color var(--t-normal), background var(--t-normal);
 }
 .phub__note-sidebtn:hover {
   color: var(--text-bright);
@@ -2764,4 +2828,86 @@
   .phub__note-side {
     display: none;
   }
+}
+
+/* ── Full-screen AI chat (Hub send karte hi khulta hai) ──────────────────── */
+.phub__chatfs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-popup);
+  background: #0c0c0c;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  animation: phub-chatfs-in 0.18s ease both;
+}
+@keyframes phub-chatfs-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.phub__chatfs-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+.phub__chatfs-head button { -webkit-app-region: no-drag; }
+.phub__chatfs-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--t-normal), border-color var(--t-normal);
+}
+.phub__chatfs-back:hover {
+  color: var(--text-bright);
+  border-color: var(--accent);
+}
+.phub__chatfs-title {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+}
+.phub__chatfs-sub {
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.phub__chatfs-new {
+  margin-left: auto;
+  padding: 5px 10px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.phub__chatfs-new:hover:not(:disabled) {
+  color: var(--text-bright);
+  border-color: var(--accent);
+}
+.phub__chatfs-new:disabled { opacity: 0.5; cursor: default; }
+/* AI Elements chat body — shadow DOM host (styles andar ai-tw-css.js se) */
+.phub__chatfs-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
 }

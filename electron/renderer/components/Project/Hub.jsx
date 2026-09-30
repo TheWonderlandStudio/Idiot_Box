@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
+import AiSetupChat from "./AiSetupChat.jsx";
 import { playClick, setClickEnabled } from "../shared/clickSound.js";
 import GitGraph from "../GitPanel/GitGraph.jsx";
 import { Terminal } from "@xterm/xterm";
@@ -58,7 +59,138 @@ const FRAMEWORKS = [
 function MessageSquareIconFallback(props) {
   return <Send {...props} />;
 }
+
+// Create Project → Layout options ke liye chhota SVG wireframe:
+// default = IDE jaisa ready layout, blank = ek khaali panel.
+function LayoutPreviewSvg({ kind }) {
+  if (kind === "blank") {
+    return (
+      <svg className="phub__layout-opt-svg" viewBox="0 0 120 64" aria-hidden="true" focusable="false">
+        <rect className="lp-frame" x="1" y="1" width="118" height="62" rx="4" />
+        <rect className="lp-fill lp-dash" x="16" y="11" width="88" height="42" rx="3" />
+        <path className="lp-plus" d="M60 26.5v11M54.5 32h11" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="phub__layout-opt-svg" viewBox="0 0 120 64" aria-hidden="true" focusable="false">
+      <rect className="lp-frame" x="1" y="1" width="118" height="62" rx="4" />
+      <rect className="lp-fill" x="5" y="5" width="14" height="54" rx="2" />
+      <rect className="lp-fill" x="23" y="5" width="64" height="8" rx="2" />
+      <rect className="lp-fill" x="23" y="17" width="64" height="28" rx="2" />
+      <rect className="lp-fill" x="23" y="49" width="64" height="10" rx="2" />
+      <rect className="lp-fill" x="91" y="5" width="24" height="54" rx="2" />
+    </svg>
+  );
+}
 const FRAMEWORK_CATEGORIES = ["All", "Frontend", "Backend", "Python", "Bots", "Mobile", "Others", "Tools"];
+
+// ─── AI setup: chat se aaye panel keys → flexlayout `panels` JSON ──────────
+// index.jsx doSaveProjectTabs/restore `panels` ko padhta hai; editor hamesha
+// shamil hota hai taaki project khulte hi likhne layak ho.
+const PANEL_MAP = {
+  editor: "editor", terminal: "terminal", git: "gitPanel", browser: "panel3",
+  problems: "problems", output: "output", ports: "ports", runDebug: "runDebug",
+  project: "projectPanel", media: "mediaViewer", canvas: "canvas",
+  community: "community", emulator: "androidEmulator",
+};
+const PANEL_LABELS = {
+  editor: "Editor", terminal: "Terminal", git: "Git", browser: "Browser",
+  problems: "Problems", output: "Output", ports: "Ports", runDebug: "Run & Debug",
+  project: "Project", media: "Media Viewer", canvas: "Canvas",
+  community: "Community", emulator: "Android Emulator",
+};
+const COMPONENT_NAMES = Object.fromEntries(
+  Object.entries(PANEL_MAP).map(([k, v]) => [v, PANEL_LABELS[k]])
+);
+const PANEL_GLOBAL = {
+  tabEnableClose: false, tabEnableRename: false, tabEnableDrag: true,
+  tabSetEnableMaximize: true, tabSetEnableDrop: true, tabSetHeaderShown: true,
+  tabSetTabStripHeight: 26, splitterSize: 6, splitterExtra: 8,
+  tabSetMinWidth: 100, tabSetMinHeight: 80, borderMinSize: 80,
+  enableUseVisibility: true,
+};
+
+const buildPanelsJson = (panelKeys) => {
+  const comps = [];
+  const push = (k) => { const c = PANEL_MAP[k]; if (c && !comps.includes(c)) comps.push(c); };
+  push("editor");
+  (panelKeys || []).forEach(push);
+  const others = comps.filter((c) => c !== "editor");
+  const tab = (component) => ({
+    type: "tab",
+    name: COMPONENT_NAMES[component] || component,
+    component,
+    ...(component === "terminal" ? { id: "terminal-tab" } : {}),
+  });
+  let layout;
+  if (!others.length) {
+    layout = { type: "row", weight: 100, children: [{ type: "tabset", weight: 100, children: [tab("editor")] }] };
+  } else if (others.length <= 3) {
+    layout = {
+      type: "row", weight: 100,
+      children: [
+        { type: "tabset", weight: 62, children: [tab("editor")] },
+        { type: "tabset", weight: 38, children: others.map(tab) },
+      ],
+    };
+  } else {
+    const half = Math.ceil(others.length / 2);
+    layout = {
+      type: "row", weight: 100,
+      children: [
+        { type: "tabset", weight: 62, children: [tab("editor")] },
+        {
+          type: "row", weight: 38,
+          children: [
+            { type: "tabset", weight: 50, children: others.slice(0, half).map(tab) },
+            { type: "tabset", weight: 50, children: others.slice(half).map(tab) },
+          ],
+        },
+      ],
+    };
+  }
+  return { global: PANEL_GLOBAL, layout };
+};
+
+// AI reply me ```setup fence → proposal object (galat framework/panels par null)
+const SETUP_BLOCK_RE = /```setup\b([\s\S]*?)```/;
+const normalizeSetupProposal = (raw) => {
+  const m = String(raw || "").match(SETUP_BLOCK_RE);
+  if (!m) return null;
+  let obj = null;
+  try { obj = JSON.parse(m[1].trim()); } catch { return null; }
+  if (!obj || typeof obj !== "object") return null;
+  const fw = FRAMEWORKS.find((f) => f.id === String(obj.framework || "").trim());
+  if (!fw) return null;
+  let panels = (Array.isArray(obj.panels) ? obj.panels : [])
+    .map((p) => String(p || "").trim())
+    .filter((k) => PANEL_MAP[k]);
+  if (!panels.includes("editor")) panels = ["editor", ...panels];
+  panels = panels.slice(0, 7);
+  const rawName = String(obj.projectName || "").trim().toLowerCase()
+    .replace(/[^a-z0-9-_]/g, "-").replace(/-+$/g, "");
+  const projectName = rawName || `${fw.id.replace(/-node|-py$/, "")}-app`;
+  const rawLang = String(obj.language || "").trim();
+  const language = fw.languages?.includes(rawLang) ? rawLang : (fw.languages?.[0] || "TypeScript");
+  return {
+    projectName,
+    language,
+    frameworkId: fw.id,
+    frameworkName: fw.name,
+    panels: panels.map((k) => ({ key: k, label: PANEL_LABELS[k] })),
+  };
+};
+const stripSetupBlock = (raw) =>
+  String(raw || "").replace(/```setup\b[\s\S]*?```/g, "").replace(/\n{3,}/g, "\n\n").trim();
+
+const buildFullPath = (name, loc) => {
+  if (!name) return "";
+  if (!loc) return name;
+  if (loc.endsWith(name) || loc.endsWith(name + "/") || loc.endsWith(name + "\\")) return loc;
+  const sep = loc.includes("\\") ? "\\" : "/";
+  return loc.replace(/[\\/]+$/, "") + sep + name;
+};
 
 // ─── Real setup commands — official CLIs run live in the create terminal ───
 // Editable command line → argv tokens. Quotes may open mid-token
@@ -721,6 +853,73 @@ const ProjectHub = () => {
   // sidebar me checkbox squares + label pills, ek time par ek view.
   const [centerView, setCenterView] = useState("gitgraph");
   const [hubChatText, setHubChatText] = useState("");
+  // ── Full-screen AI chat (Hub chat send karte hi Hub gayab → ye khulta hai) ─
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMsgs, setChatMsgs] = useState([]);
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatFsTop, setChatFsTop] = useState(30);
+  // AI proposal — ```setup block se bana, card me dikhata hai
+  const [chatProposal, setChatProposal] = useState(null);
+  const chatMsgsRef = useRef([]);
+
+  const pushChatMsg = (msg) => {
+    chatMsgsRef.current = [...chatMsgsRef.current, msg];
+    setChatMsgs(chatMsgsRef.current);
+  };
+  // AI call — user message append → Pollinations/OVH se reply; reply me
+  // ```setup fence ho to proposal card ke liye normalize kar lo.
+  const askAiReply = async (text) => {
+    pushChatMsg({ role: "user", content: text });
+    setChatBusy(true);
+    try {
+      const reply = await window.electronAPI.aiChat(chatMsgsRef.current.slice(-10));
+      const raw = String(reply || "");
+      const proposal = normalizeSetupProposal(raw);
+      const body = stripSetupBlock(raw);
+      pushChatMsg({
+        role: "assistant",
+        content: body || (proposal ? "Setup ready — neeche card se project create kar sakte ho." : raw.trim()),
+      });
+      if (proposal) setChatProposal(proposal);
+    } catch (e) {
+      // Electron IPC prefix hata do — user ko sirf asli error dikhao
+      const raw = (e && e.message) || "AI request failed";
+      const msg = raw.replace(/^Error invoking remote method ['"]ai:chat['"]:\s*/, "");
+      pushChatMsg({ role: "assistant", content: "⚠ " + msg });
+    } finally {
+      setChatBusy(false);
+    }
+  };
+  // Hub ka chhota chat box → Hub gayab, full-screen chat + AI reply
+  const sendHubMessage = async () => {
+    const text = hubChatText.trim();
+    if (!text || chatBusy) return;
+    setHubChatText("");
+    try {
+      const tb = document.querySelector(".cet-titlebar");
+      setChatFsTop((tb && tb.offsetHeight ? tb.offsetHeight : 30) + "px");
+    } catch { setChatFsTop("30px"); }
+    setChatOpen(true);
+    await askAiReply(text);
+  };
+  // Full-screen chat (AI Elements) se bhejna
+  const sendFsMessage = async (text) => {
+    if (!text || chatBusy) return;
+    await askAiReply(text);
+  };
+  // Naya chat (history + proposal saaf)
+  const resetFsChat = () => {
+    chatMsgsRef.current = [];
+    setChatMsgs([]);
+    setChatProposal(null);
+  };
+  // Esc → full-screen chat band, Hub wapas
+  useEffect(() => {
+    if (!chatOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setChatOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chatOpen]);
   const [graphProject, setGraphProject] = useState(null);
   const [graphLog, setGraphLog] = useState([]);
   const [graphQuery, setGraphQuery] = useState("");
@@ -1744,26 +1943,48 @@ const ProjectHub = () => {
     setNewProjectName(`${base}-app`);
   }, []);
 
-  const createNewProject = useCallback(async () => {
-    const legacy = newProjectPath.trim();
-    const full = getFullProjectPath();
+  // overrides (AI setup card): { fw, name, loc, lang, steps, projName, panels }
+  // — state ke bajaye inhi se create chalta hai; nahi diya to dialog wala flow.
+  const createNewProject = useCallback(async (overrides) => {
+    const ov = overrides || {};
+    const legacy = ov.legacy !== undefined ? String(ov.legacy || "").trim() : newProjectPath.trim();
+    const fw = ov.fw !== undefined ? ov.fw : selectedFramework;
+    const name = ov.name !== undefined ? ov.name : (newProjectName.trim() || fw?.name || "app");
+    const loc = ov.loc !== undefined ? ov.loc : newProjectLocation.trim();
+    const lang = ov.lang !== undefined ? ov.lang : frameworkLang;
+    const full = ov.name !== undefined || ov.loc !== undefined
+      ? buildFullPath(name, loc)
+      : getFullProjectPath();
     const target = full || legacy;
     if (!target) return;
-    const fw = selectedFramework;
-    const name = newProjectName.trim() || fw?.name || "app";
-    let spec = fw ? getScaffoldSpec(fw.id, name, frameworkLang) : null;
-    const loc = newProjectLocation.trim();
+    let spec = fw ? getScaffoldSpec(fw.id, name, lang) : null;
+    const steps = ov.steps !== undefined ? ov.steps : editedSteps;
+    const projName = ov.projName !== undefined ? ov.projName : editedProjName;
     // user cleared every command → fall back to starter files, nothing to run
-    if (spec && !editedSteps.length) spec = null;
+    if (spec && !steps.length) spec = null;
     // parent-mode needs a real parent dir — else starter files
     if (spec && spec.mode === "parent" && !loc) spec = null;
+    // AI proposal ka panel layout — project open se pehle tabs.json me likh do
+    // (index.jsx handleOpen isi `panels` ko restore karta hai).
+    const writePanels = async (dir) => {
+      if (!ov.panels || !dir) return;
+      try {
+        const cur = (await window.electronAPI.readProjectTabs(dir)) || {};
+        await window.electronAPI.writeProjectTabs(dir, {
+          ...cur,
+          tabs: Array.isArray(cur.tabs) ? cur.tabs : [],
+          panels: ov.panels,
+        });
+      } catch {}
+    };
     if (!spec) {
       try {
         await markBlankLayout(target);
+        await writePanels(target);
         await window.electronAPI.menuNewProject(target);
         // if framework selected — populate starter files
         if (fw) {
-          await writeTemplateFiles(fw.id, newProjectName.trim() || fw.name, frameworkLang, target, []);
+          await writeTemplateFiles(fw.id, name, lang, target, []);
           // reopen to refresh file tree
           try { await window.electronAPI.menuOpenProject(target); } catch {}
         }
@@ -1777,8 +1998,9 @@ const ProjectHub = () => {
     if (scaffoldingRef.current) return;
     const sep = loc.includes("\\") ? "\\" : "/";
     const parentDir = loc.replace(/[\\/]+$/, "") || target;
-    const projDir = spec.mode === "parent" ? parentDir + sep + (editedProjName || spec.safe) : target;
+    const projDir = spec.mode === "parent" ? parentDir + sep + (projName || spec.safe) : target;
     await markBlankLayout(projDir);
+    await writePanels(projDir);
     scafCancelledRef.current = false;
     scafPendingRef.current = [];
     setScafVisible(true);
@@ -1789,7 +2011,7 @@ const ProjectHub = () => {
         await window.electronAPI.menuNewProject(target);
         if (spec.write === "before") {
           scafPush("Writing starter files…\r\n");
-          await writeTemplateFiles(fw.id, name, frameworkLang, target, spec.skipFiles || []);
+          await writeTemplateFiles(fw.id, name, lang, target, spec.skipFiles || []);
         }
       } else {
         scafPush(`Scaffolding ${fw.name} → ${projDir}\r\n(interactive prompt? type your answer below)\r\n`);
@@ -1799,12 +2021,51 @@ const ProjectHub = () => {
       return;
     }
     const runId = `scaffold-${Date.now()}`;
-    const plan = { runId, steps: editedSteps, idx: 0, parentDir, projDir, fwId: fw.id, name, lang: frameworkLang, spec };
+    const plan = { runId, steps, idx: 0, parentDir, projDir, fwId: fw.id, name, lang, spec };
     scafPlanRef.current = plan;
     scafRunIdRef.current = runId;
     const started = await startScafStep(plan, 0);
     if (!started) await scafFallback(plan, "could not start first command");
   }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, scafPush, writeTemplateFiles, startScafStep, finishScaffold, closeCreateDialog]);
+
+  // AI proposal card → "Create project": Create dialog wahi flow chalata hai
+  // (setup terminal live), panels layout project kholte hi lag jaata hai.
+  const handleAiCreate = useCallback(async () => {
+    const p = chatProposal;
+    const fw = p && FRAMEWORKS.find((f) => f.id === p.frameworkId);
+    if (!p || !fw || scaffoldingRef.current) return;
+    setChatBusy(true);
+    let loc = newProjectLocation.trim();
+    if (!loc) {
+      try { loc = (await window.electronAPI.getDefaultLocation?.()) || ""; } catch { loc = ""; }
+    }
+    const spec = getScaffoldSpec(fw.id, p.projectName, p.language);
+    setSelectedFramework(fw);
+    setFrameworkLang(p.language);
+    setNewProjectName(p.projectName);
+    setNewProjectLocation(loc);
+    setChatOpen(false);
+    if (spec) {
+      setShowFrameworks(false);
+      setShowNewProjectDialog(true);
+    }
+    try {
+      await createNewProject({
+        fw,
+        name: p.projectName,
+        loc,
+        lang: p.language,
+        steps: spec ? spec.steps : [],
+        projName: spec ? spec.safe : "",
+        panels: buildPanelsJson(p.panels.map((x) => x.key)),
+      });
+    } catch (err) {
+      console.error("AI create failed", err);
+      try { await window.electronAPI.showAlert?.(`Create failed: ${err?.message || err}`); } catch {}
+    } finally {
+      setChatBusy(false);
+    }
+  }, [chatProposal, newProjectLocation, createNewProject]);
 
   const handleDelete = useCallback(async (folderPath) => {
     const target = folderPath || deletingPath;
@@ -1907,6 +2168,41 @@ const ProjectHub = () => {
       }}
     >
       {!nativeCursor && <CustomCursor />}
+
+      {/* Full-screen AI chat — Hub send karte hi CENTER area dhakta hai;
+          sidebar (left me Create/Open) dikhta rehta hai. Andar AI Elements
+          (elements.ai-sdk.dev) chat + setup proposal card. */}
+      {chatOpen && (
+        <div
+          className="phub__chatfs"
+          style={{ top: chatFsTop, left: sidebarCollapsed ? 52 : 200 }}
+        >
+          <div className="phub__chatfs-head">
+            <button
+              className="phub__chatfs-back"
+              onClick={() => setChatOpen(false)}
+              title="Back to Hub (Esc)"
+              aria-label="Back to Hub"
+            >
+              <ArrowLeft size={15} />
+            </button>
+            <span className="phub__chatfs-title">
+              Project Setup<span className="phub__chatfs-sub">Free AI</span>
+            </span>
+            <button className="phub__chatfs-new" onClick={resetFsChat} disabled={chatBusy}>
+              New chat
+            </button>
+          </div>
+          <AiSetupChat
+            messages={chatMsgs}
+            busy={chatBusy}
+            onSend={sendFsMessage}
+            proposal={chatProposal}
+            onCreate={handleAiCreate}
+            onDismiss={() => setChatProposal(null)}
+          />
+        </div>
+      )}
 
       {projectPath && (
         <div className={`phub__path-bar${sidebarCollapsed ? " phub__path-bar--collapsed" : ""}`}>
@@ -2101,6 +2397,7 @@ const ProjectHub = () => {
                         onClick={() => setCreateLayout("default")}
                         aria-pressed={createLayout === "default"}
                       >
+                        <LayoutPreviewSvg kind="default" />
                         <span className="phub__layout-opt-title">Default panels</span>
                         <span className="phub__layout-opt-desc">Editor, Project, Terminal & more — ready layout</span>
                       </button>
@@ -2110,6 +2407,7 @@ const ProjectHub = () => {
                         onClick={() => setCreateLayout("blank")}
                         aria-pressed={createLayout === "blank"}
                       >
+                        <LayoutPreviewSvg kind="blank" />
                         <span className="phub__layout-opt-title">Blank workspace</span>
                         <span className="phub__layout-opt-desc">Sirf blank panel — panels apne hisaab se kholein</span>
                       </button>
@@ -2501,7 +2799,7 @@ const ProjectHub = () => {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-                        setHubChatText("");
+                        sendHubMessage();
                       }
                     }}
                     placeholder="Type a message…"
@@ -2511,11 +2809,12 @@ const ProjectHub = () => {
                   />
                   <button
                     className="phub__chat-send"
-                    onClick={() => setHubChatText("")}
+                    onClick={sendHubMessage}
+                    disabled={!hubChatText.trim() || chatBusy}
                     title="Send"
                     aria-label="Send"
                   >
-                    <Send size={14} />
+                    <Send size={13} />
                   </button>
                 </div>              </div>
               ) : (
@@ -2614,7 +2913,7 @@ const ProjectHub = () => {
               )}
             </div>
             <div className="phub__note-side" aria-label="Note view">
-              {[["gitgraph", "Chat"], ["projects", "Contribution heatmap"]].map(([id, label]) => (
+              {[["gitgraph", "Chat", MessageSquare], ["projects", "Contribution heatmap", Activity]].map(([id, label, Icon]) => (
                 <button
                   key={id}
                   onClick={() => setCenterView(id)}
@@ -2623,6 +2922,7 @@ const ProjectHub = () => {
                   aria-pressed={centerView === id}
                   className={`phub__note-sidebtn${centerView === id ? " phub__note-sidebtn--on" : ""}`}
                 >
+                  <Icon size={12} />
                 </button>
               ))}
             </div>

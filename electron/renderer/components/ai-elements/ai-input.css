@@ -1,0 +1,194 @@
+/* Style source for the AI Elements shadow DOM (setup-chat in the Hub).
+   Built by build/build-ai-css.cjs into ai-tw-css.js (gitignored). */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "streamdown/styles.css";
+
+/* Class-based dark mode driven by the app theme (not OS preference). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Explicit content sources (node_modules is gitignored => skipped by default).
+   Hub se setup-chat ke custom JSX me bhi tailwind classes hain — wo scan ho. */
+@source "./";
+@source "../Project";
+
+/* shadcn theme tokens -> Tailwind color/radius utilities. */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}
+
+/* shadcn neutral tokens (light). The mount node gets .ai-scope (+ .dark). */
+.ai-scope {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  color-scheme: light;
+}
+
+.ai-scope.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  color-scheme: dark;
+}
+
+/* Native <select> option popup: force SOLID popover tokens so text stays
+   readable in both themes. (The select itself uses semi-transparent
+   --input, which the popup blends into an unreadable grey.) */
+.ai-scope select option {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+}
+
+/* ── Idiot Box setup-chat extras (sirf ishi shadow DOM me) ───────────────── */
+.ss-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #0f0f10;
+  color: var(--foreground);
+}
+.ss-composer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 12px;
+  background: var(--card);
+}
+.ss-hint {
+  font-size: 10.5px;
+  color: var(--muted-foreground);
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ss-send[disabled] { opacity: 0.5; cursor: default; }
+
+/* Setup proposal card */
+.ss-card {
+  margin-top: 4px;
+  width: min(540px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ss-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.ss-card-title svg { color: var(--ring); }
+.ss-card-grid {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 4px 10px;
+  font-size: 12.5px;
+}
+.ss-k { color: var(--muted-foreground); }
+.ss-v { color: var(--foreground); word-break: break-word; }
+.ss-card-panels { display: flex; flex-wrap: wrap; gap: 6px; }
+.ss-chip {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+}
+.ss-card-actions { display: flex; gap: 8px; margin-top: 2px; }
+.ss-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+}
+.ss-btn:hover:not([disabled]) { background: rgba(255, 255, 255, 0.08); }
+.ss-btn[disabled] { opacity: 0.55; cursor: default; }
+.ss-btn--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: transparent;
+}
+.ss-btn--primary:hover:not([disabled]) { filter: brightness(1.15); background: var(--primary); }

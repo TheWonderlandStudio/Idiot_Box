@@ -247,6 +247,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readProjectTabs:  (rootPath)        => ipcRenderer.invoke("projectConfig:readTabs",  rootPath),
   writeProjectTabs: (rootPath, data)  => ipcRenderer.invoke("projectConfig:writeTabs", rootPath, data),
 
+  // ── Hub chat → Pollinations free AI (no key) ──────────────────────────────
+  aiChat: (messages) => ipcRenderer.invoke("ai:chat", { messages }),
+
   // ── Project Hub — recent / pinned projects ────────────────────────────────
   projectLoadRecent:   ()            => ipcRenderer.invoke("project:load-recent"),
   projectAddRecent:    (folderPath)  => ipcRenderer.invoke("project:add-recent",   folderPath),
