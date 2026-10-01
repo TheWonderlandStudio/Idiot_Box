@@ -73,6 +73,10 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
     onSend(t);
   };
   const empty = messages.length === 0 && !busy;
+  // Streaming: pehla chunk aate hi shimmer band (last assistant message live
+  // update ho rahi hai) — wait time par hi "Soch raha hoon…" dikhe.
+  const lastMsg = messages[messages.length - 1];
+  const streamingLive = !!(busy && lastMsg && lastMsg.role === "assistant" && String(lastMsg.content || "").trim());
   return (
     <div className="ss-root">
       <Conversation className="min-h-0 flex-1">
@@ -105,7 +109,7 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
               </Message>
             ))
           )}
-          {busy && (
+          {busy && !streamingLive && (
             <Message from="assistant" key="__busy">
               <MessageContent>
                 <Shimmer className="text-sm">Soch raha hoon…</Shimmer>

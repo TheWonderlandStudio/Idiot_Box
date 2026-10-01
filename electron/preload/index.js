@@ -247,8 +247,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readProjectTabs:  (rootPath)        => ipcRenderer.invoke("projectConfig:readTabs",  rootPath),
   writeProjectTabs: (rootPath, data)  => ipcRenderer.invoke("projectConfig:writeTabs", rootPath, data),
 
+  // ── Panel layout presets (titlebar Layouts dropdown) ──────────────────────
+  layoutList:   ()                  => ipcRenderer.invoke("layoutPresets:list"),
+  layoutSave:   (name, panels, layout) => ipcRenderer.invoke("layoutPresets:save", { name, panels, layout }),
+  layoutDelete: (id)                => ipcRenderer.invoke("layoutPresets:delete", id),
+
   // ── Hub chat → Pollinations free AI (no key) ──────────────────────────────
   aiChat: (messages) => ipcRenderer.invoke("ai:chat", { messages }),
+  // Streaming mode — chunks live aate hain (cb: "chunk"|"done"|"error", payload)
+  aiChatStart: (id, messages) => ipcRenderer.send("ai:chat:start", { id, messages }),
+  onAiChatEvent: (cb) => {
+    const h1 = (_e, p) => cb("chunk", p);
+    const h2 = (_e, p) => cb("done", p);
+    const h3 = (_e, p) => cb("error", p);
+    ipcRenderer.on("ai:chat:chunk", h1);
+    ipcRenderer.on("ai:chat:done", h2);
+    ipcRenderer.on("ai:chat:error", h3);
+    return () => {
+      ipcRenderer.removeListener("ai:chat:chunk", h1);
+      ipcRenderer.removeListener("ai:chat:done", h2);
+      ipcRenderer.removeListener("ai:chat:error", h3);
+    };
+  },
 
   // ── Project Hub — recent / pinned projects ────────────────────────────────
   projectLoadRecent:   ()            => ipcRenderer.invoke("project:load-recent"),

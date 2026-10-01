@@ -138,9 +138,135 @@ async function askAi(payload) {
   }
 }
 
+// ── Streaming (live) mode — OpenAI-compatible SSE `data:` lines ─────────────
+// Chunks seedha renderer ko bhejte hain; partial stream fail hoto fallback
+// provider par jate hain (sirf jab koi chunk emit na hua ho — warna duplicate).
+async function readOpenAiSse(res, onDelta) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() || "";
+    for (const raw of lines) {
+      const line = raw.replace(/\r$/, "").trim();
+      if (line.indexOf("data:") !== 0) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const j = JSON.parse(data);
+        const c = j && j.choices && j.choices[0];
+        const d = c && c.delta && c.delta.content;
+        if (d) { full += d; onDelta(d); }
+      } catch {}
+    }
+  }
+  return full;
+}
+
+// 1) Pollinations — legacy GET ko progressive reader se padho (server agar
+// token-by-token bheje to live chunks, warna ek hi chunk me pura text).
+// NOTE: yahan POST /openai endpoint NAHI use karta wo anonymous tier par
+// hang/402 karta hai; plain GET fast respond karta hai (200/4xx dono).
+async function pollinationsAskStream(messages, onDelta) {
+  const url = "https://text.pollinations.ai/" + encodeURIComponent(buildPrompt(messages)) + "?model=openai";
+  return withTimeout(async (signal) => {
+    const res = await fetch(url, { signal, headers: { Accept: "text/plain" } });
+    if (!res.ok) throw new Error("pollinations HTTP " + res.status);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let full = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const s = dec.decode(value, { stream: true });
+      if (s) { full += s; onDelta(s); }
+    }
+    const text = full.trim();
+    if (!text || text === "{}") throw new Error("pollinations empty response");
+    return text;
+  }, 40000);
+}
+
+// 2) OVHcloud — OpenAI-compatible streaming (model loop, 429 par agla model)
+async function ovhAskStream(messages, onDelta) {
+  const msgs = cleanMessages(messages);
+  let emitted = 0;
+  const emit = (d) => { emitted++; onDelta(d); };
+  let lastErr = null;
+  for (const model of OVH_MODELS) {
+    try {
+      const text = await withTimeout(async (signal) => {
+        const res = await fetch(OVH_URL, {
+          method: "POST",
+          signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            messages: msgs,
+            max_tokens: 1024,
+            temperature: 0.7,
+            stream: true,
+          }),
+        });
+        if (res.status === 429) { const e = new Error("rate limited (" + model + ")"); e.retry = true; throw e; }
+        if (!res.ok) { const e = new Error("ovh stream HTTP " + res.status + " (" + model + ")"); e.retry = true; throw e; }
+        const t = await readOpenAiSse(res, emit);
+        if (!t) { const e = new Error("ovh empty stream (" + model + ")"); e.retry = true; throw e; }
+        return t;
+      }, 45000);
+      return text;
+    } catch (e) {
+      // beech me chunk nikal chuke ho to retry = duplicate text — ruk jao.
+      if (emitted > 0) return;
+      lastErr = e;
+      if (!e || !e.retry) break; // network/abort — aur models ka koi fayda nahi
+    }
+  }
+  throw lastErr || new Error("ovh stream failed");
+}
+
+// Stream chain: ovh(SSE, asli token streaming) → pollinations(GET progressive)
+// → non-stream fallback (single chunk). Partial chunk nikal chuke ho to
+// retry nahi (duplicate text bachega).
+async function askAiStream(messages, onDelta) {
+  let emitted = 0;
+  const emit = (d) => { if (d) { emitted++; onDelta(d); } };
+  try { await ovhAskStream(messages, emit); return; } catch {}
+  if (emitted > 0) return;
+  try { await pollinationsAskStream(messages, emit); return; } catch {}
+  if (emitted > 0) return;
+  const text = await askAi({ messages });
+  if (text) onDelta(text);
+}
+
 function registerAiChat() {
   try {
     ipcMain.handle("ai:chat", (_e, payload) => askAi(payload || {}));
+    // Streaming: renderer `ai:chat:start` bhejta hai, main chunk/done/error
+    // events wapas usi webContents ko deta hai.
+    ipcMain.on("ai:chat:start", async (e, payload) => {
+      const id = (payload && payload.id) || "ai_" + Date.now();
+      const sender = e.sender;
+      const messages = (payload && payload.messages) || [];
+      let full = "";
+      const send = (channel, data) => {
+        try { if (sender && !sender.isDestroyed()) sender.send(channel, data); } catch {}
+      };
+      try {
+        await askAiStream(messages, (d) => {
+          full += d;
+          send("ai:chat:chunk", { id, text: d });
+        });
+        send("ai:chat:done", { id, text: full });
+      } catch (err) {
+        send("ai:chat:error", { id, message: (err && err.message) || "AI request failed" });
+      }
+    });
   } catch {}
 }
 

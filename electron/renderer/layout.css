@@ -132,7 +132,7 @@ body,
   pointer-events: auto !important;
 }
 
-/* ── Title bar right: Workspaces box (window controls ke just left) ──────── */
+/* ── Title bar right: Layouts box (pehle "Workspaces"; window controls ke just left) ─ */
 .tb-workspaces {
   /* flex order: box left cluster ke baad, window controls se pehle */
   order: 1;
@@ -155,6 +155,134 @@ body,
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
+.tb-workspaces:hover { background: var(--bg-hover); }
+
+/* ── Layouts dropdown (button ke neeche, titlebar se portal hoke body me) ── */
+.tb-layouts-menu {
+  width: 300px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+.tb-layouts-title {
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 1px 4px 0;
+}
+.tb-layouts-save { display: flex; gap: 6px; }
+.tb-layouts-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.tb-layouts-input:focus { border-color: var(--accent); }
+.tb-layouts-input::placeholder { color: var(--text-muted); }
+.tb-layouts-input:disabled { opacity: 0.6; }
+.tb-layouts-savebtn {
+  height: 26px;
+  padding: 0 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.tb-layouts-savebtn:disabled { opacity: 0.45; cursor: default; }
+.tb-layouts-savebtn:not(:disabled):hover { filter: brightness(1.12); }
+.tb-layouts-list {
+  max-height: 268px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tb-layouts-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 6px;
+}
+.tb-layouts-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+}
+.tb-layouts-row:hover,
+.tb-layouts-row.is-applied { background: var(--bg-hover); }
+.tb-layouts-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.tb-layouts-row.is-applied .tb-layouts-dot { background: #2ea043; }
+.tb-layouts-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-layouts-when {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.tb-layouts-del {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+}
+.tb-layouts-row:hover .tb-layouts-del { opacity: 1; }
+.tb-layouts-del:hover { background: var(--bg-hover-strong); color: var(--text-primary); }
+.tb-layouts-hub {
+  border: none;
+  border-top: 1px solid var(--border-input);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: left;
+  padding: 8px 4px 2px;
+  margin-top: 1px;
+  cursor: pointer;
+}
+.tb-layouts-hub:hover { color: var(--text-primary); }
 /* Window controls ab sabse last (order 2), auto margin box ko khud right
    kheenchne dega — warna CET ka margin-left:auto box ko left cluster me chhodta.
    (macOS controls left side hote — sirf right-side platforms par override.) */
@@ -163,6 +291,14 @@ body,
 .cet-titlebar.cet-freebsd .cet-window-controls {
   order: 2;
   margin-left: 0;
+}
+/* Hub me Layouts button nahi hota (user request) — tab right-shift ka pusher
+   khud controls ko auto margin se dena padta hai, warna wo menus ke saath
+   baayein chipak jaate hain. Button maujood ho to ye rule skip (pehle jaisa). */
+.cet-titlebar.cet-windows:not(:has(.tb-workspaces)) .cet-window-controls,
+.cet-titlebar.cet-linux:not(:has(.tb-workspaces)) .cet-window-controls,
+.cet-titlebar.cet-freebsd:not(:has(.tb-workspaces)) .cet-window-controls {
+  margin-left: auto;
 }
 
 /* ── Browser panel (Panel3) ───────────────────────────────────────────────── */

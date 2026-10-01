@@ -1964,6 +1964,49 @@ ipcMain.handle("projectConfig:writeTabs", async (_e, rootPath, data) => {
   }
 });
 
+// ─── Panel layout presets (titlebar Layouts dropdown) ────────────────────────
+// User apni panel arrangement naam ke saath save karta hai; kisi bhi project
+// me apply kar sakta hai. userData/layout-presets.json me rehte hain.
+const LAYOUT_PRESETS_FILE = path.join(app.getPath("userData"), "layout-presets.json");
+let layoutPresetsCache = null;
+function loadLayoutPresets() {
+  if (Array.isArray(layoutPresetsCache)) return layoutPresetsCache;
+  try {
+    const data = JSON.parse(fs.readFileSync(LAYOUT_PRESETS_FILE, "utf8"));
+    layoutPresetsCache = Array.isArray(data) ? data : [];
+  } catch { layoutPresetsCache = []; }
+  return layoutPresetsCache;
+}
+function saveLayoutPresets() {
+  try { fs.writeFileSync(LAYOUT_PRESETS_FILE, JSON.stringify(layoutPresetsCache || [], null, 2)); } catch {}
+}
+ipcMain.handle("layoutPresets:list", async () => loadLayoutPresets());
+ipcMain.handle("layoutPresets:save", async (_e, opts) => {
+  try {
+    const name = String(opts?.name || "").trim().slice(0, 60);
+    const panels = opts?.panels;
+    if (!panels || typeof panels !== "object" || !panels.layout) return loadLayoutPresets();
+    const list = loadLayoutPresets();
+    list.unshift({
+      id: "lp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: name || "Layout " + (list.length + 1),
+      layout: opts?.layout === "blank" ? "blank" : null,
+      savedAt: Date.now(),
+      panels,
+    });
+    if (list.length > 50) list.length = 50;
+    saveLayoutPresets();
+    return list;
+  } catch { return loadLayoutPresets(); }
+});
+ipcMain.handle("layoutPresets:delete", async (_e, id) => {
+  try {
+    layoutPresetsCache = loadLayoutPresets().filter((p) => p.id !== id);
+    saveLayoutPresets();
+    return layoutPresetsCache;
+  } catch { return loadLayoutPresets(); }
+});
+
 // ─── Pin config ────────────────────────────────────────────────────────────────
 ipcMain.handle("fs:readPinConfig", async (_e, rootPath) => {
   if (!rootPath) return [];

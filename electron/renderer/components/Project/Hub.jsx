@@ -883,29 +883,64 @@ const ProjectHub = () => {
     chatMsgsRef.current = [...chatMsgsRef.current, msg];
     setChatMsgs(chatMsgsRef.current);
   };
-  // AI call — user message append → Pollinations/OVH se reply; reply me
-  // ```setup fence ho to proposal card ke liye normalize kar lo.
+  // AI call — user message append → streaming reply LIVE dikhta hai (chunks
+  // aate jate hain); ```setup fence sirf final hone par proposal card me jaati.
   const askAiReply = async (text) => {
     pushChatMsg({ role: "user", content: text });
     setChatBusy(true);
-    try {
-      const reply = await window.electronAPI.aiChat(chatMsgsRef.current.slice(-10));
-      const raw = String(reply || "");
-      const proposal = normalizeSetupProposal(raw);
-      const body = stripSetupBlock(raw);
-      pushChatMsg({
-        role: "assistant",
-        content: body || (proposal ? "Setup ready — neeche card se project create kar sakte ho." : raw.trim()),
+    const id = "c" + Date.now() + Math.random().toString(36).slice(2, 6);
+    let acc = "";
+    let streamed = false;
+    // live view me setup fence kabhi na dikhe — sirf usse pehle ka text
+    const liveBody = (raw) => {
+      const i = raw.indexOf("```setup");
+      return i >= 0 ? raw.slice(0, i) : raw;
+    };
+    const renderLive = () => {
+      const msgs = [...chatMsgsRef.current];
+      const content = liveBody(acc);
+      if (streamed) msgs[msgs.length - 1] = { role: "assistant", content };
+      else { streamed = true; msgs.push({ role: "assistant", content }); }
+      chatMsgsRef.current = msgs;
+      setChatMsgs(msgs);
+    };
+    await new Promise((resolve) => {
+      let unsub = null;
+      const finish = () => {
+        try { unsub && unsub(); } catch {}
+        setChatBusy(false);
+        resolve();
+      };
+      unsub = window.electronAPI.onAiChatEvent((type, p) => {
+        if (!p || p.id !== id) return;
+        if (type === "chunk") {
+          acc += String(p.text || "");
+          renderLive();
+        } else if (type === "done") {
+          const raw = acc || String(p.text || "");
+          const proposal = normalizeSetupProposal(raw);
+          const body = stripSetupBlock(raw);
+          const final = body || (proposal ? "Setup ready — neeche card se project create kar sakte ho." : raw.trim());
+          const msgs = [...chatMsgsRef.current];
+          if (streamed) msgs[msgs.length - 1] = { role: "assistant", content: final };
+          else msgs.push({ role: "assistant", content: final });
+          chatMsgsRef.current = msgs;
+          setChatMsgs(msgs);
+          if (proposal) setChatProposal(proposal);
+          finish();
+        } else if (type === "error") {
+          // Electron IPC prefix hata do — user ko sirf asli error dikhao
+          const msg = String(p.message || "AI request failed")
+            .replace(/^Error invoking remote method ['"]ai:chat['"]:\s*/, "");
+          const msgs = [...chatMsgsRef.current];
+          msgs.push({ role: "assistant", content: "⚠ " + msg });
+          chatMsgsRef.current = msgs;
+          setChatMsgs(msgs);
+          finish();
+        }
       });
-      if (proposal) setChatProposal(proposal);
-    } catch (e) {
-      // Electron IPC prefix hata do — user ko sirf asli error dikhao
-      const raw = (e && e.message) || "AI request failed";
-      const msg = raw.replace(/^Error invoking remote method ['"]ai:chat['"]:\s*/, "");
-      pushChatMsg({ role: "assistant", content: "⚠ " + msg });
-    } finally {
-      setChatBusy(false);
-    }
+      window.electronAPI.aiChatStart(id, chatMsgsRef.current.slice(-10));
+    });
   };
   // Hub ka chhota chat box → Hub gayab, full-screen chat + AI reply
   const sendHubMessage = async () => {

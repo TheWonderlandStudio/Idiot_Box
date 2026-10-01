@@ -335,17 +335,143 @@ const RunStatusButton = () => {
   );
 };
 
-// ── Title bar left: Workspaces box (workspace hub kholta hai) ──────────────
-const WorkspacesBox = ({ onClick }) => (
-  <button
-    className="tb-workspaces"
-    onClick={onClick}
-    title="Workspaces"
-    aria-label="Workspaces"
-  >
-    <span>Workspaces</span>
-  </button>
-);
+// ── Title bar right: Layouts box — saved panel layouts dropdown ────────────
+// (Pehle ye box sirf hub par wapas bhejta tha — ab uska link dropdown ke
+// footer me hai; primary kaam = current layout save/apply karna.)
+const layoutWhen = (ts) => {
+  try {
+    const diff = Date.now() - Number(ts || 0);
+    if (diff < 60000) return "now";
+    if (diff < 3600000) return Math.floor(diff / 60000) + "m";
+    if (diff < 86400000) return Math.floor(diff / 3600000) + "h";
+    return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch { return ""; }
+};
+
+const LayoutsMenu = ({ hasProject, getSnapshot, onApply, onWorkspaces }) => {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [appliedId, setAppliedId] = useState(null);
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let dead = false;
+    (async () => {
+      try {
+        const list = await window.electronAPI.layoutList();
+        if (!dead && Array.isArray(list)) setItems(list);
+      } catch {}
+    })();
+    const onDoc = (e) => {
+      try {
+        if (btnRef.current && btnRef.current.contains(e.target)) return;
+        if (menuRef.current && menuRef.current.contains(e.target)) return;
+        setOpen(false);
+      } catch {}
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      dead = true;
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const saveCurrent = async () => {
+    const snap = getSnapshot();
+    if (!snap || busy) return;
+    setBusy(true);
+    try {
+      const list = await window.electronAPI.layoutSave(name.trim(), snap.panels, snap.layout);
+      if (Array.isArray(list)) setItems(list);
+      setName("");
+    } catch {} finally { setBusy(false); }
+  };
+
+  const apply = (p) => {
+    if (!hasProject) return;
+    try {
+      if (onApply(p) === false) return;
+      setAppliedId(p.id);
+      setTimeout(() => { setOpen(false); setAppliedId(null); }, 450);
+    } catch {}
+  };
+
+  const remove = async (e, id) => {
+    e.stopPropagation();
+    try {
+      const list = await window.electronAPI.layoutDelete(id);
+      if (Array.isArray(list)) setItems(list);
+    } catch {}
+  };
+
+  const btn = (
+    <button ref={btnRef} className="tb-workspaces" onClick={() => setOpen((o) => !o)} title="Panel layouts" aria-label="Layouts">
+      <span>Layouts</span>
+    </button>
+  );
+  if (!open) return btn;
+
+  const r = btnRef.current?.getBoundingClientRect?.();
+  const pos = {
+    position: "fixed",
+    top: r ? r.bottom + 6 : 40,
+    right: r ? Math.max(8, window.innerWidth - r.right) : 8,
+    zIndex: 100000,
+  };
+
+  return (
+    <>
+      {btn}
+      {createPortal(
+        <div className="tb-layouts-menu" style={pos} ref={menuRef} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="tb-layouts-title">Panel layouts</div>
+          <div className="tb-layouts-save">
+            <input
+              className="tb-layouts-input"
+              value={name}
+              disabled={!hasProject}
+              placeholder={hasProject ? "Layout name" : "Open a project first"}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveCurrent(); }}
+            />
+            <button className="tb-layouts-savebtn" onClick={saveCurrent} disabled={!hasProject || busy} title={hasProject ? "Save current panel layout" : "Open a project first"}>
+              Save
+            </button>
+          </div>
+          <div className="tb-layouts-list">
+            {!items.length && <div className="tb-layouts-empty">No saved layouts yet</div>}
+            {items.map((p) => (
+              <div
+                key={p.id}
+                className={"tb-layouts-row" + (appliedId === p.id ? " is-applied" : "")}
+                onClick={() => apply(p)}
+                title={hasProject ? "Apply layout" : "Open a project to apply"}
+              >
+                <span className="tb-layouts-dot" />
+                <span className="tb-layouts-name">{p.name}</span>
+                <span className="tb-layouts-when">{layoutWhen(p.savedAt)}</span>
+                <button className="tb-layouts-del" onClick={(e) => remove(e, p.id)} title="Delete layout">×</button>
+              </div>
+            ))}
+          </div>
+          {hasProject && (
+            <button className="tb-layouts-hub" onClick={() => { setOpen(false); onWorkspaces(); }}>
+              All workspaces →
+            </button>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
 
 // ── Helpers to walk the flex model tree ────────────────────────────────────
 // NOTE: no isNotebookPath helper here on purpose — .ipynb files open as
@@ -1889,11 +2015,42 @@ const App = () => {
     try { if (hasProject) window.__ibxCloseProject?.(); } catch {}
   };
 
+  // Layouts dropdown: current panel arrangement ka deep-copy snapshot.
+  const getLayoutSnapshot = () => {
+    try {
+      const m = modelRef.current;
+      if (!m) return null;
+      return { panels: JSON.parse(JSON.stringify(m.toJson())), layout: projectLayoutRef.current };
+    } catch { return null; }
+  };
+
+  // Saved layout apply: naya model + project tabs.json me persist (merge —
+  // writeTabs poora file replace karta hai, isliye cur tabs wapas jodte hain).
+  const applyLayoutPreset = (preset) => {
+    try {
+      if (!preset || !preset.panels || !preset.panels.layout || !currentProjectRef.current) return false;
+      const json = sanitizeProjectPanels(JSON.parse(JSON.stringify(preset.panels)));
+      modelRef.current = Model.fromJson(json);
+      projectLayoutRef.current = preset.layout === "blank" ? "blank" : null;
+      setTick((t) => t + 1);
+      try { forceLayoutRedraw(modelRef.current); } catch {}
+      const root = currentProjectRef.current;
+      (async () => {
+        try {
+          const cur = (await window.electronAPI.readProjectTabs(root)) || {};
+          const payload = { ...cur, tabs: Array.isArray(cur.tabs) ? cur.tabs : [], panels: json };
+          if (preset.layout === "blank") payload.layout = "blank"; else delete payload.layout;
+          await window.electronAPI.writeProjectTabs(root, payload);
+        } catch {}
+      })();
+      return true;
+    } catch { return false; }
+  };
+
   if (!hasProject) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
         <UpdaterBanner />
-        {titlebarHost && createPortal(<WorkspacesBox onClick={openWorkspaces} />, titlebarHost)}
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <ProjectHub />
         </div>
@@ -1908,7 +2065,10 @@ const App = () => {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
       <UpdaterBanner />
       {titlebarMenuHost && createPortal(<RunStatusButton />, titlebarMenuHost)}
-      {titlebarHost && createPortal(<WorkspacesBox onClick={openWorkspaces} />, titlebarHost)}
+      {titlebarHost && createPortal(
+        <LayoutsMenu hasProject={hasProject} getSnapshot={getLayoutSnapshot} onApply={applyLayoutPreset} onWorkspaces={openWorkspaces} />,
+        titlebarHost
+      )}
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <Layout
