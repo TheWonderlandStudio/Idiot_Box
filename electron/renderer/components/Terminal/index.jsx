@@ -128,6 +128,73 @@ if (typeof window !== "undefined" && !window.__termsKillHooked) {
   });
 }
 
+// ── Workspace terminal runner ─────────────────────────────────────────────
+// Create flow scaffold commands yahan bhejta hai: ek shell line ko active
+// session ke PTY me type karke Enter dabaya jaata hai. PTY ka ACK ({ok})
+// na mile to spawn/ready hone tak retry (project switch par terminals:killAll
+// fresh session deta hai). Output dikhna chahiye — terminal view mounted
+// nahi hai to pehle neeche Terminal tab add kar dete hain.
+if (typeof window !== "undefined" && !window.__runInTermHooked) {
+  window.__runInTermHooked = true;
+  window.__runInWorkspaceTerminal = async ({ command, cwd } = {}) => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cmd = String(command || "").replace(/[\r\n]+$/, "");
+    if (!cmd) return false;
+    const termVisible = () => {
+      const p = document.querySelector(".term-panel");
+      if (!p || p.getBoundingClientRect().width === 0) return false;
+      const btn = [...document.querySelectorAll(".flexlayout__tab_button")].find((t) => /Terminal/i.test(t.textContent));
+      return !!(btn && btn.className.includes("--selected"));
+    };
+    const focusTerminal = () => window.dispatchEvent(new CustomEvent("focus-terminal-tab"));
+    const hasTermTab = () => [...document.querySelectorAll(".flexlayout__tab_button")].some((t) => /Terminal/i.test(t.textContent));
+    // Terminal tab selected + stable (late layout overwrite ke baad bhi wapas
+    // select) hone tak wait — tabhi commands user ko dikhti hain.
+    let stable = 0;
+    for (let i = 0; i < 40 && stable < 3; i++) {
+      try {
+        if (termVisible()) stable++;
+        else {
+          stable = 0;
+          focusTerminal();
+          if (i >= 4 && !hasTermTab()) {
+            window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { location: "BOTTOM" } }));
+          }
+        }
+      } catch {
+        stable = 0;
+      }
+      await sleep(300);
+    }
+    for (let i = 0; i < 25; i++) {
+      try {
+        if (!termVisible()) focusTerminal();
+        const snap = GlobalTerms.snapshot();
+        const id = snap.activeId || (snap.sessions && snap.sessions[0] && snap.sessions[0].id);
+        if (id) {
+          const dir = cwd || window.__currentProjectPath || null;
+          // reuse (PTY maujood) ho to cwd chhoot jaata hai, warna yahin spawn
+          if (dir) await window.electronAPI.openTerminal(id, dir);
+          const w = await window.electronAPI.writeToTerminal(id, cmd + "\r");
+          if (w && w.ok) {
+            let st = 0;
+            for (let k = 0; k < 8 && st < 3; k++) {
+              if (termVisible()) st++;
+              else { st = 0; focusTerminal(); }
+              await sleep(300);
+            }
+            try { window.dispatchEvent(new CustomEvent("terminal:focus")); } catch {}
+            try { window.dispatchEvent(new CustomEvent("terminal:highlight")); } catch {}
+            return true;
+          }
+        }
+      } catch {}
+      await sleep(400);
+    }
+    return false;
+  };
+}
+
 // ─── Custom xterm CSS overrides (injected once) ────────────────────────────
 // IMPORTANT: the app's global `* { font-family: 'Fredoka' }` rule applies to
 // every element INCLUDING xterm's glyph spans (an explicit rule beats

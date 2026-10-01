@@ -161,7 +161,7 @@ export default function AiSetupChat(props) {
   }, []);
 
   return (
-    <div className="phub__chatfs-body" ref={hostRef} style={{ height: "100%" }}>
+    <div className="phub__chatfs-body" ref={hostRef}>
       {mount ? createPortal(<ChatBody {...props} />, mount) : null}
     </div>
   );

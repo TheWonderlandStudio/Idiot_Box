@@ -2834,80 +2834,43 @@
 .phub__chatfs {
   position: fixed;
   left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
   z-index: var(--z-popup);
-  background: #0c0c0c;
+  background: transparent;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border);
+  align-items: center;
+  padding: 8px 20px 16px;
   animation: phub-chatfs-in 0.18s ease both;
 }
 @keyframes phub-chatfs-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
-.phub__chatfs-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-  -webkit-app-region: drag;
-  flex-shrink: 0;
-}
-.phub__chatfs-head button { -webkit-app-region: no-drag; }
-.phub__chatfs-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color var(--t-normal), border-color var(--t-normal);
-}
-.phub__chatfs-back:hover {
-  color: var(--text-bright);
-  border-color: var(--accent);
-}
-.phub__chatfs-title {
-  font-size: var(--fs-small);
-  font-weight: var(--fw-semibold);
-  color: var(--text-primary);
-  display: flex;
-  align-items: baseline;
-}
-.phub__chatfs-sub {
-  margin-left: 8px;
-  font-size: 10.5px;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-.phub__chatfs-new {
-  margin-left: auto;
-  padding: 5px 10px;
-  font-size: 11px;
-  background: transparent;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.phub__chatfs-new:hover:not(:disabled) {
-  color: var(--text-bright);
-  border-color: var(--accent);
-}
-.phub__chatfs-new:disabled { opacity: 0.5; cursor: default; }
-/* AI Elements chat body — shadow DOM host (styles andar ai-tw-css.js se) */
+/* Chat on hai to Hub ka UI (sidebar/panels/recents/path bar/wallpaper
+   controls) na dikhe — sirf wallpaper rahe. */
+.phub--chatfs-open .phub__sidebar,
+.phub--chatfs-open .phub__center,
+.phub--chatfs-open .phub__path-bar,
+.phub--chatfs-open .phub__wallwrap { visibility: hidden; }
+/* AI Elements chat body — shadow DOM host (styles andar ai-tw-css.js se).
+   Narrow centered column — peeche ka Hub UI overlay hi dhak deta hai. */
 .phub__chatfs-body {
+  width: min(680px, 100%);
   flex: 1;
   min-height: 0;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 10, 12, 0.62);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.38);
 }
+/* Chat overlay on hai to mini chat peeche confusion kare — band rakho */
+.phub--chatfs-open .phub__chat { visibility: hidden; }

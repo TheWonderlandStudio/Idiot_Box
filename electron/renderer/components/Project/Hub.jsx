@@ -192,7 +192,24 @@ const buildFullPath = (name, loc) => {
   return loc.replace(/[\\/]+$/, "") + sep + name;
 };
 
-// ─── Real setup commands — official CLIs run live in the create terminal ───
+// ─── Real setup commands — official CLIs run in the workspace terminal ───
+// steps → ek hi shell line jo Create ke baad workspace ke terminal me bheji
+// jaati hai. `;` separator Windows PowerShell 5.1 + bash dono me kaam karta
+// hai (`&&` PS 5.1 me tootta hai). cwd badalna ho to aage `cd` lagta hai.
+const composeSetupLine = (steps, parentDir, projDir) => {
+  const q = (s) => (/\s/.test(String(s)) ? `"${String(s)}"` : String(s));
+  let cur = projDir;
+  const parts = [];
+  for (const s of steps || []) {
+    if (!s || !s.cmd) continue;
+    const dir = s.cwd === "parent" ? parentDir : projDir;
+    if (dir && dir !== cur) { parts.push(`cd ${q(dir)}`); cur = dir; }
+    parts.push([s.cmd, ...(s.args || [])].map(q).join(" "));
+  }
+  if (parts.length && cur && cur !== projDir) parts.push(`cd ${q(projDir)}`);
+  return parts.join("; ");
+};
+
 // Editable command line → argv tokens. Quotes may open mid-token
 // (--flag="a b") and an explicit "" still counts as one empty arg.
 const tokenizeCommand = (line) => {
@@ -857,7 +874,7 @@ const ProjectHub = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatBusy, setChatBusy] = useState(false);
-  const [chatFsTop, setChatFsTop] = useState(30);
+  const [chatFsTop, setChatFsTop] = useState("30px");
   // AI proposal — ```setup block se bana, card me dikhata hai
   const [chatProposal, setChatProposal] = useState(null);
   const chatMsgsRef = useRef([]);
@@ -1987,6 +2004,7 @@ const ProjectHub = () => {
           await writeTemplateFiles(fw.id, name, lang, target, []);
           // reopen to refresh file tree
           try { await window.electronAPI.menuOpenProject(target); } catch {}
+          try { window.dispatchEvent(new CustomEvent("focus-terminal-tab")); } catch {}
         }
         closeCreateDialog();
       } catch (err) {
@@ -1994,42 +2012,36 @@ const ProjectHub = () => {
       }
       return;
     }
-    // ── real CLI scaffold with live terminal ──
+    // ── Workspace pehle kholo — setup commands usi ke terminal me chalengi ──
     if (scaffoldingRef.current) return;
     const sep = loc.includes("\\") ? "\\" : "/";
     const parentDir = loc.replace(/[\\/]+$/, "") || target;
     const projDir = spec.mode === "parent" ? parentDir + sep + (projName || spec.safe) : target;
     await markBlankLayout(projDir);
     await writePanels(projDir);
-    scafCancelledRef.current = false;
-    scafPendingRef.current = [];
-    setScafVisible(true);
-    setScafStatus("");
-    setScaffolding(true);
     try {
-      if (spec.mode === "target") {
-        await window.electronAPI.menuNewProject(target);
-        if (spec.write === "before") {
-          scafPush("Writing starter files…\r\n");
-          await writeTemplateFiles(fw.id, name, lang, target, spec.skipFiles || []);
-        }
-      } else {
-        scafPush(`Scaffolding ${fw.name} → ${projDir}\r\n(interactive prompt? type your answer below)\r\n`);
+      // target mode: starter files pehle (fs:writeFile parents khud banata
+      // hai), file tree workspace khulte hi ready mile. write "after" specs
+      // (rust) bhi yahin likhte hain — cargo init maujood src files chhodta hai.
+      if (spec.mode === "target" && spec.write !== false) {
+        await writeTemplateFiles(fw.id, name, lang, projDir, spec.skipFiles || []);
+      }
+      // workspace open — folder nahi hai to menuNewProject mkdir kar deta hai;
+      // chokidar watcher CLI ke naye files live tree me dikha dega.
+      await window.electronAPI.menuNewProject(projDir);
+      closeCreateDialog();
+      const line = composeSetupLine(steps, parentDir, projDir);
+      if (line && window.__runInWorkspaceTerminal) {
+        await window.__runInWorkspaceTerminal({ command: line, cwd: projDir });
       }
     } catch (err) {
-      finishScaffold(false, `Setup failed — ${err?.message || err}\r\n`);
-      return;
+      console.error("Create failed:", err);
+      try { await window.electronAPI.showAlert?.(`Create failed: ${err?.message || err}`); } catch {}
     }
-    const runId = `scaffold-${Date.now()}`;
-    const plan = { runId, steps, idx: 0, parentDir, projDir, fwId: fw.id, name, lang, spec };
-    scafPlanRef.current = plan;
-    scafRunIdRef.current = runId;
-    const started = await startScafStep(plan, 0);
-    if (!started) await scafFallback(plan, "could not start first command");
-  }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, scafPush, writeTemplateFiles, startScafStep, finishScaffold, closeCreateDialog]);
+  }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, writeTemplateFiles, closeCreateDialog]);
 
-  // AI proposal card → "Create project": Create dialog wahi flow chalata hai
-  // (setup terminal live), panels layout project kholte hi lag jaata hai.
+  // AI proposal card → "Create project": dialog ke bina seedha create —
+  // workspace khulta hai aur setup commands usi ke terminal me chalte hain.
   const handleAiCreate = useCallback(async () => {
     const p = chatProposal;
     const fw = p && FRAMEWORKS.find((f) => f.id === p.frameworkId);
@@ -2045,10 +2057,7 @@ const ProjectHub = () => {
     setNewProjectName(p.projectName);
     setNewProjectLocation(loc);
     setChatOpen(false);
-    if (spec) {
-      setShowFrameworks(false);
-      setShowNewProjectDialog(true);
-    }
+    setShowFrameworks(false);
     try {
       await createNewProject({
         fw,
@@ -2151,7 +2160,7 @@ const ProjectHub = () => {
 
   return (
     <div
-      className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}`}
+        className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}`}
       style={{
         ...(wallpaper ? { backgroundImage: `url("${wallpaper}")`, "--wall-tint": wallTint || undefined } : {}),
         "--wall-opacity": `${wallOpacity}%`,
@@ -2169,30 +2178,15 @@ const ProjectHub = () => {
     >
       {!nativeCursor && <CustomCursor />}
 
-      {/* Full-screen AI chat — Hub send karte hi CENTER area dhakta hai;
-          sidebar (left me Create/Open) dikhta rehta hai. Andar AI Elements
+      {/* AI chat — transparent floating column (Hub peeche dikhta rehta hai).
+          Header nahi hai; Esc ya backdrop click se band. Andar AI Elements
           (elements.ai-sdk.dev) chat + setup proposal card. */}
       {chatOpen && (
         <div
           className="phub__chatfs"
-          style={{ top: chatFsTop, left: sidebarCollapsed ? 52 : 200 }}
+          style={{ paddingTop: `calc(${chatFsTop} + 8px)` }}
+          onClick={(e) => { if (e.target === e.currentTarget) setChatOpen(false); }}
         >
-          <div className="phub__chatfs-head">
-            <button
-              className="phub__chatfs-back"
-              onClick={() => setChatOpen(false)}
-              title="Back to Hub (Esc)"
-              aria-label="Back to Hub"
-            >
-              <ArrowLeft size={15} />
-            </button>
-            <span className="phub__chatfs-title">
-              Project Setup<span className="phub__chatfs-sub">Free AI</span>
-            </span>
-            <button className="phub__chatfs-new" onClick={resetFsChat} disabled={chatBusy}>
-              New chat
-            </button>
-          </div>
           <AiSetupChat
             messages={chatMsgs}
             busy={chatBusy}
@@ -2456,7 +2450,7 @@ const ProjectHub = () => {
                             <FolderOpen size={12} className="phub__dialog-path-icon" />
                             <span>{preview}</span>
                           </div>
-                          <span className="phub__dialog-hint">Official {selectedFramework.name} CLI runs in the terminal below</span>
+                          <span className="phub__dialog-hint">Official {selectedFramework.name} CLI runs in the workspace terminal after Create</span>
                         </div>
                       );
                     }
@@ -2481,7 +2475,7 @@ const ProjectHub = () => {
                       <FolderOpen size={12} style={{ color: "var(--text-muted)" }} />
                       <span style={{ fontSize: "11px", color: "var(--text-muted)", fontWeight: 500 }}>
                         {createSpec
-                          ? `Real setup — ${editedSteps.length} command${editedSteps.length === 1 ? "" : "s"} run live below`
+                          ? `Real setup — ${editedSteps.length} command${editedSteps.length === 1 ? "" : "s"} run in the workspace terminal after Create`
                           : `${Object.keys(getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang)).length} files will be created`}
                       </span>
                     </div>
@@ -2521,8 +2515,8 @@ const ProjectHub = () => {
                         )}
                         <div className="phub__cmds-hint">
                           {createSpec.write === false
-                            ? "Official CLI generates the project. Tool missing? Starter files are written instead."
-                            : "Starter files + real dependency install. Prompts appear in the terminal — type to answer."}
+                            ? "Official CLI generates the project in the workspace terminal — watch it live after Create."
+                            : "Starter files + real dependency install. Commands run in the workspace terminal — answer prompts there."}
                         </div>
                       </div>
                     )}

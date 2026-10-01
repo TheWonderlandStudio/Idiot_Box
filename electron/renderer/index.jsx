@@ -996,7 +996,21 @@ const App = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const handler = () => { if (modelRef.current) modelRef.current.doAction(Actions.selectTab("terminal-tab")); };
+    const handler = () => {
+      try {
+        const m = modelRef.current;
+        if (!m) return;
+        const findTab = (n) => {
+          if (n.getType?.() === "tab" && n.getComponent?.() === "terminal") return n;
+          const ch = n.getChildren?.();
+          if (ch) for (const c of ch) { const r = findTab(c); if (r) return r; }
+          return null;
+        };
+        const tab = findTab(m.getRoot());
+        if (!tab) return;
+        m.doAction(Actions.selectTab(tab.getId()));
+      } catch {}
+    };
     window.addEventListener("focus-terminal-tab", handler);
     return () => window.removeEventListener("focus-terminal-tab", handler);
   }, []);
