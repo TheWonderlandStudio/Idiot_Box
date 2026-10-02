@@ -244,9 +244,47 @@ async function askAiStream(messages, onDelta) {
   if (text) onDelta(text);
 }
 
+// ── Voice input — renderer ka 16k mono PCM WAV → Windows System.Speech
+// (offline, bina key ke) se text. Best-effort: fail ho to "" jata hai.
+const os = require("os");
+const path = require("path");
+const fs = require("fs");
+const { execFile } = require("child_process");
+
+async function transcribeWav(base64Wav) {
+  if (!base64Wav) return "";
+  const file = path.join(os.tmpdir(), "ibx-voice-" + Date.now() + ".wav");
+  try { fs.writeFileSync(file, Buffer.from(String(base64Wav), "base64")); }
+  catch { return ""; }
+  const ps = [
+    "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+    "$ErrorActionPreference='SilentlyContinue';" +
+    "Add-Type -AssemblyName System.Speech;" +
+    "$eng=New-Object System.Speech.Recognition.SpeechRecognitionEngine;" +
+    "try{$eng.RecognizerCulture=[System.Globalization.CultureInfo]::GetCultureInfo('en-IN')}catch{};" +
+    "$eng.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar));" +
+    "$eng.SetInputToWaveFile('" + file.replace(/'/g, "''") + "');" +
+    "$out='';" +
+    "try{$r=$eng.Recognize([TimeSpan]::FromSeconds(20));if($r){$out=$r.Text}}catch{};" +
+    "[Console]::Out.Write($out)",
+  ];
+  const text = await new Promise((resolve) => {
+    execFile(
+      "powershell.exe",
+      ps,
+      { timeout: 30000, windowsHide: true, maxBuffer: 1024 * 1024 },
+      (err, stdout) => resolve(err ? "" : String(stdout || ""))
+    );
+  });
+  try { fs.unlinkSync(file); } catch {}
+  return text.trim();
+}
+
 function registerAiChat() {
   try {
     ipcMain.handle("ai:chat", (_e, payload) => askAi(payload || {}));
+    // Mic input: WAV base64 → transcribed text (Windows speech engine)
+    ipcMain.handle("ai:transcribe", (_e, p) => transcribeWav(p && p.wav));
     // Streaming: renderer `ai:chat:start` bhejta hai, main chunk/done/error
     // events wapas usi webContents ko deta hai.
     ipcMain.on("ai:chat:start", async (e, payload) => {

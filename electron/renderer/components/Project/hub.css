@@ -2374,7 +2374,9 @@
 .phub {
   position: relative;
 }
-.phub--wallpaper {
+/* double-class specificity — redesign .phub { background } shorthand
+   background-size/repeat ko auto/repeat pe reset na kare */
+.phub.phub--wallpaper {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -2849,11 +2851,7 @@
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
-/* Chat on hai to Hub ka UI (sidebar/panels/recents/path bar/wallpaper
-   controls) na dikhe — sirf wallpaper rahe. */
-.phub--chatfs-open .phub__sidebar,
-.phub--chatfs-open .phub__center,
-.phub--chatfs-open .phub__path-bar,
+/* Chat on ho to sidebar + path bar wapas dikhe (chat sirf home area me) */
 .phub--chatfs-open .phub__wallwrap { visibility: hidden; }
 /* AI Elements chat body — shadow DOM host (styles andar ai-tw-css.js se).
    Narrow centered column — peeche ka Hub UI overlay hi dhak deta hai. */
@@ -2874,3 +2872,734 @@
 }
 /* Chat overlay on hai to mini chat peeche confusion kare — band rakho */
 .phub--chatfs-open .phub__chat { visibility: hidden; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   ── Hub redesign — dark home: top project cards + bottom composer ──────
+   Reference: near-black bg + warm bottom glow, preview cards row upar,
+   floating chat composer niche. Sidebar gayab — actions +/grid/chevron me.
+   ════════════════════════════════════════════════════════════════════ */
+
+.phub {
+  background: #0a0a0c;
+}
+.phub__glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 200px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(52% 40% at 50% 105%, rgba(255, 150, 74, 0.46), transparent 74%),
+    radial-gradient(36% 28% at 50% 107%, rgba(255, 100, 30, 0.34), transparent 76%),
+    radial-gradient(90% 62% at 50% 112%, rgba(255, 70, 12, 0.22), transparent 84%);
+  transition: opacity 0.45s ease, left 0.25s ease;
+}
+.phub--sb-collapsed .phub__glow {
+  left: 52px;
+}
+.phub--wallpaper .phub__glow {
+  display: none;
+}
+/* Chat on ho to peeche ka orange glow smoothly fade ho jaye */
+.phub--chatfs-open .phub__glow {
+  opacity: 0;
+}
+
+/* Center — sidebar ke right me (full-bleed), modal on ho to center hi backdrop + card host */
+.phub__center {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 200px;
+  z-index: 1;
+  margin: 0;
+  width: auto;
+  max-width: none;
+  background: transparent;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: left 0.25s ease;
+}
+.phub__center--collapsed {
+  left: 52px;
+}
+.phub__center--modal {
+  z-index: 40;
+}
+.phub__modal-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.phub__center--modal > .phub__panel {
+  position: relative;
+  z-index: 9;
+  flex: 0 1 auto;
+  width: min(920px, 94%);
+  max-height: 86%;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: phub-modal-in 0.18s ease both;
+}
+@keyframes phub-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+/* Create panel flat tha — modal me solid card chahiye */
+.phub__center--modal .phub__panel--create,
+.phub__center--modal .phub__panel--create .phub__panel-header,
+.phub__center--modal .phub__panel--create .phub__panel-body,
+.phub__center--modal .phub__panel--create .phub__create-actions {
+  background: var(--bg-surface);
+}
+/* Recents overlay — list poora card bhare */
+.phub__center--modal .phub__panel--recents {
+  flex: 1 1 auto;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.phub__center--modal .phub__panel--recents .phub__panel-list {
+  flex: 1 1 auto;
+  max-height: none;
+}
+/* Heatmap overlay */
+.phub__center--modal .phub__panel--heatmodal {
+  display: flex;
+  flex-direction: column;
+}
+.phub__center--modal .phub__panel--heatmodal .phub__panel-body.phub__heat {
+  height: 60vh;
+  max-height: 520px;
+}
+/* Frameworks gallery — modal card ke andar scroll */
+.phub__center--modal .phub__panel--frameworks {
+  background: var(--bg-surface);
+}
+
+/* Path bar — sidebar ke right, transparent strip */
+.phub__path-bar {
+  position: relative;
+  z-index: 6;
+  margin-left: 200px;
+  width: calc(100% - 200px);
+  max-width: calc(100% - 200px);
+  background: rgba(10, 10, 12, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.phub__path-bar--collapsed {
+  margin-left: 52px;
+  width: calc(100% - 52px);
+  max-width: calc(100% - 52px);
+}
+
+/* ── Home — cards row upar, empty hint ──────────────────────────────────── */
+.phub__home {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 68px;
+  gap: 26px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.phub__home-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  padding: 4px 24px;
+  max-width: 980px;
+}
+.phub__card {
+  width: 264px;
+  background: #131316;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  animation: phub-card-in 0.3s ease both;
+}
+.phub__card:nth-child(2) { animation-delay: 0.05s; }
+.phub__card:nth-child(3) { animation-delay: 0.1s; }
+.phub__card:nth-child(4) { animation-delay: 0.15s; }
+.phub__card:nth-child(5) { animation-delay: 0.2s; }
+.phub__card:nth-child(6) { animation-delay: 0.25s; }
+@keyframes phub-card-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+.phub__card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.17);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+}
+.phub__card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.phub__card-thumb {
+  position: relative;
+  height: 152px;
+  background: linear-gradient(150deg, hsl(var(--h, 220) 24% 13%), #0e0e11 78%);
+}
+.phub__card-mock {
+  position: absolute;
+  inset: 0;
+  padding: 12px 14px 0;
+}
+.phub__card-mockbar {
+  height: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  background: #17171b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+}
+.phub__card-mockbar i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #3c3c44;
+  flex-shrink: 0;
+}
+.phub__card-mocktab {
+  margin-left: 8px;
+  font-size: 8.5px;
+  color: #63636c;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phub__card-mockbody {
+  display: flex;
+  height: calc(100% - 16px);
+  background: #0f0f12;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: none;
+  border-radius: 0 0 7px 7px;
+  overflow: hidden;
+}
+.phub__card-mockrail {
+  width: 30px;
+  flex-shrink: 0;
+  background: #131317;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-top: 9px;
+}
+.phub__card-mockrail i {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  background: #2e2e36;
+}
+.phub__card-mockcode {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.phub__card-line {
+  height: 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.phub__card-foot {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 10px 10px 12px;
+  background: #101013;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.phub__card-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: #1b1b20;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.phub__card-ico img { width: 13px; height: 13px; object-fit: contain; }
+.phub__card-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.phub__card-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #e9e9ee;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phub__card-time {
+  font-size: 10px;
+  color: #71717c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phub__card-kebab {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #7c7c88;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.phub__card-kebab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6e6ec;
+}
+.phub__home-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #8b8b96;
+  text-align: center;
+}
+.phub__home-empty p {
+  margin: 0;
+  font-size: 13.5px;
+}
+.phub__home-emptybtns {
+  display: flex;
+  gap: 10px;
+}
+.phub__home-emptybtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #d7d7de;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+.phub__home-emptybtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.phub__home-emptybtn--primary {
+  background: var(--editor-blue);
+  border-color: var(--accent-border);
+  color: var(--text-inverse);
+}
+.phub__home-emptybtn--primary:hover {
+  background: var(--editor-blue-hover);
+  border-color: var(--accent-light);
+}
+
+/* ── Bottom composer ────────────────────────────────────────────────────── */
+.phub__composer {
+  position: absolute;
+  left: calc(50% + 100px);
+  bottom: 22px;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(840px, calc(100% - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 14px 10px;
+  background: rgba(19, 19, 22, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  box-shadow: 0 14px 46px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: phub-composer-in 0.3s ease both;
+}
+@keyframes phub-composer-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translateX(-50%); }
+}
+.phub__composer-input {
+  width: 100%;
+  min-height: 24px;
+  padding: 2px 6px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #ececf1;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+.phub__composer-input::placeholder {
+  color: #66666f;
+}
+.phub__composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.phub__composer-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.phub__composer-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9b9c3;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.phub__composer-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f0f0f5;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.phub__composer-btn--mute,
+.phub__composer-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.phub__composer-btn--mute:hover,
+.phub__composer-btn:disabled:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #b9b9c3;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+/* Mic: recording = laal pulse, transcribing = spinner busy */
+.phub__composer-btn--rec {
+  color: #ff6b6b;
+  background: rgba(255, 70, 70, 0.16);
+  border-color: rgba(255, 90, 90, 0.5);
+  animation: phub-rec 1s ease-in-out infinite;
+}
+.phub__composer-btn--rec:hover {
+  background: rgba(255, 70, 70, 0.24);
+  color: #ff8b8b;
+  border-color: rgba(255, 110, 110, 0.7);
+}
+@keyframes phub-rec {
+  50% { box-shadow: 0 0 0 4px rgba(255, 70, 70, 0.18); }
+}
+.phub__composer-btn--busy {
+  color: #ffb37a;
+  border-color: rgba(255, 150, 74, 0.4);
+}
+.phub__composer-send {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9px;
+  background: #ececef;
+  color: #131316;
+  cursor: pointer;
+  transition: background 0.14s ease, transform 0.14s ease;
+}
+.phub__composer-send:hover:not(:disabled) {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+.phub__composer-send:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: #6a6a73;
+  cursor: default;
+}
+/* Popup menus (composer + card kebab dono) */
+.phub__composer-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 8px;
+  min-width: 218px;
+  padding: 6px;
+  background: #16161a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: phub-menu-in 0.14s ease both;
+}
+.phub__composer-menu--right {
+  left: auto;
+  right: 8px;
+}
+@keyframes phub-menu-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.phub__composer-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #cfcfd7;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.phub__composer-menu-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+.phub__composer-menu-item--danger {
+  color: #ff8080;
+}
+.phub__composer-menu-item--danger:hover {
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff9a9a;
+}
+.phub__composer-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.phub__composer-menu-info {
+  padding: 4px 10px 5px;
+  font-size: 11px;
+  color: #75757f;
+}
+.phub__menu-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+.phub__card-menu {
+  position: fixed;
+  z-index: 61;
+  min-width: 200px;
+  padding: 6px;
+  background: #16161a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: phub-menu-in 0.14s ease both;
+}
+
+/* Chat on ho to composer wahi rahe — usi se chat chalti hai */
+.phub--sb-collapsed .phub__composer { left: calc(50% + 26px); }
+
+/* ── Chat in home — cards ki jagah message list (input = bottom composer) ── */
+.phub__home-chat {
+  position: relative;
+  width: min(700px, calc(100% - 40px));
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 118px;
+  animation: phub-chatfs-in 0.18s ease both;
+}
+.phub__home-chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 44px 10px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+.phub__home-chat-scroll::-webkit-scrollbar { width: 6px; }
+.phub__home-chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+}
+.phub__msg {
+  max-width: 80%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.phub__msg--user {
+  align-self: flex-end;
+  background: #2b1a0d;
+  border: 1px solid rgba(255, 150, 74, 0.45);
+  color: #ffe2c6;
+  border-bottom-right-radius: 5px;
+}
+.phub__msg--ai {
+  align-self: flex-start;
+  background: #0e0e12;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #eef0f5;
+  border-bottom-left-radius: 5px;
+}
+.phub__msg--busy {
+  background: #0e0e12;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #9a9aa6;
+  letter-spacing: 3px;
+  animation: phub-busy 1.1s ease-in-out infinite;
+}
+@keyframes phub-busy { 50% { opacity: 0.35; } }
+.phub__msg--proposal {
+  align-self: flex-start;
+  width: min(380px, 94%);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: #121216;
+  border: 1px solid rgba(255, 150, 74, 0.28);
+  border-radius: 14px;
+  padding: 13px 15px;
+}
+.phub__proposal-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffb37a;
+}
+.phub__proposal-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+.phub__proposal-row span { color: #8d8d99; }
+.phub__proposal-row b { color: #e8e8f0; font-weight: 600; text-align: right; }
+.phub__proposal-panels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.phub__proposal-panels span {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #b6b6c2;
+}
+.phub__proposal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 3px;
+}
+.phub__proposal-create {
+  flex: 1;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #ff9d4d, #f4761f);
+  color: #1a0f06;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.phub__proposal-create:disabled { opacity: 0.55; cursor: default; }
+.phub__proposal-change {
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: transparent;
+  color: #a9a9b5;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.phub__proposal-change:hover { background: rgba(255, 255, 255, 0.07); color: #e8e8f0; }
+.phub__home-chat-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(20, 20, 24, 0.8);
+  color: #b9b9c3;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.phub__home-chat-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f0f0f5;
+}
+
+/* Narrow screens: sidebar gayab (base rule) — offsets bhi hatayein */
+@media (max-width: 700px) {
+  .phub__card { width: min(264px, calc(50vw - 28px)); }
+  .phub__home { padding-top: 56px; }
+  .phub__composer { width: calc(100% - 24px); bottom: 14px; left: 50%; }
+  .phub__center, .phub__center--collapsed { left: 0; }
+  .phub__glow { left: 0; }
+  .phub__path-bar, .phub__path-bar--collapsed { margin-left: 0; width: 100%; max-width: 100%; }
+}
+
+

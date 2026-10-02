@@ -254,6 +254,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Hub chat → Pollinations free AI (no key) ──────────────────────────────
   aiChat: (messages) => ipcRenderer.invoke("ai:chat", { messages }),
+  // Mic voice input — WAV (base64) → Windows speech engine se text
+  aiTranscribe: (wav) => ipcRenderer.invoke("ai:transcribe", { wav }),
   // Streaming mode — chunks live aate hain (cb: "chunk"|"done"|"error", payload)
   aiChatStart: (id, messages) => ipcRenderer.send("ai:chat:start", { id, messages }),
   onAiChatEvent: (cb) => {

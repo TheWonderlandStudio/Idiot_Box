@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
-import AiSetupChat from "./AiSetupChat.jsx";
 import { playClick, setClickEnabled } from "../shared/clickSound.js";
 import GitGraph from "../GitPanel/GitGraph.jsx";
 import { Terminal } from "@xterm/xterm";
@@ -651,6 +650,21 @@ const RepoCard = ({ repo, cloning, cloningTarget, onClone }) => (
   </div>
 );
 
+// Home cards ke liye deterministic mock thumbnail (naam se hash → code lines)
+const hashStr = (s) => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+};
+const makeMockLines = (name) => {
+  const h = hashStr(name);
+  const palette = ["#4f8cff", "#7ee787", "#ff7b72", "#d2a8ff", "#79c0ff", "#ffa657", "#8b949e"];
+  return Array.from({ length: 9 }, (_, i) => {
+    const x = (h * (i + 3) + 7) >>> 0;
+    return { w: 32 + (x % 60), c: palette[(x >> 8) % palette.length], indent: (x >> 5) % 3 };
+  });
+};
+
 const ProjectHub = () => {
   const [recentProjects, setRecentProjects] = useState([]);
   const [pinnedProjects, setPinnedProjects] = useState([]);
@@ -679,6 +693,30 @@ const ProjectHub = () => {
   const [recentFilter, setRecentFilter] = useState("all"); // all | pinned
   const [recentFilterOpen, setRecentFilterOpen] = useState(false);
   const recentFilterRef = useRef(null);
+  // ── Redesign: home overlays (recents/heat) + composer menus + card kebab ──
+  const [homeOverlay, setHomeOverlay] = useState(null); // "recents" | "heat"
+  const [compMenu, setCompMenu] = useState(null); // "plus" | "more"
+  const [cardMenu, setCardMenu] = useState(null); // { path, x, y }
+  const compMenuRef = useRef(null);
+  const composerRef = useRef(null);
+
+  // Menus bahar click / Escape → band
+  useEffect(() => {
+    if (!compMenu && !cardMenu) return;
+    const onDoc = (e) => {
+      try {
+        if (compMenu && compMenuRef.current && !compMenuRef.current.contains(e.target)) setCompMenu(null);
+        if (cardMenu && !e.target.closest?.(".phub__card-menu, .phub__card-kebab")) setCardMenu(null);
+      } catch {}
+    };
+    const onKey = (e) => { if (e.key === "Escape") { setCompMenu(null); setCardMenu(null); } };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [compMenu, cardMenu]);
 
   // filter menu bahar click → band
   useEffect(() => {
@@ -785,6 +823,13 @@ const ProjectHub = () => {
     setShowCloneDialog(v === "clone");
     setShowFrameworks(v === "fw");
   }, []);
+  // Backdrop click → home (create/clone/fw + recents/heat overlay sab band)
+  const closeCenterViews = useCallback(() => {
+    setShowNewProjectDialog(false);
+    setShowCloneDialog(false);
+    setShowFrameworks(false);
+    setHomeOverlay(null);
+  }, []);
   useEffect(() => {
     if (navLockRef.current) {
       navLockRef.current = false;
@@ -870,11 +915,17 @@ const ProjectHub = () => {
   // sidebar me checkbox squares + label pills, ek time par ek view.
   const [centerView, setCenterView] = useState("gitgraph");
   const [hubChatText, setHubChatText] = useState("");
+  // Composer textarea auto-grow (1 line → max 132px)
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 132) + "px";
+  }, [hubChatText]);
   // ── Full-screen AI chat (Hub chat send karte hi Hub gayab → ye khulta hai) ─
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatBusy, setChatBusy] = useState(false);
-  const [chatFsTop, setChatFsTop] = useState("30px");
   // AI proposal — ```setup block se bana, card me dikhata hai
   const [chatProposal, setChatProposal] = useState(null);
   const chatMsgsRef = useRef([]);
@@ -942,30 +993,94 @@ const ProjectHub = () => {
       window.electronAPI.aiChatStart(id, chatMsgsRef.current.slice(-10));
     });
   };
-  // Hub ka chhota chat box → Hub gayab, full-screen chat + AI reply
+  // ── Mic voice input: record (webm) → WAV 16k mono → main me Windows
+  // System.Speech (offline) → text composer me. Mic dobara click = stop. ──
+  const [voiceRec, setVoiceRec] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const voiceRef = useRef(null);
+  const toWav16k = async (blob) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const offline = new OfflineAudioContext(1, Math.ceil(buf.duration * 16000), 16000);
+    const src = offline.createBufferSource();
+    src.buffer = buf;
+    src.connect(offline.destination);
+    src.start();
+    const rendered = await offline.startRendering();
+    const data = rendered.getChannelData(0);
+    const len = data.length;
+    const ab = new ArrayBuffer(44 + len * 2);
+    const dv = new DataView(ab);
+    const wStr = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+    wStr(0, "RIFF"); dv.setUint32(4, 36 + len * 2, true); wStr(8, "WAVE");
+    wStr(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+    dv.setUint16(22, 1, true); dv.setUint32(24, 16000, true);
+    dv.setUint32(28, 32000, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+    wStr(36, "data"); dv.setUint32(40, len * 2, true);
+    for (let i = 0; i < len; i++) {
+      const s = Math.max(-1, Math.min(1, data[i]));
+      dv.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    const bytes = new Uint8Array(ab);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+  };
+  const toggleVoice = async () => {
+    if (voiceBusy) return;
+    if (voiceRec) {
+      const rec = voiceRef.current;
+      voiceRef.current = null;
+      setVoiceRec(false);
+      if (rec && rec.mr && rec.mr.state !== "inactive") rec.mr.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (!chunks.length) return;
+        setVoiceBusy(true);
+        try {
+          const wav = await toWav16k(new Blob(chunks, { type: "audio/webm" }));
+          const text = await window.electronAPI.aiTranscribe(wav);
+          if (text) setHubChatText((t) => (t ? t.trim() + " " + text : text));
+          else flashDropMsg("Voice: kuch sunayi nahi diya — mic paas leke phir try karo");
+        } catch (err) {
+          console.error("voice transcribe failed", err);
+          flashDropMsg("Voice input fail ho gaya");
+        } finally {
+          setVoiceBusy(false);
+        }
+      };
+      voiceRef.current = { mr, stream };
+      mr.start();
+      setVoiceRec(true);
+    } catch (err) {
+      console.error("mic error", err);
+      flashDropMsg("Mic access nahi mila");
+    }
+  };
+  // Hub ka composer → cards hide, wahi jagah chat on (input composer hi rahe)
   const sendHubMessage = async () => {
     const text = hubChatText.trim();
     if (!text || chatBusy) return;
     setHubChatText("");
-    try {
-      const tb = document.querySelector(".cet-titlebar");
-      setChatFsTop((tb && tb.offsetHeight ? tb.offsetHeight : 30) + "px");
-    } catch { setChatFsTop("30px"); }
     setChatOpen(true);
     await askAiReply(text);
   };
-  // Full-screen chat (AI Elements) se bhejna
-  const sendFsMessage = async (text) => {
-    if (!text || chatBusy) return;
-    await askAiReply(text);
-  };
-  // Naya chat (history + proposal saaf)
-  const resetFsChat = () => {
-    chatMsgsRef.current = [];
-    setChatMsgs([]);
-    setChatProposal(null);
-  };
-  // Esc → full-screen chat band, Hub wapas
+  // Chat list — naye message aate hi niche scroll
+  const chatScrollRef = useRef(null);
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMsgs, chatProposal]);
+  // Esc → chat band, recents wapas
   useEffect(() => {
     if (!chatOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setChatOpen(false); };
@@ -2195,7 +2310,7 @@ const ProjectHub = () => {
 
   return (
     <div
-        className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}`}
+        className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}${sidebarCollapsed ? " phub--sb-collapsed" : ""}`}
       style={{
         ...(wallpaper ? { backgroundImage: `url("${wallpaper}")`, "--wall-tint": wallTint || undefined } : {}),
         "--wall-opacity": `${wallOpacity}%`,
@@ -2213,25 +2328,12 @@ const ProjectHub = () => {
     >
       {!nativeCursor && <CustomCursor />}
 
-      {/* AI chat — transparent floating column (Hub peeche dikhta rehta hai).
-          Header nahi hai; Esc ya backdrop click se band. Andar AI Elements
-          (elements.ai-sdk.dev) chat + setup proposal card. */}
-      {chatOpen && (
-        <div
-          className="phub__chatfs"
-          style={{ paddingTop: `calc(${chatFsTop} + 8px)` }}
-          onClick={(e) => { if (e.target === e.currentTarget) setChatOpen(false); }}
-        >
-          <AiSetupChat
-            messages={chatMsgs}
-            busy={chatBusy}
-            onSend={sendFsMessage}
-            proposal={chatProposal}
-            onCreate={handleAiCreate}
-            onDismiss={() => setChatProposal(null)}
-          />
-        </div>
-      )}
+      {/* Bottom glow — dark bg par warm radial light (wallpaper par hidden) */}
+      <div className="phub__glow" aria-hidden="true" />
+
+
+      {/* AI chat — home ke andar cards ki jagah message list
+          (.phub__home-chat). Input wahi bottom composer. */}
 
       {projectPath && (
         <div className={`phub__path-bar${sidebarCollapsed ? " phub__path-bar--collapsed" : ""}`}>
@@ -2259,7 +2361,7 @@ const ProjectHub = () => {
         </div>
       )}
       {editingPath && (
-        <div className="phub__path-bar">
+        <div className={`phub__path-bar${sidebarCollapsed ? " phub__path-bar--collapsed" : ""}`}>
           <span className="phub__path-label">Edit Project Path:</span>
           <input
             className="phub__dialog-input"
@@ -2293,13 +2395,13 @@ const ProjectHub = () => {
         <div className="phub__sidebar-label">Start</div>
         <button
           className={`phub__sidebar-btn phub__sidebar-btn--primary${showNewProjectDialog ? " phub__sidebar-btn--active" : ""}`}
-          onClick={() => { setShowNewProjectDialog(true); setShowCloneDialog(false); setShowFrameworks(false); }}
+          onClick={() => { setHomeOverlay(null); setShowNewProjectDialog(true); setShowCloneDialog(false); setShowFrameworks(false); }}
         >
           <Plus size={14} /> Create Project
         </button>
         <button
           className={`phub__sidebar-btn${showCloneDialog ? " phub__sidebar-btn--active" : ""}`}
-          onClick={() => { setShowCloneDialog(true); setShowNewProjectDialog(false); setShowFrameworks(false); }}
+          onClick={() => { setHomeOverlay(null); setShowCloneDialog(true); setShowNewProjectDialog(false); setShowFrameworks(false); }}
         >
           <span className="phub__sidebar-ico"><CloudDownload size={14} /></span> Clone Repo
         </button>
@@ -2314,7 +2416,7 @@ const ProjectHub = () => {
         <button
           className={`phub__sidebar-btn${showFrameworks ? " phub__sidebar-btn--active" : ""}`}
           title="Frameworks"
-          onClick={() => { setShowFrameworks(true); setShowNewProjectDialog(false); setShowCloneDialog(false); }}
+          onClick={() => { setHomeOverlay(null); setShowFrameworks(true); setShowNewProjectDialog(false); setShowCloneDialog(false); }}
         >
           <span className="phub__sidebar-ico"><Layers size={14} /></span> Frameworks
         </button>
@@ -2347,7 +2449,10 @@ const ProjectHub = () => {
         </div>
       </div>
 
-      <div className={`phub__center${sidebarCollapsed ? " phub__center--collapsed" : ""}`}>
+      <div className={`phub__center${showNewProjectDialog || showCloneDialog || showFrameworks || homeOverlay ? " phub__center--modal" : ""}`}>
+        {(showNewProjectDialog || showCloneDialog || showFrameworks || homeOverlay) && (
+          <div className="phub__modal-veil" onClick={closeCenterViews} />
+        )}
         {showNewProjectDialog ? (
           <div className="phub__panel phub__panel--create">
             <div className="phub__panel-header">
@@ -2813,41 +2918,19 @@ const ProjectHub = () => {
               )}
             </div>
           </div>
-        ) : (
-          <div className="phub__stack">
-            {(showHeat || centerView === "gitgraph") && (
-            <div className="phub__note-wrap">
-            <div className={`phub__panel phub__panel--note${centerView === "gitgraph" ? " phub__panel--note--graph" : ""}`}>
-              {centerView === "gitgraph" ? (
-              <div className="phub__panel-body phub__note-body phub__note-graph">
-                <div className="phub__chat">
-                  <textarea
-                    className="phub__chat-input"
-                    value={hubChatText}
-                    onChange={(e) => setHubChatText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        sendHubMessage();
-                      }
-                    }}
-                    placeholder="Type a message…"
-                    rows={3}
-                    spellCheck={false}
-                    aria-label="Message"
-                  />
-                  <button
-                    className="phub__chat-send"
-                    onClick={sendHubMessage}
-                    disabled={!hubChatText.trim() || chatBusy}
-                    title="Send"
-                    aria-label="Send"
-                  >
-                    <Send size={13} />
-                  </button>
-                </div>              </div>
-              ) : (
-              <div className="phub__panel-body phub__note-body phub__heat">
+        ) : homeOverlay === "heat" ? (
+          <div className="phub__panel phub__panel--heatmodal">
+            <div className="phub__panel-header">
+              <button
+                className="phub__panel-back"
+                onClick={() => setHomeOverlay(null)}
+                aria-label="Back"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <span className="phub__panel-title">Contribution heatmap</span>
+            </div>
+            <div className="phub__panel-body phub__note-body phub__heat">
                 <div className="phub__heat-head">
                   {ghUser ? (
                     <>
@@ -2939,25 +3022,9 @@ const ProjectHub = () => {
                   )}
                 </div>
               </div>
-              )}
             </div>
-            <div className="phub__note-side" aria-label="Note view">
-              {[["gitgraph", "Chat", MessageSquare], ["projects", "Contribution heatmap", Activity]].map(([id, label, Icon]) => (
-                <button
-                  key={id}
-                  onClick={() => setCenterView(id)}
-                  title={label}
-                  aria-label={label}
-                  aria-pressed={centerView === id}
-                  className={`phub__note-sidebtn${centerView === id ? " phub__note-sidebtn--on" : ""}`}
-                >
-                  <Icon size={12} />
-                </button>
-              ))}
-            </div>
-            </div>
-            )}
-            <div className="phub__panel phub__panel--recents">
+        ) : homeOverlay === "recents" ? (
+          <div className="phub__panel phub__panel--recents">
               <div className="phub__panel-header">
                 <span className="phub__panel-title">Recents</span>
                 <span className="phub__panel-count">{recentProjects.length}</span>
@@ -3096,9 +3163,266 @@ const ProjectHub = () => {
                 })()}
               </div>
             </div>
+        ) : (
+          <div className="phub__home">
+            {chatOpen ? (
+              <div className="phub__home-chat">
+                <div className="phub__home-chat-scroll" ref={chatScrollRef}>
+                  {chatMsgs.map((m, i) => (
+                    <div
+                      key={i}
+                      className={`phub__msg${m.role === "user" ? " phub__msg--user" : " phub__msg--ai"}`}
+                    >
+                      {String(m.content || "")}
+                    </div>
+                  ))}
+                  {chatBusy && !chatProposal && (
+                    <div className="phub__msg phub__msg--ai phub__msg--busy">● ● ●</div>
+                  )}
+                  {chatProposal && (
+                    <div className="phub__msg phub__msg--proposal">
+                      <div className="phub__proposal-title">Project setup ready</div>
+                      <div className="phub__proposal-row"><span>Project</span><b>{chatProposal.projectName}</b></div>
+                      <div className="phub__proposal-row"><span>Framework</span><b>{chatProposal.frameworkName} · {chatProposal.language}</b></div>
+                      <div className="phub__proposal-panels">
+                        {chatProposal.panels.map((p) => (<span key={p.key}>{p.label}</span>))}
+                      </div>
+                      <div className="phub__proposal-actions">
+                        <button
+                          className="phub__proposal-create"
+                          disabled={chatBusy}
+                          onClick={handleAiCreate}
+                        >
+                          Create project
+                        </button>
+                        <button className="phub__proposal-change" onClick={() => setChatProposal(null)}>
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="phub__home-chat-close"
+                  onClick={() => setChatOpen(false)}
+                  title="Show recents (Esc)"
+                  aria-label="Close chat"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <>
+            <div className="phub__home-cards">
+              {recentProjects.slice(0, 6).map((entry) => {
+                const path = entry.path;
+                const name = path.split(/[\\/]/).pop() || path;
+                const lines = makeMockLines(name);
+                return (
+                  <div
+                    key={path}
+                    className="phub__card"
+                    role="button"
+                    tabIndex={0}
+                    title={path}
+                    onClick={() => openProject(path)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openProject(path);
+                      }
+                    }}
+                  >
+                    <div className="phub__card-thumb" style={{ "--h": hashStr(name) % 360 }}>
+                      <div className="phub__card-mock">
+                        <div className="phub__card-mockbar">
+                          <i /><i /><i />
+                          <span className="phub__card-mocktab">{name}</span>
+                        </div>
+                        <div className="phub__card-mockbody">
+                          <div className="phub__card-mockrail"><i /><i /><i /><i /></div>
+                          <div className="phub__card-mockcode">
+                            {lines.map((ln, li) => (
+                              <span
+                                key={li}
+                                className="phub__card-line"
+                                style={{ width: `${ln.w}%`, background: ln.c, marginLeft: ln.indent * 9 }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="phub__card-foot">
+                      <span className="phub__card-ico">{getProjectIcon(path)}</span>
+                      <span className="phub__card-meta">
+                        <span className="phub__card-name">{name}</span>
+                        <span className="phub__card-time">{formatLastOpened(entry.lastOpened)}</span>
+                      </span>
+                      <button
+                        className="phub__card-kebab"
+                        aria-label="Project actions"
+                        title="Project actions"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setCardMenu({ path, x: r.left, y: r.bottom + 6 });
+                        }}
+                      >
+                        <MoreVertical size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {recentProjects.length === 0 && (
+              <div className="phub__home-empty">
+                <p>Koi project nahi — pehla project banao</p>
+                <div className="phub__home-emptybtns">
+                  <button className="phub__home-emptybtn phub__home-emptybtn--primary" onClick={() => setShowNewProjectDialog(true)}>
+                    <Plus size={14} /> Create Project
+                  </button>
+                  <button className="phub__home-emptybtn" onClick={() => setShowCloneDialog(true)}>
+                    <CloudDownload size={14} /> Clone Repo
+                  </button>
+                </div>
+              </div>
+            )}
+              </>
+            )}
           </div>
         )}
       </div>
+
+      {/* Bottom composer — quick actions (+) + AI ask (Enter/↑) */}
+      <div className="phub__composer" ref={compMenuRef}>
+        <textarea
+          className="phub__composer-input"
+          ref={composerRef}
+          value={hubChatText}
+          onChange={(e) => setHubChatText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendHubMessage();
+            }
+          }}
+          placeholder="Ask anything…"
+          rows={1}
+          spellCheck={false}
+          aria-label="Ask AI"
+        />
+        <div className="phub__composer-bar">
+          <button
+            className="phub__composer-btn"
+            title="New project…"
+            aria-label="Quick actions"
+            aria-haspopup="menu"
+            aria-expanded={compMenu === "plus"}
+            onClick={() => setCompMenu((m) => (m === "plus" ? null : "plus"))}
+          >
+            <Plus size={16} />
+          </button>
+          <div className="phub__composer-tools">
+            <button
+              className="phub__composer-btn"
+              title="Frameworks"
+              aria-label="Frameworks"
+              onClick={() => { setCompMenu(null); setShowFrameworks(true); }}
+            >
+              <Grid3x3 size={15} />
+            </button>
+            <button
+              className="phub__composer-btn"
+              title="Menu"
+              aria-label="Menu"
+              aria-haspopup="menu"
+              aria-expanded={compMenu === "more"}
+              onClick={() => setCompMenu((m) => (m === "more" ? null : "more"))}
+            >
+              <ChevronDown size={15} />
+            </button>
+            <button
+              className={
+                "phub__composer-btn" +
+                (voiceRec ? " phub__composer-btn--rec" : "") +
+                (voiceBusy ? " phub__composer-btn--busy" : "")
+              }
+              title={voiceRec ? "Stop recording" : voiceBusy ? "Transcribing…" : "Voice input (mic)"}
+              aria-label="Voice input"
+              aria-pressed={voiceRec}
+              disabled={voiceBusy}
+              onClick={toggleVoice}
+            >
+              {voiceBusy ? <Loader2 size={15} className="phub__spin" /> : <Mic size={15} />}
+            </button>
+            <button
+              className="phub__composer-send"
+              title="Send"
+              aria-label="Send"
+              onClick={sendHubMessage}
+              disabled={!hubChatText.trim() || chatBusy}
+            >
+              <ArrowUp size={15} />
+            </button>
+          </div>
+          {compMenu === "plus" && (
+            <div className="phub__composer-menu" role="menu">
+              <button className="phub__composer-menu-item" role="menuitem" onClick={() => { setCompMenu(null); setShowNewProjectDialog(true); }}>
+                <Plus size={14} /> Create Project
+              </button>
+              <button className="phub__composer-menu-item" role="menuitem" onClick={() => { setCompMenu(null); setShowCloneDialog(true); }}>
+                <CloudDownload size={14} /> Clone Repo
+              </button>
+              <button className="phub__composer-menu-item" role="menuitem" onClick={() => { setCompMenu(null); window.electronAPI.openFolder(); }}>
+                <FolderOpen size={14} /> Open Folder
+              </button>
+            </div>
+          )}
+          {compMenu === "more" && (
+            <div className="phub__composer-menu phub__composer-menu--right" role="menu">
+              <button className="phub__composer-menu-item" role="menuitem" onClick={() => { setCompMenu(null); setHomeOverlay("recents"); }}>
+                <Clock size={14} /> All projects
+              </button>
+              <button className="phub__composer-menu-item" role="menuitem" onClick={() => { setCompMenu(null); setHomeOverlay("heat"); }}>
+                <Activity size={14} /> Contribution heatmap
+              </button>
+              {ghUser && <div className="phub__composer-menu-info">@{ghUser}</div>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Card kebab menu */}
+      {cardMenu && (
+        <>
+          <div
+            className="phub__menu-veil"
+            onClick={() => setCardMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setCardMenu(null); }}
+          />
+          <div
+            className="phub__card-menu"
+            style={{ left: Math.min(cardMenu.x, window.innerWidth - 210), top: Math.min(cardMenu.y, window.innerHeight - 210) }}
+            role="menu"
+          >
+            <button className="phub__composer-menu-item" role="menuitem" onClick={() => { const p = cardMenu.path; setCardMenu(null); openProject(p); }}>
+              <Code2 size={14} /> Open
+            </button>
+            <button className="phub__composer-menu-item" role="menuitem" onClick={() => { const p = cardMenu.path; setCardMenu(null); window.electronAPI.revealInExplorer(p); }}>
+              <FolderOpen size={14} /> Show in Files
+            </button>
+            <button className="phub__composer-menu-item" role="menuitem" onClick={() => { const p = cardMenu.path; setCardMenu(null); togglePin(p); }}>
+              <Pin size={14} /> {(pinnedProjects || []).some((x) => (typeof x === "string" ? x : x?.path) === cardMenu.path) ? "Unpin" : "Pin"}
+            </button>
+            <div className="phub__composer-menu-sep" />
+            <button className="phub__composer-menu-item phub__composer-menu-item--danger" role="menuitem" onClick={() => { const p = cardMenu.path; setCardMenu(null); setDeletingPath(p); setConfirmDelete(true); }}>
+              <Trash2 size={14} /> Remove from Recents
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Drag & drop overlay — folder import */}
       {dropActive && (
