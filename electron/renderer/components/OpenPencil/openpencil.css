@@ -1,0 +1,86 @@
+.op-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-panel);
+  position: relative;
+}
+.op-view-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+.op-view {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #0b0b0e;
+}
+.op-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  z-index: 2;
+}
+.op-progress::after {
+  content: "";
+  position: absolute;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #4a88ff, transparent);
+  animation: op-load 1.1s ease-in-out infinite;
+}
+@keyframes op-load {
+  from { left: -40%; }
+  to { left: 100%; }
+}
+.op-fail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  z-index: 3;
+  text-align: center;
+}
+.op-fail h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+}
+.op-fail p {
+  margin: 0;
+  font-size: 12px;
+}
+.op-fail__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: linear-gradient(180deg, #3d7dfb, #2f63d8);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(47, 99, 216, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.op-fail__btn:hover {
+  background: linear-gradient(180deg, #4a88ff, #3568e0);
+}

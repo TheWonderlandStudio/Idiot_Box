@@ -1301,8 +1301,13 @@ function openProjectDirect(folderPath, sender) {
 ipcMain.handle("project:openDirect", async (event, folderPath) => {
   return openProjectDirect(folderPath, event.sender);
 });
-ipcMain.handle("dialog:browseFolder", async () => {
-  const r = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
+ipcMain.handle("dialog:browseFolder", async (_e, opts) => {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const r = await dialog.showOpenDialog({
+    title: typeof o.title === "string" && o.title ? o.title : "Select folder",
+    ...(o.defaultPath ? { defaultPath: o.defaultPath } : {}),
+    properties: ["openDirectory", "createDirectory"],
+  });
   if (r.canceled || !r.filePaths.length) return null;
   return r.filePaths[0];
 });
@@ -2948,7 +2953,7 @@ ipcMain.handle("browser:tabContextMenu", (event) => {
 });
 
 // ─── FlexLayout tab context menu ────────────────────────────────────────────
-ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, filePath = null } = {}) => {
+ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, filePath = null } = {}) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
     const sep = { type: "separator" };
@@ -2959,10 +2964,10 @@ ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = fals
     if (canClose) items.push(sep);
     if (canDuplicate) items.push({ label: "Duplicate", click: () => act("duplicate") });
     items.push({ label: "Split Right", click: () => act("splitRight") });
-    if (isBrowser) {
+    if (canRefresh || isBrowser) {
       items.push(sep);
       items.push({ label: "Refresh", click: () => act("refresh") });
-      items.push({ label: "Settings", click: () => act("settings") });
+      if (isBrowser) items.push({ label: "Settings", click: () => act("settings") });
     }
     if (filePath) {
       items.push(sep);
@@ -5961,6 +5966,24 @@ app.whenReady().then(async () => {
   // Must run BEFORE any BrowserWindow loads. Guest <webview> / ibx-file
   // content is intentionally excluded (see electron/main/csp.js).
   try { if (typeof setupCsp === "function") setupCsp(session.defaultSession); } catch (e) { console.warn("[csp] setup failed:", e?.message || e); }
+  // ─── OpenPencil brand icon block ───────────────────────────────────────────
+  // Guest <webview> me /brand/app-icon.svg ka request cancel kar do, taaki wo
+  // kabhi load hi na ho. Visual hide OpenPencil panel insertCSS se karta hai
+  // (req cancel hone par broken img/alt bach sakta hai — dono chahiye).
+  try {
+    const webReq = session.defaultSession?.webRequest;
+    if (webReq && typeof webReq.onBeforeRequest === "function") {
+      webReq.onBeforeRequest({ urls: ["http://*/*", "https://*/*"] }, (details, callback) => {
+        try {
+          if (details.resourceType === "image" && typeof details.url === "string" && details.url.includes("/brand/app-icon.svg")) {
+            callback({ cancel: true });
+            return;
+          }
+        } catch {}
+        callback({});
+      });
+    }
+  } catch (e) { console.warn("[openpencil] icon block setup failed:", e?.message || e); }
   if (ElectronChromeExtensions) {
     try { ElectronChromeExtensions.handleCRXProtocol(session.defaultSession); } catch (e) { console.warn("[electron-chrome-extensions] handleCRXProtocol failed:", e.message); }
   }

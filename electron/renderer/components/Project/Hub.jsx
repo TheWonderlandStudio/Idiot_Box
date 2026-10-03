@@ -2175,16 +2175,31 @@ const ProjectHub = () => {
     }
   }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, writeTemplateFiles, closeCreateDialog]);
 
-  // AI proposal card → "Create project": dialog ke bina seedha create —
+  // AI proposal card → "Create project": pehle user se puchho kahan save
+  // karna hai (folder picker) — cancel par create hi nahi hota. Uske baad
   // workspace khulta hai aur setup commands usi ke terminal me chalte hain.
   const handleAiCreate = useCallback(async () => {
     const p = chatProposal;
     const fw = p && FRAMEWORKS.find((f) => f.id === p.frameworkId);
     if (!p || !fw || scaffoldingRef.current) return;
     setChatBusy(true);
-    let loc = newProjectLocation.trim();
+    let loc = "";
+    try {
+      let def = newProjectLocation.trim();
+      if (!def) {
+        try { def = (await window.electronAPI.getDefaultLocation?.()) || ""; } catch { def = ""; }
+      }
+      loc = (await window.electronAPI.browseFolder({
+        title: `Save "${p.projectName}" to…`,
+        defaultPath: def || undefined,
+      })) || "";
+    } catch (err) {
+      console.warn("folder pick failed", err);
+      loc = "";
+    }
     if (!loc) {
-      try { loc = (await window.electronAPI.getDefaultLocation?.()) || ""; } catch { loc = ""; }
+      setChatBusy(false);
+      return;
     }
     const spec = getScaffoldSpec(fw.id, p.projectName, p.language);
     setSelectedFramework(fw);

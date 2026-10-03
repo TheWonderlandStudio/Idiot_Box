@@ -1171,7 +1171,7 @@ const BrowserPanel = (props) => {
       // also store pending flag for next navigation if helpers not yet installed
       try { wv.executeJavaScript(`window.__ibxPendingEditMode=${editMode?"true":"false"}`).catch(()=>{}); } catch {}
     }
-    if (editMode) showToast("Edit mode ON — click text, Alt+click attributes, Tab jumps (Enter saves, Esc cancels)", "info");
+    if (editMode) showToast("Edit mode ON — click text · Alt+click attributes · Tab jumps · Del removes · Ctrl+D duplicates · Ctrl+K wraps as link · Shift+click inspects", "info");
     else if (attachedRef.current) showToast("Edit mode OFF", "info");
   }, [editMode, showToast]);
 
@@ -1551,7 +1551,7 @@ const BrowserPanel = (props) => {
       {/* Edit Mode Banner */}
       {editMode && !barHidden && (
         <div style={{
-          display:"flex", alignItems:"center", gap:"var(--space-8)",
+          display:"flex", alignItems:"center", gap:"var(--space-8)", flexWrap:"wrap",
           padding:"var(--space-3) var(--space-10)",
           background: isVisualOnlyUrl ? "var(--warn-tint-a12)" : "var(--teal-a12)",
           borderBottom: isVisualOnlyUrl ? "1px solid var(--warn-tint-a30)" : "1px solid var(--teal-a25)",
@@ -1560,7 +1560,7 @@ const BrowserPanel = (props) => {
           <Type size={12} />
           <span>{isVisualOnlyUrl
             ? "EDIT MODE — VISUAL ONLY (no project open, saves revert) • Click text • Enter applies visually • Esc cancels"
-            : "EDIT MODE ON — Click text • Alt+click attributes • Tab jumps • Ctrl+click follows links • Enter saves"}</span>
+            : "EDIT MODE ON — Click text • Alt+click attributes • Tab jumps • Ctrl+click follows links • Del removes • Ctrl+D duplicates • Ctrl+K links • Shift+click inspects"}</span>
           {undoCount > 0 && (
             <button
               onClick={undoLiveEdit}
@@ -1720,7 +1720,7 @@ const BrowserPanel = (props) => {
             padding:"var(--space-4) var(--space-10)", borderRadius:"var(--radius-md)", display:"flex", alignItems:"center", gap:"var(--space-6)",
             boxShadow:"0 4px 12px var(--overlay-a30)", zIndex:"var(--z-toast)", pointerEvents:"none"
           }}>
-            <Pencil size={12} /> EDIT MODE ON — click any text
+            <Pencil size={12} /> EDIT MODE ON — click text · Del removes · Ctrl+D duplicates
           </div>
         )}
         {/* Toast */}

@@ -21,6 +21,7 @@ import BlankPanel from "./components/Blank/index.jsx";
 import ComponentPreview from "./components/ComponentPreview/index.jsx";
 import CommunityPanel from "./components/CommunityPanel/index.jsx";
 import CanvasPanel from "./components/Canvas/index.jsx";
+import OpenPencilPanel from "./components/OpenPencil/index.jsx";
 import CommandPalette from "./components/CommandPalette/index.jsx";
 import OnboardingPage from "./components/Onboarding/index.jsx";
 import QuickOpen from "./components/QuickOpen/index.jsx";
@@ -117,6 +118,7 @@ const factory = (node) => {
     case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
     case "community":        return <CommunityPanel nodeId={node.getId()} />;
     case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
+    case "openPencil":        return <OpenPencilPanel config={node.getConfig()} nodeId={node.getId()} />;
   case "problems":          return <ProblemsPanel />;
   case "runDebug":          return <RunPanel />;
   case "output":            return <OutputPanel />;
@@ -534,7 +536,7 @@ const findAnyTabset = (node) => {
 const PROJECT_PANEL_COMPONENTS = new Set([
   "mediaViewer", "panel3", "projectPanel", "editor", "notebook", "terminal",
   "blank", "componentPreview", "community", "canvas", "problems", "output",
-  "runDebug", "gitPanel", "ports", "androidEmulator",
+  "runDebug", "gitPanel", "ports", "androidEmulator", "openPencil",
 ]);
 const sanitizeProjectPanels = (json) => {
   try {
@@ -807,7 +809,7 @@ const App = () => {
             // "notebook" stays allowed as a compat shim (interim builds saved
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs","openPencil"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
@@ -2113,6 +2115,7 @@ const App = () => {
       onRenderTab={(node, renderValues) => {
         const cfg = node.getConfig();
         const isBrowser = cfg?.type === "browser" || node.getComponent() === "panel3";
+        const isOpenPencil = node.getComponent() === "openPencil";
         const tabId = node.getId();
         const filePath = cfg?.filePath || null;
         const duplicateable = node.getComponent() === "editor" || node.getComponent() === "notebook" || isBrowser;
@@ -2150,9 +2153,13 @@ const App = () => {
               canClose: node.getEnableClose?.() !== false,
               canDuplicate: duplicateable,
               isBrowser,
+              canRefresh: isBrowser || isOpenPencil,
               filePath,
             });
-            if (result?.action === "refresh") window.dispatchEvent(new CustomEvent("browser:refresh", { detail: { nodeId: tabId } }));
+            if (result?.action === "refresh") {
+              const evt = isOpenPencil ? "openpencil:refresh" : "browser:refresh";
+              window.dispatchEvent(new CustomEvent(evt, { detail: { nodeId: tabId } }));
+            }
             else if (result?.action === "settings") window.dispatchEvent(new CustomEvent("browser:openSettings"));
             else if (result?.action) await runTabAction(result.action);
           } catch {}

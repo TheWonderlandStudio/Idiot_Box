@@ -1,0 +1,8 @@
+{
+  "engine": "generic",
+  "name": "Idiot Box (Electron)",
+  "window": "idiot-box",
+  "launch": { "cmd": "cmd", "args": ["/c", "npm", "start"] },
+  "log": { "stdout": true },
+  "sourceRoots": ["electron/renderer", "electron/main", "electron/preload"]
+}

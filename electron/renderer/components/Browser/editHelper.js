@@ -31,6 +31,21 @@ export const EDIT_HELPER_SOURCE = `(() => {
         let locateTimer = null;
         let locateSeq = 0;
         let lastLocateEl = null;
+        // v3: delete/duplicate/wrap-link, inspector, style-bar extras
+        let inspectPopup = null;
+        let linkPopup = null;
+        let lastCommitEl = null;
+        // Mutation ke dauran real mouse re-hover hover-class wapas na laga de
+        // (warna anchor snapshot me artifact aake file-match toot jata hai).
+        let busy = 0;
+        // classList.remove ke baad class="" bach jata hai (element pehle
+        // classless tha) — ye attribute file me NAHI hota, ancestor commit ke
+        // oldHtml ko kharab karta hai. Khaali ho to attribute hi hatao.
+        function stripEmptyClass(el){
+          try{
+            if(el && el.removeAttribute && String(el.className||'').trim()==='') el.removeAttribute('class');
+          }catch{}
+        }
         function ensureStyle(){
           if (styleEl) return;
           styleEl = document.createElement('style');
@@ -48,7 +63,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             .__ibx-popup input { width: 100% !important; box-sizing: border-box !important; padding: 4px 6px !important; border: 1px solid #bbbbbb !important; border-radius: 4px !important; font: inherit !important; color: #111111 !important; background: #ffffff !important; }
             .__ibx-popup button { font: inherit !important; padding: 3px 12px !important; margin: 8px 6px 0 0 !important; border-radius: 4px !important; border: 1px solid #999999 !important; background: #f0f0f0 !important; color: #111111 !important; cursor: pointer !important; }
             .__ibx-popup button.__ibx-primary { background: #4ec9b0 !important; border-color: #4ec9b0 !important; color: #06281f !important; font-weight: bold !important; }
-            .__ibx-stylebar { position: fixed !important; z-index: 2147483647 !important; background: #111111 !important; border-radius: 6px !important; padding: 3px 5px !important; display: flex !important; gap: 3px !important; align-items: center !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; }
+            .__ibx-stylebar { position: fixed !important; z-index: 2147483647 !important; background: #111111 !important; border-radius: 6px !important; padding: 3px 5px !important; display: flex !important; gap: 3px !important; align-items: center !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; flex-wrap: wrap !important; max-width: 448px !important; }
+            body { cursor: text !important; }
             .__ibx-stylebar button { background: transparent !important; color: #eeeeee !important; border: 1px solid transparent !important; border-radius: 4px !important; font: 12px/1.5 system-ui, sans-serif !important; padding: 2px 7px !important; cursor: pointer !important; min-width: 24px !important; }
             .__ibx-stylebar button:hover { background: #333333 !important; }
             .__ibx-stylebar input[type=color] { width: 26px !important; height: 20px !important; border: none !important; background: none !important; padding: 0 !important; cursor: pointer !important; }
@@ -95,10 +111,15 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }
           return null;
         }
-        function clearHover(){ try{ if(hoverEl) hoverEl.classList.remove('__ibx-edit-hover'); }catch{} hoverEl=null; hideHint(); }
+        function clearHover(){
+          try{
+            if(hoverEl){ hoverEl.classList.remove('__ibx-edit-hover'); stripEmptyClass(hoverEl); }
+          }catch{}
+          hoverEl=null; hideHint();
+        }
         function isUiNode(n){ try{ return !!(n && n.closest && n.closest('[data-ibx-ui]')); }catch{ return false; } }
         function onMouseOver(e){
-          if(!window.__ibxEditEnabled || activeEl) return;
+          if(!window.__ibxEditEnabled || activeEl || busy) return;
           if(isUiNode(e.target)) return;
           let t=null; try{ t=findEditableTarget(e.target); }catch{}
           if(t===hoverEl) return;
@@ -111,9 +132,12 @@ export const EDIT_HELPER_SOURCE = `(() => {
           clearHover();
         }
         function snapshot(el){
+          // HAMESHA refresh: har save ke baad file DOM barabar ho jati hai
+          // (fail par host revert karta hai), isliye "pehle wala orig"
+          // stale ho jata tha — agla commit us purane needle se fail hota tha.
           try{
-            if(el.__ibxOrigHTML==null) el.__ibxOrigHTML=String(el.outerHTML||'');
-            if(el.__ibxOldText==null) el.__ibxOldText=(el.innerText||'').trim();
+            el.__ibxOrigHTML=String(el.outerHTML||'');
+            el.__ibxOldText=(el.innerText||'').trim();
             el.__ibxDirtyHTML=false;
           }catch{}
         }
@@ -156,7 +180,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           let oldHtml='';
           try{ oldHtml=String(el.__ibxOrigHTML||''); }catch{}
           try{ el.removeAttribute('contenteditable'); }catch{}
-          try{ el.classList.remove('__ibx-edit-active'); }catch{}
+          try{ el.classList.remove('__ibx-edit-active'); stripEmptyClass(el); }catch{}
           try{ el.style.outline=''; }catch{}
           hideStyleBar();
           let cur='';
@@ -174,6 +198,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }
           clearHover();
           try{ prevTitle=document.title; }catch{}
+          lastCommitEl=el;
           sendPayload({ mode:'html', oldHtml: oldHtml, newHtml: cur, tagName: String(el.tagName||''), url: location.href });
         }
         function detachActiveListeners(el){
@@ -199,6 +224,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             } else {
               el.removeAttribute('contenteditable');
               el.classList.remove('__ibx-edit-active');
+              stripEmptyClass(el);
               el.style.outline='';
             }
           }catch{}
@@ -234,12 +260,14 @@ export const EDIT_HELPER_SOURCE = `(() => {
             detachActiveListeners(el);
             el.removeAttribute('contenteditable');
             el.classList.remove('__ibx-edit-active');
+            stripEmptyClass(el);
             el.style.outline='';
           }catch{}
           hideStyleBar();
           activeEl=null; committing=false;
           clearHover();
           try{ prevTitle=document.title; }catch{}
+          lastCommitEl=el;
           sendPayload(payload);
         }
         window.__ibxCommitPendingEdit = function(){
@@ -247,10 +275,15 @@ export const EDIT_HELPER_SOURCE = `(() => {
         };
         window.__ibxRevertActive = function(){
           try{
-            if(!activeEl) return true;
-            const el=activeEl; activeEl=null; committing=false;
+            // activeEl ke alawa last bheja gaya commit bhi revert karo —
+            // html commits activeEl null karke bhejte hain, warna host ka
+            // revert khaali jaata tha (failed save par DOM reformed rehta tha).
+            let el=activeEl || lastCommitEl;
+            lastCommitEl=null;
+            if(!el) return true;
+            activeEl=null; committing=false;
             detachActiveListeners(el);
-            restoreOriginal(el);
+            try{ restoreOriginal(el); }catch{}
             clearHover();
             return true;
           }catch(e){ return false; }
@@ -312,6 +345,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           clearHover();
           hideHint();
           if(activeEl) cleanupActive(true);
+          lastCommitEl=null;
           activeEl=t;
           try{
             snapshot(activeEl);
@@ -345,7 +379,29 @@ export const EDIT_HELPER_SOURCE = `(() => {
             // document me nahi hai to form-field samjho hi mat.
             if(t && document.contains(t) && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return;
           }catch{}
-          if(e.key!=='Tab') return;
+          const mod=(e.ctrlKey||e.metaKey);
+          if(e.key!=='Tab'){
+            // ── v3 shortcuts (hovered element par; hover outline = target) ──
+            if(e.key==='Delete' && !mod && hoverEl){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              deleteHovered();
+              return;
+            }
+            if(mod && (e.key==='d'||e.key==='D') && hoverEl){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              duplicateHovered();
+              return;
+            }
+            if(mod && (e.key==='k'||e.key==='K') && hoverEl){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              openLinkWrap(hoverEl);
+              return;
+            }
+            return;
+          }
           e.preventDefault(); e.stopPropagation();
           try{
             if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation();
@@ -374,6 +430,21 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(at) openAttrPopup(at, e.clientX, e.clientY);
             return;
           }
+          // Shift+click = element inspector (tag/size/colors/font + Copy HTML).
+          if(e.shiftKey){
+            e.preventDefault(); e.stopPropagation();
+            try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+            if(activeEl) cleanupActive(true);
+            clearHover(); hideStyleBar();
+            let it=null;
+            try{
+              let n=e.target;
+              if(n && n.nodeType===3) n=n.parentElement;
+              if(n && n.nodeType===1 && n.tagName && n!==document.body && n!==document.documentElement) it=n;
+            }catch{}
+            if(it) openInspector(it, e.clientX, e.clientY);
+            return;
+          }
           // Ctrl/Cmd+click on a link = follow it (navigate), edit mat karo.
           if(e.ctrlKey||e.metaKey){
             try{
@@ -387,7 +458,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{}
           activateEl(t);
         }
-        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} }
+        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} try{ closeInspect(); }catch{} try{ closeLinkPopup(); }catch{} }
         // ── Attribute editor (Alt+click) ─────────────────────────────
         const ATTR_DEFS=[
           {k:'href',label:'Link URL'},
@@ -430,7 +501,10 @@ export const EDIT_HELPER_SOURCE = `(() => {
         }
         function openAttrPopup(target, x, y){
           closeAttrPopup();
+          try{ closeInspect(); }catch{}
+          try{ closeLinkPopup(); }catch{}
           hideHint();
+          lastCommitEl=null;
           snapshot(target);
           const t=String(target.tagName||'').toLowerCase();
           const rows=[];
@@ -461,9 +535,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           document.body.appendChild(box);
           attrPopup={ box: box, el: target };
           const stop=function(e){ try{ e.stopPropagation(); }catch{} };
-          try{ box.addEventListener('mousedown', stop, true); }catch{}
-          try{ box.addEventListener('click', stop, true); }catch{}
-          try{ box.addEventListener('keydown', stop, true); }catch{}
+          try{ box.addEventListener('mousedown', stop, false); }catch{}
+          try{ box.addEventListener('click', stop, false); }catch{}
+          try{ box.addEventListener('keydown', stop, false); }catch{}
           const btns=box.querySelectorAll('button');
           for(let i=0;i<btns.length;i++){
             (function(btn){
@@ -504,7 +578,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             const r=el.getBoundingClientRect();
             let top=r.top-36;
             if(top<4) top=r.bottom+6;
-            const left=Math.max(4, Math.min((window.innerWidth||800)-260, r.left));
+            const w=bar.offsetWidth||340;
+            const left=Math.max(4, Math.min((window.innerWidth||800)-w-8, r.left));
             bar.style.left=left+'px'; bar.style.top=Math.max(4, top)+'px';
           }catch{}
         }
@@ -566,10 +641,68 @@ export const EDIT_HELPER_SOURCE = `(() => {
             el.style.textAlign=nx; el.__ibxDirtyHTML=true;
             try{ ab.textContent=nx.charAt(0).toUpperCase(); }catch{}
           });
+          // ── v3: text-transform, font family, letter spacing, background ──
+          const tts=['none','uppercase','lowercase','capitalize'];
+          const ttLabels=['TT','AA','aa','Aa'];
+          const ttb=styleBtn(bar, 'TT', 'Text transform: none → UPPER → lower → Capitalize', function(){
+            let cur='none';
+            try{ cur=window.getComputedStyle(el).textTransform||'none'; }catch{}
+            let i=tts.indexOf(cur); if(i<0) i=0;
+            const j=(i+1)%tts.length;
+            el.style.textTransform=tts[j]; el.__ibxDirtyHTML=true;
+            try{ ttb.textContent=ttLabels[j]; }catch{}
+          });
+          const FONTS=['inherit','Arial, sans-serif','Helvetica, sans-serif','Times New Roman, serif','Georgia, serif','Courier New, monospace','Verdana, sans-serif','Tahoma, sans-serif','Trebuchet MS, sans-serif','system-ui, sans-serif','monospace','serif','sans-serif'];
+          const fontLabel=function(name){ try{ return (String(name).split(',')[0].trim().split(' ')[0]||'Fnt').slice(0,7); }catch{ return 'Fnt'; } };
+          const fb=styleBtn(bar, 'Fnt', 'Font family (cycle)', function(){
+            let i=-1;
+            try{
+              const cur=String(window.getComputedStyle(el).fontFamily||'').toLowerCase();
+              for(let j=0;j<FONTS.length;j++){
+                const head=String(FONTS[j]).split(',')[0].trim().toLowerCase();
+                if(head!=='inherit' && cur.indexOf(head)!==-1){ i=j; break; }
+              }
+            }catch{}
+            const nx=FONTS[(i+1)%FONTS.length];
+            el.style.fontFamily=nx; el.__ibxDirtyHTML=true;
+            try{ fb.textContent=fontLabel(nx); }catch{}
+          });
+          try{
+            const cur=String(window.getComputedStyle(el).fontFamily||'').toLowerCase();
+            for(let j=1;j<FONTS.length;j++){
+              const head=String(FONTS[j]).split(',')[0].trim().toLowerCase();
+              if(cur.indexOf(head)!==-1){ fb.textContent=fontLabel(FONTS[j]); break; }
+            }
+          }catch{}
+          styleBtn(bar, 'LS+', 'Letter spacing +0.5px', function(){
+            let v=0;
+            try{ v=parseFloat(window.getComputedStyle(el).letterSpacing)||0; }catch{}
+            if(!isFinite(v)||v<0) v=0;
+            v=Math.min(12, Math.round((v+0.5)*10)/10);
+            el.style.letterSpacing=v+'px'; el.__ibxDirtyHTML=true;
+          });
+          styleBtn(bar, 'LS−', 'Letter spacing −0.5px', function(){
+            let v=0;
+            try{ v=parseFloat(window.getComputedStyle(el).letterSpacing)||0; }catch{}
+            if(!isFinite(v)||v<0) v=0;
+            v=Math.max(0, Math.round((v-0.5)*10)/10);
+            el.style.letterSpacing=v>0 ? v+'px' : 'normal'; el.__ibxDirtyHTML=true;
+          });
+          const bg=document.createElement('input');
+          bg.type='color'; bg.title='Background color';
+          try{
+            let c='';
+            try{ c=String(window.getComputedStyle(el).backgroundColor||''); }catch{}
+            if(!c || c==='transparent' || c==='rgba(0, 0, 0, 0)' || c==='rgba(0,0,0,0)') bg.value='#ffffff';
+            else bg.value=rgbToHex(c);
+          }catch{ bg.value='#ffffff'; }
+          bg.addEventListener('input', function(){ try{ el.style.backgroundColor=bg.value; el.__ibxDirtyHTML=true; }catch{} });
+          bg.addEventListener('click', function(e){ try{ e.stopPropagation(); }catch{} });
+          bar.appendChild(bg);
           styleBtn(bar, '✕', 'Clear inline styles', function(){ try{ el.removeAttribute('style'); }catch{} el.__ibxDirtyHTML=true; });
-          placeStyleBar(bar, el);
           document.body.appendChild(bar);
           styleBar=bar;
+          placeStyleBar(bar, el);
         }
         function rgbToHex(c){
           try{
@@ -580,6 +713,313 @@ export const EDIT_HELPER_SOURCE = `(() => {
             const h=function(n){ n=Math.max(0, Math.min(255, parseInt(n,10)||0)); const s=n.toString(16); return s.length===1?'0'+s:s; };
             return '#'+h(m[1])+h(m[2])+h(m[3]);
           }catch{ return '#000000'; }
+        }
+        // ── v3: delete / duplicate / wrap-link + inspector ──────────────
+        // Delete/duplicate/wrap me element khud mutate hota hai — persist
+        // closest PARENT ke outerHTML old→new commit se hota hai (chhota
+        // ancestor dhoondho jiska outerHTML size cap ke andar ho).
+        function pickCommitAnchor(el, estRatio){
+          let p=el ? el.parentElement : null;
+          let g=0;
+          while(p && g++<8){
+            try{
+              // HTML/HEAD kabhi mat lo — head me edit-sheet/title payload hote
+              // hain jo file me nahi, aur body ke andar bhi data-ibx-ui popups
+              // aa sakte hain (detachUi unhe hatata hai, body allowed hai).
+              if(p.nodeType===1 && p.tagName && p.tagName!=='HEAD' && p.tagName!=='HTML'){
+                const len=String(p.outerHTML||'').length;
+                const est=Math.ceil(len*estRatio);
+                if(len>0 && len<=14000 && est<=14000) return p;
+              }
+            }catch{}
+            p=p.parentElement;
+          }
+          return null;
+        }
+        // Body-anchor commit me popups/stylebar/hint (data-ibx-ui) snapshot me
+        // aa jate the — file ke saath needle match nahi hota tha. Serialize ke
+        // waqt hatao, baad me wapas lagao.
+        function detachUi(root){
+          const removed=[];
+          try{
+            const list=root.querySelectorAll('[data-ibx-ui]');
+            for(let i=0;i<list.length;i++){
+              const n=list[i];
+              const par=n.parentNode;
+              if(!par) continue;
+              removed.push({ n:n, p:par, nx:n.nextSibling });
+              try{ par.removeChild(n); }catch{}
+            }
+          }catch{}
+          return removed;
+        }
+        function reattachUi(removed){
+          for(let i=removed.length-1;i>=0;i--){
+            const r=removed[i];
+            try{ if(r.n && r.n.parentNode==null && r.p) r.p.insertBefore(r.n, r.nx); }catch{}
+          }
+        }
+        function ensureUiAttached(removed){
+          // restoreOriginal ne outerHTML replace kar diya — koi ui node bacha
+          // ho to body me wapas daal do (fixed positioning hai, safe).
+          try{
+            for(let i=0;i<removed.length;i++){
+              const n=removed[i].n;
+              if(n && n.parentNode==null && document.body) document.body.appendChild(n);
+            }
+          }catch{}
+        }
+        function commitViaAnchor(el, mutate, ratio){
+          try{
+            if(!el || !document.contains(el)) return false;
+            const p=pickCommitAnchor(el, ratio||1.2);
+            if(!p) return false;
+            const hidden=detachUi(p);
+            let oldHtml='';
+            try{ oldHtml=String(p.outerHTML||''); }catch{}
+            if(!oldHtml){ reattachUi(hidden); return false; }
+            p.__ibxOrigHTML=oldHtml;
+            let mutated=false;
+            try{ mutate(p); mutated=true; }catch{}
+            let cur='';
+            if(mutated){ try{ cur=String(p.outerHTML||''); }catch{} }
+            reattachUi(hidden);
+            if(!mutated || !cur || oldHtml===cur || cur.length>14000){
+              try{ restoreOriginal(p); }catch{}
+              ensureUiAttached(hidden);
+              return false;
+            }
+            try{ prevTitle=document.title; }catch{}
+            lastCommitEl=p;
+            sendPayload({ mode:'html', oldHtml: oldHtml, newHtml: cur, tagName: String(p.tagName||''), url: location.href });
+            return true;
+          }catch{ return false; }
+        }
+        function deleteHovered(){
+          const el=hoverEl;
+          if(!el || !document.contains(el) || activeEl) return;
+          busy++;
+          try{
+            // Pehle hover-class hatao — warna anchor (parent) ka outerHTML
+            // file me maujood HTML se alag ho jata hai (save fail + revert).
+            clearHover();
+            const ok=commitViaAnchor(el, function(){ try{ el.remove(); }catch{} }, 1.0);
+            // Anchor nahi mila (bohot bada page) to visual-only delete.
+            if(!ok && document.contains(el)){
+              try{ el.remove(); }catch{}
+            }
+          } finally { busy--; }
+          clearHover();
+        }
+        function duplicateHovered(){
+          const el=hoverEl;
+          if(!el || !document.contains(el) || activeEl) return;
+          busy++;
+          try{
+            clearHover();
+            let clone=null;
+            try{
+              clone=el.cloneNode(true);
+              try{ clone.removeAttribute('id'); }catch{}
+              try{
+                const ids=clone.querySelectorAll('[id]');
+                for(let i=0;i<ids.length;i++){ try{ ids[i].removeAttribute('id'); }catch{} }
+              }catch{}
+              try{ clone.classList.remove('__ibx-edit-hover','__ibx-edit-active'); }catch{}
+              try{ clone.removeAttribute('contenteditable'); }catch{}
+            }catch{ clone=null; }
+            if(!clone) return;
+            const insert=function(){
+              const p=el.parentElement;
+              if(!p) throw new Error('no parent');
+              p.insertBefore(clone, el.nextSibling);
+            };
+            let ok=false;
+            try{ ok=commitViaAnchor(el, insert, 2.0); }catch{ ok=false; }
+            if(!ok){
+              try{ if(document.contains(el)) insert(); }catch{}
+            }
+          } finally { busy--; }
+          clearHover();
+        }
+        function copyText(s){
+          try{
+            const ta=document.createElement('textarea');
+            ta.value=String(s==null?'':s);
+            ta.setAttribute('data-ibx-ui','1');
+            ta.style.position='fixed'; ta.style.left='-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok=false;
+            try{ ok=document.execCommand('copy'); }catch{}
+            try{ ta.remove(); }catch{}
+            if(!ok && navigator.clipboard && navigator.clipboard.writeText){
+              try{ navigator.clipboard.writeText(String(s==null?'':s)); ok=true; }catch{}
+            }
+            return !!ok;
+          }catch{ return false; }
+        }
+        function closeInspect(){
+          try{
+            if(inspectPopup && inspectPopup.box){
+              try{ if(inspectPopup.box.contains(document.activeElement)) document.activeElement.blur(); }catch{}
+              inspectPopup.box.remove();
+            }
+          }catch{}
+          inspectPopup=null;
+        }
+        function openInspector(el, x, y){
+          try{
+            if(!el || el.nodeType!==1 || !el.tagName) return;
+            if(el===document.body || el===document.documentElement) return;
+            closeInspect(); closeAttrPopup(); closeLinkPopup(); hideHint();
+            lastCommitEl=null;
+            let cs=null;
+            try{ cs=window.getComputedStyle(el); }catch{}
+            let rw=0, rh=0;
+            try{ const rr=el.getBoundingClientRect(); rw=rr.width; rh=rr.height; }catch{}
+            const tag=String(el.tagName||'').toLowerCase();
+            const box=document.createElement('div');
+            box.setAttribute('data-ibx-ui','1');
+            box.className='__ibx-popup';
+            const rows=[];
+            rows.push(['Tag','&lt;'+escAttr(tag)+'&gt;']);
+            try{ if(el.id) rows.push(['ID','#'+escAttr(String(el.id))]); }catch{}
+            try{
+              const cls=(typeof el.className==='string') ? el.className : '';
+              if(cls.trim()) rows.push(['Class', escAttr(cls.trim().slice(0,70))]);
+            }catch{}
+            rows.push(['Size', Math.round(rw)+' × '+Math.round(rh)+' px']);
+            if(cs){
+              let txt=''; try{ txt=String(el.innerText||'').trim(); }catch{}
+              rows.push(['Text', txt.length+' chars']);
+              rows.push(['Font', escAttr(String(cs.fontSize||''))+' / '+escAttr(String(cs.fontWeight||''))]);
+              rows.push(['Family', escAttr(String(cs.fontFamily||'').slice(0,38))]);
+              const swatch=function(col){ return '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+escAttr(String(col||''))+';vertical-align:-1px;"></span> '; };
+              rows.push(['Color', swatch(cs.color)+escAttr(String(cs.color||''))]);
+              const bgc=String(cs.backgroundColor||'');
+              if(bgc && bgc!=='rgba(0, 0, 0, 0)' && bgc!=='transparent') rows.push(['BG', swatch(bgc)+escAttr(bgc)]);
+            }
+            let html='<div style="font-weight:bold;margin-bottom:4px;">Inspector</div>';
+            for(let i=0;i<rows.length;i++){
+              html+='<div style="display:flex;gap:8px;font-size:12px;padding:1px 0;"><span style="color:#555555;min-width:64px;flex-shrink:0;">'+rows[i][0]+'</span><span style="word-break:break-all;">'+rows[i][1]+'</span></div>';
+            }
+            html+='<div><button data-act="copy">Copy HTML</button><button data-act="attrs">Attributes</button><button data-act="close">Close</button></div>';
+            box.innerHTML=html;
+            const bx=Math.max(4, Math.min((window.innerWidth||800)-300, (x||100)+8));
+            const by=Math.max(4, Math.min((window.innerHeight||600)-250, (y||100)+10));
+            box.style.left=bx+'px'; box.style.top=by+'px';
+            document.body.appendChild(box);
+            inspectPopup={ box: box, el: el };
+            const stop=function(e){ try{ e.stopPropagation(); }catch{} };
+            try{ box.addEventListener('mousedown', stop, false); }catch{}
+            try{ box.addEventListener('click', stop, false); }catch{}
+            const btns=box.querySelectorAll('button');
+            for(let i=0;i<btns.length;i++){
+              (function(btn){
+                btn.addEventListener('click', function(e){
+                  try{ e.preventDefault(); e.stopPropagation(); }catch{}
+                  const act=btn.getAttribute('data-act');
+                  const target=(inspectPopup && inspectPopup.el) || el;
+                  if(act==='close'){ closeInspect(); return; }
+                  if(act==='copy'){
+                    let ok=false;
+                    try{ ok=copyText(String(target.outerHTML||'')); }catch{}
+                    const old=btn.textContent;
+                    btn.textContent=ok?'Copied!':'Copy failed';
+                    setTimeout(function(){ try{ btn.textContent=old; }catch{} }, 1200);
+                    return;
+                  }
+                  if(act==='attrs'){
+                    const ax=(x||100), ay=(y||100);
+                    closeInspect();
+                    if(target && document.contains(target)) openAttrPopup(target, ax, ay);
+                    return;
+                  }
+                });
+              })(btns[i]);
+            }
+          }catch{}
+        }
+        function closeLinkPopup(){
+          try{
+            if(linkPopup && linkPopup.box){
+              try{ if(linkPopup.box.contains(document.activeElement)) document.activeElement.blur(); }catch{}
+              linkPopup.box.remove();
+            }
+          }catch{}
+          linkPopup=null;
+        }
+        function openLinkWrap(el){
+          try{
+            if(!el || !document.contains(el) || activeEl) return;
+            try{ if(el.closest && el.closest('a')) return; }catch{}
+            closeAttrPopup(); closeLinkPopup(); closeInspect(); hideHint();
+            lastCommitEl=null;
+            clearHover();
+            let x=100, y=100;
+            try{ const r=el.getBoundingClientRect(); x=r.left; y=r.bottom+6; }catch{}
+            const box=document.createElement('div');
+            box.setAttribute('data-ibx-ui','1');
+            box.className='__ibx-popup';
+            let html='<div style="font-weight:bold;margin-bottom:2px;">Wrap &lt;'+escAttr(String(el.tagName||'').toLowerCase())+'&gt; as link</div>';
+            html+='<label>Link URL</label><input data-url placeholder="https://" spellcheck="false">';
+            html+='<div><button data-act="wrap" class="__ibx-primary">Wrap</button><button data-act="cancel">Cancel</button></div>';
+            box.innerHTML=html;
+            const bx=Math.max(4, Math.min((window.innerWidth||800)-300, x+8));
+            const by=Math.max(4, Math.min((window.innerHeight||600)-200, y+10));
+            box.style.left=bx+'px'; box.style.top=by+'px';
+            document.body.appendChild(box);
+            linkPopup={ box: box, el: el };
+            const stop=function(e){ try{ e.stopPropagation(); }catch{} };
+            try{ box.addEventListener('mousedown', stop, false); }catch{}
+            try{ box.addEventListener('click', stop, false); }catch{}
+            const wrap=function(e){
+              try{ e.preventDefault(); e.stopPropagation(); }catch{}
+              const inp=box.querySelector('input[data-url]');
+              let url=inp? String(inp.value||'').trim() : '';
+              if(!url){ try{ if(inp) inp.focus(); }catch{} return; }
+              url=url.split(' ').join('');
+              if(url.indexOf(':')===-1 && url.charAt(0)!=='/' && url.charAt(0)!=='#' && url.charAt(0)!=='.') url='https://'+url;
+              const finalUrl=url;
+              const wrapIt=function(){
+                const p=el.parentElement;
+                if(!p) throw new Error('no parent');
+                const a=document.createElement('a');
+                a.setAttribute('href', finalUrl);
+                p.insertBefore(a, el);
+                a.appendChild(el);
+              };
+              let ok=false;
+              busy++;
+              try{ clearHover(); ok=commitViaAnchor(el, wrapIt, 1.4); }catch{ ok=false; } finally { busy--; }
+              if(!ok){
+                try{ if(document.contains(el)) wrapIt(); }catch{}
+              }
+              closeLinkPopup();
+              clearHover();
+            };
+            const btns=box.querySelectorAll('button');
+            for(let i=0;i<btns.length;i++){
+              (function(btn){
+                btn.addEventListener('click', function(e){
+                  try{ e.preventDefault(); e.stopPropagation(); }catch{}
+                  if(btn.getAttribute('data-act')==='cancel'){ closeLinkPopup(); return; }
+                  wrap(e);
+                });
+              })(btns[i]);
+            }
+            try{
+              const inp=box.querySelector('input[data-url]');
+              if(inp){
+                inp.addEventListener('keydown', function(e){
+                  try{ e.stopPropagation(); }catch{}
+                  if(e.key==='Enter') wrap(e);
+                });
+                inp.focus();
+              }
+            }catch{}
+          }catch{}
         }
         // ── Hover locate hint (file guess badge) ───────────────────────
         function hideHint(){ try{ if(hintBadge) hintBadge.remove(); }catch{} hintBadge=null; }
@@ -632,8 +1072,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ document.addEventListener('mouseout', onMouseOut, true); }catch{}
             try{ document.addEventListener('click', onClick, true); }catch{}
             try{ document.addEventListener('keydown', onDocKey, true); }catch{}
+            // NOTE: cursor inline style ME mat lagao — body.outerHTML file se
+            // match karna chahiye (body anchor commits). CSS sheet me hai.
             try{ window.addEventListener('pagehide', onPageHide); }catch{}
-            try{ if(document.body) document.body.style.cursor='text'; }catch{}
             try{ prevTitle=document.title; }catch{}
           } else {
             try{ document.removeEventListener('mouseover', onMouseOver, true); }catch{}
@@ -645,10 +1086,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             // Any leftover active edit here is stale — restore to avoid broken UI.
             try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); restoreOriginal(el); } }catch{}
             try{ closeAttrPopup(); }catch{}
+            try{ closeInspect(); }catch{}
+            try{ closeLinkPopup(); }catch{}
             try{ hideStyleBar(); }catch{}
             clearHover();
             removeStyle();
-            try{ if(document.body) document.body.style.cursor=''; }catch{}
           }
           return true;
         };

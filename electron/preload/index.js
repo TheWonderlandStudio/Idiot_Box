@@ -51,7 +51,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Directory access ───────────────────────────────────────────────────────
   openFolder:  ()      => ipcRenderer.invoke("dialog:openFolder"),
-  browseFolder: ()     => ipcRenderer.invoke("dialog:browseFolder"),
+  browseFolder: (opts) => ipcRenderer.invoke("dialog:browseFolder", opts),
   openImage:   ()      => ipcRenderer.invoke("dialog:openImage"),
   openDirect:  (folderPath) => ipcRenderer.invoke("project:openDirect", folderPath),
   getDefaultLocation: () => ipcRenderer.invoke("dialog:getDefaultLocation"),
