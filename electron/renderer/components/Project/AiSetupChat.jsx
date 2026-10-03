@@ -143,18 +143,30 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
 export default function AiSetupChat(props) {
   const hostRef = useRef(null);
   const [mount, setMount] = useState(null);
+  const cursorStyleRef = useRef(null);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    if (host.shadowRoot) {
-      setMount(host.shadowRoot.querySelector("[data-ai-mount]"));
+    let shadow = host.shadowRoot;
+    if (shadow) {
+      cursorStyleRef.current = shadow.querySelector("style[data-cursor]");
+      setMount(shadow.querySelector("[data-ai-mount]"));
       return;
     }
-    const shadow = host.attachShadow({ mode: "open" });
+    shadow = host.attachShadow({ mode: "open" });
     const style = document.createElement("style");
     style.textContent = AI_TW_CSS;
     shadow.appendChild(style);
+
+    const cursorStyle = document.createElement("style");
+    cursorStyle.setAttribute("data-cursor", "");
+    cursorStyle.textContent = props.nativeCursor
+      ? ""
+      : "*, *::before, *::after { cursor: none !important; }";
+    shadow.appendChild(cursorStyle);
+    cursorStyleRef.current = cursorStyle;
+
     const m = document.createElement("div");
     m.setAttribute("data-ai-mount", "");
     m.setAttribute("class", "ai-scope dark");
@@ -163,6 +175,14 @@ export default function AiSetupChat(props) {
     setMount(m);
     return () => setMount(null);
   }, []);
+
+  useEffect(() => {
+    if (cursorStyleRef.current) {
+      cursorStyleRef.current.textContent = props.nativeCursor
+        ? ""
+        : "*, *::before, *::after { cursor: none !important; }";
+    }
+  }, [props.nativeCursor]);
 
   return (
     <div className="phub__chatfs-body" ref={hostRef}>
