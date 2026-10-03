@@ -70,7 +70,7 @@
     "chokidar": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
-    "cn": "^0.2.6",
+    "cn": "^0.4.0",
     "custom-electron-titlebar": "^4.4.1",
     "electron-chrome-extensions": "^4.9.0",
     "electron-updater": "^6.8.9",
