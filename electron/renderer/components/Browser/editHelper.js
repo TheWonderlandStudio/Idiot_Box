@@ -136,8 +136,17 @@ export const EDIT_HELPER_SOURCE = `(() => {
           // (fail par host revert karta hai), isliye "pehle wala orig"
           // stale ho jata tha — agla commit us purane needle se fail hota tha.
           try{
-            el.__ibxOrigHTML=String(el.outerHTML||'');
-            el.__ibxOldText=(el.innerText||'').trim();
+            let h=String(el.outerHTML||'');
+            // spellcheck=false sirf edit-time lagta hai; purane cycle se node
+            // par chipak jaye to orig/file-needle me NA aaye — warna html save
+            // "Element not found in project" se fail hoke revert hota tha.
+            try{
+              const frag=' spellcheck="false"';
+              let i=h.indexOf(frag);
+              while(i!==-1){ h=h.slice(0,i)+h.slice(i+frag.length); i=h.indexOf(frag); }
+            }catch{}
+            el.__ibxOrigHTML=h;
+            el.__ibxOldText=readElText(el);
             el.__ibxDirtyHTML=false;
           }catch{}
         }
@@ -149,12 +158,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         const NBSP=String.fromCharCode(160);
         function readElText(el){
           try{
-            let preLike=false;
-            try{
-              if(el.tagName==='PRE') preLike=true;
-              else{ const cs=window.getComputedStyle(el); if(cs && String(cs.whiteSpace||'').indexOf('pre')===0) preLike=true; }
-            }catch{}
-            const raw=String(preLike ? (el.textContent||'') : (el.innerText||el.textContent||''));
+            const raw=String(el.textContent||el.innerText||'');
             return raw.split(NBSP).join(' ').trim();
           }catch{ return ''; }
         }
@@ -169,10 +173,17 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return btoa(bin);
           }catch{ return ''; }
         }
+        function capturePrevTitle(){
+          try{
+            const t=String(document.title||"");
+            if(t && t.indexOf("__IBX_")!==0) prevTitle=t;
+          }catch{}
+        }
         function sendPayload(payload){
           try{
-            document.title="__IBX_EDIT__B64__"+b64encode(JSON.stringify(payload));
-            setTimeout(function(){ try{ if(String(document.title).indexOf("__IBX_EDIT__B64__")===0) document.title=prevTitle; }catch{} }, 900);
+            const t="__IBX_EDIT__B64__"+b64encode(JSON.stringify(payload));
+            document.title=t;
+            setTimeout(function(){ try{ if(String(document.title)===t && String(prevTitle).indexOf("__IBX_")!==0) document.title=prevTitle; }catch{} }, 900);
           }catch{}
         }
         // Whole-element HTML commit (attributes / inline styles / styled text).
@@ -180,6 +191,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           let oldHtml='';
           try{ oldHtml=String(el.__ibxOrigHTML||''); }catch{}
           try{ el.removeAttribute('contenteditable'); }catch{}
+          try{ el.removeAttribute('spellcheck'); }catch{}
           try{ el.classList.remove('__ibx-edit-active'); stripEmptyClass(el); }catch{}
           try{ el.style.outline=''; }catch{}
           hideStyleBar();
@@ -197,7 +209,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return;
           }
           clearHover();
-          try{ prevTitle=document.title; }catch{}
+          try{ capturePrevTitle(); }catch{}
           lastCommitEl=el;
           sendPayload({ mode:'html', oldHtml: oldHtml, newHtml: cur, tagName: String(el.tagName||''), url: location.href });
         }
@@ -223,6 +235,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               restoreOriginal(el);
             } else {
               el.removeAttribute('contenteditable');
+              el.removeAttribute('spellcheck');
               el.classList.remove('__ibx-edit-active');
               stripEmptyClass(el);
               el.style.outline='';
@@ -259,6 +272,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{
             detachActiveListeners(el);
             el.removeAttribute('contenteditable');
+            el.removeAttribute('spellcheck');
             el.classList.remove('__ibx-edit-active');
             stripEmptyClass(el);
             el.style.outline='';
@@ -266,7 +280,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           hideStyleBar();
           activeEl=null; committing=false;
           clearHover();
-          try{ prevTitle=document.title; }catch{}
+          try{ capturePrevTitle(); }catch{}
           lastCommitEl=el;
           sendPayload(payload);
         }
@@ -789,7 +803,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               ensureUiAttached(hidden);
               return false;
             }
-            try{ prevTitle=document.title; }catch{}
+            try{ capturePrevTitle(); }catch{}
             lastCommitEl=p;
             sendPayload({ mode:'html', oldHtml: oldHtml, newHtml: cur, tagName: String(p.tagName||''), url: location.href });
             return true;
@@ -1037,8 +1051,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
             locateTimer=setTimeout(function(){
               if(hoverEl!==el && activeEl!==el) return;
               try{
-                document.title="__IBX_LOCATE64__"+id+" "+b64encode(JSON.stringify({ t: txt, h: outer, tag: tag }));
-                setTimeout(function(){ try{ if(String(document.title).indexOf("__IBX_LOCATE64__")===0) document.title=prevTitle; }catch{} }, 900);
+                const lt="__IBX_LOCATE64__"+id+" "+b64encode(JSON.stringify({ t: txt, h: outer, tag: tag }));
+                document.title=lt;
+                setTimeout(function(){ try{ if(String(document.title)===lt && String(prevTitle).indexOf("__IBX_")!==0) document.title=prevTitle; }catch{} }, 900);
               }catch{}
             }, 350);
           }catch{}
@@ -1075,7 +1090,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             // NOTE: cursor inline style ME mat lagao — body.outerHTML file se
             // match karna chahiye (body anchor commits). CSS sheet me hai.
             try{ window.addEventListener('pagehide', onPageHide); }catch{}
-            try{ prevTitle=document.title; }catch{}
+            try{ capturePrevTitle(); }catch{}
           } else {
             try{ document.removeEventListener('mouseover', onMouseOver, true); }catch{}
             try{ document.removeEventListener('mouseout', onMouseOut, true); }catch{}

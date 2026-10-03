@@ -815,6 +815,22 @@ function decodeIbxFileUrl(url) {
   } catch { return null; }
 }
 
+function liveEditAlreadyApplied({ projectRoot, url, newStr }) {
+  try {
+    const n = String(newStr || "").trim();
+    if (!n) return null;
+    const p = decodeIbxFileUrl(url);
+    if (!p || !fs.existsSync(toLongPath(p))) return null;
+    const st = fs.statSync(toLongPath(p));
+    if (!st.isFile()) return null;
+    const c = fs.readFileSync(toLongPath(p), "utf8");
+    if (!c.includes(n)) return null;
+    const root = projectRoot || lastProjectPath;
+    const rel = root ? path.relative(root, p).replace(/\\/g, "/") : path.basename(p);
+    return { ok: true, filePath: p, rel, ext: path.extname(p).toLowerCase(), replaced: n, alreadyApplied: true };
+  } catch { return null; }
+}
+
 function scoreLiveEditContext(content, pos, outerSnippet, tagName, oldText) {
   try {
     const ctxStart = Math.max(0, pos - 400);
@@ -951,6 +967,8 @@ ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldTex
       candidates = [search.directPath];
     } else {
       if (!found.length) {
+        const aa = liveEditAlreadyApplied({ projectRoot, url, newStr: newTrim });
+        if (aa) return aa;
         const rname = search.root ? path.basename(search.root) : "(unknown)";
         return { ok: false, error: `Text "${oldTrim.slice(0, 40)}" not found in project (${rname}). Auto detection searched html/js/jsx/ts/tsx.` };
       }
@@ -1052,7 +1070,14 @@ ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldTex
         } catch {}
       }
     }
-    if (pos === -1) return { ok: false, error: `Text "${oldTrim.slice(0,40)}" not found at expected location in ${path.basename(targetPath)}` };
+    if (pos === -1) {
+      const nT = String(newTrim || "").trim();
+      if (nT && content.includes(nT)) {
+        const rootAA = projectRoot || lastProjectPath;
+        return { ok: true, filePath: targetPath, rel: rootAA ? path.relative(rootAA, targetPath).replace(/\\/g, "/") : path.basename(targetPath), ext: path.extname(targetPath).toLowerCase(), replaced: nT, alreadyApplied: true };
+      }
+      return { ok: false, error: `Text "${oldTrim.slice(0,40)}" not found at expected location in ${path.basename(targetPath)}` };
+    }
 
     const newContent = content.slice(0, pos) + newTrim + content.slice(pos + oldUsed.length);
     // safety: ensure file still valid? For html/jsx we could do light check, but skip
@@ -1115,6 +1140,8 @@ ipcMain.handle("liveEdit:applyHtmlChange", async (_e, { projectRoot, url, oldHtm
     const search = liveEditFindFiles({ projectRoot, url, needles: [oTrim] });
     if (search.error && !search.found.length) return { ok: false, error: search.error };
     if (!search.found.length) {
+      const aa = liveEditAlreadyApplied({ projectRoot, url, newStr: n });
+      if (aa) return aa;
       const rname = search.root ? path.basename(search.root) : "(unknown)";
       return { ok: false, error: `Element not found in project (${rname})` };
     }
@@ -1143,7 +1170,14 @@ ipcMain.handle("liveEdit:applyHtmlChange", async (_e, { projectRoot, url, oldHtm
         if (m && m.index !== undefined) { pos = m.index; oldUsed = m[0]; }
       } catch {}
     }
-    if (pos === -1) return { ok: false, error: `Element not found at expected location in ${path.basename(targetPath)}` };
+    if (pos === -1) {
+      const nT = String(n || "").trim();
+      if (nT && content.includes(nT)) {
+        const rootAA = projectRoot || lastProjectPath;
+        return { ok: true, filePath: targetPath, rel: rootAA ? path.relative(rootAA, targetPath).replace(/\\/g, "/") : path.basename(targetPath), ext: path.extname(targetPath).toLowerCase(), replaced: nT, alreadyApplied: true };
+      }
+      return { ok: false, error: `Element not found at expected location in ${path.basename(targetPath)}` };
+    }
     const newContent = content.slice(0, pos) + n.trim() + content.slice(pos + oldUsed.length);
     fs.writeFileSync(toLongPath(targetPath), newContent, "utf8");
     const root = projectRoot || lastProjectPath;

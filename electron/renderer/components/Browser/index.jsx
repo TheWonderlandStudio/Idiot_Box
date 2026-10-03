@@ -221,6 +221,7 @@ const BrowserPanel = (props) => {
   const errorCodeRef = useRef(null);
   const errorDescRef = useRef(null);
   const httpsFallbackAttemptedRef = useRef(false);
+  const editTitleRef = useRef({ t: "", at: 0 });
 
   // ── Page zoom (Ctrl+Scroll / Ctrl+Plus/Minus/0 — webview content zoom) ───
   // Actual page content zoom hai (webview.setZoomFactor). 25%–300%, step 10%.
@@ -835,6 +836,9 @@ const BrowserPanel = (props) => {
       // plain-JSON markers bhi padhe jate hain (purana injected script ho to).
       if (t.startsWith("__IBX_EDIT__B64__")) {
         try {
+          const now = Date.now();
+          if (editTitleRef.current && editTitleRef.current.t === t && now - editTitleRef.current.at < 5000) return;
+          editTitleRef.current = { t, at: now };
           const json = decodeB64(t.slice("__IBX_EDIT__B64__".length));
           if (json) handleLiveEdit(JSON.parse(json));
         } catch {}
