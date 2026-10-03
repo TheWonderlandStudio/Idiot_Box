@@ -132,37 +132,50 @@ body,
   pointer-events: auto !important;
 }
 
-/* ── Title bar right: Layouts box (pehle "Workspaces"; window controls ke just left) ─ */
+/* ── Title bar right: Layouts button (hub-jaisa ghost chip) ─────────────── */
 .tb-workspaces {
   /* flex order: box left cluster ke baad, window controls se pehle */
   order: 1;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   flex-shrink: 0;
-  height: 20px;
+  height: 22px;
   /* auto margin → left cluster khatm hone ke baad yahi se right cluster shuru */
   margin: 0 10px 0 auto;
-  padding: 0 9px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 5px;
+  color: #a6a6b2;
   font-family: inherit;
   font-size: 11px;
   font-weight: var(--fw-semibold);
   line-height: 1;
+  letter-spacing: 0.02em;
   cursor: pointer;
   -webkit-app-region: no-drag;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
-.tb-workspaces:hover { background: var(--bg-hover); }
+.tb-workspaces svg { flex-shrink: 0; opacity: 0.85; }
+.tb-workspaces:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #f0f0f5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.tb-workspaces:hover svg { opacity: 1; }
+.tb-workspaces:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(1px);
+}
 
 /* ── Layouts dropdown (button ke neeche, titlebar se portal hoke body me) ── */
 .tb-layouts-menu {
   width: 300px;
   background: var(--bg-surface);
   border: 1px solid var(--border-input);
-  border-radius: var(--radius-md);
+  border-radius: 0;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   padding: 8px;
   display: flex;
@@ -270,19 +283,6 @@ body,
 }
 .tb-layouts-row:hover .tb-layouts-del { opacity: 1; }
 .tb-layouts-del:hover { background: var(--bg-hover-strong); color: var(--text-primary); }
-.tb-layouts-hub {
-  border: none;
-  border-top: 1px solid var(--border-input);
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 11px;
-  text-align: left;
-  padding: 8px 4px 2px;
-  margin-top: 1px;
-  cursor: pointer;
-}
-.tb-layouts-hub:hover { color: var(--text-primary); }
 /* Window controls ab sabse last (order 2), auto margin box ko khud right
    kheenchne dega — warna CET ka margin-left:auto box ko left cluster me chhodta.
    (macOS controls left side hote — sirf right-side platforms par override.) */

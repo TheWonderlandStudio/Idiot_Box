@@ -233,22 +233,27 @@ const RunStatusButton = () => {
   };
 
   const base = {
-    background: hovered ? "#3caf55" : "#2f9e44",
-    border: "1px solid #267a37", color: "#fff", fontSize: 12, letterSpacing: 0,
-    height: 28, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
-    transition: "background 140ms ease, box-shadow 140ms ease",
-    boxShadow: hovered ? "0 0 0 1px rgba(255,255,255,.12), 0 2px 8px rgba(0,0,0,.3)" : "0 1px 2px rgba(0,0,0,.25)",
+    background: hovered ? "linear-gradient(180deg, #43c35b, #2fa349)" : "linear-gradient(180deg, #3cb454, #2f9e44)",
+    border: "1px solid rgba(255, 255, 255, 0.16)", color: "#fff", fontSize: 12, letterSpacing: 0.01,
+    fontFamily: "inherit", fontWeight: 600,
+    height: 26, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
+    transition: "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
+    boxShadow: hovered
+      ? "0 6px 16px rgba(47, 158, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.22)"
+      : "0 3px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.14)",
   };
   const stopBase = running ? {
     ...base,
-    background: hovered ? "#dc4c4c" : "#c83b3b",
-    borderColor: "#9f2d2d",
+    background: hovered ? "linear-gradient(180deg, #ef5f57, #cf3535)" : "linear-gradient(180deg, #e5534b, #c92a2a)",
+    boxShadow: hovered
+      ? "0 6px 16px rgba(201, 42, 42, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.2)"
+      : "0 3px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
   } : base;
   const menuItem = {
-    height: 36, display: "flex", alignItems: "center", gap: 10, width: "100%",
-    padding: "0 10px", border: 0, borderRadius: 5, background: "transparent",
-    color: "#d1d1d1", fontSize: 13, textAlign: "left", cursor: "pointer",
-    WebkitAppRegion: "no-drag",
+    height: 34, display: "flex", alignItems: "center", gap: 10, width: "100%",
+    padding: "0 10px", border: 0, borderRadius: 6, background: "transparent",
+    color: "#c9c9d4", fontSize: 12.5, textAlign: "left", cursor: "pointer",
+    fontFamily: "inherit", WebkitAppRegion: "no-drag",
   };
 
   return (
@@ -262,11 +267,11 @@ const RunStatusButton = () => {
         style={{
           ...stopBase,
           borderTopLeftRadius: 5, borderBottomLeftRadius: 5, borderRight: "none",
-          display: "inline-flex", alignItems: "center", gap: 5,
-          padding: "0 8px", fontWeight: 600,
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "0 11px",
         }}
       >
-        {running ? <span style={{ width: 11, height: 11, background: "currentColor", borderRadius: 1 }} /> : <Play size={12} strokeWidth={2.4} fill="currentColor" />}
+        {running ? <span style={{ width: 11, height: 11, background: "currentColor", borderRadius: 2 }} /> : <Play size={12} strokeWidth={2.4} fill="currentColor" />}
         {running ? "Stop" : "Run"}
       </button>
       <button
@@ -278,8 +283,8 @@ const RunStatusButton = () => {
         style={{
           ...stopBase,
           borderTopRightRadius: 5, borderBottomRightRadius: 5,
-          borderLeft: "1px solid rgba(255,255,255,.2)",
-          display: "inline-flex", alignItems: "center", padding: "0 6px",
+          borderLeft: "1px solid rgba(255, 255, 255, 0.18)",
+          display: "inline-flex", alignItems: "center", padding: "0 7px",
         }}
       >
         <ChevronDown size={12} strokeWidth={2} />
@@ -287,7 +292,7 @@ const RunStatusButton = () => {
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 7px)", right: 0, zIndex: "var(--z-menu)",
-          background: "#1b1b1b", border: "1px solid #343434", borderRadius: 8,
+          background: "#1b1b1b", border: "1px solid #343434", borderRadius: 6,
           boxShadow: "0 12px 35px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25)",
           minWidth: 250, maxWidth: 340, padding: 5, overflow: "hidden", display: "flex", flexDirection: "column",
         }}>
@@ -348,7 +353,7 @@ const layoutWhen = (ts) => {
   } catch { return ""; }
 };
 
-const LayoutsMenu = ({ hasProject, getSnapshot, onApply, onWorkspaces }) => {
+const LayoutsMenu = ({ hasProject, getSnapshot, onApply }) => {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [name, setName] = useState("");
@@ -461,11 +466,6 @@ const LayoutsMenu = ({ hasProject, getSnapshot, onApply, onWorkspaces }) => {
               </div>
             ))}
           </div>
-          {hasProject && (
-            <button className="tb-layouts-hub" onClick={() => { setOpen(false); onWorkspaces(); }}>
-              All workspaces →
-            </button>
-          )}
         </div>,
         document.body
       )}
@@ -2008,13 +2008,6 @@ const App = () => {
     return action;
   };
 
-  // Title bar Workspaces box → project hub (workspace list) par wapas.
-  // NOTE: plain function (hook nahi) — showOnboarding early-return ke baad
-  // hook lagana React ka "Rendered more hooks" error deta hai (blank screen).
-  const openWorkspaces = () => {
-    try { if (hasProject) window.__ibxCloseProject?.(); } catch {}
-  };
-
   // Layouts dropdown: current panel arrangement ka deep-copy snapshot.
   const getLayoutSnapshot = () => {
     try {
@@ -2066,7 +2059,7 @@ const App = () => {
       <UpdaterBanner />
       {titlebarMenuHost && createPortal(<RunStatusButton />, titlebarMenuHost)}
       {titlebarHost && createPortal(
-        <LayoutsMenu hasProject={hasProject} getSnapshot={getLayoutSnapshot} onApply={applyLayoutPreset} onWorkspaces={openWorkspaces} />,
+        <LayoutsMenu hasProject={hasProject} getSnapshot={getLayoutSnapshot} onApply={applyLayoutPreset} />,
         titlebarHost
       )}
 

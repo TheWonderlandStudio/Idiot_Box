@@ -1463,7 +1463,7 @@ const RunPanel = () => {
 
   // ── Config list ─────────────────────────────────────────────────────────
   // currentRunner har render par fresh banta hai taaki probes update hote hi
-  // sahi binary / missing-hint mile (py→python fallback समेत).
+  // gets the right binary / missing-hint (incl. py -> python fallback).
   const currentRunner = (() => {
     if (!activeFile) return null;
     const built = buildRunnerForFile(activeFile, probes);

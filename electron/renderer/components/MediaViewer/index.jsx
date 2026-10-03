@@ -1560,7 +1560,7 @@ const MediaViewer = () => {
       )}
       {editing && type === "image" && editTool === "crop" && (
         <div style={toolPanelStyle}>
-          <span style={toolLabelStyle}>Crop — image par drag karo</span>
+          <span style={toolLabelStyle}>Crop — drag on the image</span>
           {["free", "1:1", "16:9", "4:3"].map((r) => (
             <button
               key={r}
@@ -1595,7 +1595,7 @@ const MediaViewer = () => {
               {workRef.current.width}×{workRef.current.height} → {Math.max(1, Math.round(workRef.current.width * resizePct / 100))}×{Math.max(1, Math.round(workRef.current.height * resizePct / 100))}
             </span>
           )}
-          <span style={{ color: "var(--text-muted)" }}>slider ya corner handle drag karo</span>
+          <span style={{ color: "var(--text-muted)" }}>drag the slider or corner handles</span>
           <span style={{ flex: 1 }} />
           <button onClick={applyResize} disabled={!!busy} style={toolBtnPrimary}>Apply</button>
         </div>
@@ -1757,7 +1757,7 @@ const MediaViewer = () => {
               position: "absolute", inset: 0, zIndex: "var(--z-popover)",
               cursor: "none", background: "transparent",
             }}
-            title="Magic brush — background par drag karo"
+            title="Magic brush — drag on the background"
           >
             <div
               ref={brushRingRef}
@@ -1777,7 +1777,7 @@ const MediaViewer = () => {
               borderRadius: "var(--radius-md)", border: "1px solid var(--border-strong)",
               pointerEvents: "none", whiteSpace: "nowrap",
             }}>
-              Drag = magic erase • Tolerance se control karo
+              Drag = magic erase • Control with the tolerance slider
             </div>
           </div>
         )}

@@ -602,7 +602,7 @@ const AndroidEmulatorPanel = () => {
             <button onClick={() => sendInput(view.serial, { type: "key", code: 26 })} disabled={!view.serial} title="Power" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Power size={12} /></button>
             <button onClick={takeScreenshot} disabled={!view.serial} title="Take screenshot (saved to .appdata/android/downloads)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Camera size={12} /></button>
             <button onClick={() => handleStop({ name: view.avd })} title="Stop emulator" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: "var(--error-soft)" }}><Square size={12} /></button>
-            <span style={{ flex: 1, minWidth: 60, textAlign: "right", fontSize: "var(--fs-mini)", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Screen pe click karo, keyboard se type karo</span>
+            <span style={{ flex: 1, minWidth: 60, textAlign: "right", fontSize: "var(--fs-mini)", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Click the screen, type with your keyboard</span>
           </div>
           <div ref={screenBoxRef} tabIndex={0} autoFocus
             onKeyDown={onScreenKey} onPaste={onScreenPaste} onCompositionEnd={onScreenIme}

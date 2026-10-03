@@ -78,7 +78,7 @@ const CanvasPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Background</span>
         <span className="sw-row__desc">
-          Drawing canvas background: solid black, solid white, or grid. Toolbar me bhi badal sakte ho.
+          Drawing canvas background: solid black, solid white, or grid. You can also change it from the toolbar.
         </span>
         <select
           className="sw-select"

@@ -650,21 +650,6 @@ const RepoCard = ({ repo, cloning, cloningTarget, onClone }) => (
   </div>
 );
 
-// Home cards ke liye deterministic mock thumbnail (naam se hash → code lines)
-const hashStr = (s) => {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-};
-const makeMockLines = (name) => {
-  const h = hashStr(name);
-  const palette = ["#4f8cff", "#7ee787", "#ff7b72", "#d2a8ff", "#79c0ff", "#ffa657", "#8b949e"];
-  return Array.from({ length: 9 }, (_, i) => {
-    const x = (h * (i + 3) + 7) >>> 0;
-    return { w: 32 + (x % 60), c: palette[(x >> 8) % palette.length], indent: (x >> 5) % 3 };
-  });
-};
-
 const ProjectHub = () => {
   const [recentProjects, setRecentProjects] = useState([]);
   const [pinnedProjects, setPinnedProjects] = useState([]);
@@ -971,7 +956,7 @@ const ProjectHub = () => {
           const raw = acc || String(p.text || "");
           const proposal = normalizeSetupProposal(raw);
           const body = stripSetupBlock(raw);
-          const final = body || (proposal ? "Setup ready — neeche card se project create kar sakte ho." : raw.trim());
+          const final = body || (proposal ? "Setup ready — you can create the project from the card below." : raw.trim());
           const msgs = [...chatMsgsRef.current];
           if (streamed) msgs[msgs.length - 1] = { role: "assistant", content: final };
           else msgs.push({ role: "assistant", content: final });
@@ -1050,10 +1035,10 @@ const ProjectHub = () => {
           const wav = await toWav16k(new Blob(chunks, { type: "audio/webm" }));
           const text = await window.electronAPI.aiTranscribe(wav);
           if (text) setHubChatText((t) => (t ? t.trim() + " " + text : text));
-          else flashDropMsg("Voice: kuch sunayi nahi diya — mic paas leke phir try karo");
+          else flashDropMsg("Voice: nothing heard — bring the mic closer and try again");
         } catch (err) {
           console.error("voice transcribe failed", err);
-          flashDropMsg("Voice input fail ho gaya");
+          flashDropMsg("Voice input failed");
         } finally {
           setVoiceBusy(false);
         }
@@ -1063,7 +1048,7 @@ const ProjectHub = () => {
       setVoiceRec(true);
     } catch (err) {
       console.error("mic error", err);
-      flashDropMsg("Mic access nahi mila");
+      flashDropMsg("Mic access not available");
     }
   };
   // Hub ka composer → cards hide, wahi jagah chat on (input composer hi rahe)
@@ -1239,18 +1224,18 @@ const ProjectHub = () => {
   const pickWallpaper = useCallback(async () => {
     try {
       if (typeof window.electronAPI?.openImage !== "function") {
-        flashDropMsg("App restart karo — wallpaper picker ke liye naya version chahiye");
+        flashDropMsg("Restart the app — the wallpaper picker needs the new version");
         return;
       }
       const p = await window.electronAPI.openImage();
       if (!p) return;
       if (typeof window.electronAPI?.readFileAsDataUrl !== "function") {
-        flashDropMsg("App restart karo — wallpaper picker ke liye naya version chahiye");
+        flashDropMsg("Restart the app — the wallpaper picker needs the new version");
         return;
       }
       const url = await window.electronAPI.readFileAsDataUrl(p);
       if (!url) {
-        flashDropMsg("Ye image khul nahi payi — doosri try karo (png/jpg, 10MB tak)");
+        flashDropMsg("Couldn't open this image — try another one (png/jpg, up to 10MB)");
         return;
       }
       applyWallpaper(p, url);
@@ -1392,7 +1377,7 @@ const ProjectHub = () => {
         flashDropMsg(`Open fail: ${opened.error || "unknown"}`);
         return;
       }
-      flashDropMsg(`Imported: ${String(dirs[0]).split(/[\\/]/).pop() || dirs[0]}${dirs.length > 1 ? ` +${dirs.length - 1} recents me` : ""}`);
+      flashDropMsg(`Imported: ${String(dirs[0]).split(/[\\/]/).pop() || dirs[0]}${dirs.length > 1 ? ` +${dirs.length - 1} added to recents` : ""}`);
     } catch {}
   }, []);
 
@@ -2392,16 +2377,21 @@ const ProjectHub = () => {
       )}
 
       <div className={`phub__sidebar${sidebarCollapsed ? " phub__sidebar--collapsed" : ""}`}>
+        <div className="phub__sidebar-head">
+          <span className="phub__sidebar-brand">Idiot Box</span>
+        </div>
         <div className="phub__sidebar-label">Start</div>
         <button
           className={`phub__sidebar-btn phub__sidebar-btn--primary${showNewProjectDialog ? " phub__sidebar-btn--active" : ""}`}
           onClick={() => { setHomeOverlay(null); setShowNewProjectDialog(true); setShowCloneDialog(false); setShowFrameworks(false); }}
+          title="Create Project"
         >
           <Plus size={14} /> Create Project
         </button>
         <button
           className={`phub__sidebar-btn${showCloneDialog ? " phub__sidebar-btn--active" : ""}`}
           onClick={() => { setHomeOverlay(null); setShowCloneDialog(true); setShowNewProjectDialog(false); setShowFrameworks(false); }}
+          title="Clone Repo"
         >
           <span className="phub__sidebar-ico"><CloudDownload size={14} /></span> Clone Repo
         </button>
@@ -2444,12 +2434,12 @@ const ProjectHub = () => {
             onClick={() => setSidebarCollapsed((v) => !v)}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
           </button>
         </div>
       </div>
 
-      <div className={`phub__center${showNewProjectDialog || showCloneDialog || showFrameworks || homeOverlay ? " phub__center--modal" : ""}`}>
+      <div className={`phub__center${showNewProjectDialog || showCloneDialog || showFrameworks || homeOverlay ? " phub__center--modal" : ""}${sidebarCollapsed ? " phub__center--collapsed" : ""}`}>
         {(showNewProjectDialog || showCloneDialog || showFrameworks || homeOverlay) && (
           <div className="phub__modal-veil" onClick={closeCenterViews} />
         )}
@@ -2543,7 +2533,7 @@ const ProjectHub = () => {
                       >
                         <LayoutPreviewSvg kind="blank" />
                         <span className="phub__layout-opt-title">Blank workspace</span>
-                        <span className="phub__layout-opt-desc">Sirf blank panel — panels apne hisaab se kholein</span>
+                        <span className="phub__layout-opt-desc">Just a blank panel — open the panels you need</span>
                       </button>
                     </div>
                   </div>
@@ -3217,7 +3207,6 @@ const ProjectHub = () => {
               {recentProjects.slice(0, 6).map((entry) => {
                 const path = entry.path;
                 const name = path.split(/[\\/]/).pop() || path;
-                const lines = makeMockLines(name);
                 return (
                   <div
                     key={path}
@@ -3233,25 +3222,8 @@ const ProjectHub = () => {
                       }
                     }}
                   >
-                    <div className="phub__card-thumb" style={{ "--h": hashStr(name) % 360 }}>
-                      <div className="phub__card-mock">
-                        <div className="phub__card-mockbar">
-                          <i /><i /><i />
-                          <span className="phub__card-mocktab">{name}</span>
-                        </div>
-                        <div className="phub__card-mockbody">
-                          <div className="phub__card-mockrail"><i /><i /><i /><i /></div>
-                          <div className="phub__card-mockcode">
-                            {lines.map((ln, li) => (
-                              <span
-                                key={li}
-                                className="phub__card-line"
-                                style={{ width: `${ln.w}%`, background: ln.c, marginLeft: ln.indent * 9 }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                    <div className="phub__card-thumb">
+                      <span className="phub__card-thumbico">{getProjectIcon(path)}</span>
                     </div>
                     <div className="phub__card-foot">
                       <span className="phub__card-ico">{getProjectIcon(path)}</span>
@@ -3278,7 +3250,7 @@ const ProjectHub = () => {
             </div>
             {recentProjects.length === 0 && (
               <div className="phub__home-empty">
-                <p>Koi project nahi — pehla project banao</p>
+                <p>No projects yet — create your first project</p>
                 <div className="phub__home-emptybtns">
                   <button className="phub__home-emptybtn phub__home-emptybtn--primary" onClick={() => setShowNewProjectDialog(true)}>
                     <Plus size={14} /> Create Project

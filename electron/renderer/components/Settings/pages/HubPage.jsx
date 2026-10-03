@@ -137,7 +137,7 @@ const HubPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Contribution Heatmap</span>
         <span className="sw-row__desc">
-          Project Hub me GitHub contribution graph dikhao.
+          Show the GitHub contribution graph in the Project Hub.
         </span>
         <label className="sw-toggle-row">
           <span className="sw-toggle-label">{showHeatmap ? "Visible" : "Hidden"}</span>
@@ -239,7 +239,7 @@ const HubPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Recent Projects</span>
         <span className="sw-row__desc">
-          {recentCount === null ? "Hub ki recent list." : `${recentCount} project(s) in recent list.`}
+          {recentCount === null ? "The Hub's recent list." : `${recentCount} project(s) in recent list.`}
         </span>
         <button
           className="sw-btn sw-btn--danger"
@@ -255,8 +255,8 @@ const HubPage = ({ settings, onSave }) => {
         <span className="sw-row__label">Main Storage Folder</span>
         <span className="sw-row__desc">
           {storedCount === null
-            ? "Saare projects ka app data (userData/projects)."
-            : `${storedCount} project(s) ka data stored hai.`}
+            ? "App data for all projects (userData/projects)."
+            : `${storedCount} project(s) of app data stored.`}
         </span>
         <div className="sw-inline-row">
           <button className="sw-btn" onClick={revealStorage}>Open Folder</button>

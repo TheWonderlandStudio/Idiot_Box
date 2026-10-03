@@ -21,10 +21,10 @@ import { Layers, Sparkles, FolderPlus } from "lucide-react";
 
 // Quick starters — pehla message yahin se bhej do, AI setup convo khud chalata hai.
 const STARTERS = [
-  { label: "Telegram bot banao", text: "Mujhe ek Telegram bot banani hai — kya setup chahiye?" },
-  { label: "React dashboard", text: "React dashboard wala web app banana hai, sahi setup batao." },
-  { label: "Discord bot (Python)", text: "Discord bot Python me banani hai, setup batao." },
-  { label: "CLI tool", text: "Mera pehla CLI tool banana hai — kaise shuru karein?" },
+  { label: "Build a Telegram bot", text: "I want to build a Telegram bot — what setup do I need?" },
+  { label: "React dashboard", text: "I want to build a React dashboard web app, tell me the right setup." },
+  { label: "Discord bot (Python)", text: "I want to build a Discord bot in Python, tell me the setup." },
+  { label: "CLI tool", text: "I want to build my first CLI tool — how do I start?" },
 ];
 
 // ── AI setup proposal card (AI Elements ke neeche, same shadow styles) ─────
@@ -86,7 +86,7 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
               <ConversationEmptyState
                 icon={<Layers className="size-10" />}
                 title="Project setup assistant"
-                description="Batao kya banana hai — AI framework aur panels select karke setup dega."
+                description="Tell us what you want to build — the AI picks the framework and panels for the setup."
               />
               <Suggestions className="mx-auto w-fit max-w-full">
                 {STARTERS.map((s) => (
@@ -112,7 +112,7 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
           {busy && !streamingLive && (
             <Message from="assistant" key="__busy">
               <MessageContent>
-                <Shimmer className="text-sm">Soch raha hoon…</Shimmer>
+                <Shimmer className="text-sm">Thinking…</Shimmer>
               </MessageContent>
             </Message>
           )}
@@ -123,7 +123,7 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
       <div className="ss-composer">
         <PromptInput onSubmit={(msg) => send(msg && msg.text)}>
           <PromptInputTextarea
-            placeholder="Bolo kya banana hai… (Enter bhejo, Shift+Enter nayi line)"
+            placeholder="Say what you want to build… (Enter to send, Shift+Enter for a new line)"
             rows={3}
             disabled={busy}
           />

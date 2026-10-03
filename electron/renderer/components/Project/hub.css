@@ -1745,18 +1745,46 @@
   bottom: 0;
   width: 200px;
   max-width: 200px;
-  background: var(--bg-surface);
-  border-right: none;
+  background: linear-gradient(180deg, #1d1d21 0%, #18181b 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.055);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 10;
-  padding: var(--space-12) 0;
+  padding: 10px 0 12px;
   box-sizing: border-box;
   min-width: 0;
   transition: width 0.25s ease, max-width 0.25s ease, opacity 0.2s ease, border-color 0.25s ease;
 }
+.phub__sidebar::-webkit-scrollbar { width: 6px; }
+.phub__sidebar::-webkit-scrollbar-track { background: transparent; }
+.phub__sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 99px; }
+.phub__sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* Head — brand text (collapse toggle sidebar ke bottom par) */
+.phub__sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 12px 10px 12px;
+  margin-bottom: 2px;
+}
+.phub__sidebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #e8e8f0;
+  font-size: 12.5px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.phub__sidebar-brand svg { color: #ff9d4d; flex-shrink: 0; }
+
 /* Collapsed icon-rail — sidebar gayab nahi hota, sirf icons dikhte hain */
 .phub__sidebar--collapsed {
   width: 52px;
@@ -1764,8 +1792,13 @@
 }
 .phub__sidebar--collapsed .phub__sidebar-label,
 .phub__sidebar--collapsed .phub__sidebar-divider,
-.phub__sidebar--collapsed .phub__sidebar-username {
+.phub__sidebar--collapsed .phub__sidebar-username,
+.phub__sidebar--collapsed .phub__sidebar-brand {
   display: none;
+}
+.phub__sidebar--collapsed .phub__sidebar-head {
+  justify-content: center;
+  padding: 2px 0 10px;
 }
 .phub__sidebar--collapsed .phub__sidebar-btn {
   margin-left: var(--space-8);
@@ -1786,17 +1819,17 @@
   padding-right: 0;
 }
 .phub__sidebar-btn {
-  width: calc(100% - var(--space-20));
-  max-width: calc(100% - var(--space-20));
-  margin: 2px var(--space-10);
-  padding: 7px var(--space-10);
+  width: calc(100% - var(--space-16));
+  max-width: calc(100% - var(--space-16));
+  margin: 3px var(--space-8);
+  padding: 7px var(--space-8);
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: 9px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--text-label);
+  border-radius: 9px;
+  color: #a6a6b2;
   font-family: var(--font-ui);
   font-size: 12.5px;
   font-weight: var(--fw-medium);
@@ -1806,92 +1839,106 @@
   text-overflow: ellipsis;
   box-sizing: border-box;
   min-width: 0;
-  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal);
+  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal), transform var(--t-normal);
 }
 .phub__sidebar-btn:hover {
-  background: var(--bg-subtle);
-  color: var(--text-hover);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.07);
+  color: #f0f0f5;
 }
 .phub__sidebar-btn:active {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.09);
+  transform: translateY(1px);
 }
 .phub__sidebar-ico {
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  background: var(--bg-vscode);
-  border: 1px solid var(--border);
-  color: var(--icon-muted);
-  transition: color var(--t-normal), border-color var(--t-normal);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #9a9aa8;
+  transition: color var(--t-normal), border-color var(--t-normal), background var(--t-normal);
 }
 .phub__sidebar-btn:hover .phub__sidebar-ico {
-  color: var(--text-hover);
-  border-color: var(--accent);
+  color: #f2f2f7;
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
 }
 /* Primary CTA */
 .phub__sidebar-btn--primary {
-  background: var(--editor-blue);
-  border-color: var(--accent-border);
-  color: var(--text-inverse);
+  background: linear-gradient(180deg, #3d7dfb, #2f63d8);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(47, 99, 216, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 .phub__sidebar-btn--primary:hover {
-  background: var(--editor-blue-hover);
-  border-color: var(--accent-light);
-  color: var(--text-inverse);
+  background: linear-gradient(180deg, #4a88ff, #3568e0);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
 }
 /* Active panel */
 .phub__sidebar-btn--active {
-  background: var(--bg-active);
-  border-color: var(--accent);
-  color: var(--text-hover);
+  background: rgba(96, 140, 255, 0.14);
+  border-color: rgba(120, 156, 255, 0.4);
+  color: #eef2ff;
 }
 .phub__sidebar-btn--active .phub__sidebar-ico {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: #8fb2ff;
+  border-color: rgba(120, 156, 255, 0.5);
+  background: rgba(96, 140, 255, 0.12);
 }
 /* Section labels */
 .phub__sidebar-label {
-  margin: 8px var(--space-10) 4px;
-  padding: 0 var(--space-10);
-  font-size: var(--fs-tiny);
+  margin: 10px var(--space-10) 5px;
+  padding: 0 var(--space-8);
+  font-size: 10px;
   font-weight: var(--fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-placeholder);
+  letter-spacing: 0.1em;
+  color: #6b6b78;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .phub__sidebar-label--gap {
-  margin-top: var(--space-12);
-}
-/* Bottom user row — avatar + username + icon-size hide button */
-.phub__sidebar-user {
-  margin-top: auto;
-  margin-bottom: var(--space-10);
+  margin-top: 14px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   margin-left: var(--space-10);
   margin-right: var(--space-10);
-  padding: 6px 6px 6px var(--space-8);
+  padding-left: var(--space-8);
+  padding-right: var(--space-8);
+}
+/* Bottom user row — avatar + username (hairline divider upar) */
+.phub__sidebar-user {
+  margin-top: auto;
+  margin-bottom: var(--space-6);
+  margin-left: var(--space-8);
+  margin-right: var(--space-8);
+  padding: 9px var(--space-8) 5px;
   display: flex;
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
-  border-radius: var(--radius-md);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
   flex-shrink: 0;
 }
 .phub__sidebar-user:hover {
-  background: var(--bg-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 9px;
 }
 .phub__sidebar-avatar {
   width: 26px;
   height: 26px;
   border-radius: var(--radius-round);
   object-fit: cover;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04);
   flex-shrink: 0;
 }
 .phub__sidebar-avatar--fallback {
@@ -1915,26 +1962,31 @@
   color: var(--text-placeholder);
   font-weight: var(--fw-normal);
 }
-/* Icon jitna hide button */
+/* Collapse toggle — user row ke right side me (profile name ke baaju) */
 .phub__sidebar-hidebtn {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin-left: auto;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--icon-muted);
+  border-radius: 7px;
+  color: #7e7e8c;
   cursor: pointer;
   transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal);
 }
+.phub__sidebar--collapsed .phub__sidebar-hidebtn {
+  align-self: center;
+  margin: var(--space-4) 0 0;
+}
 .phub__sidebar-hidebtn:hover {
-  background: var(--bg-vscode);
-  border-color: var(--accent);
-  color: var(--text-hover);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ececf1;
 }
 .phub__sidebar-section {
   margin-top: var(--space-12);
@@ -2393,10 +2445,12 @@
 .phub--wallpaper .phub__panel-footer {
   background: color-mix(in srgb, var(--wall-tint, transparent) 6%, color-mix(in srgb, var(--bg-surface) var(--wall-opacity, 94%), transparent));
 }
-/* Sidebar + center par wallpaper ke rang ka halka tint */
+/* Sidebar — wallpaper par dark glass (tint halka, blur ke saath) */
 .phub--wallpaper .phub__sidebar {
-  background: color-mix(in srgb, var(--wall-tint, var(--bg-surface)) 28%, var(--bg-surface));
-  border-right-color: color-mix(in srgb, var(--wall-tint, var(--border)) 35%, var(--border));
+  background: color-mix(in srgb, var(--wall-tint, #0e0e12) 9%, rgba(14, 14, 17, 0.74));
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  border-right-color: rgba(255, 255, 255, 0.08);
 }
 .phub--wallpaper .phub__center {
   background: color-mix(in srgb, var(--wall-tint, transparent) 10%, transparent);
@@ -3060,79 +3114,25 @@
 }
 .phub__card-thumb {
   position: relative;
-  height: 152px;
-  background: linear-gradient(150deg, hsl(var(--h, 220) 24% 13%), #0e0e11 78%);
-}
-.phub__card-mock {
-  position: absolute;
-  inset: 0;
-  padding: 12px 14px 0;
-}
-.phub__card-mockbar {
-  height: 16px;
+  height: 140px;
+  background: radial-gradient(130% 100% at 50% 0%, #23232c 0%, #131317 55%, #0e0e11 100%);
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 7px;
-  background: #17171b;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: none;
-  border-radius: 7px 7px 0 0;
+  justify-content: center;
 }
-.phub__card-mockbar i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #3c3c44;
-  flex-shrink: 0;
-}
-.phub__card-mocktab {
-  margin-left: 8px;
-  font-size: 8.5px;
-  color: #63636c;
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.phub__card-mockbody {
-  display: flex;
-  height: calc(100% - 16px);
-  background: #0f0f12;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-top: none;
-  border-radius: 0 0 7px 7px;
-  overflow: hidden;
-}
-.phub__card-mockrail {
-  width: 30px;
-  flex-shrink: 0;
-  background: #131317;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-  display: flex;
-  flex-direction: column;
+.phub__card-thumbico {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding-top: 9px;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 15px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-.phub__card-mockrail i {
-  width: 12px;
-  height: 3px;
-  border-radius: 2px;
-  background: #2e2e36;
-}
-.phub__card-mockcode {
-  flex: 1;
-  min-width: 0;
-  padding: 11px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.phub__card-line {
-  height: 5px;
-  border-radius: 3px;
-  flex-shrink: 0;
+.phub__card-thumbico > * {
+  transform: scale(2);
 }
 .phub__card-foot {
   display: flex;
@@ -3451,7 +3451,8 @@
 /* ── Chat in home — cards ki jagah message list (input = bottom composer) ── */
 .phub__home-chat {
   position: relative;
-  width: min(700px, calc(100% - 40px));
+  /* width = composer (min 840px) ke barabar rahe */
+  width: min(840px, 100%);
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -3597,6 +3598,7 @@
   .phub__card { width: min(264px, calc(50vw - 28px)); }
   .phub__home { padding-top: 56px; }
   .phub__composer { width: calc(100% - 24px); bottom: 14px; left: 50%; }
+  .phub__home-chat { width: min(840px, calc(100% - 24px)); }
   .phub__center, .phub__center--collapsed { left: 0; }
   .phub__glow { left: 0; }
   .phub__path-bar, .phub__path-bar--collapsed { margin-left: 0; width: 100%; max-width: 100%; }

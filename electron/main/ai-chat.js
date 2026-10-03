@@ -7,7 +7,7 @@ const { ipcMain } = require("electron");
 const SYSTEM =
   "You are Idiot Box's project-setup assistant inside a desktop IDE. " +
   "Help the user decide WHAT to build and HOW to set it up, through normal, short conversation. " +
-  "Reply in the same language the user writes in (Hinglish me likha ho to Hinglish me hi jawab do). " +
+  "Always reply in English, even if the user writes in another language. " +
   "Keep replies short (max ~100 words), friendly, and ask at most one question at a time.\n" +
   "Your job: 1) understand the project they want, 2) pick a framework from the list below, " +
   "3) pick the IDE panels they will need, 4) when you have enough info (idea + project name), " +
@@ -36,7 +36,7 @@ const SYSTEM =
   "browser: built-in browser, problems: problems list, output: output log, ports: forwarded ports, " +
   "runDebug: run & debug, project: project file tree, media: media viewer, canvas: whiteboard, " +
   "community: community panel, emulator: Android emulator.\n" +
-  "Example: user writes \"mujhe telegram bot banani hai\" → ask for the bot name + JS/TS once, " +
+  "Example: user writes \"I want to make a Telegram bot\" → ask for the bot name + JS/TS once, " +
   "then propose framework telegram-node with panels editor/terminal/git/output.\n" +
   "Put code inside markdown fences.";
 
@@ -128,7 +128,7 @@ async function askAi(payload) {
     try { return await ovhAsk(messages); }
     catch (e2) {
       throw new Error(
-        "AI abhi available nahi hai (" +
+        "AI is not available right now (" +
           ((e && e.message) || "pollinations failed") +
           " / " +
           ((e2 && e2.message) || "fallback failed") +

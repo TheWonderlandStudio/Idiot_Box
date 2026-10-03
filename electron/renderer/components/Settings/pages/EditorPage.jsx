@@ -109,7 +109,7 @@ const EditorPage = ({ settings, onSave }) => {
       {/* ── Font Family ── */}
       <div className="sw-row">
         <span className="sw-row__label">Font Family</span>
-        <span className="sw-row__desc">Editor font. Missing font par monospace fallback lagta hai.</span>
+        <span className="sw-row__desc">Editor font. Falls back to monospace if the font is missing.</span>
         <select
           className="sw-select"
           value={fontFamily}
@@ -125,7 +125,7 @@ const EditorPage = ({ settings, onSave }) => {
       {/* ── Font Size ── */}
       <div className="sw-row">
         <span className="sw-row__label">Font Size</span>
-        <span className="sw-row__desc">Pixels me. Range 8–32.</span>
+        <span className="sw-row__desc">In pixels. Range 8–32.</span>
         <div className="sw-inline-row">
           <input
             type="range"
@@ -173,7 +173,7 @@ const EditorPage = ({ settings, onSave }) => {
       </div>
       <div className="sw-row">
         <span className="sw-row__label">Indent Unit</span>
-        <span className="sw-row__desc">Nayi indent me kya insert ho.</span>
+        <span className="sw-row__desc">What to insert for a new indent.</span>
         <select
           className="sw-select"
           value={indentUnit}
@@ -189,7 +189,7 @@ const EditorPage = ({ settings, onSave }) => {
       {/* ── Auto Save ── */}
       <div className="sw-row">
         <span className="sw-row__label">Auto Save</span>
-        <span className="sw-row__desc">Rukne par thodi der me auto-save. Band ho to Ctrl+S dabao.</span>
+        <span className="sw-row__desc">Auto-saves after a short pause. If it is off, press Ctrl+S.</span>
         <label className="sw-toggle-row">
           <span className="sw-toggle-label">{autoSave ? "Enabled" : "Disabled"}</span>
           <button
