@@ -46,7 +46,7 @@
   display: block;
 }
 .smart-cursor path {
-  fill: #000000;
+  fill: #ffffff;
   transition: fill 180ms ease;
 }
 
@@ -1784,6 +1784,10 @@
   margin-right: var(--space-8);
   padding-left: 0;
   padding-right: 0;
+  cursor: pointer;
+}
+.phub__sidebar--collapsed .phub__sidebar-user:hover .phub__sidebar-avatar {
+  border-color: var(--accent);
 }
 .phub__sidebar-btn {
   width: calc(100% - var(--space-20));
@@ -2735,15 +2739,67 @@
   font-size: var(--fs-small);
   line-height: 1.5;
   /* text ke chaaro taraf margin — corner se chipka na ho;
-     send button ke liye right me jagah */
-  padding: 12px 44px 12px 14px;
+     history and send buttons ke liye right me jagah */
+  padding: 12px 72px 12px 14px;
   outline: none;
 }
 .phub__chat-input:focus {
   border-color: var(--accent);
 }
-.phub__chat-input::placeholder {
+.phub__chat-input:placeholder {
   color: var(--text-placeholder);
+}
+.phub__chat-expand {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--icon);
+  cursor: pointer;
+  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal), transform var(--t-normal);
+  z-index: 2;
+}
+.phub__chat-expand:hover {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.06);
+}
+.phub__chat-expand:active {
+  transform: scale(0.96);
+}
+.phub__chat-history-btn {
+  position: absolute;
+  right: 38px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--icon);
+  cursor: pointer;
+  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal);
+}
+.phub__chat-history-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.phub__chat-history-btn:active {
+  transform: translateY(1px);
 }
 .phub__chat-send {
   position: absolute;
@@ -2834,9 +2890,9 @@
 .phub__chatfs {
   position: fixed;
   left: 0;
-  top: 0;
+  top: 30px;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 30px);
   z-index: var(--z-popup);
   background: transparent;
   display: flex;
@@ -2855,22 +2911,333 @@
 .phub--chatfs-open .phub__center,
 .phub--chatfs-open .phub__path-bar,
 .phub--chatfs-open .phub__wallwrap { visibility: hidden; }
-/* AI Elements chat body — shadow DOM host (styles andar ai-tw-css.js se).
-   Narrow centered column — peeche ka Hub UI overlay hi dhak deta hai. */
-.phub__chatfs-body {
-  width: min(680px, 100%);
-  flex: 1;
-  min-height: 0;
-  position: relative;
+
+/* AI Chat Window Frame — Glassmorphic container with left history sidebar + main conversation */
+.phub__chatfs-window {
+  width: min(1060px, calc(100vw - 32px));
+  height: 100%;
+  max-height: calc(100% - 10px);
+  display: flex;
+  background: rgba(12, 13, 16, 0.84);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
   overflow: hidden;
+  position: relative;
+}
+
+/* Sidebar on the left */
+.phub__chatfs-sidebar {
+  width: 250px;
+  min-width: 250px;
+  height: 100%;
+  background: rgba(8, 9, 12, 0.65);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
-  background: rgba(10, 10, 12, 0.62);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 14px;
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.38);
+  transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+  flex-shrink: 0;
 }
+
+.phub__chatfs-sidebar--collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  border-right: none !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Sidebar header */
+.phub__chatfs-side-head {
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.phub__chatfs-side-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.phub__chatfs-side-title {
+  font-size: 11px;
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-placeholder);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.phub__chatfs-iconbtn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--icon);
+  cursor: pointer;
+  transition: background var(--t-normal), color var(--t-normal);
+}
+
+.phub__chatfs-iconbtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+}
+
+.phub__chatfs-newbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  color: var(--text-bright);
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--t-normal), border-color var(--t-normal), transform var(--t-fast);
+}
+
+.phub__chatfs-newbtn:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.phub__chatfs-newbtn:active {
+  transform: scale(0.98);
+}
+
+/* History list */
+.phub__chatfs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+}
+
+.phub__chatfs-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal);
+  position: relative;
+}
+
+.phub__chatfs-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-bright);
+}
+
+.phub__chatfs-item--active {
+  background: rgba(255, 255, 255, 0.09) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: var(--text-bright) !important;
+}
+
+.phub__chatfs-item-icon {
+  flex-shrink: 0;
+  color: var(--icon);
+}
+
+.phub__chatfs-item--active .phub__chatfs-item-icon {
+  color: var(--accent);
+}
+
+.phub__chatfs-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.phub__chatfs-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 450;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.phub__chatfs-item-time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.phub__chatfs-item-del {
+  opacity: 0;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--icon-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast);
+  flex-shrink: 0;
+}
+
+.phub__chatfs-item:hover .phub__chatfs-item-del {
+  opacity: 0.7;
+}
+
+.phub__chatfs-item-del:hover {
+  opacity: 1 !important;
+  color: var(--danger) !important;
+  background: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Empty history list state */
+.phub__chatfs-empty-list {
+  padding: 36px 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Sidebar footer */
+.phub__chatfs-side-foot {
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.phub__chatfs-clearbtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: color var(--t-normal), background var(--t-normal);
+}
+
+.phub__chatfs-clearbtn:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Main chat area */
+.phub__chatfs-main {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: transparent;
+}
+
+/* Top bar in main area */
+.phub__chatfs-topbar {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.phub__chatfs-topbar-left,
+.phub__chatfs-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.phub__chatfs-topbar-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--icon);
+  cursor: pointer;
+  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal);
+}
+
+.phub__chatfs-topbar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.phub__chatfs-topbar-title {
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 380px;
+}
+
+/* The chatfs-body inside the main area */
+.phub__chatfs-body {
+  width: 100%;
+  max-width: 100%;
+  flex: 1;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
 /* Chat overlay on hai to mini chat peeche confusion kare — band rakho */
 .phub--chatfs-open .phub__chat { visibility: hidden; }

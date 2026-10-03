@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Maximize2 } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import AiSetupChat from "./AiSetupChat.jsx";
 import { playClick, setClickEnabled } from "../shared/clickSound.js";
@@ -183,6 +183,30 @@ const normalizeSetupProposal = (raw) => {
 };
 const stripSetupBlock = (raw) =>
   String(raw || "").replace(/```setup\b[\s\S]*?```/g, "").replace(/\n{3,}/g, "\n\n").trim();
+
+const formatChatDate = (timestamp) => {
+  if (!timestamp) return "";
+  try {
+    const d = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) {
+      return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) {
+      return "Yesterday";
+    }
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
+};
 
 const buildFullPath = (name, loc) => {
   if (!name) return "";
@@ -872,6 +896,18 @@ const ProjectHub = () => {
   const [hubChatText, setHubChatText] = useState("");
   // ── Full-screen AI chat (Hub chat send karte hi Hub gayab → ye khulta hai) ─
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatSessions, setChatSessions] = useState(() => {
+    try {
+      const raw = localStorage.getItem("ibx:ai_chat_sessions");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeChatId, setActiveChatId] = useState(null);
+  const activeChatIdRef = useRef(null);
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
+
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatBusy, setChatBusy] = useState(false);
   const [chatFsTop, setChatFsTop] = useState("30px");
@@ -883,11 +919,110 @@ const ProjectHub = () => {
     chatMsgsRef.current = [...chatMsgsRef.current, msg];
     setChatMsgs(chatMsgsRef.current);
   };
+
+  const startNewChat = useCallback(() => {
+    const newId = "chat_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+    activeChatIdRef.current = newId;
+    setActiveChatId(newId);
+    setChatMsgs([]);
+    chatMsgsRef.current = [];
+    setChatProposal(null);
+  }, []);
+
+  const selectChat = useCallback((id) => {
+    const session = chatSessions.find((s) => s.id === id);
+    if (!session) return;
+    activeChatIdRef.current = session.id;
+    setActiveChatId(session.id);
+    const msgs = session.messages || [];
+    setChatMsgs(msgs);
+    chatMsgsRef.current = msgs;
+    setChatProposal(session.proposal || null);
+  }, [chatSessions]);
+
+  const deleteChat = useCallback((id, e) => {
+    e?.stopPropagation?.();
+    setChatSessions((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      try { localStorage.setItem("ibx:ai_chat_sessions", JSON.stringify(next)); } catch {}
+      if (activeChatIdRef.current === id) {
+        if (next.length > 0) {
+          const nextActive = next[0];
+          activeChatIdRef.current = nextActive.id;
+          setActiveChatId(nextActive.id);
+          const msgs = nextActive.messages || [];
+          setChatMsgs(msgs);
+          chatMsgsRef.current = msgs;
+          setChatProposal(nextActive.proposal || null);
+        } else {
+          startNewChat();
+        }
+      }
+      return next;
+    });
+  }, [startNewChat]);
+
+  const clearAllChats = useCallback(() => {
+    try { localStorage.removeItem("ibx:ai_chat_sessions"); } catch {}
+    setChatSessions([]);
+    startNewChat();
+  }, [startNewChat]);
+
+  const openChatOverlay = useCallback((sessionId) => {
+    try {
+      const tb = document.querySelector(".cet-titlebar");
+      setChatFsTop((tb && tb.offsetHeight ? tb.offsetHeight : 30) + "px");
+    } catch { setChatFsTop("30px"); }
+    if (sessionId) {
+      selectChat(sessionId);
+    } else if (!activeChatIdRef.current) {
+      if (chatSessions.length > 0) {
+        selectChat(chatSessions[0].id);
+      } else {
+        startNewChat();
+      }
+    }
+    setChatOpen(true);
+  }, [chatSessions, selectChat, startNewChat]);
+
   // AI call — user message append → streaming reply LIVE dikhta hai (chunks
   // aate jate hain); ```setup fence sirf final hone par proposal card me jaati.
   const askAiReply = async (text) => {
+    let currentId = activeChatIdRef.current;
+    if (!currentId) {
+      currentId = "chat_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+      activeChatIdRef.current = currentId;
+      setActiveChatId(currentId);
+    }
     pushChatMsg({ role: "user", content: text });
     setChatBusy(true);
+
+    const updateSessionStorage = (msgs, proposal) => {
+      setChatSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === currentId);
+        const title = (prev[idx]?.title) || (text.trim().slice(0, 32) || "New chat");
+        const updated = {
+          id: currentId,
+          title,
+          messages: msgs,
+          proposal: proposal !== undefined ? proposal : (prev[idx]?.proposal || null),
+          updatedAt: Date.now(),
+        };
+        let next;
+        if (idx >= 0) {
+          next = [...prev];
+          next[idx] = updated;
+        } else {
+          next = [updated, ...prev];
+        }
+        next.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        try { localStorage.setItem("ibx:ai_chat_sessions", JSON.stringify(next)); } catch {}
+        return next;
+      });
+    };
+
+    updateSessionStorage([...chatMsgsRef.current]);
+
     const id = "c" + Date.now() + Math.random().toString(36).slice(2, 6);
     let acc = "";
     let streamed = false;
@@ -927,6 +1062,7 @@ const ProjectHub = () => {
           chatMsgsRef.current = msgs;
           setChatMsgs(msgs);
           if (proposal) setChatProposal(proposal);
+          updateSessionStorage(msgs, proposal);
           finish();
         } else if (type === "error") {
           // Electron IPC prefix hata do — user ko sirf asli error dikhao
@@ -936,6 +1072,7 @@ const ProjectHub = () => {
           msgs.push({ role: "assistant", content: "⚠ " + msg });
           chatMsgsRef.current = msgs;
           setChatMsgs(msgs);
+          updateSessionStorage(msgs);
           finish();
         }
       });
@@ -951,9 +1088,26 @@ const ProjectHub = () => {
       const tb = document.querySelector(".cet-titlebar");
       setChatFsTop((tb && tb.offsetHeight ? tb.offsetHeight : 30) + "px");
     } catch { setChatFsTop("30px"); }
+    startNewChat();
     setChatOpen(true);
     await askAiReply(text);
   };
+  // Expand AI chat without having to type or send a message
+  const handleExpandChat = useCallback(() => {
+    try {
+      const tb = document.querySelector(".cet-titlebar");
+      setChatFsTop((tb && tb.offsetHeight ? tb.offsetHeight : 30) + "px");
+    } catch { setChatFsTop("30px"); }
+    const text = hubChatText.trim();
+    if (text) {
+      setHubChatText("");
+      startNewChat();
+      setChatOpen(true);
+      askAiReply(text);
+    } else {
+      openChatOverlay();
+    }
+  }, [hubChatText, startNewChat, openChatOverlay]);
   // Full-screen chat (AI Elements) se bhejna
   const sendFsMessage = async (text) => {
     if (!text || chatBusy) return;
@@ -961,9 +1115,7 @@ const ProjectHub = () => {
   };
   // Naya chat (history + proposal saaf)
   const resetFsChat = () => {
-    chatMsgsRef.current = [];
-    setChatMsgs([]);
-    setChatProposal(null);
+    startNewChat();
   };
   // Esc → full-screen chat band, Hub wapas
   useEffect(() => {
@@ -2219,17 +2371,133 @@ const ProjectHub = () => {
       {chatOpen && (
         <div
           className="phub__chatfs"
-          style={{ paddingTop: `calc(${chatFsTop} + 8px)` }}
+          style={{ top: chatFsTop, height: `calc(100% - ${chatFsTop})` }}
           onClick={(e) => { if (e.target === e.currentTarget) setChatOpen(false); }}
         >
-          <AiSetupChat
-            messages={chatMsgs}
-            busy={chatBusy}
-            onSend={sendFsMessage}
-            proposal={chatProposal}
-            onCreate={handleAiCreate}
-            onDismiss={() => setChatProposal(null)}
-          />
+          <div className="phub__chatfs-window" onClick={(e) => e.stopPropagation()}>
+            {/* Left Sidebar - Chat History */}
+            <div className={`phub__chatfs-sidebar${!chatSidebarOpen ? " phub__chatfs-sidebar--collapsed" : ""}`}>
+              <div className="phub__chatfs-side-head">
+                <div className="phub__chatfs-side-title-row">
+                  <span className="phub__chatfs-side-title">
+                    <MessageSquare size={13} />
+                    <span>Chat History</span>
+                  </span>
+                  <button
+                    className="phub__chatfs-iconbtn"
+                    onClick={() => setChatSidebarOpen(false)}
+                    title="Collapse sidebar"
+                    aria-label="Collapse sidebar"
+                  >
+                    <PanelLeftClose size={14} />
+                  </button>
+                </div>
+                <button
+                  className="phub__chatfs-newbtn"
+                  onClick={startNewChat}
+                  title="New chat"
+                >
+                  <Plus size={14} />
+                  <span>New chat</span>
+                </button>
+              </div>
+
+              <div className="phub__chatfs-list">
+                {chatSessions.length === 0 ? (
+                  <div className="phub__chatfs-empty-list">
+                    <MessageSquare size={22} style={{ opacity: 0.3 }} />
+                    <span>No previous chats</span>
+                    <span style={{ fontSize: "10px", opacity: 0.6 }}>Your conversations will appear here</span>
+                  </div>
+                ) : (
+                  chatSessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`phub__chatfs-item${s.id === activeChatId ? " phub__chatfs-item--active" : ""}`}
+                      onClick={() => selectChat(s.id)}
+                      title={s.title}
+                    >
+                      <MessageSquare size={13} className="phub__chatfs-item-icon" />
+                      <div className="phub__chatfs-item-info">
+                        <span className="phub__chatfs-item-title">{s.title || "Chat"}</span>
+                        <span className="phub__chatfs-item-time">{formatChatDate(s.updatedAt)}</span>
+                      </div>
+                      <button
+                        className="phub__chatfs-item-del"
+                        onClick={(e) => deleteChat(s.id, e)}
+                        title="Delete chat"
+                        aria-label="Delete chat"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {chatSessions.length > 0 && (
+                <div className="phub__chatfs-side-foot">
+                  <span>{chatSessions.length} chat{chatSessions.length === 1 ? "" : "s"}</span>
+                  <button
+                    className="phub__chatfs-clearbtn"
+                    onClick={clearAllChats}
+                    title="Clear all chat history"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Right Main Chat Area */}
+            <div className="phub__chatfs-main">
+              <div className="phub__chatfs-topbar">
+                <div className="phub__chatfs-topbar-left">
+                  {!chatSidebarOpen && (
+                    <button
+                      className="phub__chatfs-topbar-btn"
+                      onClick={() => setChatSidebarOpen(true)}
+                      title="Open chat history"
+                      aria-label="Open chat history"
+                    >
+                      <PanelLeftOpen size={15} />
+                    </button>
+                  )}
+                  <span className="phub__chatfs-topbar-title">
+                    {chatSessions.find((s) => s.id === activeChatId)?.title || "Project Setup Assistant"}
+                  </span>
+                </div>
+                <div className="phub__chatfs-topbar-right">
+                  <button
+                    className="phub__chatfs-topbar-btn"
+                    onClick={startNewChat}
+                    title="Start new fresh chat"
+                    aria-label="Start new chat"
+                  >
+                    <Plus size={15} />
+                  </button>
+                  <button
+                    className="phub__chatfs-topbar-btn"
+                    onClick={() => setChatOpen(false)}
+                    title="Close (Esc)"
+                    aria-label="Close chat"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <AiSetupChat
+                messages={chatMsgs}
+                busy={chatBusy}
+                onSend={sendFsMessage}
+                proposal={chatProposal}
+                onCreate={handleAiCreate}
+                onDismiss={() => setChatProposal(null)}
+                nativeCursor={nativeCursor}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -2318,7 +2586,11 @@ const ProjectHub = () => {
         >
           <span className="phub__sidebar-ico"><Layers size={14} /></span> Frameworks
         </button>
-        <div className="phub__sidebar-user">
+        <div
+          className="phub__sidebar-user"
+          onClick={sidebarCollapsed ? () => setSidebarCollapsed(false) : undefined}
+          title={sidebarCollapsed ? "Expand sidebar" : undefined}
+        >
           {ghUser ? (
             <>
               <img
@@ -2339,7 +2611,10 @@ const ProjectHub = () => {
           )}
           <button
             className="phub__sidebar-hidebtn"
-            onClick={() => setSidebarCollapsed((v) => !v)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSidebarCollapsed((v) => !v);
+            }}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
@@ -2821,6 +3096,15 @@ const ProjectHub = () => {
               {centerView === "gitgraph" ? (
               <div className="phub__panel-body phub__note-body phub__note-graph">
                 <div className="phub__chat">
+                  <button
+                    className="phub__chat-expand"
+                    onClick={handleExpandChat}
+                    type="button"
+                    title="Expand AI chat"
+                    aria-label="Expand AI chat"
+                  >
+                    <Maximize2 size={13} />
+                  </button>
                   <textarea
                     className="phub__chat-input"
                     value={hubChatText}
@@ -2831,11 +3115,20 @@ const ProjectHub = () => {
                         sendHubMessage();
                       }
                     }}
-                    placeholder="Type a message…"
+                    placeholder="Type a message or expand AI chat…"
                     rows={3}
                     spellCheck={false}
                     aria-label="Message"
                   />
+                  <button
+                    className="phub__chat-history-btn"
+                    onClick={() => openChatOverlay()}
+                    type="button"
+                    title="Open chat history & AI assistant"
+                    aria-label="Open chat history"
+                  >
+                    <MessageSquare size={13} />
+                  </button>
                   <button
                     className="phub__chat-send"
                     onClick={sendHubMessage}
@@ -2954,6 +3247,14 @@ const ProjectHub = () => {
                   <Icon size={12} />
                 </button>
               ))}
+              <button
+                onClick={handleExpandChat}
+                title="Expand AI chat"
+                aria-label="Expand AI chat"
+                className="phub__note-sidebtn"
+              >
+                <Maximize2 size={12} />
+              </button>
             </div>
             </div>
             )}
