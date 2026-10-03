@@ -3,6 +3,46 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.24] - 2026-10-03
+
+### Added
+- **Project setup AI chat** — full-screen Hub chat with live streaming
+  replies and suggestion starters; the AI returns a setup proposal card
+  (project name, framework, language, panel layout) with **Create project**,
+  which now opens a folder picker first so you choose where the project is
+  saved (cancel aborts the create).
+- **Workspace-terminal scaffolding** — real CLI setup commands run in the
+  workspace terminal right after the project opens, with live setup output
+  and a Create layout choice (default panels vs blank workspace).
+- **Titlebar Layouts menu** — one-click layout presets from the title bar.
+- **OpenPencil panel** — open-source design editor (.fig files, AI canvas,
+  design-to-code) as a project panel, with a Refresh entry in its tab menu.
+- **Browser edit-mode extras** — Del removes an element, Ctrl+D duplicates,
+  Ctrl+K wraps as link, Shift+click inspects, plus a wrapping edit banner.
+- **Hub** — dark home redesign, inline composer chat with mic voice input,
+  wallpaper cover fix, Git graph, mouse navigation, alt menu mode, click
+  sound, per-project isolation and a credits page.
+- **Per-project layout** — tabs and panel layout are restored per project;
+  Create dialog gets a note send box and workspaces title-bar box.
+- **Browser, Canvas, Community** — CRX install from the browser panel,
+  in-panel canvas sidebar toggle, community panel + launcher.
+- **Editor** — vim and snippets options; quick-open/accelerator fixes.
+
+### Changed
+- **English-only pass** across the app with a Hub sidebar/card redesign and
+  restyled titlebar Run/Layouts controls.
+- **Repo housekeeping** — GPL-3.0 license, human-tone security policy,
+  trademark policy, issue/PR templates and Dependabot config.
+
+### Removed
+- **AI panel** — removed entirely (leftovers dropped, unused deps pruned);
+  the project-setup chat in the Hub replaces it.
+
+### Fixed
+- Hub TDZ crash, wallpaper picker silent failures, wallpaper recents now
+  persist across restarts, per-project tab mousedown leak and `open:url`
+  allowlist tightening.
+
 ## [0.1.23] - 2026-09-25
 
 ### Added
