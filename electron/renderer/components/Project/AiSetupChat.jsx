@@ -158,7 +158,7 @@ export default function AiSetupChat(props) {
     const m = document.createElement("div");
     m.setAttribute("data-ai-mount", "");
     m.setAttribute("class", "ai-scope dark");
-    m.style.cssText = "height:100%;display:flex;flex-direction:column;";
+    m.style.cssText = "height:100%;display:flex;flex-direction:column;user-select:text;-webkit-user-select:text;";
     shadow.appendChild(m);
     setMount(m);
     return () => setMount(null);
