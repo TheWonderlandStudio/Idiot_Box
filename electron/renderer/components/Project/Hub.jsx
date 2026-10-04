@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical, Copy, Check } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import { playClick, setClickEnabled } from "../shared/clickSound.js";
 import GitGraph from "../GitPanel/GitGraph.jsx";
@@ -914,6 +914,41 @@ const ProjectHub = () => {
   // AI proposal — ```setup block se bana, card me dikhata hai
   const [chatProposal, setChatProposal] = useState(null);
   const chatMsgsRef = useRef([]);
+  const [copiedMsgIdx, setCopiedMsgIdx] = useState(null);
+  const copyTimeoutRef = useRef(null);
+
+  const handleCopyMessage = useCallback((e, text, idx) => {
+    e.stopPropagation();
+    if (!text) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedMsgIdx(idx);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopiedMsgIdx(null);
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy chat message:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
 
   const pushChatMsg = (msg) => {
     chatMsgsRef.current = [...chatMsgsRef.current, msg];
@@ -3173,14 +3208,36 @@ const ProjectHub = () => {
             {chatOpen ? (
               <div className="phub__home-chat">
                 <div className="phub__home-chat-scroll" ref={chatScrollRef}>
-                  {chatMsgs.map((m, i) => (
-                    <div
-                      key={i}
-                      className={`phub__msg${m.role === "user" ? " phub__msg--user" : " phub__msg--ai"}`}
-                    >
-                      {String(m.content || "")}
-                    </div>
-                  ))}
+                  {chatMsgs.map((m, i) => {
+                    const isAi = m.role !== "user";
+                    const text = String(m.content || "");
+                    const isCopied = copiedMsgIdx === i;
+                    return (
+                      <div
+                        key={i}
+                        className={`phub__msg-wrap${isAi ? " phub__msg-wrap--ai" : " phub__msg-wrap--user"}`}
+                      >
+                        <div
+                          className={`phub__msg${isAi ? " phub__msg--ai" : " phub__msg--user"}`}
+                        >
+                          {text}
+                        </div>
+                        {text && (
+                          <div className={`phub__msg-toolbar${!isAi ? " phub__msg-toolbar--user" : ""}`}>
+                            <button
+                              type="button"
+                              className={`phub__msg-copy-btn${isCopied ? " phub__msg-copy-btn--copied" : ""}`}
+                              onClick={(e) => handleCopyMessage(e, text, i)}
+                              title={isCopied ? "Copied!" : isAi ? "Copy response" : "Copy prompt"}
+                              aria-label={isCopied ? "Copied" : isAi ? "Copy response" : "Copy prompt"}
+                            >
+                              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {chatBusy && !chatProposal && (
                     <div className="phub__msg phub__msg--ai phub__msg--busy">● ● ●</div>
                   )}
