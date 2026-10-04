@@ -1,4 +1,4 @@
-/* Community panel — chat webview + fullscreen. */
+/* Community panel — chat webview. */
 
 .cp-root {
   display: flex;
@@ -50,11 +50,6 @@
 }
 .cp-btn:hover {
   background: var(--bg-hover);
-}
-
-.cp-root--full .cp-view-wrap {
-  position: absolute;
-  inset: 0;
 }
 
 .cp-view-wrap {
@@ -135,39 +130,4 @@
 }
 .cp-fail__btn:hover {
   background: linear-gradient(180deg, #4a88ff, #3568e0);
-}
-
-/* Floating exit — fullscreen me sirf yahi dikhta hai */
-.cp-exit {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  background: rgba(20, 20, 24, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  backdrop-filter: blur(6px);
-  opacity: 0.55;
-  transition: opacity 140ms ease;
-}
-.cp-exit:hover {
-  opacity: 1;
-}
-
-/* ── App chrome hide — Community fullscreen ke waqt ─────────────────────── */
-body.cp-fullscreen .cet-titlebar {
-  display: none;
-}
-body.cp-fullscreen .cet-container {
-  top: 0 !important;
-}
-body.cp-fullscreen .flexlayout__splitter {
-  display: none;
 }
