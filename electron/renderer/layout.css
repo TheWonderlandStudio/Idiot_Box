@@ -236,6 +236,26 @@ body,
   text-align: center;
   padding: 12px 6px;
 }
+.tb-layouts-group {
+  font-size: 9px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 6px 4px 2px;
+}
+.tb-layouts-badge {
+  font-size: 9px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
 .tb-layouts-row {
   display: flex;
   align-items: center;

@@ -319,6 +319,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   gitPull:    (rootPath)             => ipcRenderer.invoke("git:pull", rootPath),
   gitFetch:   (rootPath)             => ipcRenderer.invoke("git:fetch", rootPath),
   gitClone:   (url, destPath)        => ipcRenderer.invoke("git:clone", url, destPath),
+  gitMenuAction: (rootPath, action, value) => ipcRenderer.invoke("git:menuAction", rootPath, action, value),
   onCloneLog: (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on("git:clone:log", h); return ()=>ipcRenderer.removeListener("git:clone:log", h); },
   onCloneDone: (cb) => { const h=(_e,d)=>cb(d); ipcRenderer.on("git:clone:done", h); return ()=>ipcRenderer.removeListener("git:clone:done", h); },
 

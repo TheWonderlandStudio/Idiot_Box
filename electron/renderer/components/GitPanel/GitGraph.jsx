@@ -5,10 +5,11 @@
 // Props: commits (filtered log, each with fullHash + parents "h1 h2"),
 // onSelect(commit) (opens the existing diff modal), selectedHash?
 import React, { useMemo } from "react";
+import { Cloud, GitBranch } from "lucide-react";
 
 const LANE_W = 14;
 const PAD_X = 12;
-const ROW_H = 34;
+const ROW_H = 27;
 const NODE_R = 4;
 
 const PALETTE = [
@@ -178,22 +179,33 @@ export default function GitGraph({ commits, onSelect, selectedHash }) {
                 title="Copy full hash"
                 style={{
                   color: "var(--code-blue)", fontFamily: "var(--font-code)", fontSize: "var(--fs-tiny)",
-                  background: "var(--bg-vscode)", padding: "var(--space-2) var(--space-5)",
-                  borderRadius: "var(--radius-sm)", border: "var(--space-1) solid var(--bg-active)",
-                  cursor: "pointer", flexShrink: 0,
+                  background: "transparent", padding: "var(--space-2) var(--space-5)",
+                  border: "none", cursor: "pointer", flexShrink: 0,
                 }}
               >
                 {c.hash}
               </button>
               <span
-                style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-input)", fontWeight: "var(--fw-semibold)" }}
+                style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)", fontWeight: /\bHEAD\b/.test(c.refs || "") ? "var(--fw-semibold)" : "var(--fw-regular)" }}
                 title={c.msg}
               >
                 {c.msg}
               </span>
+              <span style={{ fontSize: "var(--fs-tiny)", color: "var(--text-muted)", flexShrink: 0, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.author}>
+                {c.author}
+              </span>
               {c.refs ? (
-                <span style={{ fontSize: "var(--fs-tiny)", color: "var(--git-modified)", background: "var(--bg-active)", padding: "var(--space-1) var(--space-5)", borderRadius: "var(--radius-sm)", flexShrink: 0, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={c.refs}>
-                  {c.refs}
+                <span style={{ display:"flex",alignItems:"center",gap:4,flexShrink:0,maxWidth:180,overflow:"hidden" }} title={c.refs}>
+                  {c.refs.split(",").map((rawRef)=>{
+                    const ref=rawRef.trim();
+                    const isHead=ref.includes("HEAD");
+                    const label=ref.replace(/^HEAD\s*->\s*/,"");
+                    const isRemote=/^(origin|upstream)\//.test(label);
+                    return <span key={ref} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:"var(--fs-tiny)",color:isHead?"var(--code-blue)":"var(--git-modified)",background:isHead?"var(--selection)":"var(--bg-active)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {isRemote?<Cloud size={11}/>:<GitBranch size={11}/>}
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{label}</span>
+                    </span>;
+                  })}
                 </span>
               ) : null}
               <span style={{ fontSize: "var(--fs-tiny)", color: "var(--icon)", flexShrink: 0 }}>

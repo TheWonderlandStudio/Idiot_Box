@@ -1935,6 +1935,61 @@ ipcMain.handle("git:fetch", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
   try { const out = await gitRunLogged(rootPath, ["fetch"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
+ipcMain.handle("git:menuAction", async (_e, rootPath, action, value) => {
+  const actions = new Set(["remotes", "remote-add", "remote-remove", "stash-list", "stash-save", "stash-pop", "stash-apply", "stash-drop", "tags", "tag-create", "tag-delete", "tag-checkout", "sync", "fetch-all", "fetch-prune", "pull-rebase", "push-force-with-lease", "publish-branch"]);
+  if (typeof rootPath !== "string" || !rootPath || !actions.has(action)) return { ok: false, error: "Invalid Git operation" };
+  const arg = typeof value === "string" ? value.trim() : "";
+  if (arg.length > 512 || arg.includes("\0")) return { ok: false, error: "Invalid Git argument" };
+  try {
+    await gitExec(["rev-parse", "--is-inside-work-tree"], rootPath, 2000);
+    let args;
+    let readOnly = false;
+    switch (action) {
+      case "sync": {
+        const pullOut = await gitRunLogged(rootPath, ["pull"], 15000);
+        gitCacheInvalidate(rootPath);
+        const pushOut = await gitRunLogged(rootPath, ["push"], 15000);
+        gitCacheInvalidate(rootPath);
+        return { ok: true, out: [pullOut, pushOut].filter(Boolean).join("\n") };
+      }
+      case "fetch-all": args = ["fetch", "--all"]; break;
+      case "fetch-prune": args = ["fetch", "--all", "--prune"]; break;
+      case "pull-rebase": args = ["pull", "--rebase"]; break;
+      case "push-force-with-lease": args = ["push", "--force-with-lease"]; break;
+      case "publish-branch": args = ["push", "--set-upstream", "origin", "HEAD"]; break;
+      case "remotes": args = ["remote", "-v"]; readOnly = true; break;
+      case "remote-add": {
+        const [name, url] = arg.split(/\s+/, 2);
+        if (!name || !url || !/^[A-Za-z0-9._-]+$/.test(name) || url.startsWith("-")) return { ok: false, error: "Enter a valid remote name and URL" };
+        args = ["remote", "add", name, url]; break;
+      }
+      case "remote-remove":
+        if (!/^[A-Za-z0-9._-]+$/.test(arg)) return { ok: false, error: "Invalid remote name" };
+        args = ["remote", "remove", arg]; break;
+      case "stash-list": args = ["stash", "list"]; readOnly = true; break;
+      case "stash-save": args = ["stash", "push", ...(arg ? ["-m", arg] : [])]; break;
+      case "stash-pop": args = ["stash", "pop"]; break;
+      case "stash-apply": args = ["stash", "apply"]; break;
+      case "stash-drop": args = ["stash", "drop"]; break;
+      case "tags": args = ["tag", "--list"]; readOnly = true; break;
+      case "tag-create":
+        if (!arg || arg.startsWith("-") || arg.includes("..") || /[\s~^:?*\[\\]/.test(arg)) return { ok: false, error: "Invalid tag name" };
+        args = ["tag", "-a", arg, "-m", arg]; break;
+      case "tag-delete":
+        if (!arg || arg.startsWith("-")) return { ok: false, error: "Invalid tag name" };
+        args = ["tag", "-d", arg]; break;
+      case "tag-checkout":
+        if (!arg || arg.startsWith("-")) return { ok: false, error: "Invalid tag name" };
+        args = ["checkout", "--detach", arg]; break;
+      default: return { ok: false, error: "Unsupported Git operation" };
+    }
+    const out = readOnly ? await gitExec(args, rootPath, 5000) : await gitRunLogged(rootPath, args, 12000);
+    if (!readOnly) gitCacheInvalidate(rootPath);
+    return { ok: true, out: String(out || "") };
+  } catch (e) {
+    return { ok: false, error: humanGitError(e.stderr?.toString() || e.message || String(e)) };
+  }
+});
 ipcMain.handle("git:clone", async (event, url, destPath) => {
   if (!url || !destPath) return { ok: false, error: "Missing url or destination" };
   try {
