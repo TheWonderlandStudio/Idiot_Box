@@ -355,6 +355,13 @@ const layoutWhen = (ts) => {
   } catch { return ""; }
 };
 
+// Built-in defaults — dropdown me hamesha top par 2 rows: Normal (default)
+// aur Blank. Ye saved presets nahi hain, isliye delete option nahi hota.
+const BUILTIN_LAYOUTS = [
+  { id: "__builtin_default", name: "Default layout", panels: DEFAULT_JSON, layout: "normal" },
+  { id: "__builtin_blank", name: "Blank layout", panels: BLANK_JSON, layout: "blank" },
+];
+
 const LayoutsMenu = ({ hasProject, getSnapshot, onApply }) => {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
@@ -433,6 +440,24 @@ const LayoutsMenu = ({ hasProject, getSnapshot, onApply }) => {
     zIndex: 100000,
   };
 
+  const rowFor = (p, builtin) => (
+    <div
+      key={p.id}
+      className={"tb-layouts-row" + (appliedId === p.id ? " is-applied" : "")}
+      onClick={() => apply(p)}
+      title={hasProject ? "Apply layout" : "Open a project to apply"}
+    >
+      <span className="tb-layouts-dot" />
+      <span className="tb-layouts-name">{p.name}</span>
+      {builtin
+        ? <span className="tb-layouts-badge">default</span>
+        : <span className="tb-layouts-when">{layoutWhen(p.savedAt)}</span>}
+      {!builtin && (
+        <button className="tb-layouts-del" onClick={(e) => remove(e, p.id)} title="Delete layout">×</button>
+      )}
+    </div>
+  );
+
   return (
     <>
       {btn}
@@ -453,20 +478,11 @@ const LayoutsMenu = ({ hasProject, getSnapshot, onApply }) => {
             </button>
           </div>
           <div className="tb-layouts-list">
+            <div className="tb-layouts-group">Default layouts</div>
+            {BUILTIN_LAYOUTS.map((p) => rowFor(p, true))}
+            <div className="tb-layouts-group">Saved layouts</div>
             {!items.length && <div className="tb-layouts-empty">No saved layouts yet</div>}
-            {items.map((p) => (
-              <div
-                key={p.id}
-                className={"tb-layouts-row" + (appliedId === p.id ? " is-applied" : "")}
-                onClick={() => apply(p)}
-                title={hasProject ? "Apply layout" : "Open a project to apply"}
-              >
-                <span className="tb-layouts-dot" />
-                <span className="tb-layouts-name">{p.name}</span>
-                <span className="tb-layouts-when">{layoutWhen(p.savedAt)}</span>
-                <button className="tb-layouts-del" onClick={(e) => remove(e, p.id)} title="Delete layout">×</button>
-              </div>
-            ))}
+            {items.map((p) => rowFor(p, false))}
           </div>
         </div>,
         document.body

@@ -1,5 +1,6 @@
 // GitPanel — full-featured Source Control, production ready
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { ArrowDownToLine, ArrowUpFromLine, Check, ChevronDown, ChevronRight, CircleSlash, Copy, Ellipsis, FileDiff, Folder, GitBranch, List, LoaderCircle, Minus, Pencil, Plus, RefreshCw, RotateCcw, Search, Sparkles, Target, Trash2, TriangleAlert, X } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import GitGraph from "./GitGraph.jsx";
 
@@ -26,6 +27,11 @@ function statusLabel(st, x, y, it) {
   if (x!==" " && x!=="?" && x!=="!" && x!=="U") return "Staged";
   return st.trim() || "Changed";
 }
+function fileNameParts(rel) {
+  const parts = String(rel || "").replace(/\\/g, "/").split("/");
+  const name = parts.pop() || String(rel || "");
+  return { name, directory: parts.join("/") };
+}
 function humanBranchError(m){
   if(!m) return "Git error";
   const s=String(m).toLowerCase();
@@ -51,20 +57,19 @@ const getGitOpts = (settings = {}) => {
 
 // ── styles ───────────────────────────────────────────────────────────
 const s = {
-  wrap:{ display:"flex", flexDirection:"column", height:"100%", background:"var(--bg-surface)", color:"var(--text-bright)", overflow:"hidden", fontFamily:"var(--font-system)" },
-  header:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"var(--space-6) var(--space-8)", background:"var(--bg-vscode)", borderBottom:"var(--space-1) solid var(--bg-active)", flexShrink:0, gap:"var(--space-6)", flexWrap:"wrap" },
-  branchBtn:{ display:"flex", alignItems:"center", gap:"var(--space-5)", background:"var(--select-blue)", color:"var(--text-inverse)", padding:"var(--space-4) 9px", borderRadius:"var(--radius-md)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", maxWidth:165, border:"none", cursor:"pointer", minHeight:24 },
-  pill:(active)=>({ fontSize:"var(--fs-tiny)", background:active?"var(--editor-blue)":"var(--bg-active)", color:active?"var(--text-inverse)":"var(--text-secondary)", padding:"var(--space-2) 7px", borderRadius:"var(--radius-pill)", fontWeight:"var(--fw-bold)", border:"var(--space-1) solid var(--bg-active)" }),
+  wrap:{ display:"flex", flexDirection:"column", height:"100%", background:"var(--bg-surface)", color:"var(--text-bright)", overflow:"hidden", fontFamily:"var(--font-system)", position:"relative" },
+  header:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"var(--space-6) var(--space-8)", background:"var(--bg-surface)", borderBottom:"var(--space-1) solid var(--bg-active)", flexShrink:0, gap:"var(--space-6)", flexWrap:"nowrap", minHeight:32 },
+  branchBtn:{ display:"flex", alignItems:"center", gap:"var(--space-5)", background:"transparent", color:"var(--text-primary)", padding:"var(--space-4) var(--space-6)", borderRadius:"var(--radius-md)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-semibold)", maxWidth:165, border:"none", cursor:"pointer", minHeight:24 },
   btn:{ background:"var(--editor-blue)", color:"var(--text-inverse)", border:"1px solid var(--editor-blue)", borderRadius:"var(--radius-md)", padding:"var(--space-6) var(--space-12)", fontSize:"var(--fs-small)", cursor:"pointer", fontWeight:"var(--fw-bold)", display:"flex", alignItems:"center", gap:"var(--space-4)", justifyContent:"center" },
-  btnGhost:{ background:"var(--bg-active)", border:"1px solid var(--border-light)", color:"var(--text-bright)", borderRadius:"var(--radius-md)", padding:"var(--space-5) var(--space-10)", fontSize:"var(--fs-small)", cursor:"pointer", fontWeight:"var(--fw-semibold)" },
-  iconBtn:{ background:"var(--bg-active)", border:"1px solid var(--border-light)", color:"var(--text-soft)", cursor:"pointer", padding:"var(--space-3) var(--space-6)", borderRadius:"var(--radius-md)", fontSize:"var(--fs-small)", lineHeight:"var(--lh-flat)", display:"flex", alignItems:"center", justifyContent:"center", minWidth:24, minHeight:"var(--bar-h-sm)" },
+  btnGhost:{ background:"transparent", border:"none", color:"var(--text-bright)", borderRadius:"var(--radius-md)", padding:"var(--space-5) var(--space-10)", fontSize:"var(--fs-small)", cursor:"pointer", fontWeight:"var(--fw-semibold)", display:"inline-flex", alignItems:"center", gap:"var(--space-4)" },
+  iconBtn:{ background:"transparent", border:"none", color:"var(--text-soft)", cursor:"pointer", padding:"var(--space-3)", borderRadius:"var(--radius-sm)", display:"inline-flex", alignItems:"center", justifyContent:"center", width:24, height:24, flexShrink:0 },
   input:{ width:"100%", background:"var(--bg-input-strong)", border:"1px solid var(--border-strong)", color:"var(--text-input)", borderRadius:"var(--radius-md)", padding:"var(--space-6) var(--space-8)", fontSize:"var(--fs-body)", outline:"none", resize:"none", fontFamily:"inherit" },
-  sectionHead:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"var(--space-6) var(--space-8)", background:"var(--bg-vscode)", borderTop:"var(--space-1) solid var(--bg-active)", borderBottom:"var(--space-1) solid var(--bg-active)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-extrabold)", letterSpacing:0.35, textTransform:"uppercase", color:"var(--text-soft)", cursor:"pointer", userSelect:"none" },
-  row:{ display:"flex", alignItems:"center", gap:"var(--space-6)", padding:"var(--space-5) var(--space-8)", cursor:"pointer", fontSize:"var(--fs-body)", borderBottom:"var(--space-1) solid var(--border-row)" },
+  sectionHead:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"var(--space-5) var(--space-8)", background:"var(--bg-surface)", borderTop:"var(--space-1) solid var(--bg-active)", borderBottom:"var(--space-1) solid var(--bg-active)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-semibold)", letterSpacing:0, textTransform:"none", color:"var(--text-soft)", cursor:"pointer", userSelect:"none", minHeight:30, position:"relative" },
+  row:{ display:"flex", alignItems:"center", gap:"var(--space-6)", padding:"var(--space-4) var(--space-8)", cursor:"pointer", fontSize:"var(--fs-body)", borderBottom:"var(--space-1) solid var(--border-row)", minHeight:27 },
   // subtle row hover
   rowHover:{ display:"flex", alignItems:"center", gap:"var(--space-6)", padding:"var(--space-5) var(--space-8)", cursor:"pointer", fontSize:"var(--fs-body)", borderBottom:"var(--space-1) solid var(--border-row)", background:"var(--bg-hover)" },
-  statusBox:(c)=>({ minWidth:24, textAlign:"center", fontSize:"var(--fs-tiny)", fontWeight:"var(--fw-extrabold)", color:c, background:"var(--bg-surface)", border:"1px solid color-mix(in srgb, " + c + " 20%, transparent)", padding:"var(--space-2) var(--space-4)", borderRadius:"var(--radius-sm)", flexShrink:0, letterSpacing:0.2 }),
 };
+const menuItemStyle={display:"block",width:"100%",padding:"var(--space-6) var(--space-8)",background:"transparent",border:0,color:"var(--text-primary)",textAlign:"left",cursor:"pointer"};
 
 // ── commit context menu ───────────────────────────────────────────────
 export default function GitPanel({ nodeId }){
@@ -84,13 +89,23 @@ export default function GitPanel({ nodeId }){
   const [diffMap,setDiffMap]=useState({});
   const [openDiff,setOpenDiff]=useState(null);
   const [busy,setBusy]=useState("");
-  const [showLog,setShowLog]=useState(false);
-  const [logView,setLogView]=useState("list"); // "list" | "graph"
+  const [aiBusy,setAiBusy]=useState(false);
+  const [commitMenuOpen,setCommitMenuOpen]=useState(false);
+  const [graphMenuOpen,setGraphMenuOpen]=useState(false);
+  const [fileFilterOpen,setFileFilterOpen]=useState(false);
+  const [logSearchOpen,setLogSearchOpen]=useState(false);
+  const [showLog,setShowLog]=useState(true);
+  const [logView,setLogView]=useState("graph"); // "list" | "graph"
+  const [autoFollow,setAutoFollow]=useState(true);
   const [showCommitDetail,setShowCommitDetail]=useState(null); // {hash,diff,stat,loading}
-  const [collapsed,setCollapsed]=useState({ staged:false, changes:false, untracked:false, conflicts:false });
+  const [collapsed,setCollapsed]=useState({ changes:false });
   const [lastRefresh,setLastRefresh]=useState(null);
   const [amend,setAmend]=useState(false);
   const [branchPickerOpen,setBranchPickerOpen]=useState(false);
+  const [gitMenuOpen,setGitMenuOpen]=useState(false);
+  const [gitMenuSection,setGitMenuSection]=useState("");
+  const [treeView,setTreeView]=useState(false);
+  const [fileSort,setFileSort]=useState("name");
   const [branchFilter,setBranchFilter]=useState("");
   const [newBranchName,setNewBranchName]=useState("");
   const [focusIdx,setFocusIdx]=useState(-1);
@@ -99,6 +114,7 @@ export default function GitPanel({ nodeId }){
   const refreshRef=useRef(0);
   const diffCacheRef=useRef(new Map());
   const listRef=useRef(null);
+  const graphListRef=useRef(null);
 
   const showToast=useCallback((text,isError=false)=>{ setToast({text,isError}); setTimeout(()=>setToast(null),3600); },[]);
 
@@ -114,9 +130,9 @@ export default function GitPanel({ nodeId }){
     const unsubFs=window.electronAPI?.onFsChange ? window.electronAPI.onFsChange(()=>{ clearTimeout(fsDebounce); fsDebounce=setTimeout(()=>{ if(!document.hidden) doRefresh(); },1300); }) : ()=>{};
     window.addEventListener("git:refresh", onVis);
     document.addEventListener("visibilitychange", onVis);
-    const onEsc=(e)=>{ if(e.key==="Escape"){ setBranchPickerOpen(false); setCtxMenu(null); setShowCommitDetail(null);} };
+    const onEsc=(e)=>{ if(e.key==="Escape"){ setBranchPickerOpen(false); setGitMenuOpen(false); setCtxMenu(null); setShowCommitDetail(null); setCommitMenuOpen(false); setGraphMenuOpen(false); } };
     window.addEventListener("keydown", onEsc);
-    const onClick=()=> setCtxMenu(null);
+    const onClick=()=>{ setCtxMenu(null); setCommitMenuOpen(false); setGraphMenuOpen(false); setGitMenuOpen(false); };
     window.addEventListener("click", onClick);
     return ()=>{ window.removeEventListener("project:opened",onOpen); window.removeEventListener("project:closed",onClose); window.removeEventListener("git:refresh",onVis); document.removeEventListener("visibilitychange",onVis); window.removeEventListener("keydown",onEsc); window.removeEventListener("click",onClick); clearInterval(iv); clearTimeout(fsDebounce); try{unsubFs();}catch{} };
   },[]);
@@ -307,25 +323,69 @@ export default function GitPanel({ nodeId }){
       const r= amend
         ? await (window.electronAPI.gitCommitAmend ? window.electronAPI.gitCommitAmend(projectPath, msg.trim()) : window.electronAPI.gitCommit(projectPath, msg.trim(), {amend:true}))
         : await window.electronAPI.gitCommit(projectPath, msg.trim());
-      if(r?.ok){ setMsg(""); showToast(amend?"✓ Amended":"✓ Committed"); await doRefresh(true); if(pushAfter) await doPushInternal(); }
+      if(r?.ok){ setMsg(""); showToast(amend?"Amended":"Committed"); await doRefresh(true); if(pushAfter) await doPushInternal(); }
       else throw new Error(r?.error||"Commit failed");
     }catch(e){ const m=humanBranchError(e.message); setError(m); showToast(m,true); }
     finally{ setBusy(""); }
   };
   const doCommitAndPush=()=>doCommit(true);
+  const generateCommitMessage=async()=>{
+    if(typeof window.electronAPI?.aiChat!=="function"){
+      showToast("AI commit messages are unavailable in this build",true);
+      return;
+    }
+    const candidates=groups.staged.length ? groups.staged : status;
+    if(!candidates.length){
+      showToast("No changes to describe",true);
+      return;
+    }
+    const summary=new Map();
+    for(const file of candidates){
+      const ext=file.rel.includes(".") ? file.rel.split(".").pop().toLowerCase() : "extensionless";
+      const statusName=statusLabel(file.status,file.x,file.y,file).toLowerCase();
+      const key=`${statusName} ${ext}`;
+      summary.set(key,(summary.get(key)||0)+1);
+    }
+    const changeSummary=[...summary.entries()].slice(0,16).map(([kind,count])=>`${count} ${kind} file${count===1?"":"s"}`).join("\n");
+    setAiBusy(true);
+    setError(null);
+    try{
+      const response=await window.electronAPI.aiChat([{
+        role:"user",
+        content:`Write one concise conventional Git commit subject (imperative mood, max 72 characters) describing these changes. Output only the subject, no quotes, explanation, markdown, or setup block. For privacy, this summary contains file counts and extensions only; do not invent specific features.\n\n${changeSummary}`,
+      }]);
+      const text=String(typeof response==="string" ? response : response?.text || response?.content || "")
+        .replace(/```(?:setup|text)?/gi,"")
+        .replace(/```/g,"")
+        .split(/\r?\n/)
+        .map(line=>line.trim())
+        .find(line=>line && !/^\[?(system|assistant):?\]?$/i.test(line) && !line.startsWith("{")) || "";
+      const subject=text.replace(/^commit message:\s*/i,"").replace(/^["'`]|["'`]$/g,"").trim();
+      if(!subject) throw new Error("AI did not return a commit subject");
+      const bounded=subject.length>72 ? `${subject.slice(0,69).trimEnd()}...` : subject;
+      setMsg(bounded);
+      showToast("Commit message generated");
+    }catch(e){
+      const message=e?.message || String(e);
+      setError("Could not generate a commit message: "+message);
+      showToast("Could not generate a commit message",true);
+    }finally{
+      setAiBusy(false);
+    }
+  };
   const doPushInternal=async()=>{
     const r=await window.electronAPI.gitPush(projectPath);
     if(r?.ok===false) throw new Error(r.error);
-    showToast("✓ Pushed");
+    showToast("Pushed");
   };
   const doPush=()=>wrapAction("push", doPushInternal);
-  const doPull=()=>wrapAction("pull", ()=> window.electronAPI.gitPull(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("✓ Pulled"); return r; }));
-  const doFetch=()=>wrapAction("fetch", ()=> window.electronAPI.gitFetch(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("✓ Fetched"); return r; }));
+  const doPull=()=>wrapAction("pull", ()=> window.electronAPI.gitPull(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("Pulled"); return r; }));
+  const doFetch=()=>wrapAction("fetch", ()=> window.electronAPI.gitFetch(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("Fetched"); return r; }));
   const doInit=()=>wrapAction("init", async()=>{
     if(!window.electronAPI.gitInit) throw new Error("git init not supported");
     const r=await window.electronAPI.gitInit(projectPath);
     if(r?.ok===false) throw new Error(r.error);
-    showToast("✓ Repository initialized");
+    showToast("Repository initialized");
   });
 
   // branch actions
@@ -423,31 +483,35 @@ export default function GitPanel({ nodeId }){
     }
   };
   useEffect(()=>{ setFocusIdx(-1); },[status.length, filter]);
+  useEffect(()=>{
+    if(!autoFollow || !showLog || !graphListRef.current) return;
+    graphListRef.current.scrollTop=0;
+  },[autoFollow,filteredLog,logView,showLog]);
 
   if(!projectPath){
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"var(--text-muted)", fontSize:"var(--fs-body)", flexDirection:"column", gap:"var(--space-10)", background:"var(--bg-surface)", padding:"var(--space-20)", textAlign:"center" }}>
-        <div style={{width:44,height:44,borderRadius:"var(--radius-pill)",background:"var(--bg-vscode)",border:"1px solid var(--bg-active)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--fs-hero)"}}>⎇</div>
+        <GitBranch size={32} strokeWidth={1.5} aria-hidden="true" />
         <div style={{fontWeight:"var(--fw-bold)",color:"var(--text-secondary)"}}>No project open</div>
         <div style={{fontSize:"var(--fs-small)",color:"var(--text-muted)",maxWidth:220}}>Open a folder with a git repository to see changes, branches and commits.</div>
-        <div style={{fontSize:"var(--fs-small)",color:"var(--text-placeholder)",background:"var(--bg-vscode)",padding:"var(--space-6) var(--space-10)",borderRadius:"var(--radius-md)",border:"var(--space-1) solid var(--bg-active)"}}>File → Open Project…</div>
+        <div style={{fontSize:"var(--fs-small)",color:"var(--text-placeholder)",background:"var(--bg-vscode)",padding:"var(--space-6) var(--space-10)",borderRadius:"var(--radius-md)",border:"var(--space-1) solid var(--bg-active)"}}>File &gt; Open Project</div>
       </div>
     );
   }
   if(branchInfo && branchInfo.isRepo===false){
     return (
       <div style={{ display:"flex", flexDirection:"column", height:"100%", background:"var(--bg-surface)", color:"var(--text-bright)" }}>
-        <div style={s.header}><div style={{fontSize:"var(--fs-body)",fontWeight:"var(--fw-bold)"}}>Source Control</div><button onClick={()=>doRefresh(true)} style={s.btnGhost} title="Refresh">↻ Refresh</button></div>
+        <div style={s.header}><div style={{fontSize:"var(--fs-body)",fontWeight:"var(--fw-bold)"}}>Source Control</div><button onClick={()=>doRefresh(true)} style={s.btnGhost} title="Refresh"><RefreshCw size={14} /> Refresh</button></div>
         <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:"var(--space-12)",padding:"var(--space-24)",textAlign:"center"}}>
-          <div style={{width:48,height:48,borderRadius:"var(--radius-3xl)",background:"var(--bg-vscode)",border:"1px dashed var(--border-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--fs-22)",color:"var(--text-muted)"}}>∅</div>
+          <CircleSlash size={32} strokeWidth={1.5} color="var(--text-muted)" aria-hidden="true" />
           <div style={{fontSize:"var(--fs-large)",fontWeight:"var(--fw-bold)",color:"var(--text-soft)"}}>Not a git repository</div>
           <div style={{fontSize:"var(--fs-body)",color:"var(--icon-muted)",maxWidth:260,wordBreak:"break-all"}}>{projectPath}</div>
           <div style={{display:"flex",gap:"var(--space-8)",flexWrap:"wrap",justifyContent:"center"}}>
             <button onClick={doInit} disabled={!!busy} style={{...s.btn, opacity:busy?0.6:1}} title="Run git init">{busy==="init"?"…":"Initialize Repository"}</button>
-            <button onClick={()=>doRefresh(true)} style={s.btnGhost}>↻ Refresh</button>
+            <button onClick={()=>doRefresh(true)} style={s.btnGhost}><RefreshCw size={14} /> Refresh</button>
             <button onClick={()=>window.electronAPI?.revealInExplorer?.(projectPath)} style={s.btnGhost}>Reveal folder</button>
           </div>
-          {error && <div style={{fontSize:"var(--fs-small)",color:"var(--danger)",background:"var(--error-bg-strong)",padding:"var(--space-6) var(--space-10)",borderRadius:"var(--radius-md)",border:"var(--space-1) solid var(--error-border-2)",maxWidth:320,wordBreak:"break-word",whiteSpace:"pre-wrap"}}>⚠ {error}</div>}
+          {error && <div style={{fontSize:"var(--fs-small)",color:"var(--danger)",background:"var(--error-bg-strong)",padding:"var(--space-6) var(--space-10)",borderRadius:"var(--radius-md)",border:"var(--space-1) solid var(--error-border-2)",maxWidth:320,wordBreak:"break-word",whiteSpace:"pre-wrap",display:"flex",alignItems:"center",gap:"var(--space-6)"}}><TriangleAlert size={14} />{error}</div>}
           <div style={{fontSize:"var(--fs-tiny)",color:"var(--text-placeholder)",background:"var(--bg-vscode)",padding:"var(--space-6) var(--space-8)",borderRadius:"var(--radius-md)",border:"var(--space-1) solid var(--bg-active)"}}>This will run <span style={{fontFamily:"var(--font-code)"}}>git init</span> in the open folder.</div>
         </div>
       </div>
@@ -455,44 +519,125 @@ export default function GitPanel({ nodeId }){
   }
 
   const total=status.length;
+  const unstagedFiles=[...groups.changes,...groups.untracked,...groups.staged.filter(file=>file.partiallyStaged)];
+  const listedFiles=[...filtered,...groups.conflicted.filter(file=>!filtered.some(item=>item.rel===file.rel))]
+    .sort((a,b)=>treeView||fileSort==="path"?a.rel.localeCompare(b.rel):fileSort==="status"?a.status.localeCompare(b.status)||a.rel.localeCompare(b.rel):a.rel.split(/[\\/]/).pop().localeCompare(b.rel.split(/[\\/]/).pop())||a.rel.localeCompare(b.rel));
+
+  const runGitMenuAction=async(action,value)=>{
+    await wrapAction(action,async()=>{
+      const result=await window.electronAPI.gitMenuAction(projectPath,action,value);
+      if(result?.ok===false) throw new Error(result.error);
+      showToast("Git operation completed");
+      if(action==="remotes"||action==="stash-list"||action==="tags") return result.out;
+      return result.out;
+    });
+  };
+  const openGitOutput=()=>window.dispatchEvent(new CustomEvent("add-output-panel",{detail:{channel:"Git"}}));
+  const runClone=async()=>{
+    const url=window.prompt?.("Repository URL:");
+    if(!url?.trim()) return;
+    const dest=window.prompt?.("Destination folder path:");
+    if(!dest?.trim()) return;
+    await wrapAction("clone",async()=>{
+      const result=await window.electronAPI.gitClone(url.trim(),dest.trim());
+      if(result?.ok===false) throw new Error(result.error);
+      showToast("Repository cloned");
+    });
+  };
 
   // branch picker filter
   const bf=branchFilter.trim().toLowerCase();
   const filteredLocal = branches.local.filter(b=>!bf || b.toLowerCase().includes(bf));
   const filteredRemote = branches.remote.filter(b=>!bf || b.toLowerCase().includes(bf));
+  const renderGitMenuSection=(section)=>{
+    const sectionStyle={borderTop:"1px solid var(--border-light)",padding:"var(--space-4)",background:"var(--bg-deep)"};
+    if(section==="sort") return <div style={sectionStyle}>{[["Name","name"],["Path","path"],["Status","status"]].map(([name,value])=><button key={value} onClick={()=>{setFileSort(value);setGitMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:"var(--space-6)",width:"100%",padding:"var(--space-6) var(--space-8)",background:"transparent",border:0,color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}>{fileSort===value?<Check size={13}/>:<span style={{width:13}}/>}Sort by {name}</button>)}</div>;
+    if(section==="commit") return <div style={sectionStyle}><button onClick={()=>{setGitMenuOpen(false);doCommit(false);}} style={menuItemStyle}>Commit</button><button onClick={()=>{setGitMenuOpen(false);doCommitAndPush();}} style={menuItemStyle}>Commit and Push</button><button onClick={()=>{setAmend(v=>!v);setGitMenuOpen(false);}} style={menuItemStyle}>{amend?"Disable Amend":"Amend Last Commit"}</button></div>;
+    if(section==="changes") return <div style={sectionStyle}>
+      <button onClick={()=>{setGitMenuOpen(false);doStageAll();}} style={menuItemStyle}>Stage All</button><button onClick={()=>{setGitMenuOpen(false);doUnstageAll();}} style={menuItemStyle}>Unstage All</button>
+      <button onClick={()=>{if(window.confirm?.("Discard all tracked and untracked changes? This cannot be undone.")){setGitMenuOpen(false);wrapAction("discardAll",async()=>{for(const item of listedFiles){const result=await window.electronAPI.gitDiscard(projectPath,item.rel);if(result?.ok===false)throw new Error(result.error);}});}}} style={menuItemStyle}>Discard All Changes…</button>
+    </div>;
+    if(section==="sync") return <div style={sectionStyle}>
+      <button onClick={()=>{setGitMenuOpen(false);runGitMenuAction("sync");}} style={menuItemStyle}>Sync Changes (Pull, then Push)</button>
+      <button onClick={()=>{setGitMenuOpen(false);doPull();}} style={menuItemStyle}>Pull</button>
+      <button onClick={()=>{setGitMenuOpen(false);runGitMenuAction("pull-rebase");}} style={menuItemStyle}>Pull (Rebase)</button>
+      <button onClick={()=>{setGitMenuOpen(false);doPush();}} style={menuItemStyle}>Push</button>
+      <button onClick={()=>{setGitMenuOpen(false);doFetch();}} style={menuItemStyle}>Fetch</button>
+      <button onClick={()=>{setGitMenuOpen(false);runGitMenuAction("fetch-all");}} style={menuItemStyle}>Fetch All Remotes</button>
+      <button onClick={()=>{setGitMenuOpen(false);runGitMenuAction("fetch-prune");}} style={menuItemStyle}>Fetch with Prune</button>
+      <button onClick={()=>{setGitMenuOpen(false);runGitMenuAction("publish-branch");}} style={menuItemStyle}>Publish Branch to origin</button>
+      <button onClick={()=>{if(window.confirm?.("Force-push this branch using --force-with-lease? This may replace remote commits if the remote has not changed since your last fetch.")){setGitMenuOpen(false);runGitMenuAction("push-force-with-lease");}}} style={menuItemStyle}>Force Push (with Lease)…</button>
+    </div>;
+    if(section==="branch") return <div style={sectionStyle}>
+      <button onClick={()=>{setGitMenuOpen(false);setBranchPickerOpen(true);}} style={menuItemStyle}>Checkout Branch…</button>
+      <button onClick={()=>{setGitMenuOpen(false);setBranchPickerOpen(true);}} style={menuItemStyle}>Create Branch…</button>
+      <button onClick={()=>{setGitMenuOpen(false);handleRenameBranch(branchInfo.branch);}} style={menuItemStyle}>Rename Current Branch…</button>
+      <button onClick={()=>{setGitMenuOpen(false);setBranchPickerOpen(true);}} style={menuItemStyle}>Delete Branch…</button>
+    </div>;
+    if(section==="remote") return <div style={sectionStyle}>
+      <button onClick={async()=>{const result=await window.electronAPI.gitMenuAction(projectPath,"remotes");if(result?.ok===false)showToast(result.error,true);else window.alert?.(result.out||"No remotes configured");}} style={menuItemStyle}>Manage Remotes…</button>
+      <button onClick={()=>{const name=window.prompt?.("Remote name:","origin");if(!name?.trim())return;const url=window.prompt?.("Remote URL:");if(url?.trim())runGitMenuAction("remote-add",`${name.trim()} ${url.trim()}`);}} style={menuItemStyle}>Add Remote…</button>
+      <button onClick={async()=>{const result=await window.electronAPI.gitMenuAction(projectPath,"remotes");if(result?.ok===false){showToast(result.error,true);return;}const names=[...new Set(String(result.out).split(/\r?\n/).map(line=>line.split(/\s+/)[0]).filter(Boolean))];const name=window.prompt?.(`Remote to remove (${names.join(", ")}):`);if(name?.trim())runGitMenuAction("remote-remove",name.trim());}} style={menuItemStyle}>Remove Remote…</button>
+    </div>;
+    if(section==="stash") return <div style={sectionStyle}>
+      <button onClick={()=>{const label=window.prompt?.("Stash message (optional):","");if(label!==null)runGitMenuAction("stash-save",label||"");}} style={menuItemStyle}>Stash Changes…</button>
+      <button onClick={async()=>{const result=await window.electronAPI.gitMenuAction(projectPath,"stash-list");if(result?.ok===false)showToast(result.error,true);else window.alert?.(result.out||"No stashes");}} style={menuItemStyle}>Show Stashes…</button>
+      <button onClick={()=>runGitMenuAction("stash-pop")} style={menuItemStyle}>Pop Latest Stash</button><button onClick={()=>runGitMenuAction("stash-apply")} style={menuItemStyle}>Apply Latest Stash</button><button onClick={()=>{if(window.confirm?.("Drop the latest stash?"))runGitMenuAction("stash-drop");}} style={menuItemStyle}>Drop Latest Stash…</button>
+    </div>;
+    if(section==="tags") return <div style={sectionStyle}>
+      <button onClick={async()=>{const result=await window.electronAPI.gitMenuAction(projectPath,"tags");if(result?.ok===false)showToast(result.error,true);else window.alert?.(result.out||"No tags");}} style={menuItemStyle}>Manage Tags…</button>
+      <button onClick={()=>{const name=window.prompt?.("Tag name:");if(name?.trim())runGitMenuAction("tag-create",name.trim());}} style={menuItemStyle}>Create Tag…</button>
+      <button onClick={async()=>{const result=await window.electronAPI.gitMenuAction(projectPath,"tags");if(result?.ok===false){showToast(result.error,true);return;}const tag=window.prompt?.(`Tag to delete (${String(result.out).trim().replace(/\r?\n/g,", ")}):`);if(tag?.trim())runGitMenuAction("tag-delete",tag.trim());}} style={menuItemStyle}>Delete Tag…</button>
+      <button onClick={async()=>{const result=await window.electronAPI.gitMenuAction(projectPath,"tags");if(result?.ok===false){showToast(result.error,true);return;}const tag=window.prompt?.(`Tag to checkout (${String(result.out).trim().replace(/\r?\n/g,", ")}):`);if(tag?.trim())runGitMenuAction("tag-checkout",tag.trim());}} style={menuItemStyle}>Checkout Tag…</button>
+    </div>;
+    return null;
+  };
+  const gitMenuEntries=[
+    {label:"View as Tree",onClick:()=>{setTreeView(v=>!v);setGitMenuOpen(false);}},
+    {label:"View & Sort",section:"sort"},
+    {label:"Pull",onClick:()=>{setGitMenuOpen(false);doPull();}},
+    {label:"Push",onClick:()=>{setGitMenuOpen(false);doPush();}},
+    {label:"Clone",onClick:()=>{setGitMenuOpen(false);runClone();}},
+    {label:"Checkout to…",onClick:()=>{setGitMenuOpen(false);const target=window.prompt?.("Branch, tag, or commit to checkout:");if(target?.trim())handleSwitch(target.trim());}},
+    {label:"Fetch",onClick:()=>{setGitMenuOpen(false);doFetch();}},
+    {label:"Commit",section:"commit"},
+    {label:"Changes",section:"changes"},
+    {label:"Pull/Push",section:"sync"},
+    {label:"Branch",section:"branch"},
+    {label:"Remote",section:"remote"},
+    {label:"Stash",section:"stash"},
+    {label:"Tags",section:"tags"},
+    {label:"Show Git Output",onClick:()=>{setGitMenuOpen(false);openGitOutput();}},
+  ];
 
   return (
     <div style={s.wrap} onKeyDown={onListKeyDown} tabIndex={0} onContextMenu={(e)=> e.preventDefault()}>
       {/* Header */}
       <div style={s.header}>
         <div style={{display:"flex",alignItems:"center",gap:"var(--space-6)",flex:1,minWidth:0}}>
-          <button onClick={()=>setBranchPickerOpen(v=>!v)} style={s.branchBtn} title="Branch — click to switch/create" aria-haspopup="menu" aria-expanded={branchPickerOpen}>
-            <span style={{fontSize:"var(--fs-title)"}}>⎇</span>
-            <span style={{maxWidth:110,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{branchInfo.branch||"HEAD"}</span>
-            <span style={{fontSize:"var(--fs-micro)",opacity:0.8}}>▾</span>
-            {(branchInfo.ahead||branchInfo.behind) ? <span style={{background:"var(--white-a18)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",display:"flex",gap:"var(--space-4)"}}>{branchInfo.ahead ? "↑" + branchInfo.ahead : ""}{branchInfo.behind ? "↓" + branchInfo.behind : ""}</span>:null}
-          </button>
-          <span style={s.pill(total>0)} title={String(total) + " changed files"}>{total} • {total===1 ? "change" : "changes"}</span>
-          {loading && <span style={{fontSize:"var(--fs-tiny)",color:"var(--teal)",display:"flex",alignItems:"center",gap:"var(--space-4)"}}><span style={{width:10,height:10,border:"2px solid var(--teal)",borderTopColor:"transparent",borderRadius:"var(--radius-round)",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>syncing</span>}
+          <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-semibold)",color:"var(--text-primary)"}}>Changes</span>
+          {loading && <LoaderCircle size={13} className="git-icon-spin" color="var(--teal)" aria-label="Syncing" />}
         </div>
-        <div style={{display:"flex",gap:"var(--space-4)",alignItems:"center"}}>
-          <button onClick={doFetch} disabled={!!busy} title={branchInfo.hasRemote===false?"No remote configured":"Fetch"} style={{...s.iconBtn, opacity:(!busy && branchInfo.hasRemote===false)?0.45:(busy?0.6:1)}}>{busy==="fetch"?"…":"⟳"}</button>
-          <button onClick={doPull} disabled={!!busy} title="Pull" style={{...s.iconBtn,opacity:busy?0.6:1}}>{busy==="pull"?"…":"↓"}</button>
-          <button onClick={doPush} disabled={!!busy} title="Push" style={{...s.iconBtn,opacity:busy?0.6:1}}>{busy==="push"?"…":"↑"}</button>
-          <button onClick={()=>doRefresh(true)} disabled={loading} title={lastRefresh?`Last: ${lastRefresh.toLocaleTimeString()}`:"Refresh"} style={{...s.iconBtn, opacity:loading?0.5:1}}>{loading?"…":"↻"}</button>
-          {nodeId && (
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent("close-flex-tab", { detail: { nodeId } }))}
-              title="Close Git panel"
-              style={{...s.iconBtn, color:"var(--icon)", opacity:0.7}}
-              onMouseEnter={(e)=>{ e.currentTarget.style.color="var(--text-inverse)"; e.currentTarget.style.opacity="1"; }}
-              onMouseLeave={(e)=>{ e.currentTarget.style.color="var(--icon)"; e.currentTarget.style.opacity="0.7"; }}
-            >
-              ✕
-            </button>
-          )}
+        <div style={{display:"flex",gap:"var(--space-4)",alignItems:"center",flexShrink:0}}>
+          <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} title="Commit (Ctrl+Enter)" aria-label="Commit" style={{...s.iconBtn,opacity:(!msg.trim()||busy)?0.45:1}}><Check size={16}/></button>
+          <button onClick={()=>doRefresh(true)} disabled={loading} title={lastRefresh?`Last: ${lastRefresh.toLocaleTimeString()}`:"Refresh"} aria-label="Refresh" style={{...s.iconBtn, opacity:loading?0.5:1}}>{loading?<LoaderCircle size={15} className="git-icon-spin" />:<RefreshCw size={15} />}</button>
+          <button onClick={(e)=>{e.stopPropagation();setGitMenuOpen(v=>!v);setGitMenuSection("");}} title="Git actions" aria-label="Git actions" aria-expanded={gitMenuOpen} style={s.iconBtn}><Ellipsis size={16}/></button>
         </div>
       </div>
+
+      {gitMenuOpen && <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:8,top:36,zIndex:"var(--z-toast-top)",width:260,maxHeight:"calc(100% - 48px)",overflowY:"auto",padding:"var(--space-4)",background:"var(--bg-vscode)",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-pop)"}}>
+        {gitMenuEntries.map(({label,onClick,section},index)=>(
+          <React.Fragment key={label}>
+            {index===7&&<div style={{height:1,background:"var(--border-light)",margin:"var(--space-4) 0"}}/>}
+            {index===14&&<div style={{height:1,background:"var(--border-light)",margin:"var(--space-4) 0"}}/>}
+            <button onClick={section?()=>setGitMenuSection(current=>current===section?"":section):onClick} aria-expanded={section?gitMenuSection===section:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"var(--space-7) var(--space-8)",background:section&&gitMenuSection===section?"var(--bg-hover)":"transparent",border:"none",borderRadius:"var(--radius-sm)",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}>
+              <span>{label==="View as Tree"&&treeView&&<Check size={13} style={{verticalAlign:"middle",marginRight:6}}/>}{label}</span>
+              {section&&(gitMenuSection===section?<ChevronDown size={13}/>:<ChevronRight size={13}/>)}
+            </button>
+            {section&&gitMenuSection===section&&renderGitMenuSection(section)}
+          </React.Fragment>
+        ))}
+      </div>}
 
       {/* branch picker */}
       {branchPickerOpen && (
@@ -508,8 +653,8 @@ export default function GitPanel({ nodeId }){
             {filteredLocal.map(b=>(
               <div key={"l:"+b} style={{display:"flex",alignItems:"center",gap:"var(--space-6)",padding:"var(--space-5) var(--space-8)",fontSize:"var(--fs-small)", borderBottom:"var(--space-1) solid var(--border-row)", background: b===branchInfo.branch?"var(--select-blue)":"transparent", color:b===branchInfo.branch?"var(--text-inverse)":"var(--text-bright)"}}>
                 <button onClick={()=>handleSwitch(b)} disabled={!!busy || b===branchInfo.branch} style={{flex:1,textAlign:"left",background:"transparent",border:"none",color:"inherit",cursor:b===branchInfo.branch?"default":"pointer",fontWeight:b===branchInfo.branch?700:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={b===branchInfo.branch?"Current":"Switch to "+b}>{b}{b===branchInfo.branch?" • current":""}</button>
-                <button onClick={()=>handleRenameBranch(b)} title="Rename" style={{...s.iconBtn,padding:"var(--space-2) var(--space-5)",fontSize:"var(--fs-tiny)"}}>✎</button>
-                <button onClick={()=>handleDeleteBranch(b)} title="Delete" disabled={b===branchInfo.branch} style={{...s.iconBtn,padding:"var(--space-2) var(--space-5)",fontSize:"var(--fs-tiny)",opacity:b===branchInfo.branch?0.4:1}}>✕</button>
+                <button onClick={()=>handleRenameBranch(b)} title="Rename" aria-label={`Rename ${b}`} style={s.iconBtn}><Pencil size={13} /></button>
+                <button onClick={()=>handleDeleteBranch(b)} title="Delete" aria-label={`Delete ${b}`} disabled={b===branchInfo.branch} style={{...s.iconBtn,opacity:b===branchInfo.branch?0.4:1}}><Trash2 size={14} /></button>
               </div>
             ))}
             <div style={{padding:"var(--space-5) var(--space-8)",fontSize:"var(--fs-tiny)",color:"var(--text-secondary)",fontWeight:"var(--fw-bold)",letterSpacing:0.4,textTransform:"uppercase",borderBottom:"var(--space-1) solid var(--bg-active)",borderTop:"var(--space-1) solid var(--bg-active)"}}>Remote ({filteredRemote.length})</div>
@@ -531,8 +676,8 @@ export default function GitPanel({ nodeId }){
       {/* Error + Toast */}
       {error && (
         <div style={{margin:"var(--space-8) var(--space-8) 0",padding:"var(--space-8) var(--space-10)",background:"var(--error-bg-solid)",border:"var(--space-1) solid var(--error-border-3)",borderRadius:"var(--radius-md)",color:"var(--error-text-soft)",fontSize:"var(--fs-small)",display:"flex",justifyContent:"space-between",gap:"var(--space-8)",alignItems:"flex-start"}}>
-          <span style={{flex:1,wordBreak:"break-word",whiteSpace:"pre-wrap"}}>⚠ {error}</span>
-          <button onClick={()=>setError(null)} style={{background:"transparent",border:"none",color:"var(--error-text-soft)",cursor:"pointer",fontSize:"var(--fs-xl)",lineHeight:"var(--lh-flat)"}}>×</button>
+          <span style={{flex:1,wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{error}</span>
+          <button onClick={()=>setError(null)} aria-label="Dismiss error" style={s.iconBtn}><X size={15} /></button>
         </div>
       )}
       {toast && <div style={{margin:error?"var(--space-6) var(--space-8) 0":"var(--space-8) var(--space-8) 0",padding:"7px var(--space-10)",background:toast.isError?"var(--error-bg-solid)":"var(--success-bg)",border:"var(--space-1) solid " + (toast.isError?"var(--error-border-3)":"var(--success-border-2)"),borderRadius:"var(--radius-md)",color:toast.isError?"var(--error-text-soft)":"var(--teal)",fontSize:"var(--fs-small)"}}>{toast.text}</div>}
@@ -543,41 +688,35 @@ export default function GitPanel({ nodeId }){
       )}
 
       {/* Commit box */}
-      <div style={{padding:"var(--space-10)",borderBottom:"var(--space-1) solid var(--bg-active)",background:"var(--bg-vscode)",flexShrink:0}}>
-        <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder={amend?"Amend message — Ctrl+Enter to amend last commit":"Message — Ctrl+Enter to commit staged (Cmd+Enter on Mac)"} rows={2} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey) && e.key==="Enter"){ e.preventDefault(); if(e.shiftKey) doCommitAndPush(); else doCommit(); } }} style={{...s.input, borderColor:msg.trim()?"var(--editor-blue)":"var(--border-strong)", boxShadow:msg.trim()?"0 0 0 1px var(--accent-deep-a25)":"none", minHeight:52}} />
-        <div style={{display:"flex",gap:"var(--space-6)",marginTop:"var(--space-8)",alignItems:"center",flexWrap:"wrap"}}>
-          <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} style={{...s.btn, opacity:(!msg.trim()||busy)?0.5:1, flex:1, minWidth:110}} title="Ctrl+Enter">
-            {busy==="commit"?"Committing…": amend ? ("Amend" + (groups.staged.length ? " • " + groups.staged.length + " staged" : "")) : ("Commit" + (groups.staged.length ? " • " + groups.staged.length + " staged" : ""))}
+      <div style={{padding:"var(--space-8) var(--space-10)",borderBottom:"var(--space-1) solid var(--bg-active)",background:"var(--bg-surface)",flexShrink:0}}>
+        <div style={{position:"relative"}}>
+          <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder={`Message (Ctrl+Enter to commit on "${branchInfo.branch || "HEAD"}")`} rows={1} onKeyDown={e=>{ if((e.ctrlKey||e.metaKey) && e.key==="Enter"){ e.preventDefault(); if(e.shiftKey) doCommitAndPush(); else doCommit(); } }} style={{...s.input, borderColor:"var(--border-strong)", boxShadow:"none", minHeight:32, height:32, padding:"var(--space-5) 34px var(--space-5) var(--space-8)", borderRadius:"var(--radius-sm)"}} />
+          <button onClick={generateCommitMessage} disabled={aiBusy || !total} title="Generate commit message" aria-label="Generate commit message" style={{...s.iconBtn,position:"absolute",right:3,top:4,color:"var(--text-muted)",opacity:aiBusy||!total?0.5:1}}>{aiBusy?<LoaderCircle size={14} className="git-icon-spin"/>:<Sparkles size={14}/>}</button>
+        </div>
+        <div style={{display:"flex",gap:"var(--space-4)",marginTop:"var(--space-6)",alignItems:"stretch",position:"relative"}}>
+          <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} style={{...s.btn, opacity:(!msg.trim()||busy)?0.5:1, flex:1, minWidth:110, borderRadius:"var(--radius-sm)", minHeight:30}} title="Ctrl+Enter">
+            {busy==="commit"?<><LoaderCircle size={14} className="git-icon-spin"/> Committing…</>:<><Check size={15} aria-hidden="true" /> {amend?"Amend":"Commit"}</>}
           </button>
-          <button onClick={doCommitAndPush} disabled={!msg.trim() || !!busy} style={{...s.btnGhost, opacity:(!msg.trim()||busy)?0.5:1, background:"var(--editor-blue)",color:"var(--text-inverse)",borderColor:"var(--editor-blue)"}} title="Commit then push (Ctrl+Shift+Enter)">Commit & Push</button>
-          <button onClick={doStageAll} disabled={(!groups.changes.length && !groups.untracked.length) || !!busy} style={{...s.btnGhost, opacity:(!groups.changes.length&&!groups.untracked.length)?0.5:1}} title="Stage all">+ All</button>
+          <button onClick={(e)=>{e.stopPropagation();setCommitMenuOpen(v=>!v);}} disabled={!!busy} title="More commit actions" aria-label="More commit actions" style={{...s.btn,background:"var(--editor-blue)",borderRadius:"var(--radius-sm)",width:30,minWidth:30,padding:0}}><ChevronDown size={15}/></button>
+          {commitMenuOpen && (
+            <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:"calc(100% + 4px)",zIndex:"var(--z-toast-top)",minWidth:190,padding:"var(--space-4)",background:"var(--bg-vscode)",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-pop)"}}>
+              <button onClick={()=>{setCommitMenuOpen(false);doCommitAndPush();}} disabled={!msg.trim()||!!busy} style={{display:"flex",alignItems:"center",gap:"var(--space-8)",width:"100%",padding:"var(--space-7) var(--space-8)",background:"transparent",border:"none",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}><ArrowUpFromLine size={14}/>Commit and Push</button>
+              <button onClick={()=>{setAmend(v=>!v);setCommitMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:"var(--space-8)",width:"100%",padding:"var(--space-7) var(--space-8)",background:"transparent",border:"none",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}>{amend?<Check size={14}/>:<span style={{width:14}}/>}Amend Last Commit</button>
+              <button onClick={()=>{setCommitMenuOpen(false);doStageAll();}} disabled={!unstagedFiles.length||!!busy} style={{display:"flex",alignItems:"center",gap:"var(--space-8)",width:"100%",padding:"var(--space-7) var(--space-8)",background:"transparent",border:"none",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}><Plus size={14}/>Stage All Changes</button>
+            </div>
+          )}
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:"var(--space-6)",fontSize:"var(--fs-tiny)",color:"var(--icon-muted)",gap:"var(--space-8)",flexWrap:"wrap"}}>
-          <label style={{display:"flex",alignItems:"center",gap:"var(--space-6)",cursor:"pointer",userSelect:"none"}}>
-            <input type="checkbox" checked={amend} onChange={e=>setAmend(e.target.checked)} style={{accentColor:"var(--editor-blue)"}} /> Amend last commit
-          </label>
-          <span style={{display:"flex",gap:"var(--space-8)",alignItems:"center"}}>
-            <span>{groups.staged.length?String(groups.staged.length)+" staged":"Stage files then commit"}</span>
-            <span style={{color:msg.length>72?"var(--git-modified)":msg.length>0?"var(--text-secondary)":"var(--text-placeholder)"}}>{String(msg.length)+"/280 "+ (msg.length>72 && msg.length<=280 ? "• wrap at 72" : msg.length>280?"• too long":"")}</span>
-          </span>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:"var(--space-4)",fontSize:"var(--fs-tiny)",color:"var(--icon-muted)",gap:"var(--space-8)"}}>
+          <span>{groups.staged.length?`${groups.staged.length} staged`:"Stage files to commit"}</span>
+          <span style={{color:msg.length>72?"var(--git-modified)":msg.length>0?"var(--text-secondary)":"var(--text-placeholder)"}}>{msg.length}/280</span>
         </div>
-      </div>
-
-      {/* Filter */}
-      <div style={{padding:"7px var(--space-8)",borderBottom:"var(--space-1) solid var(--border-row)",display:"flex",gap:"var(--space-6)",flexShrink:0,background:"var(--bg-surface)",alignItems:"center"}}>
-        <div style={{position:"relative",flex:1}}>
-          <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--text-muted)",fontSize:"var(--fs-body)"}}>⌕</span>
-          <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter by file…" aria-label="Filter files" style={{...s.input, padding:"var(--space-6) var(--space-8) var(--space-6) var(--space-24)",fontSize:"var(--fs-body)",background:"var(--bg-vscode)",border:"var(--space-1) solid var(--border-light)"}} />
-        </div>
-        {filter && <button onClick={()=>setFilter("")} style={s.btnGhost} aria-label="Clear filter">✕</button>}
-        <span style={{fontSize:"var(--fs-tiny)",color:"var(--text-muted)",whiteSpace:"nowrap"}}>{filtered.length}/{status.length}</span>
       </div>
 
       {/* Lists */}
-      <div ref={listRef} style={{flex:1,overflowY:"auto",overflowX:"hidden"}} role="list" aria-label="Changed files" tabIndex={-1}>
+      <div ref={listRef} style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden"}} role="list" aria-label="Changed files" tabIndex={-1}>
         {total===0 && !loading && !error && (
           <div style={{textAlign:"center",padding:32,color:"var(--icon)"}}>
-            <div style={{width:40,height:40,borderRadius:"var(--radius-pill)",background:"var(--bg-vscode)",border:"1px solid var(--bg-active)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto var(--space-10)",fontSize:"var(--fs-18)",color:"var(--success)"}}>✓</div>
+            <Check size={28} strokeWidth={1.8} color="var(--success)" style={{margin:"0 auto var(--space-10)"}} aria-hidden="true" />
             <div style={{fontWeight:"var(--fw-bold)",color:"var(--text-soft)",fontSize:"var(--fs-title)"}}>Working tree clean</div>
             <div style={{fontSize:"var(--fs-small)",color:"var(--text-muted)",marginTop:"var(--space-4)"}}>No changes detected</div>
             {log.length>0 && <div style={{marginTop:"var(--space-14)",fontSize:"var(--fs-small)",color:"var(--icon-muted)",background:"var(--bg-vscode)",padding:"var(--space-8) var(--space-10)",borderRadius:"var(--radius-md)",border:"var(--space-1) solid var(--bg-active)",textAlign:"left"}}><div style={{color:"var(--text-secondary)",fontWeight:"var(--fw-semibold)",marginBottom:"var(--space-4)"}}>Last commit</div><div style={{color:"var(--code-blue)",fontFamily:"monospace",fontSize:"var(--fs-tiny)"}}>{log[0]?.hash}</div><div style={{color:"var(--text-bright)",marginTop:"var(--space-2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{log[0]?.msg}</div><div style={{color:"var(--icon-muted)",fontSize:"var(--fs-tiny)",marginTop:"var(--space-2)"}}>{log[0]?.author} • {log[0]?.relTime}</div></div>}
@@ -587,192 +726,105 @@ export default function GitPanel({ nodeId }){
           <div style={{padding:"var(--space-16)",display:"flex",flexDirection:"column",gap:"var(--space-8)"}}>{[1,2,3].map(i=><div key={i} style={{height:14,background:"var(--bg-vscode)",borderRadius:"var(--radius-md)",opacity:0.6}}/>)}</div>
         )}
 
-        {/* Conflicts */}
-        {groups.conflicted.length>0 && (
-          <div>
-            <div style={{...s.sectionHead, background:"var(--error-bg-red)", color:"var(--error-text-soft)", borderColor:"var(--error-border-2)"}} onClick={()=>setCollapsed(c=>({...c,conflicts:!c.conflicts}))}>
-              <span style={{display:"flex",gap:7,alignItems:"center"}}><span style={{transform:collapsed.conflicts?"rotate(-90deg)":"none",display:"inline-block",transition:"transform var(--t-slow)",fontSize:"var(--fs-tiny)"}}>▼</span> Merge Conflicts <span style={{background:"var(--danger)",color:"var(--text-inverse)",padding:"var(--space-2) var(--space-6)",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-bold)"}}>{groups.conflicted.length}</span></span>
-              <span style={{fontSize:"var(--fs-tiny)",color:"var(--error-text-pale)"}}>Resolve → Stage</span>
-            </div>
-            {!collapsed.conflicts && groups.conflicted.map(it=>(
-              <div key={"conf:"+it.rel} style={{borderBottom:"1px solid var(--border-row)", background:"var(--error-bg-2)"}}>
-                <div style={{...s.row, background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "var(--error-border-faint)":"transparent"}}
-                  onClick={()=>openFile(it.rel)} title={it.rel + " — conflicted — click to open — double-click to diff"} onDoubleClick={()=>toggleDiff(it.rel)}
-                  onMouseEnter={e=>e.currentTarget.style.background="var(--error-border-faint)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                  onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
-                  <span style={s.statusBox("var(--danger)")}>U</span>
-                  <VscodeIcon name={it.rel.split("/").pop() || it.rel} isDir={false} size={16} />
-                  <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.rel}>{it.rel}</span>
-                  <span style={{fontSize:"var(--fs-tiny)",color:"var(--danger)",background:"var(--bg-surface)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid var(--error-border-2)"}}>Conflicted</span>
-                  <span style={{display:"flex",gap:"var(--space-3)",flexShrink:0}}>
-                    <button onClick={e=>{ e.stopPropagation(); openFile(it.rel); }} title="Open" style={s.iconBtn}>↗</button>
-                    <button onClick={e=>{ e.stopPropagation(); toggleDiff(it.rel); }} title={openDiff===it.rel?"Hide diff":"Show diff"} style={{...s.iconBtn, background:openDiff===it.rel?"var(--error-border-3)":"var(--bg-active)", color:openDiff===it.rel?"var(--text-inverse)":"var(--text-soft)"}}>{openDiff===it.rel?"−":"◈"}</button>
-                    <button onClick={e=>{ e.stopPropagation(); markResolved(it.rel); }} title="Mark as resolved (stage)" style={{...s.iconBtn, background:"var(--selection)",color:"var(--text-inverse)",borderColor:"var(--editor-blue)"}}>✓</button>
+        <div>
+          <div className="git-changes-heading" style={{...s.sectionHead,position:"sticky",top:0,zIndex:1}}>
+            <button onClick={()=>setCollapsed(c=>({...c,changes:!c.changes}))} style={{display:"flex",alignItems:"center",gap:7,padding:0,background:"transparent",border:0,color:"inherit",font:"inherit",cursor:"pointer"}}>
+              {collapsed.changes?<ChevronRight size={15}/>:<ChevronDown size={15}/>}<span>Changes</span><span style={{background:"var(--editor-blue)",color:"var(--text-inverse)",padding:"1px 7px",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-bold)",lineHeight:"16px"}}>{listedFiles.length}</span>
+            </button>
+            {!collapsed.changes&&<span style={{display:"flex",alignItems:"center",gap:"var(--space-4)"}}>
+              {fileFilterOpen && <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter files…" aria-label="Filter files" autoFocus style={{...s.input,width:150,padding:"var(--space-4) var(--space-6)",fontSize:"var(--fs-small)"}} />}
+              <button onClick={()=>{setFileFilterOpen(v=>!v);if(fileFilterOpen)setFilter("");}} title="Filter files" aria-label="Filter files" style={s.iconBtn}><Search size={14}/></button>
+              {!collapsed.changes&&<button onClick={()=>doUnstageAll()} disabled={!groups.staged.length||!!busy} title="Unstage all" aria-label="Unstage all" style={{...s.iconBtn,opacity:!groups.staged.length?0.45:1}}><Minus size={15}/></button>}
+              {!collapsed.changes&&<button onClick={()=>doStageAll()} disabled={!unstagedFiles.length||!!busy} title="Stage all changes" aria-label="Stage all changes" style={{...s.iconBtn,opacity:!unstagedFiles.length?0.45:1}}><Plus size={16}/></button>}
+            </span>}
+          </div>
+          {!collapsed.changes && listedFiles.map((it,index)=>{
+            const path=fileNameParts(it.rel);
+            const previousDirectory=index>0?fileNameParts(listedFiles[index-1].rel).directory:"";
+            const showDirectory=treeView&&path.directory&&path.directory!==previousDirectory;
+            const color=statusColor(it.status,it.x,it.y);
+            const untracked=it.status==="??";
+            const conflicted=Boolean(it.conflicted);
+            const staged=Boolean(it.x && it.x!==" " && it.x!=="?" && it.x!=="!" && it.x!=="U");
+            return (
+              <div key={it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
+                {showDirectory&&<div style={{padding:"var(--space-4) var(--space-8)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-muted)",background:"var(--bg-surface)"}}><Folder size={11} style={{verticalAlign:"middle",marginRight:5}}/>{path.directory}</div>}
+                <div className="git-file-row" style={{...s.row,paddingLeft:treeView&&path.directory?20:undefined,background:focusIdx>=0&&flatVisible[focusIdx]?.rel===it.rel?"var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} onDoubleClick={()=>toggleDiff(it.rel)} title={`${it.rel} — click to open, double-click for diff`} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setCtxMenu({x:e.clientX,y:e.clientY,rel:it.rel});}}>
+                  <VscodeIcon name={path.name} isDir={false} size={16}/>
+                  <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"baseline"}} title={it.rel}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.name}</span>{path.directory&&<span style={{color:"var(--text-muted)",fontSize:"var(--fs-small)",marginLeft:"var(--space-6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.directory}</span>}</span>
+                  <span className="git-file-actions" style={{display:"flex",alignItems:"center",gap:"var(--space-2)",flexShrink:0}}>
+                    <button onClick={e=>{e.stopPropagation();toggleDiff(it.rel);}} title={openDiff===it.rel?"Hide diff":"Show diff"} aria-label={openDiff===it.rel?"Hide diff":"Show diff"} style={s.iconBtn}>{openDiff===it.rel?<X size={14}/>:<FileDiff size={14}/>}</button>
+                    {conflicted
+                      ? <button onClick={e=>{e.stopPropagation();markResolved(it.rel);}} title="Mark as resolved and stage" aria-label="Mark as resolved" style={s.iconBtn}><Check size={15}/></button>
+                      : <button onClick={e=>{e.stopPropagation();staged?doUnstage(it.rel):doStage(it.rel);}} disabled={busy.includes(it.rel)} title={staged?"Unstage":"Stage"} aria-label={staged?"Unstage":"Stage"} style={s.iconBtn}>{staged?<Minus size={15}/>:<Plus size={15}/>}</button>}
+                    <button onClick={e=>{e.stopPropagation();doDiscard(it.rel);}} disabled={busy.includes(it.rel)} title={untracked?"Delete file":"Discard"} aria-label={untracked?"Delete file":"Discard"} style={s.iconBtn}>{untracked?<Trash2 size={14}/>:<RotateCcw size={14}/>}</button>
                   </span>
+                  <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-bold)",color:conflicted?"var(--danger)":color,minWidth:13,textAlign:"center"}} title={statusLabel(it.status,it.x,it.y,it)}>{conflicted?"!":untracked?"U":it.status.trim()||"M"}</span>
                 </div>
-                {openDiff===it.rel && (
-                  <div style={{background:"var(--bg-panel)",borderTop:"1px solid var(--border-row)",maxHeight:220,overflow:"auto",padding:"var(--space-6) 0"}}>
-                    {diffMap[it.rel]===undefined ? <div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div> : renderDiff(diffMap[it.rel], it.rel)}
-                  </div>
-                )}
+                {openDiff===it.rel && <div style={{background:"var(--bg-panel)",borderTop:"1px solid var(--border-row)",maxHeight:260,overflow:"auto",padding:"var(--space-6) 0"}}>{diffMap[it.rel]===undefined?<div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div>:renderDiff(diffMap[it.rel],it.rel)}</div>}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+          {!collapsed.changes && listedFiles.length===0 && <div style={{padding:"var(--space-10) var(--space-12)",fontSize:"var(--fs-small)",color:"var(--text-muted)"}}>{filter?"No matching files":"No changes"}</div>}
+        </div>
 
-        {/* Staged */}
-        {groups.staged.length>0 && (
-          <div>
-            <div style={s.sectionHead} onClick={()=>setCollapsed(c=>({...c,staged:!c.staged}))}>
-              <span style={{display:"flex",gap:7,alignItems:"center"}}><span style={{transform:collapsed.staged?"rotate(-90deg)":"none",display:"inline-block",transition:"transform var(--t-slow)",fontSize:"var(--fs-tiny)"}}>▼</span> Staged Changes <span style={{background:"var(--editor-blue)",color:"var(--text-inverse)",padding:"var(--space-2) var(--space-6)",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-bold)"}}>{groups.staged.length}</span></span>
-              <span style={{display:"flex",gap:"var(--space-4)"}}>
-                <button onClick={e=>{ e.stopPropagation(); doUnstageAll(); }} disabled={!!busy} title="Unstage all" style={s.iconBtn}>— Unstage All</button>
-              </span>
-            </div>
-            {!collapsed.staged && groups.staged.map(it=>(
-              <div key={"staged:"+it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
-                <div style={{...s.row, background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} onDoubleClick={()=>toggleDiff(it.rel)} title={(it.rel + (it.origRel ? " — renamed from " + it.origRel : "") + " — " + statusLabel(it.status,it.x,it.y,it) + " — single-click open, double-click diff")} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover-strong)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
-                  <span style={s.statusBox(statusColor(it.status,it.x,it.y))}>{it.status.trim()||"S"}</span>
-                  <VscodeIcon name={(it.rel.split("/").pop() || it.rel)} isDir={false} size={16} />
-                  <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.origRel ? (it.origRel + " → " + it.rel) : it.rel}>{it.rel}{it.origRel? <span style={{color:"var(--code-blue)",fontSize:"var(--fs-tiny)"}}> • from {it.origRel.split("/").pop()}</span>:null}</span>
-                  {it.partiallyStaged && <span title="Both staged and unstaged changes" style={{fontSize:"var(--fs-tiny)", color:"var(--git-modified)", background:"var(--warn-bg-olive)", padding:"var(--space-1) var(--space-5)", borderRadius:"var(--radius-sm)", border:"var(--space-1) solid var(--warn-border-olive)", flexShrink:0}}>Partial</span>}
-                  {!it.partiallyStaged && <span style={{fontSize:"var(--fs-tiny)",color:statusColor(it.status,it.x,it.y),flexShrink:0,background:"var(--bg-surface)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid color-mix(in srgb, " + statusColor(it.status,it.x,it.y) + " 20%, transparent)"}}>{statusLabel(it.status,it.x,it.y,it)}</span>}
-                  <span style={{display:"flex",gap:"var(--space-3)"}}>
-                    <button onClick={e=>{ e.stopPropagation(); toggleDiff(it.rel); }} title={openDiff===it.rel?"Hide diff":"Show diff"} style={{...s.iconBtn, background:openDiff===it.rel?"var(--select-blue)":"var(--bg-active)", color:openDiff===it.rel?"var(--text-inverse)":"var(--text-soft)"}}>{openDiff===it.rel?"−":"◈"}</button>
-                    <button onClick={e=>{ e.stopPropagation(); doUnstage(it.rel); }} disabled={busy.includes(it.rel)} title="Unstage" style={{...s.iconBtn, opacity:busy.includes(it.rel)?0.5:1}}>−</button>
-                  </span>
-                </div>
-                {openDiff===it.rel && (
-                  <div style={{margin:0,background:"var(--bg-panel)",borderTop:"var(--space-1) solid var(--border-row)",borderBottom:"var(--space-1) solid var(--border-row)",maxHeight:260,overflow:"auto",padding:"var(--space-6) 0"}}>
-                    {diffMap[it.rel]===undefined ? <div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div> : renderDiff(diffMap[it.rel], it.rel)}
-                    <div style={{display:"flex",gap:"var(--space-6)",padding:"var(--space-6) var(--space-8)",borderTop:"var(--space-1) solid var(--border-row)",background:"var(--bg-header)"}}>
-                      <button onClick={()=>openFile(it.rel)} style={s.btnGhost}>Open File</button>
-                      <button onClick={()=>copyText(it.rel)} style={s.btnGhost}>Copy Path</button>
-                      <button onClick={()=> window.electronAPI?.revealInExplorer?.(`${projectPath}/${it.rel}`)} style={s.btnGhost}>Reveal</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+      </div>
 
-        {/* Changes */}
-        {(groups.changes.length>0 || (total>0 && groups.staged.length===0 && groups.conflicted.length===0)) && (
-          <div>
-            <div style={s.sectionHead} onClick={()=>setCollapsed(c=>({...c,changes:!c.changes}))}>
-              <span style={{display:"flex",gap:7,alignItems:"center"}}><span style={{transform:collapsed.changes?"rotate(-90deg)":"none",display:"inline-block",transition:"transform var(--t-slow)",fontSize:"var(--fs-tiny)"}}>▼</span> Changes <span style={{background:"var(--border-light)",color:"var(--text-bright)",padding:"var(--space-2) var(--space-6)",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)"}}>{groups.changes.length}</span></span>
-              <span style={{display:"flex",gap:"var(--space-4)"}}>
-                <button onClick={e=>{ e.stopPropagation(); doStageAll(); }} disabled={!!busy} title="Stage all changes" style={s.iconBtn}>+ All</button>
-                <button onClick={e=>{ e.stopPropagation(); if(window.confirm("Discard ALL unstaged changes? This cannot be undone.")){ groups.changes.forEach(f=>window.electronAPI.gitDiscard(projectPath,f.rel)); setTimeout(()=>doRefresh(true),600); } }} title="Discard all changes" style={s.iconBtn}>↺</button>
-              </span>
-            </div>
-            {!collapsed.changes && groups.changes.map(it=>(
-              <div key={"chg:"+it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
-                <div style={{...s.row, background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} onDoubleClick={()=>toggleDiff(it.rel)} title={it.rel + " — double-click for diff"} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover-strong)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
-                  <span style={s.statusBox(statusColor(it.status,it.x,it.y))}>{it.status.trim()||"M"}</span>
-                  <VscodeIcon name={it.rel.split("/").pop() || it.rel} isDir={false} size={16} />
-                  <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.rel}>{it.rel}</span>
-                  <span style={{fontSize:"var(--fs-tiny)",color:statusColor(it.status,it.x,it.y),flexShrink:0,background:"var(--bg-surface)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid color-mix(in srgb, " + statusColor(it.status,it.x,it.y) + " 20%, transparent)"}}>{statusLabel(it.status,it.x,it.y,it)}</span>
-                  <span style={{display:"flex",gap:"var(--space-3)",flexShrink:0}}>
-                    <button onClick={e=>{ e.stopPropagation(); toggleDiff(it.rel); }} title="Diff" style={{...s.iconBtn, background:openDiff===it.rel?"var(--select-blue)":"var(--bg-active)", color:openDiff===it.rel?"var(--text-inverse)":"var(--text-soft)"}}>{openDiff===it.rel?"−":"◈"}</button>
-                    <button onClick={e=>{ e.stopPropagation(); doStage(it.rel); }} disabled={busy.includes(it.rel)} title="Stage" style={s.iconBtn}>+</button>
-                    <button onClick={e=>{ e.stopPropagation(); doDiscard(it.rel); }} disabled={busy.includes(it.rel)} title="Discard" style={s.iconBtn}>↺</button>
-                  </span>
-                </div>
-                {openDiff===it.rel && (
-                  <div style={{background:"var(--bg-panel)",borderTop:"1px solid var(--border-row)",maxHeight:260,overflow:"auto",padding:"var(--space-6) 0"}}>
-                    {diffMap[it.rel]===undefined ? <div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div> : renderDiff(diffMap[it.rel], it.rel)}
-                    <div style={{display:"flex",gap:"var(--space-6)",padding:"var(--space-6) var(--space-8)",borderTop:"var(--space-1) solid var(--border-row)",background:"var(--bg-header)"}}>
-                      <button onClick={()=>openFile(it.rel)} style={s.btnGhost}>Open File</button>
-                      <button onClick={()=>copyText(it.rel)} style={s.btnGhost}>Copy Path</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            {!collapsed.changes && groups.changes.length===0 && total>0 && <div style={{padding:"var(--space-10) var(--space-12)",fontSize:"var(--fs-small)",color:"var(--text-muted)",fontStyle:"italic"}}>No unstaged changes</div>}
-          </div>
-        )}
-
-        {/* Untracked */}
-        {groups.untracked.length>0 && (
-          <div>
-            <div style={s.sectionHead} onClick={()=>setCollapsed(c=>({...c,untracked:!c.untracked}))}>
-              <span style={{display:"flex",gap:7,alignItems:"center"}}><span style={{transform:collapsed.untracked?"rotate(-90deg)":"none",display:"inline-block",transition:"transform var(--t-slow)",fontSize:"var(--fs-tiny)"}}>▼</span> Untracked <span style={{background:"var(--success-badge-bg)",color:"var(--git-added)",padding:"var(--space-2) var(--space-6)",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",border:"var(--space-1) solid var(--success-badge-border)"}}>{groups.untracked.length}</span></span>
-              <span><button onClick={e=>{ e.stopPropagation(); doStageAll(); }} disabled={!!busy} title="Stage all untracked" style={s.iconBtn}>+ All</button></span>
-            </div>
-            {!collapsed.untracked && groups.untracked.map(it=>(
-              <div key={"unt:"+it.rel} style={{display:"flex",alignItems:"center",gap:"var(--space-6)",padding:"var(--space-5) var(--space-8)",cursor:"pointer",fontSize:"var(--fs-body)",borderBottom:"var(--space-1) solid var(--border-row)", background: focusIdx>=0 && flatVisible[focusIdx]?.rel===it.rel ? "var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} title={it.rel} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover-strong)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} onContextMenu={e=>{ e.preventDefault(); e.stopPropagation(); setCtxMenu({x:e.clientX,y:e.clientY, rel:it.rel}); }}>
-                <span style={s.statusBox("var(--git-added)")}>U</span>
-                <VscodeIcon name={it.rel.split("/").pop() || it.rel} isDir={false} size={16} />
-                <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={it.rel}>{it.rel}</span>
-                <span style={{fontSize:"var(--fs-tiny)",color:"var(--git-added)",background:"var(--success-tint-bg)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid var(--success-border-3)"}}>Untracked</span>
-                <span style={{display:"flex",gap:"var(--space-3)"}}>
-                  <button onClick={e=>{ e.stopPropagation(); doStage(it.rel); }} disabled={busy.includes(it.rel)} title="Stage" style={s.iconBtn}>+</button>
-                  <button onClick={e=>{ e.stopPropagation(); doDiscard(it.rel); }} title="Delete file — requires confirmation" style={{...s.iconBtn, color:"var(--error-text-pale)", borderColor:"var(--error-border-2)"}}>✕</button>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Commits */}
-        <div style={{borderTop:"1px solid var(--bg-active)",marginTop:"var(--space-4)"}}>
-          <div style={{...s.sectionHead, background:"var(--bg-surface)"}} onClick={()=>setShowLog(v=>!v)}>
-            <span style={{display:"flex",gap:7,alignItems:"center"}}><span style={{transform:showLog?"none":"rotate(-90deg)",display:"inline-block",transition:"transform var(--t-slow)",fontSize:"var(--fs-tiny)"}}>▼</span> Recent Commits</span>
-            <span style={{display:"flex",gap:"var(--space-6)",alignItems:"center"}}>
-              <span style={{fontSize:"var(--fs-tiny)",color:"var(--text-muted)",background:"var(--bg-vscode)",padding:"var(--space-2) var(--space-6)",borderRadius:"var(--radius-pill)",border:"var(--space-1) solid var(--bg-active)"}}>{filteredLog.length || 0}{logQuery ? "/" + log.length : ""}</span>
-            </span>
-          </div>
-          {showLog && (
-            <div>
-              <div style={{padding:"var(--space-6) var(--space-8)",display:"flex",gap:"var(--space-6)",background:"var(--bg-surface)",borderBottom:"var(--space-1) solid var(--border-row)",alignItems:"center"}}>
-                <input value={logQuery} onChange={e=>setLogQuery(e.target.value)} placeholder="Search commits (hash, message, author)…" style={{...s.input, flex:1, minWidth:0, padding:"var(--space-6) var(--space-8)",background:"var(--bg-vscode)",border:"var(--space-1) solid var(--border-light)",fontSize:"var(--fs-small)"}} />
-                {logQuery && <button onClick={()=>setLogQuery("")} style={s.btnGhost}>✕</button>}
-                <span style={{display:"flex",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",overflow:"hidden",flexShrink:0}}>
-                  {(["list", "graph"]).map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setLogView(v)}
-                      title={v === "list" ? "Commit list" : "Branch graph"}
-                      style={{
-                        background: logView === v ? "var(--editor-blue)" : "transparent",
-                        color: logView === v ? "var(--text-inverse)" : "var(--text-soft)",
-                        border: "none", padding: "var(--space-4) var(--space-8)",
-                        fontSize: "var(--fs-small)", fontWeight: "var(--fw-semibold)",
-                        cursor: "pointer", textTransform: "capitalize",
-                      }}
-                    >
-                      {v === "list" ? "☰ List" : "⑂ Graph"}
-                    </button>
-                  ))}
-                </span>
-              </div>
-              {filteredLog.length===0 && <div style={{padding:"var(--space-14)",fontSize:"var(--fs-small)",color:"var(--text-muted)",textAlign:"center"}}>{log.length===0 ? "No commits yet — make your first commit above" : "No matching commits"}</div>}
-              {logView === "graph" ? (
+      {/* Commit history stays visible below the working tree, like the source-control sidebar. */}
+      <div style={{flex:showLog?"0 1 42%":"0 0 auto",minHeight:showLog?150:0,display:"flex",flexDirection:"column",borderTop:"1px solid var(--bg-active)",background:"var(--bg-surface)"}}>
+        <div style={{...s.sectionHead,cursor:"default"}}>
+          <button onClick={()=>setShowLog(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,padding:0,background:"transparent",border:0,color:"inherit",font:"inherit",cursor:"pointer"}}>
+            {showLog?<ChevronDown size={13}/>:<ChevronRight size={13}/>}Graph
+          </button>
+          <span style={{display:"flex",gap:"var(--space-5)",alignItems:"center",fontWeight:"var(--fw-regular)",minWidth:0}}>
+            <span style={{display:"flex",alignItems:"center",gap:"var(--space-4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text-muted)"}}>Outgoing Changes <button onClick={()=>setBranchPickerOpen(v=>!v)} style={s.branchBtn} title="Switch branch"><GitBranch size={13}/>{branchInfo.branch||"HEAD"}</button></span>
+            <button onClick={(e)=>{e.stopPropagation();setGraphMenuOpen(v=>!v);}} title={`Graph options; auto-scroll ${autoFollow?"on":"off"}`} aria-label="Graph options" aria-expanded={graphMenuOpen} style={{...s.iconBtn,width:58,fontSize:"var(--fs-tiny)",gap:"var(--space-3)",fontWeight:"var(--fw-semibold)"}}><GitBranch size={13}/>Auto<ChevronDown size={12}/></button>
+            <button onClick={()=>{if(graphListRef.current)graphListRef.current.scrollTop=0;}} title="Go to latest commit" aria-label="Go to latest commit" style={s.iconBtn}><Target size={15}/></button>
+            <button onClick={doFetch} disabled={!!busy || branchInfo.hasRemote===false} title="Fetch" aria-label="Fetch" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="fetch"?<LoaderCircle size={15} className="git-icon-spin"/>:<RefreshCw size={15}/>}</button>
+            <button onClick={doPull} disabled={!!busy || branchInfo.hasRemote===false} title="Pull" aria-label="Pull" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="pull"?<LoaderCircle size={15} className="git-icon-spin"/>:<ArrowDownToLine size={15}/>}</button>
+            <button onClick={doPush} disabled={!!busy || branchInfo.hasRemote===false} title="Push" aria-label="Push" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="push"?<LoaderCircle size={15} className="git-icon-spin"/>:<ArrowUpFromLine size={15}/>}</button>
+            <button onClick={()=>doRefresh(true)} disabled={loading} title="Refresh graph and changes" aria-label="Refresh" style={{...s.iconBtn,opacity:loading?0.45:1}}>{loading?<LoaderCircle size={15} className="git-icon-spin"/>:<RefreshCw size={15}/>}</button>
+            <button onClick={(e)=>{e.stopPropagation();setGraphMenuOpen(v=>!v);}} title="More graph actions" aria-label="More graph actions" style={s.iconBtn}><Ellipsis size={16}/></button>
+            {graphMenuOpen && <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:8,top:30,zIndex:"var(--z-toast-top)",minWidth:190,padding:"var(--space-4)",background:"var(--bg-vscode)",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-pop)"}}>
+              <button onClick={()=>{setAutoFollow(v=>!v);setGraphMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:"var(--space-8)",width:"100%",padding:"var(--space-7) var(--space-8)",background:"transparent",border:"none",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}>{autoFollow?<Check size={14}/>:<span style={{width:14}}/>}Auto-scroll to latest</button>
+              <button onClick={()=>{setLogView("graph");setGraphMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:"var(--space-8)",width:"100%",padding:"var(--space-7) var(--space-8)",background:"transparent",border:"none",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}><GitBranch size={14}/>Branch Graph</button>
+              <button onClick={()=>{setLogView("list");setGraphMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:"var(--space-8)",width:"100%",padding:"var(--space-7) var(--space-8)",background:"transparent",border:"none",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}><List size={14}/>Commit List</button>
+              <button onClick={()=>{setLogSearchOpen(v=>!v);setGraphMenuOpen(false);}} style={{display:"flex",alignItems:"center",gap:"var(--space-8)",width:"100%",padding:"var(--space-7) var(--space-8)",background:"transparent",border:"none",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}><Search size={14}/>Search Commits</button>
+            </div>}
+          </span>
+        </div>
+        {showLog && (
+          <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {logSearchOpen && <div style={{padding:"var(--space-5) var(--space-8)",display:"flex",gap:"var(--space-6)",background:"var(--bg-surface)",borderBottom:"var(--space-1) solid var(--border-row)",alignItems:"center",flexShrink:0}}>
+              <input value={logQuery} onChange={e=>setLogQuery(e.target.value)} placeholder="Search commits…" aria-label="Search commits" style={{...s.input, flex:1, minWidth:0, padding:"var(--space-5) var(--space-8)",background:"var(--bg-vscode)",border:"var(--space-1) solid var(--border-light)",fontSize:"var(--fs-small)"}} />
+              <button onClick={()=>{setLogQuery("");setLogSearchOpen(false);}} style={s.iconBtn} aria-label="Close commit search"><X size={14}/></button>
+            </div>}
+            <div ref={graphListRef} style={{flex:1,minHeight:0,overflowY:"auto",overflowX:"hidden"}}>
+              {filteredLog.length===0 ? (
+                <div style={{padding:"var(--space-14)",fontSize:"var(--fs-small)",color:"var(--text-muted)",textAlign:"center"}}>{log.length===0 ? "No commits yet — make your first commit above" : "No matching commits"}</div>
+              ) : logView === "graph" ? (
                 <GitGraph commits={filteredLog} onSelect={(c) => viewCommit(c)} selectedHash={showCommitDetail?.fullHash} />
               ) : (
-              filteredLog.map(c=>(
-                <div key={c.fullHash} style={{padding:"var(--space-8) var(--space-10)",borderBottom:"var(--space-1) solid var(--border-row)",fontSize:"var(--fs-small)",background:"var(--bg-deep)"}} title={c.fullHash + "\n" + c.author + " <" + c.email + ">\n" + (c.refs||"")}>
-                  <div style={{display:"flex",gap:7,alignItems:"center"}}>
-                    <button onClick={()=>copyHash(c.fullHash)} title="Copy full hash" style={{color:"var(--code-blue)",fontFamily:"var(--font-code)",fontSize:"var(--fs-tiny)",background:"var(--bg-vscode)",padding:"var(--space-2) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid var(--bg-active)",cursor:"pointer"}}>{c.hash}</button>
-                    <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text-input)",fontWeight:"var(--fw-semibold)"}} title={c.msg}>{c.msg}</span>
-                    {c.refs && <span style={{fontSize:"var(--fs-tiny)",color:"var(--git-modified)",background:"var(--bg-active)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)"}}>{c.refs}</span>}
+                filteredLog.map(c=>(
+                  <div key={c.fullHash} style={{padding:"var(--space-8) var(--space-10)",borderBottom:"var(--space-1) solid var(--border-row)",fontSize:"var(--fs-small)",background:"var(--bg-deep)"}} title={c.fullHash + "\n" + c.author + " <" + c.email + ">\n" + (c.refs||"")}>
+                    <div style={{display:"flex",gap:7,alignItems:"center"}}>
+                      <button onClick={()=>copyHash(c.fullHash)} title="Copy full hash" style={{color:"var(--code-blue)",fontFamily:"var(--font-code)",fontSize:"var(--fs-tiny)",background:"var(--bg-vscode)",padding:"var(--space-2) var(--space-5)",borderRadius:"var(--radius-sm)",border:"var(--space-1) solid var(--bg-active)",cursor:"pointer"}}>{c.hash}</button>
+                      <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text-input)",fontWeight:"var(--fw-semibold)"}} title={c.msg}>{c.msg}</span>
+                      {c.refs && <span style={{fontSize:"var(--fs-tiny)",color:"var(--git-modified)",background:"var(--bg-active)",padding:"var(--space-1) var(--space-5)",borderRadius:"var(--radius-sm)"}}>{c.refs}</span>}
+                    </div>
+                    <div style={{fontSize:"var(--fs-tiny)",color:"var(--icon)",marginTop:"var(--space-4)",display:"flex",gap:"var(--space-6)",alignItems:"center",flexWrap:"wrap"}}>
+                      <span>{c.author} • {c.relTime}</span>
+                      <span style={{marginLeft:"auto",display:"flex",gap:"var(--space-4)"}}>
+                        <button onClick={()=>copyHash(c.fullHash)} style={s.iconBtn} title="Copy hash" aria-label="Copy hash"><Copy size={14}/></button>
+                        <button onClick={()=>viewCommit(c)} style={s.iconBtn} title="View diff" aria-label="View diff"><FileDiff size={14}/></button>
+                      </span>
+                    </div>
                   </div>
-                  <div style={{fontSize:"var(--fs-tiny)",color:"var(--icon)",marginTop:"var(--space-4)",display:"flex",gap:"var(--space-6)",alignItems:"center",flexWrap:"wrap"}}>
-                    <span>{c.author} • {c.relTime}</span>
-                    <span style={{marginLeft:"auto",display:"flex",gap:"var(--space-4)"}}>
-                      <button onClick={()=>copyHash(c.fullHash)} style={s.iconBtn} title="Copy hash">⎘</button>
-                      <button onClick={()=>viewCommit(c)} style={s.iconBtn} title="View diff">◈ Diff</button>
-                    </span>
-                  </div>
-                </div>
-              ))
+                ))
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* commit detail modal */}
@@ -782,8 +834,8 @@ export default function GitPanel({ nodeId }){
             <div style={{padding:"var(--space-8) var(--space-10)",background:"var(--bg-vscode)",borderBottom:"var(--space-1) solid var(--bg-active)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"var(--space-8)"}}>
               <span style={{fontSize:"var(--fs-body)",fontWeight:"var(--fw-bold)"}}>Commit {showCommitDetail.hash} <span style={{fontWeight:"var(--fw-regular)",color:"var(--icon)",fontFamily:"var(--font-code)",fontSize:"var(--fs-tiny)"}}>{showCommitDetail.fullHash}</span></span>
               <span style={{display:"flex",gap:"var(--space-6)"}}>
-                <button onClick={()=>copyText(showCommitDetail.fullHash)} style={s.btnGhost}>Copy Hash</button>
-                <button onClick={()=>setShowCommitDetail(null)} style={s.btnGhost}>✕ Close</button>
+                <button onClick={()=>copyText(showCommitDetail.fullHash)} style={s.iconBtn} title="Copy hash" aria-label="Copy hash"><Copy size={14}/></button>
+                <button onClick={()=>setShowCommitDetail(null)} style={s.iconBtn} title="Close" aria-label="Close"><X size={15}/></button>
               </span>
             </div>
             <div style={{flex:1,overflow:"auto",padding:0}}>
@@ -825,10 +877,21 @@ export default function GitPanel({ nodeId }){
         </span>
         <span style={{display:"flex",gap:"var(--space-6)",alignItems:"center"}}>
           {lastRefresh && <span style={{color:"var(--text-placeholder)"}}>{lastRefresh.toLocaleTimeString()}</span>}
-          <span style={{background:"var(--bg-surface)",padding:"var(--space-1) var(--space-6)",borderRadius:"var(--radius-pill)",border:"var(--space-1) solid var(--bg-active)"}}>{branchInfo.branch ? "⎇ " + branchInfo.branch : "no branch"} • {total}</span>
+          <span style={{display:"inline-flex",alignItems:"center",gap:"var(--space-4)"}}><GitBranch size={12}/>{branchInfo.branch || "no branch"} • {total}</span>
         </span>
       </div>
-      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+      <style>{`
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .git-icon-spin{animation:spin 0.8s linear infinite}
+        .git-changes-heading{min-height:32px!important;padding:0 8px!important;background:var(--bg-surface)!important}
+        .git-file-row{min-height:28px!important;padding-top:3px!important;padding-bottom:3px!important}
+        .git-file-row:hover,.git-file-row:focus-within{background:var(--bg-hover-strong)!important}
+        .git-file-actions{opacity:0;transition:opacity 100ms ease}
+        .git-file-row:hover .git-file-actions,.git-file-row:focus-within .git-file-actions{opacity:1}
+        .git-file-actions button{color:var(--text-soft)}
+        .git-file-actions button:hover{color:var(--text-primary);background:var(--bg-hover)}
+        @media (hover:none){.git-file-actions{opacity:1}}
+      `}</style>
     </div>
   );
 }
