@@ -3,6 +3,42 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.25] - 2026-10-04
+
+### Added
+- **Git panel actions** — Source Control gets a grouped overflow menu
+  (Commit, Changes, Pull/Push, Branch, Remote, Stash, Tags) plus Clone,
+  Checkout to…, Fetch and Show Git Output; the commit box adds Commit and
+  Push, Amend last commit and Stage all shortcuts, and the main Git menu
+  gets Pull (rebase) and per-section expand/collapse.
+- **Tree view, sorting and inline diffs** — toggle the working tree into a
+  directory tree, sort by path/status/name, expand a file to see its diff
+  inline, mark conflicted files as resolved, and keep the commit history
+  visible below the working tree. Git graph rows are denser and render
+  each ref as its own chip (branch / remote icon, HEAD highlighted) with
+  the author name shown.
+- **Built-in layouts** — the titlebar Layouts menu now lists Default and
+  Blank layouts in a "Default layouts" group (not deletable) above your
+  saved presets, with an applied-state highlight and a "default" badge.
+
+### Changed
+- **Community panel** — replaces the blank shell with a real embedded
+  webview: its own title bar with close, a load progress bar and a failure
+  state with Retry (iframe is not usable because CSP `frame-src` allows
+  only self).
+
+### Fixed
+- **Live Edit ghost reverts** — successful browser edits are no longer
+  rolled back: `__IBX_*` titles are skipped when capturing the previous
+  title (so no stale `__IBX_EDIT__` re-emits), `textContent` is used for
+  needles so `text-transform` styling can't fail a save as "not found",
+  duplicate edit title re-deliveries are deduped, and already-applied
+  content is treated as success instead of reverting the file.
+- **Snippet autocomplete** — snippets are registered as extra language
+  data instead of overriding it (language package completions such as
+  `console.` / `import` come back) and suggestions are suppressed inside
+  strings and comments.
+
 ## [0.1.24] - 2026-10-03
 
 ### Added
