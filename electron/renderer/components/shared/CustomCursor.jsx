@@ -72,40 +72,78 @@ const CustomCursor = ({ scope = ".phub" }) => {
 
     const getBrightness = (r, g, b) => r * 0.299 + g * 0.587 + b * 0.114;
 
-    const parseRGB = (color) => {
-      const rgb = String(color || "").match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
-      if (!rgb) return null;
-      return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
+    const parseRGBA = (color) => {
+      const match = String(color || "").match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\)/);
+      if (!match) return null;
+      const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
+      return {
+        r: parseFloat(match[1]),
+        g: parseFloat(match[2]),
+        b: parseFloat(match[3]),
+        a: isNaN(a) ? 1 : a,
+      };
     };
 
-    const findBackground = (element) => {
+    const getDeepElement = (x, y) => {
+      let el = null;
+      try { el = document.elementFromPoint(x, y); } catch { el = null; }
+      while (el && el.shadowRoot) {
+        let inner = null;
+        try { inner = el.shadowRoot.elementFromPoint(x, y); } catch { inner = null; }
+        if (!inner || inner === el) break;
+        el = inner;
+      }
+      return el;
+    };
+
+    const findEffectiveBackground = (element) => {
       let current = element;
       while (current && current !== document.documentElement) {
         let background = null;
         try { background = window.getComputedStyle(current).backgroundColor; } catch { background = null; }
         if (background && background !== "transparent" && !background.includes("rgba(0, 0, 0, 0)")) {
-          return background;
+          const parsed = parseRGBA(background);
+          // Only stop if sufficiently opaque (alpha >= 0.5) so subtle translucent glass/hover tints don't invert cursor
+          if (parsed && parsed.a >= 0.5) {
+            return parsed;
+          }
         }
-        current = current.parentElement;
+        current = current.parentElement || (current.getRootNode && current.getRootNode().host) || null;
       }
-      try { return window.getComputedStyle(document.body).backgroundColor; } catch { return null; }
+      return null;
     };
 
     const updateCursorColor = (x, y) => {
-      let element = null;
-      try { element = document.elementFromPoint(x, y); } catch { element = null; }
+      const element = getDeepElement(x, y);
       if (!element) return;
-      const color = parseRGB(findBackground(element));
-      if (!color) return;
+
+      // Chat overlay, homepage chat, and AI Elements shadow DOM are always dark — keep cursor white
+      const inChat =
+        Boolean(element.closest && element.closest(".phub__chatfs, .phub__chat, .phub__chatfs-window, .ss-root, .ss-composer, [data-ai-mount]")) ||
+        Boolean(element.getRootNode && element.getRootNode().host && element.getRootNode().host.closest && element.getRootNode().host.closest(".phub__chatfs, .phub__chat, .phub__chatfs-window"));
+
+      if (inChat) {
+        cursorPath.style.fill = "#ffffff";
+        return;
+      }
+
+      const color = findEffectiveBackground(element);
+      if (!color) {
+        cursorPath.style.fill = "#ffffff";
+        return;
+      }
       // dark bg -> white cursor, light bg -> black cursor
       cursorPath.style.fill = getBrightness(color.r, color.g, color.b) < 145 ? "#ffffff" : "#000000";
     };
 
     const checkClickable = (x, y) => {
-      let element = null;
-      try { element = document.elementFromPoint(x, y); } catch { element = null; }
-      if (!element || !element.closest) return false;
-      return Boolean(element.closest(clickableSelector));
+      let element = getDeepElement(x, y);
+      while (element) {
+        if (element.closest && element.closest(clickableSelector)) return true;
+        const root = element.getRootNode ? element.getRootNode() : null;
+        element = root && root.host ? root.host : null; // shadow boundary par light-DOM ancestors bhi check
+      }
+      return false;
     };
 
     const updateDirection = () => {
@@ -116,9 +154,14 @@ const CustomCursor = ({ scope = ".phub" }) => {
     };
 
     const onMouseMove = (event) => {
-      // Scope se bahar custom cursor hide (native cursor wapas dikhega)
+      // Top section (.cet-titlebar / menu bar: File, Edit, View, Git, etc.) par
+      // custom cursor hide rahega — native cursor wapas dikhega
+      const overTitlebar =
+        event.clientY < 32 ||
+        Boolean(event.target && event.target.closest && event.target.closest(".cet-titlebar"));
       const inside =
-        event.target && event.target.closest ? Boolean(event.target.closest(scope)) : false;
+        !overTitlebar &&
+        Boolean(event.target && event.target.closest && event.target.closest(scope));
       cursor.style.opacity = inside ? "1" : "0";
       if (!inside) return;
 
