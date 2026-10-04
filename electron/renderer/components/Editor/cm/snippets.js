@@ -1,4 +1,4 @@
-import { snippetCompletion, completeFromList, ifIn, ifNotIn } from "@codemirror/autocomplete";
+import { snippetCompletion, completeFromList, ifNotIn } from "@codemirror/autocomplete";
 
 const SNIPPET_DEFS = {
   javascript: [
@@ -391,9 +391,10 @@ export const getSnippetCompletionSource = (languageId) => {
       });
     }),
   }));
-  return ifIn(
+  // String/Comment ke bahar hi suggestions — ifIn(nodes, source) sirf do
+  // leta hai (teesra argument ignore ho jata tha, list khali reh jati thi).
+  return ifNotIn(
     ["Comment", "String", "TemplateString"],
-    completeFromList([]),
     completeFromList(items),
   );
 };

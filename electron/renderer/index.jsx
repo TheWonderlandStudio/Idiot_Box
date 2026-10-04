@@ -116,7 +116,7 @@ const factory = (node) => {
     case "terminal":          return <TerminalPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "blank":             return <BlankPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
-    case "community":        return <CommunityPanel nodeId={node.getId()} />;
+    case "community":        return <CommunityPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
     case "openPencil":        return <OpenPencilPanel config={node.getConfig()} nodeId={node.getId()} />;
   case "problems":          return <ProblemsPanel />;
@@ -1430,6 +1430,29 @@ const App = () => {
     };
     window.addEventListener("close-flex-tab", handler);
     return () => window.removeEventListener("close-flex-tab", handler);
+  }, []);
+
+  // ΓöÇΓöÇ Panel fullscreen ΓÇö apne tabset ko maximize karke panel poora layout
+  // bhar de (Community chat). { nodeId, on } ΓÇö on=false par wapas restore. ΓöÇΓöÇ
+  useEffect(() => {
+    const handler = (e) => {
+      const m = modelRef.current;
+      const nodeId = e.detail?.nodeId;
+      const on = e.detail?.on !== false;
+      if (!m || !nodeId) return;
+      try {
+        const tab = m.getNodeById(nodeId);
+        const tabset = tab && tab.getParent?.();
+        if (!tabset || typeof tabset.isMaximized !== "function") return;
+        if (tabset.getType?.() !== "tabset") return;
+        const id = tabset.getId();
+        const cur = m.getMaximizedTabset?.();
+        if (on) { if (!cur || cur.getId() !== id) m.doAction(Actions.maximizeToggle(id)); }
+        else if (cur && cur.getId() === id) m.doAction(Actions.maximizeToggle(id));
+      } catch {}
+    };
+    window.addEventListener("panel:fullscreen", handler);
+    return () => window.removeEventListener("panel:fullscreen", handler);
   }, []);
 
   // Reset panels to default layout (blank project par bhi blank layout)

@@ -110,8 +110,12 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
   ext.push(bracketMatching());
   ext.push(foldGutter());
   if (s.autocompletion !== false) {
+    ext.push(autocompletion());
+    // Snippets language package ke completions ke saath add hote hain —
+    // `override` mat lagao, wo languageData ke sources ko replace kar deta
+    // hai (console. / import completions tab gayab ho jati thin).
     const snippetSource = s.snippets ? getSnippetCompletionSource(languageId) : null;
-    ext.push(autocompletion({ override: snippetSource ? [snippetSource] : null }));
+    if (snippetSource) ext.push(EditorState.languageData.of(() => [{ autocomplete: snippetSource }]));
   }
   if (s.vim) ext.push(vim());
   ext.push(closeBrackets());
