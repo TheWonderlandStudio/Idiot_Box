@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
-import { Play, ChevronDown, Bug, PlayCircle, Settings2 } from "lucide-react";
+import { Play, ChevronDown, Bug, PlayCircle, Settings2, Home, FolderPlus, FolderOpen, Search } from "lucide-react";
 import { Layout, Model, Actions, DockLocation } from "flexlayout-react";
 import "./variables.css";
 import "flexlayout-react/style/dark.css";
@@ -487,6 +487,226 @@ const LayoutsMenu = ({ hasProject, getSnapshot, onApply }) => {
         document.body
       )}
     </>
+  );
+};
+
+// ── Recents normalize (Hub wala shape: {path, lastOpened}) ─────────────────
+const normalizeRecentList = (list) => {
+  if (!Array.isArray(list)) return [];
+  return list.map((e) => {
+    if (typeof e === "string") return { path: e, lastOpened: null };
+    if (e && typeof e.path === "string") return { path: e.path, lastOpened: e.lastOpened || null };
+    return null;
+  }).filter(Boolean);
+};
+const recentBaseName = (p) => {
+  const s = typeof p === "string" ? p : (p?.path || "");
+  return s.replace(/^.*[\\/]/, "") || s;
+};
+const recentParentDir = (p) => {
+  const s = typeof p === "string" ? p : (p?.path || "");
+  return s.replace(/[\\/][^\\/]*$/, "") || s;
+};
+
+// ── Title bar left: logo dropdown — Back to Hub, Recents, quick actions ────
+// Trigger koi naya button nahi: CET ka existing `.cet-icon` (favicon image,
+// titlebar me File menu se pehle) yahan clickable banaya jata hai.
+const TitlebarLogoMenu = ({ hasProject }) => {
+  const [open, setOpen] = useState(false);
+  const [recent, setRecent] = useState([]);
+  const [iconEl, setIconEl] = useState(null);
+  const iconRef = useRef(null);
+  const menuRef = useRef(null);
+
+  // Existing CET logo dhoondho (titlebar DOM banne me time leta hai)
+  useEffect(() => {
+    let attempts = 0;
+    let timer = null;
+    const findIcon = () => {
+      const el = document.querySelector(".cet-titlebar .cet-icon");
+      if (el) { setIconEl(el); return; }
+      if (attempts++ < 40) timer = setTimeout(findIcon, 50);
+    };
+    findIcon();
+    return () => { if (timer) clearTimeout(timer); };
+  }, []);
+
+  // Logo → trigger bana do (click / Enter / Space toggle, dblclick ignore)
+  useEffect(() => {
+    if (!iconEl) return;
+    iconRef.current = iconEl;
+    const prevTab = iconEl.getAttribute("tabindex");
+    iconEl.classList.add("tb-logo");
+    iconEl.setAttribute("tabindex", "0");
+    iconEl.setAttribute("role", "button");
+    iconEl.setAttribute("aria-haspopup", "menu");
+    iconEl.setAttribute("aria-label", "Idiot Box menu");
+    iconEl.title = "Idiot Box menu";
+    const onClick = (e) => { e.stopPropagation(); setOpen((o) => !o); };
+    const onDbl = (e) => { e.stopPropagation(); };
+    const onKey = (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); }
+    };
+    iconEl.addEventListener("click", onClick);
+    iconEl.addEventListener("dblclick", onDbl);
+    iconEl.addEventListener("keydown", onKey);
+    return () => {
+      iconEl.removeEventListener("click", onClick);
+      iconEl.removeEventListener("dblclick", onDbl);
+      iconEl.removeEventListener("keydown", onKey);
+      iconEl.classList.remove("tb-logo", "is-open");
+      iconEl.removeAttribute("role");
+      iconEl.removeAttribute("aria-haspopup");
+      iconEl.removeAttribute("aria-label");
+      if (prevTab === null) iconEl.removeAttribute("tabindex"); else iconEl.setAttribute("tabindex", prevTab);
+      if (iconRef.current === iconEl) iconRef.current = null;
+    };
+  }, [iconEl]);
+
+  // Open → logo highlight + recents load + outside-click / Escape close
+  useEffect(() => {
+    if (!iconEl) return;
+    iconEl.classList.toggle("is-open", open);
+    iconEl.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    let dead = false;
+    (async () => {
+      try {
+        const r = await window.electronAPI.projectLoadRecent();
+        if (!dead && r?.ok) setRecent(normalizeRecentList(r.recent));
+      } catch {}
+    })();
+    let unsub;
+    try { unsub = window.electronAPI.onProjectRecentUpdated(({ recent: list }) => setRecent(normalizeRecentList(list))); } catch {}
+    const onDoc = (e) => {
+      try {
+        if (iconRef.current && iconRef.current.contains(e.target)) return;
+        if (menuRef.current && menuRef.current.contains(e.target)) return;
+        setOpen(false);
+      } catch {}
+    };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      dead = true;
+      try { unsub?.(); } catch {}
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, iconEl]);
+
+  const closeMenu = () => setOpen(false);
+
+  const backToHub = () => {
+    closeMenu();
+    try { window.__ibxCloseProject?.(); } catch {}
+  };
+
+  const newProject = async () => {
+    closeMenu();
+    try {
+      const p = await window.electronAPI.browseFolder({ title: "Select folder for new project" });
+      if (p) await window.electronAPI.menuNewProject(p);
+    } catch {}
+  };
+
+  const openProject = async () => {
+    closeMenu();
+    try { await window.electronAPI.openFolder(); } catch {}
+  };
+
+  // Recent click → current project save+close, clicked project open.
+  // Confirm tab hi hamesha (jaisa user ne chaha); hub par seedha open.
+  const openRecent = async (p) => {
+    if (p.path === window.__currentProjectPath) { closeMenu(); return; }
+    if (hasProject) {
+      try {
+        const ok = await window.electronAPI.confirmDialog(
+          `Switch to "${recentBaseName(p)}"?\n\nCurrent project will be saved and closed.`
+        );
+        if (!ok) return;
+      } catch { return; }
+    }
+    closeMenu();
+    try { await window.electronAPI.menuOpenProject(p.path); } catch {}
+  };
+
+  const openPalette = () => {
+    closeMenu();
+    try { window.dispatchEvent(new CustomEvent("command-palette:open")); } catch {}
+  };
+
+  const openSettings = () => {
+    closeMenu();
+    try { window.electronAPI.openSettingsWindow(); } catch {}
+  };
+
+  if (!open) return null;
+
+  const r = iconRef.current?.getBoundingClientRect?.();
+  const pos = {
+    position: "fixed",
+    top: r ? r.bottom + 6 : 36,
+    left: r ? Math.max(8, Math.min(r.left, window.innerWidth - 316)) : 8,
+    zIndex: 100000,
+  };
+  const currentPath = hasProject ? window.__currentProjectPath : null;
+
+  return createPortal(
+    <div className="tb-logo-menu" style={pos} ref={menuRef} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="tb-logo-head">
+        <img className="tb-logo-head-img" src="assets/idot_box.png" alt="" />
+        <div className="tb-logo-head-txt">
+          <span className="tb-logo-head-name">Idiot Box</span>
+          <span className="tb-logo-head-sub">{currentPath ? recentBaseName(currentPath) : "Project Hub"}</span>
+        </div>
+      </div>
+
+      {hasProject && (
+        <button className="tb-logo-item tb-logo-item--primary" onClick={backToHub} title="Save this project and go back to the Hub">
+          <Home size={14} strokeWidth={1.8} /> <span>Back to Hub</span>
+        </button>
+      )}
+      <div className="tb-logo-sep" />
+
+      <button className="tb-logo-item" onClick={newProject} title="Create a project in a new folder">
+        <FolderPlus size={14} strokeWidth={1.8} /> <span>New Project…</span>
+      </button>
+      <button className="tb-logo-item" onClick={openProject} title="Open an existing folder as project">
+        <FolderOpen size={14} strokeWidth={1.8} /> <span>Open Project…</span>
+      </button>
+
+      <div className="tb-logo-sep" />
+      <div className="tb-logo-group">Recent Projects</div>
+      {!recent.length && <div className="tb-logo-empty">No recent projects yet</div>}
+      {recent.slice(0, 8).map((p) => {
+        const isCurrent = !!currentPath && p.path === currentPath;
+        return (
+          <button
+            key={p.path}
+            className={"tb-logo-recent" + (isCurrent ? " is-current" : "")}
+            onClick={() => openRecent(p)}
+            title={p.path}
+          >
+            <span className="tb-logo-recent-name">{recentBaseName(p)}</span>
+            <span className="tb-logo-recent-meta">
+              <span className="tb-logo-recent-path">{recentParentDir(p)}</span>
+              <span className="tb-logo-when">{p.lastOpened ? layoutWhen(p.lastOpened) : ""}</span>
+            </span>
+          </button>
+        );
+      })}
+
+      <div className="tb-logo-sep" />
+      <button className="tb-logo-item" onClick={openPalette} title="Command Palette (Ctrl+Shift+P / F1) · Quick Open (Ctrl+P)">
+        <Search size={14} strokeWidth={1.8} /> <span>Command Palette</span>
+      </button>
+      <button className="tb-logo-item" onClick={openSettings} title="Preferences and app settings">
+        <Settings2 size={14} strokeWidth={1.8} /> <span>Settings</span>
+      </button>
+    </div>,
+    document.body
   );
 };
 
@@ -2090,6 +2310,7 @@ const App = () => {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
         <UpdaterBanner />
+        <TitlebarLogoMenu hasProject={false} />
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <ProjectHub />
         </div>
@@ -2102,6 +2323,7 @@ const App = () => {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
       <UpdaterBanner />
+      <TitlebarLogoMenu hasProject={hasProject} />
       {titlebarMenuHost && createPortal(<RunStatusButton />, titlebarMenuHost)}
       {titlebarHost && createPortal(
         <LayoutsMenu hasProject={hasProject} getSnapshot={getLayoutSnapshot} onApply={applyLayoutPreset} />,

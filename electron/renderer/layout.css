@@ -321,6 +321,162 @@ body,
   margin-left: auto;
 }
 
+/* ── Title bar left: logo dropdown ──────────────────────────────────────────
+   Trigger koi naya button nahi — CET ka existing .cet-icon (favicon image,
+   File menu se pehle) hi yahan clickable hai (class tb-logo JS se lagti hai). */
+.cet-titlebar .tb-logo {
+  /* .cet-icon ka fixed width:34px hata kar icon + chevron dono fit ho jayein */
+  width: auto;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 7px 0 6px;
+  margin-right: 2px;
+  align-items: center;
+  gap: 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  outline: none;
+  z-index: 100;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+.cet-titlebar .tb-logo img {
+  height: 16px;
+  width: auto;
+  display: block;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.cet-titlebar .tb-logo::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 3.5px solid transparent;
+  border-right: 3.5px solid transparent;
+  border-top: 4px solid #9a9aa5;
+  opacity: 0.8;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+.cet-titlebar .tb-logo:hover,
+.cet-titlebar .tb-logo.is-open { background: var(--bg-hover); }
+.cet-titlebar .tb-logo:hover::after { opacity: 1; }
+.cet-titlebar .tb-logo.is-open::after { transform: rotate(180deg); opacity: 1; }
+.cet-titlebar .tb-logo:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* Dropdown — titlebar se portal hoke body me (LayoutsMenu jaisa) */
+.tb-logo-menu {
+  width: 300px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+.tb-logo-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 8px 8px;
+  border-bottom: 1px solid var(--border-input);
+  margin-bottom: 4px;
+}
+.tb-logo-head-img { width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0; }
+.tb-logo-head-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.tb-logo-head-name {
+  font-size: 12.5px;
+  font-weight: var(--fw-extrabold);
+  color: var(--text-primary);
+}
+.tb-logo-head-sub {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-logo-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.tb-logo-item svg { flex-shrink: 0; opacity: 0.8; }
+.tb-logo-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-logo-item:hover { background: var(--bg-hover); }
+.tb-logo-item--primary { color: var(--accent); font-weight: var(--fw-semibold); }
+.tb-logo-item--primary svg { opacity: 1; }
+
+.tb-logo-sep { height: 1px; background: var(--border-input); margin: 5px 2px; flex-shrink: 0; }
+.tb-logo-group {
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 3px 8px 2px;
+}
+.tb-logo-empty { font-size: 12px; color: var(--text-secondary); padding: 6px 8px; }
+
+.tb-logo-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.tb-logo-recent:hover { background: var(--bg-hover); }
+.tb-logo-recent.is-current {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tb-logo-recent-name {
+  display: block;
+  font-size: 12.5px;
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-logo-recent-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tb-logo-recent-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tb-logo-when { flex-shrink: 0; font-size: 10px; color: var(--text-secondary); opacity: 0.85; }
+
 /* ── Browser panel (Panel3) ───────────────────────────────────────────────── */
 .browser {
   display: flex;
