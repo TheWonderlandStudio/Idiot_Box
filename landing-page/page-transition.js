@@ -2,7 +2,11 @@
 (function () {
   // entering page — covered black, lift curtain on load
   // if wipe has intro video (1st loading), hold curtain so video plays as starting animation
+  // bhaari media (bg video) load event ko der kar de — isliye max 3s ka fallback bhi hai
+  let revealStarted = false;
   function reveal() {
+    if (revealStarted) return;
+    revealStarted = true;
     const introVideo = document.querySelector('.wipe.has-intro-video .wipe-video');
     if (introVideo) {
       if (introVideo.paused) { introVideo.play().catch(() => {}); }
@@ -27,7 +31,10 @@
     });
   }
   if (document.readyState === 'complete') reveal();
-  else window.addEventListener('load', reveal);
+  else {
+    window.addEventListener('load', reveal);
+    setTimeout(reveal, 3000);
+  }
 
   // leaving page — drop curtain, then navigate mid-cover
   document.addEventListener('click', function (e) {

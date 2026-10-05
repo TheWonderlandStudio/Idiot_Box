@@ -36,13 +36,13 @@
 
   <div class="background">
     <div class="bg-video-wrap" aria-hidden="true">
-      <video id="features-bg" src="https://files.catbox.moe/uoawmd.mp4" muted autoplay loop playsinline preload="auto"></video>
+      <video id="features-bg" src="https://files.catbox.moe/uoawmd.mp4" muted autoplay loop playsinline preload="metadata"></video>
     </div>
     <a class="card" href="index.html">Features</a>
     <nav class="nav-card">
       <div class="nav-links">
         <a href="chatlog.html">Chatlog</a>
-        <a href="features.html">Features</a>
+        <a href="features.html" aria-current="page">Features</a>
         <a href="privacy.html">Privacy</a>
         <a href="credits.html">Credits</a>
         <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
@@ -56,93 +56,140 @@
     </nav>
     <div class="menu-panel" id="menu-panel">
       <a href="chatlog.html">Chatlog</a>
-      <a href="features.html">Features</a>
+      <a href="features.html" aria-current="page">Features</a>
       <a href="privacy.html">Privacy</a>
       <a href="credits.html">Credits</a>
       <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
       <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
     </div>
     <main class="showcase">
-      <h1 class="sr-only">Idiot Box features — editor, terminal, browser, project panel and media viewer</h1>
-      <section class="row">
-        <div class="desc">
+      <header class="feat-hero">
+        <p class="feat-kicker">Features</p>
+        <h1>One window.<br />Every tool.</h1>
+        <p class="feat-lede">Map, code, preview and ship without juggling five apps. The editor, terminal, browser, project map and media viewer sit side by side and stay in sync — so you never lose the thread.</p>
+        <div class="hero-actions">
+          <a class="btn-solid log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download .exe</a>
+          <a class="btn-quiet" href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">View source</a>
+        </div>
+        <ol class="feat-index">
+          <li><a href="#f-workflow"><span>01</span> Workflow</a></li>
+          <li><a href="#f-editor"><span>02</span> Editor</a></li>
+          <li><a href="#f-browser"><span>03</span> Browser</a></li>
+          <li><a href="#f-project"><span>04</span> Project</a></li>
+          <li><a href="#f-terminal"><span>05</span> Terminal</a></li>
+          <li><a href="#f-media"><span>06</span> Media</a></li>
+        </ol>
+      </header>
+
+      <section class="feat" id="f-workflow">
+        <div class="feat-text">
+          <span class="feat-num">01 / Workflow</span>
           <h2>One window, whole workflow</h2>
-          <p>Map, code, preview and ship without juggling five tools. Everything lives side by side and stays in sync.</p>
+          <p>Map, code, preview and ship without juggling five tools. Everything lives side by side and stays in sync — no alt-tab, no lost context.</p>
         </div>
-        <figure class="shot"><img src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box app overview" loading="lazy" /></figure>
+        <div class="feat-visual">
+          <img class="shot" src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box app overview" loading="lazy" />
+        </div>
       </section>
-      <section class="row flip">
-        <div class="desc">
+
+      <section class="feat flip" id="f-editor">
+        <div class="feat-text">
+          <span class="feat-num">02 / Editor</span>
           <h2>Code Editor</h2>
-          <p>A VS Code grade editor. 50 plus languages, minimap, autosave, and files that refresh live when something else changes them. Type below. This is the real editor.</p>
+          <p>A VS Code grade editor. 50 plus languages, minimap, autosave, and files that refresh live when something else changes them.</p>
+          <p class="feat-hint">Type below — this is the real editor</p>
         </div>
-        <figure class="demo">
-          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> welcome.js</div>
-          <div id="demo-editor"><pre class="editor-fallback">// welcome to Idiot Box
+        <div class="feat-visual">
+          <figure class="demo">
+            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — welcome.js</figcaption>
+            <div id="demo-editor"><pre class="editor-fallback">// welcome to Idiot Box
 function buildSomething(great) {
   const app = { canvas: true, editor: 'monaco', flow: 100 };
   return [app, great].filter(Boolean).join(' + ');
 }
 buildSomething('your idea');</pre></div>
-        </figure>
+          </figure>
+        </div>
       </section>
-      <section class="row">
-        <div class="desc">
+
+      <section class="feat" id="f-browser">
+        <div class="feat-text">
+          <span class="feat-num">03 / Browser</span>
           <h2>Browser Panel</h2>
-          <p>Your dev servers in tabs. Open localhost previews with automatic port detection, right next to your code. Try the address bar.</p>
+          <p>Your dev servers in tabs. Open localhost previews with automatic port detection, right next to your code.</p>
+          <p class="feat-hint">Try the address bar</p>
         </div>
-        <figure class="demo">
-          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Browser</div>
-          <div class="addr-bar"><input id="demo-url" value="my-portfolio.local" spellcheck="false" /><button id="demo-go" type="button">Go</button></div>
-          <iframe id="demo-frame" title="browser preview" srcdoc="<html><body style='margin:0;background:#0b0b0e;color:#fff;font-family:sans-serif'><nav style='display:flex;gap:18px;padding:18px 24px;border-bottom:1px solid #222'><b>S.</b><a href='#work' style='color:#fff;text-decoration:none'>Work</a><a href='#about' style='color:#fff;text-decoration:none'>About</a><a href='#contact' style='color:#fff;text-decoration:none'>Contact</a></nav><section id='work' style='padding:48px 24px'><h1 style='font-size:40px;margin:0 0 12px'>Design-minded.<br>Engineering-first.</h1><p style='opacity:.7'>Selected work below.</p></section><section id='about' style='padding:48px 24px;border-top:1px solid #222'><h2>About</h2><p style='opacity:.7'>Interfaces that feel fast, not just look fast.</p></section><section id='contact' style='padding:48px 24px;border-top:1px solid #222'><h2>Contact</h2><p style='opacity:.7'>Say hello. This page runs entirely inside the demo.</p></section></body></html>"></iframe>
-        </figure>
+        <div class="feat-visual">
+          <figure class="demo">
+            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — browser panel</figcaption>
+            <div class="addr-bar"><input id="demo-url" value="my-portfolio.local" spellcheck="false" /><button id="demo-go" type="button">Go</button></div>
+            <iframe id="demo-frame" title="browser preview" srcdoc="<html><body style='margin:0;background:#0b0b0e;color:#fff;font-family:sans-serif'><nav style='display:flex;gap:18px;padding:18px 24px;border-bottom:1px solid #222'><b>S.</b><a href='#work' style='color:#fff;text-decoration:none'>Work</a><a href='#about' style='color:#fff;text-decoration:none'>About</a><a href='#contact' style='color:#fff;text-decoration:none'>Contact</a></nav><section id='work' style='padding:48px 24px'><h1 style='font-size:40px;margin:0 0 12px'>Design-minded.<br>Engineering-first.</h1><p style='opacity:.7'>Selected work below.</p></section><section id='about' style='padding:48px 24px;border-top:1px solid #222'><h2>About</h2><p style='opacity:.7'>Interfaces that feel fast, not just look fast.</p></section><section id='contact' style='padding:48px 24px;border-top:1px solid #222'><h2>Contact</h2><p style='opacity:.7'>Say hello. This page runs entirely inside the demo.</p></section></body></html>"></iframe>
+          </figure>
+        </div>
       </section>
-      <section class="row flip">
-        <div class="desc">
+
+      <section class="feat flip" id="f-project">
+        <div class="feat-text">
+          <span class="feat-num">04 / Project</span>
           <h2>Project Panel</h2>
-          <p>Files without friction. Drag and drop, multi select, clipboard, undo and redo, all in a tree that keeps up with you. This is the real repo structure. Click around.</p>
+          <p>Files without friction. Drag and drop, multi select, clipboard, undo and redo, all in a tree that keeps up with you.</p>
+          <p class="feat-hint">Real repo structure — click around</p>
         </div>
-        <figure class="demo">
-          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Project — Idiot_Box</div>
-          <div class="tree-body">
-            <div class="tree" id="demo-tree"></div>
-            <div class="tree-preview" id="tree-preview">Select a file to preview its path.</div>
-          </div>
-        </figure>
+        <div class="feat-visual">
+          <figure class="demo">
+            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — project tree</figcaption>
+            <div class="tree-body">
+              <div class="tree" id="demo-tree"></div>
+              <div class="tree-preview" id="tree-preview">Select a file to preview its path.</div>
+            </div>
+          </figure>
+        </div>
       </section>
-      <section class="row flip">
-        <div class="desc">
+
+      <section class="feat" id="f-terminal">
+        <div class="feat-text">
+          <span class="feat-num">05 / Terminal</span>
           <h2>Terminal</h2>
-          <p>A full terminal with splits and new panels, opened right where your project lives. Type help and press enter.</p>
+          <p>A full terminal with splits and new panels, opened right where your project lives.</p>
+          <p class="feat-hint">Type help and press enter</p>
         </div>
-        <figure class="demo">
-          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Terminal</div>
-          <div id="demo-term"></div>
-        </figure>
+        <div class="feat-visual">
+          <figure class="demo">
+            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — terminal</figcaption>
+            <div id="demo-term"></div>
+          </figure>
+        </div>
       </section>
-      <section class="row">
-        <div class="desc">
+
+      <section class="feat flip" id="f-media">
+        <div class="feat-text">
+          <span class="feat-num">06 / Media</span>
           <h2>Media Viewer</h2>
-          <p>Media stays in flow. Zoom, rotate, flip and pan images and video without ever leaving the app. Try the buttons.</p>
+          <p>Media stays in flow. Zoom, rotate, flip and pan images and video without ever leaving the app.</p>
+          <p class="feat-hint">Try the buttons</p>
         </div>
-        <figure class="demo">
-          <div class="demo-bar"><span class="dots"><i></i><i></i><i></i></span> Media Viewer</div>
-          <div class="media-stage"><img id="media-img" src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box media viewer demo" loading="lazy" /></div>
-          <div class="media-tools">
-            <button type="button" data-zoom="in">Zoom +</button>
-            <button type="button" data-zoom="out">Zoom -</button>
-            <button type="button" data-rotate="left">Rotate left</button>
-            <button type="button" data-rotate="right">Rotate right</button>
-            <button type="button" data-flip="h">Flip</button>
-            <button type="button" data-reset="1">Reset</button>
-          </div>
-        </figure>
+        <div class="feat-visual">
+          <figure class="demo">
+            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — media viewer</figcaption>
+            <div class="media-stage"><img id="media-img" src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box media viewer demo" loading="lazy" /></div>
+            <div class="media-tools">
+              <button type="button" data-zoom="in">Zoom +</button>
+              <button type="button" data-zoom="out">Zoom -</button>
+              <button type="button" data-rotate="left">Rotate left</button>
+              <button type="button" data-rotate="right">Rotate right</button>
+              <button type="button" data-flip="h">Flip</button>
+              <button type="button" data-reset="1">Reset</button>
+            </div>
+          </figure>
+        </div>
       </section>
-      <section class="cta-row">
-        <h2>Ready to build?</h2>
-        <p>Free and open source. Grab the latest Windows build.</p>
+
+      <footer class="feat-end">
+        <p class="feat-kicker">Ready?</p>
+        <h2>Build in one window.</h2>
+        <p>Free and open source. Grab the latest build and start mapping your project.</p>
         <a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download .exe</a>
-      </section>
+      </footer>
     </main>
   </div>
 
@@ -429,6 +476,36 @@ buildSomething('your idea');</pre></div>
           if (e.key === 'Escape') setOpen(false);
         });
       })();
+
+      // scroll reveal — section viewport me aane par hi dikhe
+      (function () {
+        var showcase = document.querySelector('.showcase');
+        var items = document.querySelectorAll('.feat-hero, .feat, .feat-end');
+        if (!items.length) return;
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduce || !('IntersectionObserver' in window)) {
+          items.forEach(function (el) { el.classList.add('in'); });
+          return;
+        }
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) {
+              en.target.classList.add('in');
+              io.unobserve(en.target);
+            }
+          });
+        }, { root: showcase, threshold: 0.1, rootMargin: '0px 0px -6% 0px' });
+        items.forEach(function (el) { io.observe(el); });
+      })();
+
+      // Monaco body par 'underline-links' class chhod jata hai — site ke links underlined na hon
+      if (window.MutationObserver) {
+        new MutationObserver(function () {
+          if (document.body.classList.contains('underline-links')) {
+            document.body.classList.remove('underline-links');
+          }
+        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+      }
     })();
   </script>
 </body>
