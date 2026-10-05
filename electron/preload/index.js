@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getIcon:        (filePath) => ipcRenderer.invoke("fs:getIcon", filePath),
   getFilePreview: (filePath) => ipcRenderer.invoke("fs:getFilePreview", filePath),
   readTextFile:   (filePath) => ipcRenderer.invoke("fs:readTextFile", filePath),
+  inspectDb:      (filePath) => ipcRenderer.invoke("db:inspect", filePath),
   writeFileText:  (filePath, text) => ipcRenderer.invoke("fs:writeFile", { filePath, text }),
   saveFileAs:     (filePath, text) => ipcRenderer.invoke("fs:saveFileAs", { filePath, text }),
    readFileAsDataUrl: (filePath) => ipcRenderer.invoke("fs:readFileAsDataUrl", filePath),

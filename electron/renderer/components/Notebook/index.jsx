@@ -132,6 +132,7 @@ const renderMarkdown = (src) => {
   if (inCode) flushCode();
   return html;
 };
+export { renderMarkdown };
 
 // Kernel result → nbformat outputs (also what we render + save).
 const kernelToOutputs = (res) => {

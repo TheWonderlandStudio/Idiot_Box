@@ -245,21 +245,45 @@ const PANEL_TYPES = [
   },
 ];
 
+// ── Panel usage tracking: picker me most-used panels pehle, least-used aakhir ──
+const USAGE_KEY = "ibx:panelUsage";
+
+const readUsage = () => {
+  try { return JSON.parse(localStorage.getItem(USAGE_KEY)) || {}; }
+  catch { return {}; }
+};
+
+export const bumpPanelUsage = (component) => {
+  if (!component) return;
+  try {
+    const usage = readUsage();
+    usage[component] = (usage[component] || 0) + 1;
+    localStorage.setItem(USAGE_KEY, JSON.stringify(usage));
+  } catch {}
+};
+
 const BlankPanel = ({ nodeId, config }) => {
   const [query, setQuery] = useState("");
+  const [usage] = useState(readUsage);
   const searchRef = useRef(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return PANEL_TYPES;
-    return PANEL_TYPES.filter((p) =>
-      p.name.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q)
+    const list = !q
+      ? PANEL_TYPES
+      : PANEL_TYPES.filter((p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.id.toLowerCase().includes(q)
+        );
+    // Usage ke hisaab se sort — zyada use wale pehle, ties me original order
+    return [...list].sort(
+      (a, b) => (usage[b.component] || 0) - (usage[a.component] || 0)
     );
-  }, [query]);
+  }, [query, usage]);
 
   const handleSelect = (panelItem) => {
+    bumpPanelUsage(panelItem.component);
     const m = window.__flexModel?.current;
     if (m && nodeId) {
       try {

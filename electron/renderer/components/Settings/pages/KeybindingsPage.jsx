@@ -6,8 +6,8 @@ import React, { useState, useMemo } from "react";
 
 const KEYBINDINGS = [
   { category: "General", bindings: [
-    { command: "Command Palette", key: "Ctrl+Shift+P", desc: "Open command palette" },
-    { command: "Quick Open", key: "Ctrl+P", desc: "Quick open file" },
+    { command: "Command Palette", key: "Ctrl+Shift+P", desc: "Advanced palette — saare app commands (F1 bhi)" },
+    { command: "Quick Open", key: "Ctrl+P", desc: "Files + commands palette (merged)" },
     { command: "Settings", key: "Ctrl+,", desc: "Open settings window" },
     { command: "Toggle Fullscreen", key: "F11", desc: "Toggle fullscreen" },
   ]},

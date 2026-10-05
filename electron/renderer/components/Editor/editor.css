@@ -1,0 +1,205 @@
+/* Editor panel — side preview panes (markdown + sqlite) & corner toggle. */
+
+/* ── Corner preview toggle (chhota icon-only button, editor ke top-right) ── */
+.ed-prevbtn {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  z-index: var(--z-popover);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: var(--bg-active);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  cursor: pointer;
+  opacity: 0.7;
+  user-select: none;
+}
+.ed-prevbtn:hover { opacity: 1; background: var(--bg-thumb); color: var(--text-bright); }
+.ed-prevbtn--on {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--text-inverse);
+  opacity: 1;
+}
+.ed-prevbtn--on:hover { background: var(--accent); color: var(--text-inverse); }
+
+/* ── Preview pane — editor area ka full overlay (side split nahi) ── */
+.ed-prev {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+.ed-prev__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: var(--bar-h-sm);
+  flex-shrink: 0;
+  /* corner toggle button ke liye right side reserve */
+  padding: 0 36px 0 var(--space-10);
+  background: var(--bg-vscode);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-soft);
+  font-size: var(--fs-small);
+  user-select: none;
+}
+.ed-prev__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ed-prev__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 var(--space-5);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.ed-prev__btn:hover { background: var(--bg-thumb); color: var(--text-bright); }
+.ed-prev__btn:disabled { opacity: 0.5; cursor: default; }
+.ed-prev__btn--wide { height: 26px; padding: 0 var(--space-12); border-color: var(--border-strong); }
+.ed-prev__body { flex: 1; min-height: 0; overflow: auto; }
+
+/* ── DB preview: table list + grid ── */
+.ed-db { display: flex; align-items: stretch; padding: 0 !important; }
+.ed-db__msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-10);
+  flex: 1;
+  padding: var(--space-20);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+}
+
+.ed-db__list {
+  width: 190px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg-vscode);
+  padding: var(--space-4) 0;
+}
+.ed-db__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  padding: var(--space-4) var(--space-8);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-soft);
+  font-size: var(--fs-small);
+  text-align: left;
+  cursor: pointer;
+}
+.ed-db__item:hover { background: var(--bg-active); color: var(--text-bright); }
+.ed-db__item--on { background: var(--accent); color: var(--text-inverse); }
+.ed-db__item-ico { flex-shrink: 0; opacity: 0.8; }
+.ed-db__item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-db__item-count {
+  flex-shrink: 0;
+  font-size: var(--fs-tiny);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.ed-db__grid { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.ed-db__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-shrink: 0;
+  padding: var(--space-5) var(--space-10);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-soft);
+  font-size: var(--fs-small);
+}
+.ed-db__meta-dim { color: var(--text-muted); }
+.ed-db__scroll { flex: 1; min-height: 0; overflow: auto; }
+
+.ed-db-tbl {
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
+.ed-db-tbl th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-active);
+  color: var(--text-bright);
+  font-weight: var(--fw-semibold);
+  text-align: left;
+  padding: var(--space-4) var(--space-8);
+  border-bottom: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border);
+}
+.ed-db-tbl td {
+  padding: var(--space-3) var(--space-8);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  color: var(--text-soft);
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ed-db-tbl tbody tr:nth-child(even) { background: var(--bg-vscode); }
+.ed-db-tbl tbody tr:hover { background: var(--bg-active); }
+.ed-db__empty { color: var(--text-muted); text-align: center; font-style: italic; }
+
+.ed-null { color: var(--text-muted); font-style: italic; opacity: 0.8; }
+.ed-blob { color: var(--teal); }
+.ed-bool { color: var(--code-cyan, var(--teal)); }
+
+/* ── DB placeholder (editor area me, preview band hone par) ── */
+.ed-dbhint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-12);
+  height: 100%;
+  padding: var(--space-24);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fs-title);
+}
+.ed-dbhint__btn {
+  height: 28px;
+  padding: 0 var(--space-14);
+  background: var(--bg-active);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+.ed-dbhint__btn:hover { background: var(--bg-thumb); color: var(--text-bright); }
+
+.ed-spin { animation: ed-spin 0.9s linear infinite; }
+@keyframes ed-spin { to { transform: rotate(360deg); } }

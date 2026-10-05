@@ -19,6 +19,9 @@ import {
 } from "@codemirror/commands";
 import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/search";
 import NotebookPanel from "../Notebook/index.jsx";
+import { Play, Square } from "lucide-react";
+import { MarkdownPreview, DbPreview } from "./preview.jsx";
+import "./editor.css";
 // Shared editor state (dirty flags, settings sync) — engine-agnostic.
 import {
   baseNames, dirtyFlags,
@@ -57,6 +60,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
   const forceText = config?.forceText === true;
   const isIpynb = !forceText && /\.ipynb$/i.test(filePath || "");
+  const isDbFile = !forceText && /\.(db|db3|sqlite|sqlite3)$/i.test(filePath || "");
+  const isMdFile = !forceText && /\.(md|markdown|mdown|mkd|mkdn)$/i.test(filePath || "");
 
   // ── Project gate ──
   const [hasProject, setHasProject] = useState(!!window.__currentProjectPath);
@@ -81,6 +86,12 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [langQuery, setLangQuery] = useState("");
   const [binaryFile, setBinaryFile] = useState(false);
+
+  // ── Side preview (markdown render / sqlite inspect) ──
+  const canPreview = !!filePath && !isIpynb && (isDbFile || isMdFile || languageId === "markdown");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  // Naya file → db auto-open, baaki band.
+  useEffect(() => { setPreviewOpen(isDbFile); }, [filePath, isDbFile]);
 
   const viewRef = useRef(null);
   const editorRef = useRef(null); // AI bridge (bridge object)
@@ -162,6 +173,15 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     if (!filePath || isIpynb) return;
     loadedRef.current = false;
     setBinaryFile(false);
+    // DB file = binary — text mat padho (mojibake + badi file ka kharcha),
+    // preview pane hi iska view hai.
+    if (isDbFile) {
+      setBinaryFile(true);
+      setDoc("");
+      setLanguageId("plaintext");
+      setCursorPos({ line: 1, col: 1, totalLines: 1 });
+      return;
+    }
     let cancelled = false;
     (async () => {
       const text = await window.electronAPI.readTextFile(filePath);
@@ -193,7 +213,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filePath, nodeId, hasProject, isIpynb]);
+  }, [filePath, nodeId, hasProject, isIpynb, isDbFile]);
 
   // ── Extensions (memo; reconfigure keeps history) ──
   const extensions = useMemo(() => buildCmExtensions({
@@ -550,41 +570,73 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       ) : (
         <>
           <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
-            {isIpynb ? (
-              <NotebookPanel config={config} nodeId={nodeId} />
-            ) : !filePath ? (
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                height: "100%", color: "var(--text-placeholder)", fontSize: "var(--fs-title)", flexDirection: "column", gap: "var(--space-12)",
-              }}>
-                <svg style={{ fill: "var(--bg-thumb)" }} width="48" height="48" viewBox="0 0 16 16">
-                  <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4Zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5Z" />
-                </svg>
-                <span style={{ color: "var(--icon-muted)", fontWeight: "var(--fw-medium)" }}>Editor</span>
-                <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)" }}>
-                  Single-click any file in Project Panel to edit
-                </span>
-              </div>
-            ) : binaryFile ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--icon)", textAlign: "center", fontSize: "var(--fs-title)", padding: "var(--space-24)" }}>
-                Binary or unsupported file type ({fileName(filePath)}).<br />Editing is disabled to prevent corruption.
-              </div>
-            ) : (
-              <div
-                style={{ position: "absolute", inset: 0 }}
-                onContextMenu={onEditorContextMenu}
+            <div style={{ position: "absolute", inset: 0, overflow: "hidden", display: previewOpen && canPreview ? "none" : "block" }}>
+              {isIpynb ? (
+                <NotebookPanel config={config} nodeId={nodeId} />
+              ) : !filePath ? (
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  height: "100%", color: "var(--text-placeholder)", fontSize: "var(--fs-title)", flexDirection: "column", gap: "var(--space-12)",
+                }}>
+                  <svg style={{ fill: "var(--bg-thumb)" }} width="48" height="48" viewBox="0 0 16 16">
+                    <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4Zm5.5 1.5v3A1.5 1.5 0 0 0 11 6h3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h5.5Z" />
+                  </svg>
+                  <span style={{ color: "var(--icon-muted)", fontWeight: "var(--fw-medium)" }}>Editor</span>
+                  <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)" }}>
+                    Single-click any file in Project Panel to edit
+                  </span>
+                </div>
+              ) : isDbFile ? (
+                <div className="ed-dbhint">
+                  <span>SQLite database — {fileName(filePath)}</span>
+                  <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)" }}>
+                    Binary file · preview me tables, columns & rows dekho
+                  </span>
+                  <button className="ed-dbhint__btn" onClick={() => setPreviewOpen(true)}>
+                    Open DB Preview
+                  </button>
+                </div>
+              ) : binaryFile ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--icon)", textAlign: "center", fontSize: "var(--fs-title)", padding: "var(--space-24)" }}>
+                  Binary or unsupported file type ({fileName(filePath)}).<br />Editing is disabled to prevent corruption.
+                </div>
+              ) : (
+                <div
+                  style={{ position: "absolute", inset: 0 }}
+                  onContextMenu={onEditorContextMenu}
+                >
+                  <CodeMirror
+                    value={doc}
+                    height="100%"
+                    basicSetup={false}
+                    theme="none"
+                    indentWithTab={true}
+                    extensions={extensions}
+                    onChange={handleChange}
+                    onUpdate={handleUpdate}
+                    onCreateEditor={handleCreateEditor}
+                  />
+                </div>
+              )}
+            </div>
+
+            {canPreview && (
+              <button
+                className={"ed-prevbtn" + (previewOpen ? " ed-prevbtn--on" : "")}
+                title={previewOpen ? "Back to editor" : "Show preview"}
+                onClick={() => setPreviewOpen((v) => !v)}
               >
-                <CodeMirror
-                  value={doc}
-                  height="100%"
-                  basicSetup={false}
-                  theme="none"
-                  indentWithTab={true}
-                  extensions={extensions}
-                  onChange={handleChange}
-                  onUpdate={handleUpdate}
-                  onCreateEditor={handleCreateEditor}
-                />
+                {previewOpen ? <Square size={11} /> : <Play size={11} />}
+              </button>
+            )}
+
+            {previewOpen && canPreview && (
+              <div className="ed-prev">
+                {isDbFile ? (
+                  <DbPreview filePath={filePath} />
+                ) : (
+                  <MarkdownPreview doc={doc} />
+                )}
               </div>
             )}
           </div>
@@ -605,7 +657,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
-                <span>{statusMsg || `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`}</span>
+                <span>{statusMsg || (isDbFile ? "SQLite database · read-only" : `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`)}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
                 {(autoSave || isAutoSaveEnabled()) && <span>AutoSave: On</span>}

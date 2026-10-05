@@ -2868,6 +2868,40 @@ ipcMain.handle("fs:readTextFile", async (_e, filePath) => {
   try { return fs.readFileSync(toLongPath(filePath), "utf8"); } catch { return null; }
 });
 
+// ── SQLite file inspect (node:sqlite — Electron me built-in, koi dep nahi) ──
+const DB_EXTS = [".db", ".db3", ".sqlite", ".sqlite3"];
+ipcMain.handle("db:inspect", async (_e, filePath) => {
+  if (!DB_EXTS.includes(path.extname(filePath || "").toLowerCase())) return { error: "Not a database file" };
+  const t0 = Date.now();
+  let db = null;
+  try {
+    const { DatabaseSync } = require("node:sqlite");
+    db = new DatabaseSync(toLongPath(filePath), { readOnly: true });
+    const objs = db.prepare(
+      "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name"
+    ).all();
+    const tables = [];
+    for (const o of objs.slice(0, 200)) {
+      const name = String(o.name);
+      const q = `"${name.replace(/"/g, '""')}"`;
+      const entry = { name, type: String(o.type || "table"), count: null, columns: [], rows: [] };
+      try { entry.count = db.prepare(`SELECT COUNT(*) AS c FROM ${q}`).get()?.c ?? null; } catch {}
+      try { entry.columns = db.prepare(`SELECT * FROM ${q} LIMIT 0`).columns().map((c) => ({ name: c.name, type: c.type || "" })); } catch {}
+      if (!entry.columns.length) {
+        try { entry.columns = db.prepare(`PRAGMA table_info(${q})`).all().map((r) => ({ name: r.name, type: r.type || "" })); } catch {}
+      }
+      try { entry.rows = db.prepare(`SELECT * FROM ${q} LIMIT 100`).all(); } catch {}
+      tables.push(entry);
+      if (Date.now() - t0 > 4000) break;
+    }
+    return { tables, truncated: objs.length > tables.length };
+  } catch (err) {
+    return { error: String(err?.message || err) };
+  } finally {
+    try { db?.close(); } catch {}
+  }
+});
+
 ipcMain.handle("fs:readFileAsDataUrl", async (_e, filePath) => {
   try {
     const ext = path.extname(filePath).toLowerCase();

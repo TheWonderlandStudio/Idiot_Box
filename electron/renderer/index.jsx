@@ -17,14 +17,13 @@ import ProjectHub from "./components/Project/Hub.jsx";
 import EditorPanel from "./components/Editor/index.jsx";
 import NotebookPanel from "./components/Notebook/index.jsx";
 import TerminalPanel from "./components/Terminal/index.jsx";
-import BlankPanel from "./components/Blank/index.jsx";
+import BlankPanel, { bumpPanelUsage } from "./components/Blank/index.jsx";
 import ComponentPreview from "./components/ComponentPreview/index.jsx";
 import CommunityPanel from "./components/CommunityPanel/index.jsx";
 import CanvasPanel from "./components/Canvas/index.jsx";
 import OpenPencilPanel from "./components/OpenPencil/index.jsx";
 import CommandPalette from "./components/CommandPalette/index.jsx";
 import OnboardingPage from "./components/Onboarding/index.jsx";
-import QuickOpen from "./components/QuickOpen/index.jsx";
 import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
 import RunPanel from "./components/RunPanel/index.jsx";
@@ -1038,7 +1037,32 @@ const App = () => {
     });
     // Title bar ka Workspaces box isse hub par wapas bhejta hai
     window.__ibxCloseProject = handleClose;
-    return () => { u1(); u2(); u3(); u4(); delete window.__ibxCloseProject; };
+    // ── Unified palette (`CommandPalette`) ke commands → yahan handle hote hain ──
+    const onPaletteAction = async (e) => {
+      const c = e?.detail?.cmd;
+      try {
+        if (c === "newProject") {
+          const p = await window.electronAPI.browseFolder({ title: "Select folder for new project" });
+          if (p) await window.electronAPI.menuNewProject(p);
+        } else if (c === "saveProject") {
+          doSaveProjectTabs();
+        } else if (c === "closeProject") {
+          handleClose();
+        } else if (c === "resetLayout") {
+          modelRef.current = Model.fromJson(projectLayoutRef.current === "blank" ? BLANK_JSON : DEFAULT_JSON);
+          setTick((t) => t + 1);
+        } else if (c === "toggleAutoSave") {
+          const s = (await window.electronAPI.readSettings().catch(() => null)) || {};
+          const next = !(s.autoSave === true || s.autoSave === "afterDelay");
+          await window.electronAPI.writeSettings({ ...s, autoSave: next });
+        }
+      } catch { /* palette action best-effort */ }
+    };
+    window.addEventListener("menu:action", onPaletteAction);
+    return () => {
+      u1(); u2(); u3(); u4(); delete window.__ibxCloseProject;
+      window.removeEventListener("menu:action", onPaletteAction);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Chrome extension tabs (chrome.tabs.create) ─────────────────────────
@@ -1219,6 +1243,7 @@ const App = () => {
     const addPanel = (component, name, config) => {
       const m = modelRef.current;
       if (!m) return;
+      bumpPanelUsage(component);
       let parentId = null;
       if (component === "panel3") {
         // Browser: open in same group as last Browser, else biggest window
@@ -1486,7 +1511,7 @@ const App = () => {
   // ── Split Editor Right — clone the active editor tab to the right ────────
   // Both tabs share the same file:// Monaco model, so edits sync live.
   useEffect(() => {
-    const unsub = window.electronAPI.onMenuEvent("menu:splitEditorRight", () => {
+    const onSplitRight = () => {
       const m = modelRef.current;
       if (!m) return;
       let src = null;
@@ -1509,8 +1534,11 @@ const App = () => {
         id: "editor-tab-" + Date.now() + "-" + Math.random().toString(36).slice(2),
         config: srcCfg.forceText ? { filePath, forceText: true } : { filePath },
       }, parentId, DockLocation.RIGHT, -1, true));
-    });
-    return unsub;
+    };
+    const unsub = window.electronAPI.onMenuEvent("menu:splitEditorRight", onSplitRight);
+    // Palette command "Split Editor Right" isi callback ko trigger karta hai
+    window.addEventListener("editor:splitRight", onSplitRight);
+    return () => { unsub(); window.removeEventListener("editor:splitRight", onSplitRight); };
   }, []);
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:openGit", () => {
@@ -2066,7 +2094,6 @@ const App = () => {
           <ProjectHub />
         </div>
         <CommandPalette />
-        <QuickOpen />
         <SearchPanel />
       </div>
     );
@@ -2319,7 +2346,7 @@ const App = () => {
           </button>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
-            title="Command Palette (Ctrl+Shift+P)"
+            title="Command Palette (Ctrl+Shift+P / F1) · Quick Open (Ctrl+P)"
             style={{
               background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
               color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
@@ -2331,7 +2358,6 @@ const App = () => {
       </div>
 
       <CommandPalette />
-      <QuickOpen />
       <SearchPanel />
     </div>
   );
