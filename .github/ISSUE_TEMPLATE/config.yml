@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions, support & ideas
+    url: https://github.com/TheWonderlandStudio/Idiot_Box/discussions
+    about: Ask for help, start a discussion or propose an idea — use Discussions instead of a blank issue.
+  - name: Download Idiot Box
+    url: https://thewonderlandstudio.github.io/Idiot_Box/download.html
+    about: Grab the latest installer (Windows / Linux) with live release stats.
