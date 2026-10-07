@@ -59,3 +59,18 @@ electron/
   host/             (legacy extension host files, migrated to worker)
 build/              esbuild configs + worker asset copy
 ```
+
+## Official sources
+
+- Releases: https://github.com/TheWonderlandStudio/Idiot_Box/releases
+- Download page: https://thewonderlandstudio.github.io/Idiot_Box/download.html
+
+Other sites offering "Idiot Box" for download are not official.
+
+## License
+
+Source code is licensed under the [GNU General Public License v3](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
+
+## Trademark
+
+"Idiot Box" branding, logo and the rules for forks and re-releases are in [TRADEMARK.md](TRADEMARK.md). Short version: anyone may fork and modify the code under the GPL, but modified versions must drop the Idiot Box name and identity, and nobody may pass a build off as the official one.

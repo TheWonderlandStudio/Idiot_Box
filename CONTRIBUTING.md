@@ -10,6 +10,7 @@ Thanks for helping out. This page covers the shortest path from an idea to a mer
 | Ask a question, share something you built, float an idea | [Discussions](https://github.com/TheWonderlandStudio/Idiot_Box/discussions) |
 | Fix something or add a feature | Pull request (guide below) |
 | Report a security problem | [SECURITY.md](SECURITY.md) — never a public issue |
+| Use the name, logo or branding | [TRADEMARK.md](TRADEMARK.md) |
 
 ## Development setup
 

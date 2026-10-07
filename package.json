@@ -4,6 +4,7 @@
   "private": true,
   "license": "GPL-3.0-only",
   "description": "Idiot Box - Code-OSS-backed desktop IDE built with Electron and React",
+  "homepage": "https://thewonderlandstudio.github.io/Idiot_Box/",
   "author": {
     "name": "TheWonderlandStudio",
     "email": "support@thewonderlandstudio.com",
