@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- FlexLayout default popout shell. Parent window copies styles + injects
+         content via React portal. Keep minimal. CSP in sync with index.html. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file: ibx-file:; script-src 'self' file: ibx-file: blob: 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' file: ibx-file: blob: data: 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' file: ibx-file: blob: data: https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' file: ibx-file: blob: data: https: http:; media-src 'self' file: ibx-file: blob: data: https: http:; connect-src 'self' file: ibx-file: blob: data: https: wss: ws: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; worker-src 'self' file: ibx-file: blob:; child-src 'self' file: ibx-file: blob:; frame-src 'self' file: ibx-file: blob: data:; object-src 'none'; base-uri 'self' file: ibx-file:; form-action 'self' file: ibx-file:"
+    />
+    <title>Idiot Box</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #0d0d0d;
+      }
+    </style>
+  </head>
+  <body></body>
+</html>

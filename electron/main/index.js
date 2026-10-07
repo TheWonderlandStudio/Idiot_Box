@@ -1,5 +1,7 @@
 // Main process entry point
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage, clipboard, protocol, net: electronNet, session } = require("electron");
+// TEMP DEBUG (remove after investigation): capture main-process crash dump locally.
+try { require("electron").crashReporter.start({ uploadToServer: false, compress: false }); } catch (e) { console.warn("[crashReporter]", e && e.message); }
 const path    = require("path");
 const fs      = require("fs");
 const { pathToFileURL, fileURLToPath } = require("url");
@@ -2509,15 +2511,51 @@ ipcMain.handle("fs:rename", async (_e, { oldPath, newName }) => {
   catch (err) { throw new Error(`Cannot rename "${path.basename(oldPath)}": ${err.code === "EBUSY" ? "file is in use by another process" : err.message}`); }
 });
 
+// ─── Delete helpers — Windows pe antivirus/indexer/terminal/Explorer sab kuch
+// kuch der ke liye file handle hold kar lete hain, isliye transient locks ko
+// retry + backoff se clear karte hain aur errors ko human-readable banate hain.
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+const existsItem = (p) => { try { fs.lstatSync(p); return true; } catch { return false; } };
+
+const RETRY_CODES = new Set(["EBUSY", "EPERM", "EACCES", "EAGAIN", "ENOTEMPTY", "ETXTBSY", "EMFILE", "ENFILE"]);
+const isRetryableFsError = (err) => {
+  if (!err) return false;
+  if (RETRY_CODES.has(err.code)) return true;
+  const m = String(err.message || "").toLowerCase();
+  return m.includes("being used by another process") || m.includes("sharing violation") ||
+         m.includes("access is denied") || m.includes("permission denied") ||
+         m.includes("locked") || m.includes("in use") || m.includes("try again");
+};
+
+// Renderer "Cannot delete:\n<msg>" dikhata hai — isliye sirf reason return karo.
+const friendlyDeleteReason = (itemPath, err) => {
+  const code = err?.code || "";
+  const m = String(err?.message || "");
+  if (code === "ENOENT" || /does not exist|cannot find|not found/i.test(m)) return "item not found (it may already be deleted)";
+  if (code === "EBUSY" || /being used by another process|sharing violation/i.test(m))
+    return "item is in use by another process — close it in the editor, terminal or Explorer and retry";
+  if (code === "EACCES" || code === "EPERM" || /access is denied|permission denied/i.test(m))
+    return "access denied — check the read-only flag, running programs or antivirus";
+  if (code === "ENAMETOOLONG") return "path is too long for Windows";
+  if (/failed to parse path/i.test(m)) return "invalid file path (Windows could not read it)";
+  if (/parameter is incorrect|invalid/i.test(m)) return `Windows refused the operation (${m})`;
+  return m || "unknown error";
+};
+
 ipcMain.handle("fs:delete", async (_e, { itemPath }) => {
   const lp = toLongPath(itemPath);
-  try {
-    const s = fs.statSync(lp);
-    if (s.isDirectory()) fs.rmSync(lp, { recursive: true, force: true });
-    else fs.unlinkSync(lp);
-    return true;
-  } catch (err) {
-    throw new Error(`Cannot delete "${path.basename(itemPath)}": ${err.code === "EBUSY" ? "item is in use by another process" : err.message}`);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const s = fs.lstatSync(lp);
+      if (s.isDirectory()) fs.rmSync(lp, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
+      else fs.unlinkSync(lp);
+      return true;
+    } catch (err) {
+      // Pehle se delete ho chuka — error nahi, UI sirf refresh kare.
+      if (err.code === "ENOENT") return true;
+      if (attempt < 3 && isRetryableFsError(err)) { await sleepMs(150 * (attempt + 1)); continue; }
+      throw new Error(friendlyDeleteReason(itemPath, err));
+    }
   }
 });
 
@@ -2525,14 +2563,34 @@ ipcMain.handle("fs:delete", async (_e, { itemPath }) => {
 // Delete → shell.trashItem (OS Recycle Bin). No <projectRoot>/.bin, no manifest.
 // fs:delete → permanent.
 ipcMain.handle("fs:trashItem", async (_e, { itemPath }) => {
-  const lpItem = toLongPath(itemPath);
-  try {
-    if (!fs.existsSync(lpItem)) throw new Error(`File does not exist: ${itemPath}`);
-    await shell.trashItem(lpItem);
-    return { movedToTrash: true, originalPath: itemPath };
-  } catch (err) {
-    throw new Error(`Cannot move "${path.basename(itemPath)}" to Recycle Bin: ${err.message}`);
+  if (!itemPath) throw new Error("no item given");
+  const plain = String(itemPath).replace(/\//g, "\\");
+  // Electron ka shell.trashItem \\?\ extended prefix aur forward slash dono
+  // reject karta hai ("Failed to parse path") — isliye hamesha clean
+  // Windows path bhejo. Prefix sirf existence check ke liye use hota hai.
+  const unprefix = plain.startsWith("\\\\?\\UNC\\") ? "\\\\" + plain.slice(8)
+                 : plain.startsWith("\\\\?\\")     ? plain.slice(4)
+                 : null;
+  const target  = unprefix || plain;
+  const stillThere = () => existsItem(toLongPath(target));
+  // Pehle se gayab → error mat dikhao, renderer sirf refresh kar lega.
+  if (!stillThere()) return { movedToTrash: true, originalPath: itemPath, alreadyGone: true };
+
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await sleepMs(150 * attempt);
+    try {
+      await shell.trashItem(target);
+      return { movedToTrash: true, originalPath: itemPath };
+    } catch (err) {
+      lastErr = err;
+      // Transient lock hai to retry, warna band karo.
+      if (!isRetryableFsError(err)) break;
+    }
   }
+  // Retry ke baad gayab mila → item delete ho chuka (stale tree row case).
+  if (!stillThere()) return { movedToTrash: true, originalPath: itemPath, alreadyGone: true };
+  throw new Error(friendlyDeleteReason(itemPath, lastErr || new Error("operation failed by another program")));
 });
 
 ipcMain.handle("fs:restoreTrashItem", async () => {
@@ -3052,9 +3110,11 @@ ipcMain.handle("fs:watch", (event, rootPath) => {
   });
 
   const notify = (changedPath) => {
-    const affectedDir = fs.existsSync(changedPath) && fs.statSync(changedPath).isDirectory()
-      ? changedPath
-      : path.dirname(changedPath);
+    // Race: file/folder event aate hi delete ho sakta hai — statSync throw na kare.
+    let affectedDir = path.dirname(changedPath);
+    try {
+      if (fs.statSync(changedPath).isDirectory()) affectedDir = changedPath;
+    } catch { affectedDir = path.dirname(changedPath); }
 
     debounce(affectedDir, () => {
       const win = BrowserWindow.fromWebContents(event.sender);
@@ -3174,7 +3234,7 @@ ipcMain.handle("browser:tabContextMenu", (event) => {
 });
 
 // ─── FlexLayout tab context menu ────────────────────────────────────────────
-ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, filePath = null } = {}) => {
+ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, canPopout = false, canFloat = false, filePath = null } = {}) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
     const sep = { type: "separator" };
@@ -3185,6 +3245,8 @@ ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = fals
     if (canClose) items.push(sep);
     if (canDuplicate) items.push({ label: "Duplicate", click: () => act("duplicate") });
     items.push({ label: "Split Right", click: () => act("splitRight") });
+    if (canFloat) items.push({ label: "Float", click: () => act("float") });
+    if (canPopout) items.push({ label: "Popout", click: () => act("popout") });
     if (canRefresh || isBrowser) {
       items.push(sep);
       items.push({ label: "Refresh", click: () => act("refresh") });
@@ -5909,10 +5971,10 @@ function buildMenu() {
               type: "info",
               title: "About Idiot Box",
               message: `Idiot Box v${app.getVersion()}`,
-              detail: "A fast, modern and lightweight code editor crafted for developers.\nDesigned to be simple, powerful and extensible.\n\n© 2026 TheWonderlandStudio\nhttps://github.com/TheWonderlandStudio/Idiot_Box",
-              buttons: ["OK", "View on GitHub"],
+              detail: "A fast, modern and lightweight code editor crafted for developers.\nDesigned to be simple, powerful and extensible.\n\n© 2026 TheWonderlandStudio\nhttps://github.com/TheWonderlandStudio/Idiot_Box\nhttps://discord.gg/Z9DynuSxRY",
+              buttons: ["OK", "View on GitHub", "Join Discord"],
               defaultId: 0,
-            }).then(({ response }) => { if (response === 1) shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box"); });
+            }).then(({ response }) => { if (response === 1) shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box"); if (response === 2) shell.openExternal("https://discord.gg/Z9DynuSxRY"); });
           } },
         { label: "Check for Updates…", click: async () => {
             const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
@@ -5939,6 +6001,7 @@ function buildMenu() {
         { type: "separator" },
         { label: "Report Issue", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/issues") },
         { label: "View on GitHub", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box") },
+        { label: "Join Discord", click: () => shell.openExternal("https://discord.gg/Z9DynuSxRY") },
       ],
     },
   ];
@@ -6024,7 +6087,43 @@ function createWindow() {
       }
     }
   });
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url, features }) => {
+    if (url && url.includes("popout.html")) {
+      const preloadPath = path.join(__dirname, "../preload/preload-bundle.cjs");
+      const opts = {
+        frame: false,
+        titleBarStyle: "hidden",
+        autoHideMenuBar: true,
+        backgroundColor: "#0d0d0d",
+        resizable: true,
+        minimizable: true,
+        maximizable: true,
+        fullscreenable: false,
+        movable: true,
+        webPreferences: {
+          preload: preloadPath,
+          webviewTag: true,
+          contextIsolation: true,
+          nodeIntegration: false,
+          spellcheck: false,
+          plugins: true,
+          webSecurity: true,
+          allowRunningInsecureContent: false,
+        },
+      };
+      try {
+        const map = {};
+        String(features || "").split(",").forEach((kv) => {
+          const [k, v] = kv.split("=");
+          if (k && v) map[k.trim()] = parseInt(v, 10);
+        });
+        if (Number.isFinite(map.width)) opts.width = Math.max(300, map.width);
+        if (Number.isFinite(map.height)) opts.height = Math.max(200, map.height);
+        if (Number.isFinite(map.left)) opts.x = map.left;
+        if (Number.isFinite(map.top)) opts.y = map.top;
+      } catch { /* default size */ }
+      return { action: "allow", overrideBrowserWindowOptions: opts };
+    }
     if (url && !url.startsWith("file://") && !url.startsWith("about:blank")) {
       safeForward(url);
     }
@@ -6185,6 +6284,29 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // ─── Global guard: popout windows me custom electron titlebar (CET) attach
+  // na ho. Sirf main IDE window ke liye setupTitlebar... call ho (explicit).
+  // Yeh listener har naye BrowserWindow ke liye fire karta hai aur agar
+  // wo popout.html hai to use native titlebar + frame set karta hai.
+  try {
+    app.on("browser-window-created", (_ev, bw) => {
+      try {
+        const wc = bw?.webContents;
+        if (!wc) return;
+        const checkAndFix = () => {
+          try {
+            const u = wc.getURL?.() || "";
+            if (u && u.includes("popout.html")) {
+              try { bw.setTitleBarOverlay?.(null); } catch {}
+              try { bw.webContents.setBackgroundThrottling(false); } catch {}
+            }
+          } catch {}
+        };
+        wc.once("did-finish-load", checkAndFix);
+        checkAndFix();
+      } catch {}
+    });
+  } catch {}
   // ─── Content-Security-Policy — header enforcement for file:// app shell ──
   // Must run BEFORE any BrowserWindow loads. Guest <webview> / ibx-file
   // content is intentionally excluded (see electron/main/csp.js).

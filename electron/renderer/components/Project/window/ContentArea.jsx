@@ -360,11 +360,10 @@ const ContentArea = ({
         for (const p of targetPaths) {
           try {
             await window.electronAPI.trashItem(p, rp);
-          } catch (err) { failed.push(p.split(/[\\/]/).pop()); }
+          } catch (err) { failed.push(`${p.split(/[\\/]/).pop()}: ${err.message}`); }
         }
         if (failed.length) await alertErr("Delete failed for", new Error(failed.join(", ")));
-        if (failed.length === targetPaths.length) return;
-        // OS trash — no internal undo (restore from OS Recycle Bin)
+        // Refresh hamesha — chahe kuch fail hue ho ya item pehle se gayab ho
         onSetSelectedItems(new Set());
         invalidateCache(dir);
         await loadEntries();
@@ -383,10 +382,9 @@ const ContentArea = ({
           try {
             await window.electronAPI.deleteItem(p);
           }
-          catch (err) { pfailed.push(p.split(/[\\/]/).pop()); }
+          catch (err) { pfailed.push(`${p.split(/[\\/]/).pop()}: ${err.message}`); }
         }
         if (pfailed.length) await alertErr("Delete failed for", new Error(pfailed.join(", ")));
-        if (pfailed.length === targetPaths.length) return;
         onSetSelectedItems(new Set());
         invalidateCache(dir);
         await loadEntries();

@@ -38,6 +38,10 @@ const DEFAULT_JSON = {
     tabEnableClose: false,
     tabEnableRename: false,
     tabEnableDrag: true,
+    tabEnablePopout: true,
+    tabEnablePopoutIcon: true,
+    tabEnableFloat: true,
+    tabEnableFloatIcon: true,
     tabSetEnableMaximize: true,
     tabSetEnableDrop: true,
     tabSetHeaderShown: true,
@@ -105,28 +109,60 @@ const BLANK_JSON = {
 };
 
 const factory = (node) => {
-  switch (node.getComponent()) {
-    case "mediaViewer":       return <MediaViewer />;
-    case "panel3":            return <BrowserPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "projectPanel":      return <ProjectPanel />;
-    case "projectHub":      return <ProjectHub />;
-    case "editor":            return <EditorPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "notebook":          return <NotebookPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "terminal":          return <TerminalPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "blank":             return <BlankPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "componentPreview":  return <ComponentPreview config={node.getConfig()} nodeId={node.getId()} />;
-    case "community":        return <CommunityPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "canvas":            return <CanvasPanel config={node.getConfig()} nodeId={node.getId()} />;
-    case "openPencil":        return <OpenPencilPanel config={node.getConfig()} nodeId={node.getId()} />;
-  case "problems":          return <ProblemsPanel />;
-  case "runDebug":          return <RunPanel />;
-  case "output":            return <OutputPanel />;
-  case "gitPanel":          return <GitPanel nodeId={node.getId()} />;
-  case "ports":             return <PortsPanel />;
-  case "androidEmulator":   return <AndroidEmulatorPanel />;
-  default:                  return null;
+  try {
+    switch (node.getComponent()) {
+      case "mediaViewer":       return <CrashSafeWrapper cid={node.getId()}><MediaViewer /></CrashSafeWrapper>;
+      case "panel3":            return <CrashSafeWrapper cid={node.getId()}><BrowserPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "projectPanel":      return <CrashSafeWrapper cid={node.getId()}><ProjectPanel /></CrashSafeWrapper>;
+      case "projectHub":      return <CrashSafeWrapper cid={node.getId()}><ProjectHub /></CrashSafeWrapper>;
+      case "editor":            return <CrashSafeWrapper cid={node.getId()}><EditorPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "notebook":          return <CrashSafeWrapper cid={node.getId()}><NotebookPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "terminal":          return <CrashSafeWrapper cid={node.getId()}><TerminalPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "blank":             return <CrashSafeWrapper cid={node.getId()}><BlankPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "componentPreview":  return <CrashSafeWrapper cid={node.getId()}><ComponentPreview config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "community":        return <CrashSafeWrapper cid={node.getId()}><CommunityPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "canvas":            return <CrashSafeWrapper cid={node.getId()}><CanvasPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+      case "openPencil":        return <CrashSafeWrapper cid={node.getId()}><OpenPencilPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
+    case "problems":          return <CrashSafeWrapper cid={node.getId()}><ProblemsPanel /></CrashSafeWrapper>;
+  case "runDebug":          return <CrashSafeWrapper cid={node.getId()}><RunPanel /></CrashSafeWrapper>;
+  case "output":            return <CrashSafeWrapper cid={node.getId()}><OutputPanel /></CrashSafeWrapper>;
+  case "gitPanel":          return <CrashSafeWrapper cid={node.getId()}><GitPanel nodeId={node.getId()} /></CrashSafeWrapper>;
+  case "ports":             return <CrashSafeWrapper cid={node.getId()}><PortsPanel /></CrashSafeWrapper>;
+  case "androidEmulator":   return <CrashSafeWrapper cid={node.getId()}><AndroidEmulatorPanel /></CrashSafeWrapper>;
+      default:                  return null;
+    }
+  } catch (e) {
+    return (
+      <div style={{ padding: 16, color: "var(--ink-muted)", fontFamily: "inherit", fontSize: 12 }}>
+        <div style={{ fontWeight: 700, color: "var(--danger)", marginBottom: 6 }}>Panel Load Failed</div>
+        <div style={{ whiteSpace: "pre-wrap", opacity: 0.85 }}>{String(e?.stack || e?.message || e)}</div>
+      </div>
+    );
   }
 };
+
+// ── Crash-safe wrapper: har tab ka root iske andar chalta hai.
+// Popout / Float / normal sab cases me kisi bhi panel ke throw hone se
+// poore FlexLayout tree ko crash hone se bachata hai.
+class CrashSafeWrapper extends React.Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) {
+    try { console.error(`[CrashSafeWrapper:${this.props.cid || "?"}]`, err, info); } catch {}
+  }
+  render() {
+    if (this.state.err) {
+      return (
+        <div style={{ padding: 16, color: "var(--ink-muted)", fontFamily: "inherit", fontSize: 12, background: "var(--bg-danger-soft)", height: "100%", boxSizing: "border-box", overflow: "auto" }}>
+          <div style={{ fontWeight: 700, color: "var(--danger)", marginBottom: 8, fontSize: 13 }}>Something went wrong while loading this panel.</div>
+          <button onClick={() => this.setState({ err: null })} style={{ marginBottom: 10, padding: "6px 12px", fontSize: 12, cursor: "pointer", background: "var(--bg-button)", color: "var(--ink)", border: "1px solid var(--border-strong)", borderRadius: 6 }}>Retry</button>
+          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 11, opacity: 0.9 }}>{String(this.state.err?.stack || this.state.err?.message || this.state.err)}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ── Updater nav button — bottom bar with proper cycle & progress bar ──
 const UpdaterNavButton = () => {
@@ -790,6 +826,24 @@ const sanitizeProjectPanels = (json) => {
     };
     if (json?.layout) walk(json.layout);
     if (Array.isArray(json?.borders)) json.borders.forEach(walk);
+    // Popout windows (FlexLayout multi-window) bhi sanitise karo - unke
+    // andar ke tabs bhi isi model JSON me save hote hain.
+    if (json?.popouts && typeof json.popouts === "object") {
+      Object.values(json.popouts).forEach((p) => walk(p?.layout));
+    }
+  } catch {}
+  return json;
+};
+
+// Purane saved sessions me tabEnablePopout false saved hota hai - popout
+// feature on karne ke liye hamesha force-enable karo (default + saved dono).
+const enablePopouts = (json) => {
+  try {
+    if (!json.global || typeof json.global !== "object") json.global = {};
+    json.global.tabEnablePopout = true;
+    json.global.tabEnablePopoutIcon = true;
+    json.global.tabEnableFloat = true;
+    json.global.tabEnableFloatIcon = true;
   } catch {}
   return json;
 };
@@ -809,7 +863,7 @@ const App = () => {
   const [hasProject, setHasProject] = useState(false);
   // Current project ka layout mode — "blank" (Create Project ke 2 buttons me se)
   const projectLayoutRef = useRef(null);
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
   const [titlebarHost, setTitlebarHost] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -1032,6 +1086,7 @@ const App = () => {
         if (s.restoreTabs === false) session = null;
       } catch {}
       const json = (session && session.layout) ? JSON.parse(JSON.stringify(session.layout)) : DEFAULT_JSON;
+      enablePopouts(json);
       // Migrate old component names
       if (session && session.layout) {
         (function migrate(node) {
@@ -1224,7 +1279,7 @@ const App = () => {
       let restored = false;
       if (savedPanels) {
         try {
-          const json = sanitizeProjectPanels(JSON.parse(JSON.stringify(savedPanels)));
+          const json = enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(savedPanels))));
           modelRef.current = Model.fromJson(json);
           restored = true;
         } catch {}
@@ -1865,6 +1920,11 @@ const App = () => {
     window.open = function(url, target, features) {
       if (url) {
         const str = String(url);
+        // FlexLayout popout window - browser panel me mat bhejo, native
+        // window.open hi chahiye (main process allow karta hai).
+        if (str.includes("popout.html")) {
+          return origOpen ? origOpen.call(window, url, target, features) : null;
+        }
         if (/^https?:\/\//i.test(str) || str.includes("localhost") || /^[^\s]+\.[^\s]+/.test(str)) {
           window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url: str, config: { type: "browser", title: "Browser", url: str } } }));
           return null;
@@ -2263,6 +2323,29 @@ const App = () => {
     return () => unsubs.forEach((u) => u());
   }, []);
 
+  // ── Guard: agar 0 panel open hain to seedha "New Panel" picker khol do ────
+  // Aakhri panel close karne par FlexLayout ek khaali tabset chhod jata hai
+  // (content area blank, sirf "+" header). Yahan tab count karke 0 ho to
+  // wahi blank picker tab addNode kar dete hain — jo "+" button bhi kholta hai.
+  // Model swap (project open / reset / preset) change-listener nahi chalata,
+  // isliye tick/hasProject effect uska safety-net hai.
+  const ensureNewPanelIfEmpty = () => {
+    try {
+      const m = modelRef.current;
+      if (!m || !hasProject || !readyRef.current || showOnboarding) return;
+      let tabs = 0;
+      m.visitNodes((n) => { try { if (n.getType && n.getType() === "tab") tabs++; } catch {} });
+      if (tabs > 0) return;
+      const ts = m.getActiveTabset() || m.getFirstTabSet();
+      if (!ts || !ts.getId()) return;
+      m.doAction(Actions.addNode({
+        type: "tab", component: "blank", name: "New Panel", enableClose: true,
+      }, ts.getId(), DockLocation.CENTER, -1, true));
+      scheduleSaveProjectTabs(); // model.doAction onAction bypass karta hai — save yahan khud
+    } catch { /* best-effort — layout ko kabhi break mat karo */ }
+  };
+  useEffect(() => { ensureNewPanelIfEmpty(); }, [tick, hasProject, showOnboarding]);
+
   // Onboarding poora page hai — hub/layout ki jagah render hota hai
   if (showOnboarding) {
     return <OnboardingPage onDone={() => setShowOnboarding(false)} />;
@@ -2346,7 +2429,7 @@ const App = () => {
   const applyLayoutPreset = (preset) => {
     try {
       if (!preset || !preset.panels || !preset.panels.layout || !currentProjectRef.current) return false;
-      const json = sanitizeProjectPanels(JSON.parse(JSON.stringify(preset.panels)));
+      const json = enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(preset.panels))));
       modelRef.current = Model.fromJson(json);
       projectLayoutRef.current = preset.layout === "blank" ? "blank" : null;
       setTick((t) => t + 1);
@@ -2393,6 +2476,17 @@ const App = () => {
       model={modelRef.current}
       factory={factory}
       onAction={handleLayoutAction}
+      onModelChange={(m, action) => {
+        // Post-mutation hook — yahan tab count sahi hota hai (onAction se
+        // pehle wala count stale hota hai). SELECT_TAB me count ki zarurat nahi.
+        try {
+          if (!action || action.type === Actions.SELECT_TAB) return;
+          ensureNewPanelIfEmpty();
+        } catch {}
+      }}
+      supportsPopout
+      popoutURL="popout.html"
+      popoutWindowName="Idiot Box"
       onDrop={(node, e) => {
         // Intercept file drops from the Project Panel onto any tabset.
         // window.__ibxDragPaths is set by ContentArea/SidebarTree dragStart.
@@ -2463,7 +2557,36 @@ const App = () => {
                 type: "tab", component: current.getComponent(), name: current.getName(), enableClose: true,
                 config: { ...(current.getConfig?.() || {}) },
               }, parent.getId(), DockLocation.RIGHT, -1, true));
-            } else if (action === "copyPath" && filePath) window.electronAPI?.clipboardWrite?.(filePath);
+            } else if (action === "popout") m.doAction(Actions.popoutTab(tabId));
+            else if (action === "float") {
+              try {
+                if (typeof Actions.floatTab === "function") {
+                  m.doAction(Actions.floatTab(tabId));
+                } else {
+                  const r = current.getRect?.();
+                  const parentRect = parent?.getRect?.();
+                  if (r && parentRect) {
+                    const w = Math.max(480, r.width || 600);
+                    const h = Math.max(360, r.height || 450);
+                    const tsId = parent ? parent.getId() : m.getRoot().getId();
+                    const tabJSON = {
+                      type: "tab",
+                      component: current.getComponent(),
+                      name: current.getName(),
+                      enableClose: true,
+                      config: { ...(current.getConfig?.() || {}) },
+                    };
+                    m.doAction(Actions.deleteTab(tabId));
+                    setTimeout(() => {
+                      try {
+                        m.doAction(Actions.addNode(tabJSON, tsId, DockLocation.CENTER, -1, true));
+                      } catch {}
+                    }, 50);
+                  }
+                }
+              } catch {}
+            }
+            else if (action === "copyPath" && filePath) window.electronAPI?.clipboardWrite?.(filePath);
             else if (action === "reveal" && filePath) window.electronAPI?.revealInExplorer?.(filePath);
             scheduleSaveProjectTabs();
           } catch {}
@@ -2477,6 +2600,8 @@ const App = () => {
               canDuplicate: duplicateable,
               isBrowser,
               canRefresh: isBrowser || isOpenPencil,
+              canPopout: node.isEnablePopout?.() !== false,
+              canFloat: true,
               filePath,
             });
             if (result?.action === "refresh") {

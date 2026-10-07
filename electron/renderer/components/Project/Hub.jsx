@@ -104,6 +104,7 @@ const COMPONENT_NAMES = Object.fromEntries(
 );
 const PANEL_GLOBAL = {
   tabEnableClose: false, tabEnableRename: false, tabEnableDrag: true,
+  tabEnablePopout: true, tabEnablePopoutIcon: true,
   tabSetEnableMaximize: true, tabSetEnableDrop: true, tabSetHeaderShown: true,
   tabSetTabStripHeight: 26, splitterSize: 6, splitterExtra: 8,
   tabSetMinWidth: 100, tabSetMinHeight: 80, borderMinSize: 80,

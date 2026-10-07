@@ -338,6 +338,20 @@ const SidebarTree = ({
     return parent;
   }, [rootPath]);
 
+  // Shared: item → OS Recycle Bin + tree refresh.
+  // - pehle se delete item = silent refresh (stale row), error dialog nahi
+  // - failure par bhi cache invalidate karo taaki ghost row na bacha rahe
+  const trashAndRefresh = useCallback(async (targetPath, parentDir) => {
+    let err = null;
+    try {
+      await window.electronAPI.trashItem(targetPath, findTrashRoot(targetPath));
+    } catch (e) { err = e; }
+    invalidateCache(parentDir);
+    setLocalRefresh((k) => k + 1);
+    if (err) await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`);
+    return !err;
+  }, [invalidateCache, findTrashRoot]);
+
   // Reload root children whenever rootPath changes OR a mutation triggers localRefresh
   useEffect(() => {
     if (!rootPath) { setRootChildren(null); return; }
@@ -548,13 +562,7 @@ const SidebarTree = ({
         const name = folderPath.replace(/.*[\\/]/, "");
         // Project Panel: Delete → OS Recycle Bin
         const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
-        if (ok) {
-          try {
-            await window.electronAPI.trashItem(folderPath, findTrashRoot(folderPath));
-            invalidateCache(parentDir);
-            setLocalRefresh((k) => k + 1);
-          } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-        }
+        if (ok) await trashAndRefresh(folderPath, parentDir);
         break;
       }
       case "duplicate": {
@@ -615,7 +623,7 @@ const SidebarTree = ({
       }
       case "refresh":  refresh(); break;
     }
-  }, [selectedPath, onSelect, clipboard, invalidateCache, handlePinToggle, onClipboardChange, ask, pushUndo, rootPath, findTrashRoot]);
+  }, [selectedPath, onSelect, clipboard, invalidateCache, handlePinToggle, onClipboardChange, ask, pushUndo, rootPath, trashAndRefresh]);
 
   // ── File handlers ────────────────────────────────────────────────────────
   // Single click → "open-file-in-editor" (central router in index.jsx sends
@@ -729,13 +737,7 @@ const SidebarTree = ({
         const name = filePath.replace(/.*[\\/]/, "");
         // Project Panel: Delete → OS Recycle Bin
         const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
-        if (ok) {
-          try {
-            await window.electronAPI.trashItem(filePath, findTrashRoot(filePath));
-            invalidateCache(parentDir);
-            setLocalRefresh((k) => k + 1);
-          } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-        }
+        if (ok) await trashAndRefresh(filePath, parentDir);
         break;
       }
       case "duplicate": {
@@ -800,7 +802,7 @@ const SidebarTree = ({
         break;
       }
     }
-  }, [selectedPath, onSelect, clipboard, invalidateCache, findTrashRoot, onClipboardChange, ask, pushUndo, rootPath]);
+  }, [selectedPath, onSelect, clipboard, invalidateCache, trashAndRefresh, onClipboardChange, ask, pushUndo, rootPath]);
 
   // ── Blank area context menu (right-click empty space) ─────────────────────
   const handleBlankContext = useCallback(async (e) => {
@@ -980,12 +982,7 @@ const SidebarTree = ({
       const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
       // Project Panel: Delete → OS Recycle Bin
       const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
-      if (!ok) return;
-      try {
-        await window.electronAPI.trashItem(selectedPath, findTrashRoot(selectedPath));
-        invalidateCache(parentDir);
-        setLocalRefresh((k)=>k+1);
-      } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
+      if (ok) await trashAndRefresh(selectedPath, parentDir);
       return;
     }
     // Ctrl+Alt+C → Copy Relative Path (native menu accelerator ke saath match
@@ -1053,7 +1050,7 @@ const SidebarTree = ({
       handleHeaderRefresh();
       return;
     }
-  }, [rootPath, selectedPath, expandedSet, clipboard, ask, pushUndo, invalidateCache, onClipboardChange, getActiveDir, handleHeaderRefresh, handleHeaderNewFile, handleHeaderNewFolder, findTrashRoot]);
+  }, [rootPath, selectedPath, expandedSet, clipboard, ask, pushUndo, invalidateCache, onClipboardChange, getActiveDir, handleHeaderRefresh, handleHeaderNewFile, handleHeaderNewFolder, trashAndRefresh]);
 
   return (
     <>
@@ -1159,13 +1156,7 @@ const SidebarTree = ({
                         case "delete": {
                           const dname = fullPath.replace(/.*[\\/]/, "");
                           const ok = await confirmIfNeeded(`Move "${dname}" to Recycle Bin?`);
-                          if (ok) {
-                            try {
-                              await window.electronAPI.trashItem(fullPath, rootPath);
-                              invalidateCache(parentDir);
-                              setLocalRefresh((k) => k + 1);
-                            } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-                          }
+                          if (ok) await trashAndRefresh(fullPath, parentDir);
                           break;
                         }
                         case "duplicate": {

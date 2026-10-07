@@ -150,14 +150,21 @@ const ProjectWindow = () => {
   }, [sidebarWidth]);
 
   // ── Cache ────────────────────────────────────────────────────────────────
+  // Invalidations ke baad purana in-flight readDirAll dobara cache me na
+  // daal de — warna delete ho chuka item wapas tree me dikhne lagta hai.
+  const fsGenRef = useRef(0);
+
   const loadChildren = useCallback(async (folderPath) => {
     if (childCache.has(folderPath)) return childCache.get(folderPath);
+    const gen = fsGenRef.current;
     const entries = await window.electronAPI.readDirAll(folderPath);
+    if (fsGenRef.current !== gen) return entries;
     setChildCache((prev) => new Map(prev).set(folderPath, entries));
     return entries;
   }, [childCache]);
 
   const invalidateCache = useCallback((dirPath) => {
+    fsGenRef.current += 1;
     setChildCache((prev) => { const n = new Map(prev); n.delete(dirPath); return n; });
   }, []);
 
@@ -330,6 +337,7 @@ const ProjectWindow = () => {
     setSelectedPath(folderPath);
     setSelectedItems(new Set());
     setExpandedSet(new Set([folderPath]));
+    fsGenRef.current += 1;
     setChildCache(new Map());
     setItemCount(null);
     setClipboard(null);
