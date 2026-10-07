@@ -44,7 +44,7 @@
         <a href="privacy.html">Privacy</a>
         <a href="credits.html">Credits</a>
         <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
-        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+        <a href="download.html" data-download-latest>Download</a>
       </div>
       <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
         <span></span>
@@ -58,10 +58,29 @@
       <a href="privacy.html">Privacy</a>
       <a href="credits.html">Credits</a>
       <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
-      <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+      <a href="download.html" data-download-latest>Download</a>
     </div>
     <main class="feed" id="feed">
       <h1 class="sr-only">Idiot Box release notes and updates</h1>
+      <section class="stats-strip" id="stats-strip" aria-label="Live project stats">
+        <div class="stat">
+          <span class="stat-num" data-stat="downloads">…</span>
+          <span class="stat-label">Total downloads</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-stat="updates">…</span>
+          <span class="stat-label">Updates</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-stat="users">…</span>
+          <span class="stat-label">Total users</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-stat="online">…</span>
+          <span class="stat-label">Online now</span>
+        </div>
+        <div class="stat-versions" data-stat="versions" hidden></div>
+      </section>
       <noscript>
         <div class="log-card">
           <h2 class="log-title">Idiot Box release notes</h2>
@@ -69,12 +88,16 @@
           <a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">Open releases on GitHub</a>
         </div>
       </noscript>
-      <div class="log-card loading">Loading the log…</div>
+      <div class="log-list" id="feed-list">
+        <div class="log-card loading">Loading the log…</div>
+      </div>
     </main>
     <button id="update-my-app" class="update-app-fab" type="button" title="Trigger update check in your installed Idiot Box app">Update my app</button>
   </div>
 
   <script src="vendor/marked.min.js"></script>
+  <script src="vendor/mqtt.min.js"></script>
+  <script src="stats.js"></script>
   <script src="audio.js"></script>
   <script src="page-transition.js"></script>
   <script>
@@ -84,8 +107,13 @@
       video.play().catch(function () {});
       video.addEventListener('canplay', function () { video.play().catch(function () {}); });
 
-      // Release feed — live from GitHub
-      const feed = document.getElementById('feed');
+      // Live stats strip — downloads, updates, total users, online users
+      if (window.IBXStats) {
+        window.IBXStats.initStats(document.getElementById('stats-strip'));
+      }
+
+      // Release feed — live from GitHub (cached by IBXStats)
+      const feed = document.getElementById('feed-list');
       // OS-aware asset picker — Linux visitors get AppImage (else deb), others get the Windows exe
       const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
       function pickReleaseAsset(assets) {
@@ -123,18 +151,20 @@
         if (window.marked) return marked.parse(md);
         return esc(md);
       }
-      fetch('https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases?per_page=10')
-        .then(function (res) { if (!res.ok) throw new Error('api failed'); return res.json(); })
+      (window.IBXStats ? window.IBXStats.fetchReleases(10) : Promise.reject(new Error('no stats')))
         .then(function (releases) {
           if (!Array.isArray(releases) || !releases.length) throw new Error('empty');
           feed.innerHTML = '';
           releases.forEach(function (r) {
             const links = installerLinks(r.assets);
+            const total = window.IBXStats ? window.IBXStats.releaseDownloads(r) : 0;
             const card = document.createElement('article');
             card.className = 'log-card';
             card.innerHTML =
               '<div class="log-meta"><span class="tag-pill">' + esc(r.tag_name) + '</span>' +
-              '<span class="log-date">' + esc((r.published_at || '').slice(0, 10)) + '</span></div>' +
+              '<span class="log-date">' + esc((r.published_at || '').slice(0, 10)) + '</span>' +
+              '<span class="dl-pill" title="Downloads of every file in this release">⬇ ' +
+              esc(window.IBXStats ? window.IBXStats.formatNum(total) : String(total)) + ' downloads</span></div>' +
               '<h2 class="log-title">' + esc(r.name || r.tag_name) + '</h2>' +
               (r.body ? '<div class="log-body">' + renderBody(r.body) + '</div>' : '') +
               (links ? links : '');
@@ -160,7 +190,9 @@
             return cachedUrl;
           });
       }
-      document.querySelectorAll('[data-download-latest]').forEach(function (btn) {
+      // direct-download buttons (GitHub href wale) — nav ka "Download" link
+      // ab download.html par jaata hai, isliye sirf github href wale intercept
+      document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
           const original = btn.textContent;
@@ -179,7 +211,7 @@
           });
         });
       });
-      resolveExeUrl().catch(function () {});
+      // direct download ab download page se hota hai — yahan koi prefetch nahi
 
       // "Update my app" — installed Idiot Box app ka updater trigger karo
       // via idiotbox://update deep link (app me protocol handler, v0.1.20+).

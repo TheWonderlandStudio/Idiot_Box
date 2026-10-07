@@ -17,7 +17,7 @@ const GeneralPage = ({ settings, onSave }) => {
   const confirmDelete    = settings.confirmDelete !== false; // default true
   const showHiddenFiles  = settings.showHiddenFiles === true; // default false
   const autoOpenMediaViewer = settings.autoOpenMediaViewer !== false; // default true
-  const telemetryEnabled = settings.telemetryEnabled === true; // default false
+  const telemetryEnabled = settings.telemetryEnabled !== false; // default true (anonymous)
 
   const update = async (patch) => {
     await onSave(patch);
@@ -168,7 +168,8 @@ const GeneralPage = ({ settings, onSave }) => {
       <div className="sw-row">
         <span className="sw-row__label">Telemetry</span>
         <span className="sw-row__desc">
-          Allow anonymous usage data to help improve the product. No personal data is collected.
+          Anonymous usage stats that power the public download page: a random install ID, your app version and a
+          heartbeat while the app is open. No personal data, no file paths, no project names. Off = nothing is sent.
         </span>
         <label className="sw-toggle-row">
           <span className="sw-toggle-label">{telemetryEnabled ? "Enabled" : "Disabled"}</span>

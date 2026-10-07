@@ -47,11 +47,18 @@
 </head>
 
 <body class="is-entering" data-bgm="home">
+  <svg class="crt-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <!-- CRT tube — beech se curved sides, corners andar ki taraf -->
+      <clipPath id="crt-frame" clipPathUnits="objectBoundingBox">
+        <path d="M .06 .014 C .3 -.002 .7 -.002 .94 .014 C .982 .014 .99 .042 .99 .09 C 1 .2 1 .8 .99 .91 C .99 .958 .982 .986 .94 .986 C .7 1.002 .3 1.002 .06 .986 C .018 .986 .01 .958 .01 .91 C 0 .8 0 .2 .01 .09 C .01 .042 .018 .014 .06 .014 Z" />
+      </clipPath>
+    </defs>
+  </svg>
   <div class="wipe has-intro-video" aria-hidden="true">
     <video class="wipe-video" src="https://files.catbox.moe/hkyqoi.mp4" autoplay muted loop playsinline preload="auto"></video>
     <span>Idiot Box</span>
   </div>
-  <canvas id="noise-overlay" aria-hidden="true"></canvas>
   <div class="background">
     <div class="bg-video-wrap" aria-hidden="true">
       <video class="bg-video" src="https://video-public.canva.com/VAGnKsw1EGM/v/dada75ea42.mp4" autoplay muted loop playsinline preload="auto"></video>
@@ -69,7 +76,7 @@
         <a href="privacy.html">Privacy</a>
         <a href="credits.html">Credits</a>
         <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
-        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" id="download-btn" data-download-latest>Download</a>
+        <a href="download.html" id="download-btn" data-download-latest>Download</a>
       </div>
       <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
         <span></span>
@@ -82,7 +89,7 @@
         <a href="privacy.html">Privacy</a>
         <a href="credits.html">Credits</a>
         <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
-        <a href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download</a>
+        <a href="download.html" data-download-latest>Download</a>
       </div>
     </nav>
     <a class="side-tab" href="features.html">Features</a>
@@ -95,6 +102,7 @@
         <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener" class="btn-ghost">View on GitHub</a>
       </div>
     </section>
+    <canvas id="noise-overlay" aria-hidden="true"></canvas>
   </div>
   <script>
     (function () {
@@ -218,7 +226,8 @@
           return checkRelease();
         }
 
-        document.querySelectorAll('[data-download-latest]').forEach((btn) => {
+        // sirf direct-download buttons (github href) — nav Download = download.html
+        document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach((btn) => {
           btn.addEventListener('click', async (e) => {
             e.preventDefault();
             const original = btn.textContent;

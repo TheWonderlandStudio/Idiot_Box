@@ -48,6 +48,10 @@ let miseService = null;
 try { miseService = require("./mise-service"); } catch (e) { console.warn("[main] mise-service not available:", e.message); }
 let androidManager = null;
 try { androidManager = require("./android"); } catch (e) { console.warn("[main] android manager not available:", e.message); }
+// Anonymous usage tracking (install counter + online heartbeat) — opt-out via
+// Settings → General → Telemetry. See electron/main/tracking.js.
+let tracking = null;
+try { tracking = require("./tracking"); } catch (e) { console.warn("[main] tracking not available:", e.message); }
 // Hub chat → Pollinations free AI (main process se fetch, renderer se nahi)
 try { require("./ai-chat").registerAiChat(); } catch (e) { console.warn("[main] ai-chat not available:", e.message); }
 
@@ -6257,6 +6261,9 @@ app.whenReady().then(async () => {
   getShell();
   rebuildMenu();
   createWindow();
+  // Anonymous stats — install counter + 30s heartbeat (telemetry toggle par depend)
+  try { if (tracking && typeof tracking.start === "function") tracking.start({ app, readSettings }); }
+  catch (e) { console.warn("[tracking] start failed:", e.message); }
   // Cold start via idiotbox://update (app band thi, website button se khuli) —
   // window/updater settle hone ke baad protocol action chalao.
   try {

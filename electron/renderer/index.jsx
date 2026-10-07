@@ -870,8 +870,8 @@ const App = () => {
 
   // Telemetry live (was dead — no consumer) — now at least wired
   useEffect(() => {
-    window.electronAPI.readSettings().then((s)=> { window.__telemetryEnabled = s.telemetryEnabled === true; }).catch(()=>{});
-    const h = (patch)=>{ if(patch && "telemetryEnabled" in patch) window.__telemetryEnabled = !!patch.telemetryEnabled; };
+    window.electronAPI.readSettings().then((s)=> { window.__telemetryEnabled = s.telemetryEnabled !== false; }).catch(()=>{});
+    const h = (patch)=>{ if(patch && "telemetryEnabled" in patch) window.__telemetryEnabled = patch.telemetryEnabled !== false; };
     let bc;
     try{ bc=new BroadcastChannel("app-settings"); bc.onmessage=(e)=> h(e.data); }catch{}
     let unsub;

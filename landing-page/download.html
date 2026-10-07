@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Download — Idiot Box</title>
+  <meta name="description" content="Download Idiot Box for Windows and Linux: every available installer format with live download totals, update counts and online users." />
+  <meta name="keywords" content="Idiot Box download, Windows installer, AppImage, deb, open source IDE" />
+  <meta name="author" content="The Wonderland Studio" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#1e1e1e" />
+  <link rel="canonical" href="https://thewonderlandstudio.github.io/Idiot_Box/download.html" />
+  <link rel="icon" type="image/png" href="./logo.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Idiot Box" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="Download — Idiot Box" />
+  <meta property="og:description" content="Every Idiot Box format in one place: Windows installer, Linux AppImage and deb, with live download stats." />
+  <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/download.html" />
+  <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
+  <meta property="og:image:alt" content="Idiot Box logo" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Download — Idiot Box" />
+  <meta name="twitter:description" content="Every Idiot Box format in one place, with live download stats." />
+  <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="download.css" />
+  <link rel="stylesheet" href="page-transition.css" />
+</head>
+
+<body class="is-entering">
+  <div class="wipe" aria-hidden="true"><span>Idiot Box</span></div>
+
+  <div class="background">
+    <div class="bg-video-wrap" aria-hidden="true"></div>
+    <a class="card" href="index.html">Download</a>
+    <nav class="nav-card">
+      <div class="nav-links">
+        <a href="chatlog.html">Chatlog</a>
+        <a href="features.html">Features</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="credits.html">Credits</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+        <a href="download.html" aria-current="page" data-download-latest>Download</a>
+      </div>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </nav>
+    <div class="menu-panel" id="menu-panel">
+      <a href="chatlog.html">Chatlog</a>
+      <a href="features.html">Features</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="credits.html">Credits</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+      <a href="download.html" aria-current="page" data-download-latest>Download</a>
+    </div>
+
+    <main class="dl-feed" id="dl-main">
+      <h1 class="sr-only">Download Idiot Box — all formats and live stats</h1>
+
+      <section class="stats-strip" id="stats-strip" aria-label="Live project stats">
+        <div class="stat">
+          <span class="stat-num" data-stat="downloads">…</span>
+          <span class="stat-label">Total downloads</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-stat="updates">…</span>
+          <span class="stat-label">Updates</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-stat="users">…</span>
+          <span class="stat-label">Total users</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-stat="online">…</span>
+          <span class="stat-label">Online now</span>
+        </div>
+        <div class="stat-versions" data-stat="versions" hidden></div>
+      </section>
+
+      <section class="dl-hero">
+        <p class="dl-kicker">Latest release <span class="dl-version" id="dl-version">…</span></p>
+        <h2 class="dl-title" id="dl-title">Loading releases…</h2>
+        <p class="dl-sub">Every published format is listed below — pick the one that matches your system.</p>
+        <div class="dl-actions">
+          <a class="dl-btn dl-btn-primary" id="dl-primary" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">Download latest</a>
+          <a class="dl-btn dl-btn-ghost" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">All releases on GitHub</a>
+        </div>
+      </section>
+
+      <section class="dl-section" aria-labelledby="dl-formats-title">
+        <h3 class="dl-section-title" id="dl-formats-title">Latest release formats</h3>
+        <div class="dl-grid" id="dl-grid">
+          <div class="dl-card loading">Loading formats…</div>
+        </div>
+      </section>
+
+      <section class="dl-section" aria-labelledby="dl-past-title">
+        <h3 class="dl-section-title" id="dl-past-title">Earlier releases</h3>
+        <div class="dl-past" id="dl-past">
+          <div class="dl-card loading">Loading releases…</div>
+        </div>
+      </section>
+
+      <noscript>
+        <section class="dl-section">
+          <div class="dl-card">JavaScript is off — grab the installers from
+            <a class="dl-inline-link" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">GitHub Releases</a>.
+          </div>
+        </section>
+      </noscript>
+    </main>
+  </div>
+
+  <script src="vendor/mqtt.min.js"></script>
+  <script src="stats.js"></script>
+  <script src="page-transition.js"></script>
+  <script>
+    (function () {
+      var STATS = window.IBXStats;
+      var RELEASES = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+      var IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+
+      if (STATS) STATS.initStats(document.getElementById('stats-strip'));
+
+      function esc(s) { return STATS ? STATS.esc(s) : String(s == null ? '' : s); }
+      function fmt(n) { return STATS ? STATS.formatNum(n) : String(n); }
+
+      function assetKind(name) {
+        var n = String(name || '').toLowerCase();
+        if (/\.exe$/.test(n)) return { label: 'Windows', cls: 'kind-win' };
+        if (/\.appimage$/.test(n)) return { label: 'Linux AppImage', cls: 'kind-linux' };
+        if (/\.deb$/.test(n)) return { label: 'Linux deb', cls: 'kind-linux' };
+        if (/\.blockmap$/.test(n)) return { label: 'Update data', cls: 'kind-upd' };
+        if (/\.ya?ml$/.test(n)) return { label: 'Update manifest', cls: 'kind-upd' };
+        if (/\.exe\.blockmap$/.test(n)) return { label: 'Update data', cls: 'kind-upd' };
+        return { label: 'File', cls: 'kind-other' };
+      }
+
+      function humanSize(bytes) {
+        var b = Number(bytes) || 0;
+        if (b >= 1024 * 1024 * 1024) return (b / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + ' MB';
+        if (b >= 1024) return Math.round(b / 1024) + ' KB';
+        return b + ' B';
+      }
+
+      function primaryAsset(assets) {
+        var list = assets || [];
+        if (IS_LINUX) {
+          return list.find(function (a) { return /\.AppImage$/i.test(a.name); }) ||
+                 list.find(function (a) { return /\.deb$/i.test(a.name); });
+        }
+        return list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
+      }
+
+      function assetCard(a, compact) {
+        var kind = assetKind(a.name);
+        return '<a class="dl-card' + (compact ? ' dl-card-compact' : '') + '" href="' + esc(a.browser_download_url) + '">' +
+          '<span class="dl-kind ' + kind.cls + '">' + esc(kind.label) + '</span>' +
+          '<span class="dl-name">' + esc(a.name) + '</span>' +
+          '<span class="dl-meta">' + esc(humanSize(a.size)) + ' · ' + fmt(a.download_count) + ' downloads</span>' +
+          '<span class="dl-get">Download ↓</span>' +
+          '</a>';
+      }
+
+      if (!STATS) {
+        document.getElementById('dl-grid').innerHTML =
+          '<div class="dl-card">Stats unavailable. <a class="dl-inline-link" href="' + RELEASES + '" target="_blank" rel="noopener">Open GitHub Releases</a></div>';
+        return;
+      }
+
+      STATS.fetchReleases(100).then(function (releases) {
+        if (!releases || !releases.length) throw new Error('empty');
+        var latest = releases[0];
+
+        // hero
+        document.getElementById('dl-version').textContent = latest.tag_name || '';
+        document.getElementById('dl-title').textContent = latest.name || latest.tag_name || 'Latest release';
+        var hero = primaryAsset(latest.assets);
+        if (hero) {
+          document.getElementById('dl-primary').href = hero.browser_download_url;
+          document.getElementById('dl-primary').textContent =
+            (IS_LINUX ? 'Download for Linux — ' : 'Download for Windows — ') + hero.name;
+        }
+
+        // all formats of the latest release
+        var assets = (latest.assets || []).slice().sort(function (a, b) {
+          return (Number(b.download_count) || 0) - (Number(a.download_count) || 0);
+        });
+        document.getElementById('dl-grid').innerHTML = assets.length
+          ? assets.map(function (a) { return assetCard(a); }).join('')
+          : '<div class="dl-card">No files attached to this release.</div>';
+
+        // earlier releases — har release ke saare files + us release ka total
+        var past = releases.slice(1);
+        document.getElementById('dl-past').innerHTML = past.length
+          ? past.map(function (r) {
+              var total = STATS.releaseDownloads(r);
+              var chips = (r.assets || []).map(function (a) {
+                return '<a class="dl-chip" href="' + esc(a.browser_download_url) + '" title="' + esc(a.name) + '">' +
+                  esc(a.name) + ' · ' + fmt(a.download_count) + '</a>';
+              }).join('');
+              return '<article class="dl-past-row">' +
+                '<div class="dl-past-head">' +
+                  '<span class="tag-pill">' + esc(r.tag_name) + '</span>' +
+                  '<span class="log-date">' + esc((r.published_at || '').slice(0, 10)) + '</span>' +
+                  '<span class="dl-pill">' + fmt(total) + ' downloads</span>' +
+                '</div>' +
+                (chips ? '<div class="dl-chips">' + chips + '</div>' : '') +
+                '</article>';
+            }).join('')
+          : '<div class="dl-card">This is the first release.</div>';
+      }).catch(function () {
+        document.getElementById('dl-grid').innerHTML =
+          '<div class="dl-card">Couldn\'t load formats. <a class="dl-inline-link" href="' + RELEASES + '" target="_blank" rel="noopener">Open GitHub Releases</a></div>';
+        document.getElementById('dl-past').innerHTML = '';
+        document.getElementById('dl-title').textContent = 'Releases unavailable right now';
+      });
+
+      // Hamburger menu (mobile)
+      (function () {
+        var bg = document.querySelector('.background');
+        var btn = document.querySelector('.hamburger');
+        var panel = document.getElementById('menu-panel');
+        if (!btn || !panel) return;
+        function setOpen(open) {
+          bg.classList.toggle('menu-open', open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          setOpen(!bg.classList.contains('menu-open'));
+        });
+        panel.addEventListener('click', function (e) {
+          if (e.target.closest('a')) setOpen(false);
+        });
+        document.addEventListener('click', function (e) {
+          if (!e.target.closest('.menu-panel') && !e.target.closest('.hamburger')) setOpen(false);
+        });
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') setOpen(false);
+        });
+      })();
+    })();
+  </script>
+</body>
+
+</html>

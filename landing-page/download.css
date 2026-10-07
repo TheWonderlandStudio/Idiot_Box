@@ -1,11 +1,10 @@
-/* Chatlog — index jesi style: same container, same cards, same nav */
+/* Download — chatlog jesi shell, dark theme, stats + saare formats */
 *{
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* har jagah se underline hata do — prose links alag se style karte hain */
 a{
   text-decoration: none;
 }
@@ -23,45 +22,40 @@ body{
   width: 97%;
   height: 96%;
   border-radius: 8px;
-  background: white;
+  background: #050505;
   position: relative;
   display: block;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-/* HLS video — container ka background */
 .bg-video-wrap{
   position: absolute;
   inset: 0;
   overflow: hidden;
   border-radius: 8px;
   pointer-events: none;
+  background:
+    radial-gradient(1000px 600px at 80% -10%, rgba(255, 255, 255, 0.14), transparent 60%),
+    radial-gradient(800px 500px at 10% 110%, rgba(255, 255, 255, 0.08), transparent 60%);
 }
 
-#chatlog-bg{
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  background: black;
-}
-
-/* top-left title card — index ke logo card jesa, click par wapas index */
+/* top-left title card — inverse pill (dark page) */
 .card{
   font-family: Arial Black;
   font-size: 25px;
-  color: white;
+  color: black;
   text-decoration: none;
   border-radius: 4px;
-  background: black;
-  padding: 4px 60px 0px 10px;
+  background: white;
+  padding: 4px 40px 0px 10px;
   position: absolute;
   left: 24px;
   top: 24px;
   z-index: 2;
 }
 
-/* top-right nav — compact link row, koi underline nahi */
+/* top-right nav */
 .nav-card{
   font-family: 'Inter', sans-serif;
   font-size: 13px;
@@ -117,7 +111,6 @@ body{
   color: black;
 }
 
-/* desktop — links seedha flex me, hamburger/panel chhupa */
 .nav-links{
   display: contents;
 }
@@ -146,7 +139,6 @@ body{
   display: none;
 }
 
-/* base link style — media query ke bahar bhi underline kabhi na aaye */
 .menu-panel a{
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -174,47 +166,47 @@ body{
   color: black;
 }
 
-/* feed — center me, top bar ke neeche scrollable, video background me */
-.feed{
+/* main column — center me, scrollable */
+.dl-feed{
   position: absolute;
   left: 50%;
   translate: -50% 0;
   top: 100px;
   bottom: 24px;
-  width: min(900px, calc(100% - 48px));
+  width: min(940px, calc(100% - 48px));
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   overflow-y: auto;
   padding-right: 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
 }
 
-.feed::-webkit-scrollbar{
+.dl-feed::-webkit-scrollbar{
   width: 6px;
 }
 
-.feed::-webkit-scrollbar-thumb{
+.dl-feed::-webkit-scrollbar-thumb{
   background: rgba(255, 255, 255, 0.4);
   border-radius: 3px;
 }
 
-/* stats strip — total downloads / updates / users / online (live) */
+/* ---------- stats strip (chatlog se shared look) ---------- */
 .stats-strip{
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: 8px;
-  background: rgba(0, 0, 0, 0.92);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 6px;
   padding: 12px;
   position: sticky;
   top: 0;
   z-index: 3;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
 }
 
 .stat{
@@ -269,25 +261,179 @@ body{
   padding: 3px 10px;
 }
 
-.log-list{
+/* ---------- hero ---------- */
+.dl-hero{
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 22px;
+}
+
+.dl-kicker{
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+}
+
+.dl-version{
+  display: inline-block;
+  background: white;
+  color: black;
+  border-radius: 20px;
+  padding: 2px 10px;
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+}
+
+.dl-title{
+  font-family: Arial Black;
+  font-size: 26px;
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+
+.dl-sub{
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  opacity: 0.8;
+  margin-bottom: 16px;
+}
+
+.dl-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dl-btn{
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 11px 20px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.dl-btn-primary{
+  background: white;
+  color: black;
+}
+
+.dl-btn-primary:hover{
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.dl-btn-ghost{
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.dl-btn-ghost:hover{
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ---------- sections + format cards ---------- */
+.dl-section-title{
+  font-family: Arial Black;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.dl-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.dl-card{
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 14px;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.log-card{
-  background: transparent;
-  border-radius: 4px;
-  padding: 20px 22px;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+a.dl-card:hover{
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
-.log-card.loading{
-  font-family: Arial Black;
-  font-size: 16px;
+.dl-card.loading{
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  opacity: 0.75;
 }
 
-.log-meta{
+.dl-kind{
+  align-self: flex-start;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 20px;
+  padding: 3px 9px;
+}
+
+.kind-win{ background: white; color: black; }
+.kind-linux{ background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.4); }
+.kind-upd{ background: transparent; color: rgba(255, 255, 255, 0.7); border: 1px dashed rgba(255, 255, 255, 0.4); }
+.kind-other{ background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.8); }
+
+.dl-name{
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  color: white;
+}
+
+.dl-meta{
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.dl-get{
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  margin-top: 2px;
+}
+
+.dl-inline-link{
+  color: white;
+  text-decoration: underline;
+  font-weight: 700;
+}
+
+/* ---------- earlier releases ---------- */
+.dl-past{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dl-past-row{
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.dl-past-head{
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -296,6 +442,7 @@ body{
 }
 
 .tag-pill{
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 700;
   background: white;
@@ -305,13 +452,13 @@ body{
 }
 
 .log-date{
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 1px;
   opacity: 0.6;
 }
 
-/* har release ke files ka total downloads (GitHub release API) */
 .dl-pill{
   font-family: 'Inter', sans-serif;
   font-size: 11px;
@@ -324,122 +471,29 @@ body{
   white-space: nowrap;
 }
 
-.log-title{
-  font-family: Arial Black;
-  font-size: 22px;
-  margin-bottom: 10px;
+.dl-chips{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.log-body{
+.dl-chip{
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  opacity: 0.85;
-  overflow-wrap: break-word;
-  margin-bottom: 16px;
-}
-
-.log-body h1,
-.log-body h2,
-.log-body h3{
-  font-family: Arial Black;
-  line-height: 1.2;
-  margin: 14px 0 8px;
-}
-
-.log-body h1{ font-size: 18px; }
-.log-body h2{ font-size: 16px; }
-.log-body h3{ font-size: 14px; }
-
-.log-body p{
-  margin-bottom: 10px;
-}
-
-.log-body ul,
-.log-body ol{
-  margin: 0 0 10px 20px;
-}
-
-.log-body li{
-  margin-bottom: 4px;
-}
-
-.log-body a{
-  color: white;
-  text-decoration: underline;
-}
-
-.log-body code{
-  font-family: monospace;
-  font-size: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
-  padding: 1px 6px;
-}
-
-.log-body pre{
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
   background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 4px;
-  padding: 12px;
-  margin-bottom: 10px;
-  overflow-x: auto;
+  padding: 5px 9px;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.log-body pre code{
-  background: none;
-  padding: 0;
+.dl-chip:hover{
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
-.log-dl{
-  display: inline-block;
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: black;
-  background: white;
-  text-decoration: none;
-  border-radius: 4px;
-  padding: 10px 20px;
-}
-
-/* spacing between side-by-side installer buttons (Windows + Linux) */
-.log-dl + .log-dl{
-  margin-left: 8px;
-}
-
-/* "Update my app" — floating deep-link button (idiotbox://update).
-   Installed app ka updater trigger karta hai; style .log-dl jesa. */
-.update-app-fab{
-  position: absolute;
-  right: 24px;
-  bottom: 24px;
-  z-index: 2;
-  font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: black;
-  background: white;
-  border: none;
-  border-radius: 4px;
-  padding: 12px 20px;
-  cursor: pointer;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
-  white-space: nowrap;
-}
-
-.update-app-fab:hover{
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
-}
-
-.update-app-fab:disabled{
-  opacity: 0.75;
-  cursor: default;
-  transform: none;
-}
-
-/* screen-reader only — SEO heading, zero visual change */
 .sr-only{
   position: absolute;
   width: 1px;
@@ -453,7 +507,6 @@ body{
 }
 
 /* ---------- responsive ---------- */
-/* hamburger mode — desktop nav 1120 se chhota ho to top-left card se takrata hai */
 @media (max-width: 1120px){
   .nav-links{
     display: none;
@@ -500,7 +553,6 @@ body{
     padding: 10px 12px;
   }
 
-  /* hamburger se X */
   .background.menu-open .hamburger span:nth-child(1){
     transform: translateY(7px) rotate(45deg);
   }
@@ -517,7 +569,7 @@ body{
 @media (max-width: 768px){
   .card{
     font-size: 20px;
-    padding: 4px 36px 0px 10px;
+    padding: 4px 30px 0px 10px;
     left: 16px;
     top: 16px;
   }
@@ -534,23 +586,14 @@ body{
     right: 16px;
   }
 
-  /* hamburger se X */
-  .background.menu-open .hamburger span:nth-child(1){
-    transform: translateY(7px) rotate(45deg);
-  }
-
-  .background.menu-open .hamburger span:nth-child(2){
-    opacity: 0;
-  }
-
-  .background.menu-open .hamburger span:nth-child(3){
-    transform: translateY(-7px) rotate(-45deg);
-  }
-
-  .feed{
+  .dl-feed{
     top: 92px;
     bottom: 16px;
     width: min(640px, calc(100% - 32px));
+  }
+
+  .dl-title{
+    font-size: 21px;
   }
 }
 
@@ -575,15 +618,12 @@ body{
     right: 12px;
   }
 
-  .feed{
+  .dl-feed{
     top: 84px;
     bottom: 12px;
     width: calc(100% - 24px);
     padding-right: 4px;
-  }
-
-  .log-card{
-    padding: 16px;
+    gap: 14px;
   }
 
   .stats-strip{
@@ -600,18 +640,11 @@ body{
     font-size: 18px;
   }
 
-  .log-title{
+  .dl-hero{
+    padding: 16px;
+  }
+
+  .dl-title{
     font-size: 18px;
-  }
-
-  .log-body{
-    font-size: 13px;
-  }
-
-  .update-app-fab{
-    right: 12px;
-    bottom: 12px;
-    padding: 10px 16px;
-    font-size: 13px;
   }
 }

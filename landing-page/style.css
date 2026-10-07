@@ -3,6 +3,11 @@
   padding:0;
 }
 
+:root{
+  /* UI ko CRT tube ke andar rakhne wala safe inset — screen size ke saath scale */
+  --tube-inset: clamp(22px, 3.9vw, 96px);
+}
+
 /* har jagah se underline hata do — prose links alag se underline karte hain */
 a{
   text-decoration: none;
@@ -19,13 +24,15 @@ body{
 }
 
 .background{
-  width: 97%;
-  height: 96%;
-  border-radius: 10px;
-  background: white;
+  width: 96%;
+  height: 95%;
+  /* CRT tube jaisa frame — rounded corners + kaala bezel */
+  border-radius: clamp(24px, 3.6vw, 56px);
+  background: black;
   animation: backgroundAnimation 2s;
   position: relative;
   display: block;
+  overflow: hidden;
 }
 
 @keyframes backgroundAnimation {
@@ -35,10 +42,34 @@ body{
     border-radius: 0px;
   }
   100% {
-    width: 97%;
-    height: 96%;
-    border-radius: 10px;
+    width: 96%;
+    height: 95%;
+    border-radius: clamp(24px, 3.6vw, 56px);
   }
+}
+
+/* screen vignette — corners andar ki taraf dhundhlate hain (image wala CRT look) */
+.background::after{
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  clip-path: url(#crt-frame);
+  background:
+    radial-gradient(125% 105% at 50% 50%,
+      rgba(0, 0, 0, 0) 42%,
+      rgba(0, 0, 0, 0.16) 70%,
+      rgba(0, 0, 0, 0.62) 100%),
+    linear-gradient(to bottom,
+      rgba(0, 0, 0, 0.3) 0%,
+      rgba(0, 0, 0, 0) 16%,
+      rgba(0, 0, 0, 0) 84%,
+      rgba(0, 0, 0, 0.34) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.6),
+    inset 0 0 90px rgba(0, 0, 0, 0.5);
 }
 
 
@@ -47,8 +78,11 @@ body{
   position: absolute;
   inset: 0;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: inherit;
   pointer-events: none;
+  /* tube ka shape — sides curved (SVG clipPath), baaki jagah kaala bezel */
+  background: white;
+  clip-path: url(#crt-frame);
 }
 
 .bg-video{
@@ -73,7 +107,7 @@ body{
   z-index: 1;
   margin: 0;
   font-family: Arial Black;
-  font-size: clamp(56px, 11vw, 170px);
+  font-size: clamp(56px, 11vw, 260px);
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: -0.02em;
@@ -96,10 +130,10 @@ body{
   z-index: 2;
   width: auto;
   height: auto;
-  font-size: 25px;
+  font-size: clamp(20px, 1.9vw, 40px);
   border-radius: 4px;
   background: black;
-  padding: 4px 60px 0px 10px;
+  padding: 4px clamp(36px, 4.7vw, 96px) 0px clamp(8px, 0.8vw, 14px);
   transform-origin: left center;
   transform: scaleX(0);
   animation: cardAnimation 0.8s ease forwards 3s;
@@ -113,25 +147,25 @@ body{
 
 /* final stage — left top, reached via transition (no direct jump) */
 .background.moved .card{
-  left: 24px;
-  top: 24px;
+  left: var(--tube-inset);
+  top: var(--tube-inset);
   translate: 0 0;
 }
 
 /* right side nav — compact link row, koi underline nahi (saari animations ke baad aayega) */
 .nav-card{
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: clamp(11px, 1.05vw, 20px);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.92);
   color: white;
-  padding: 6px;
+  padding: clamp(5px, 0.5vw, 10px);
   position: absolute;
-  top: 24px;
-  right: 24px;
+  top: var(--tube-inset);
+  right: var(--tube-inset);
   display: flex;
   gap: 2px;
   align-items: center;
@@ -156,7 +190,7 @@ body{
   color: rgba(255, 255, 255, 0.78);
   text-decoration: none;
   white-space: nowrap;
-  padding: 9px 14px;
+  padding: clamp(9px, 0.85vw, 17px) clamp(14px, 1.15vw, 24px);
   border-radius: 4px;
   transition: background 0.18s ease, color 0.18s ease;
 }
@@ -190,12 +224,13 @@ body{
 /* right side center — vertical Features tab, hero ke sath aayega */
 .side-tab{
   position: absolute;
+  /* frame se bilkul chipka hua — koi gap nahi */
   right: 0;
   top: 50%;
   transform: translateY(-50%) translateX(30px);
   z-index: 2;
   font-family: Arial Black;
-  font-size: 25px;
+  font-size: clamp(15px, 1.9vw, 40px);
   color: white;
   text-decoration: none;
   text-transform: uppercase;
@@ -203,7 +238,7 @@ body{
   writing-mode: vertical-rl;
   background: black;
   border-radius: 4px 0 0 4px;
-  padding: 20px 10px;
+  padding: clamp(14px, 1.6vw, 32px) clamp(8px, 0.8vw, 16px);
   opacity: 0;
   transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
@@ -275,14 +310,14 @@ body{
 /* hero — bottom-left taaki video ka center content clear rahe */
 .hero{
   position: absolute;
-  left: 24px;
-  bottom: 24px;
+  left: var(--tube-inset);
+  bottom: var(--tube-inset);
   z-index: 2;
-  max-width: 560px;
+  max-width: clamp(420px, 44vw, 980px);
   background: black;
   color: white;
   border-radius: 4px;
-  padding: 24px 28px;
+  padding: clamp(20px, 2vw, 44px);
   /* hidden stage — video ke baad upar slide hoga */
   opacity: 0;
   transform: translateY(40px);
@@ -298,7 +333,7 @@ body{
 
 .hero-kicker{
   font-family: 'Inter', sans-serif;
-  font-size: 12px;
+  font-size: clamp(11px, 0.95vw, 18px);
   font-weight: 600;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -326,14 +361,14 @@ body{
 
 .hero-title{
   font-family: Arial Black;
-  font-size: clamp(30px, 4.5vw, 56px);
+  font-size: clamp(30px, 4.5vw, 96px);
   line-height: 1.02;
   margin-bottom: 12px;
 }
 
 .hero-sub{
   font-family: 'Inter', sans-serif;
-  font-size: 15px;
+  font-size: clamp(14px, 1.15vw, 23px);
   font-weight: 400;
   line-height: 1.5;
   opacity: 0.8;
@@ -349,23 +384,23 @@ body{
 
 .btn-primary{
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: clamp(13px, 1.1vw, 22px);
   font-weight: 600;
   background: white;
   color: black;
   text-decoration: none;
-  padding: 12px 22px;
+  padding: clamp(12px, 1vw, 22px) clamp(20px, 1.7vw, 36px);
   border-radius: 4px;
   white-space: nowrap;
 }
 
 .btn-ghost{
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: clamp(13px, 1.1vw, 22px);
   font-weight: 600;
   color: white;
   text-decoration: none;
-  padding: 12px 22px;
+  padding: clamp(12px, 1vw, 22px) clamp(20px, 1.7vw, 36px);
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.4);
   white-space: nowrap;
@@ -426,16 +461,25 @@ body{
     transform: scaleX(1);
   }
 }
+/* SVG clipPath defs — layout me na aaye */
+.crt-defs{
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 #noise-overlay{
-  position: fixed;
+  position: absolute;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  z-index: 9999;
+  z-index: 50;
   opacity: 0.07;
   image-rendering: pixelated;
+  /* noise sirf tube ke andar — frame/bezel par nahi */
+  clip-path: url(#crt-frame);
 }
 
 /* ---------- responsive ---------- */
@@ -454,8 +498,6 @@ body{
     font-size: 12px;
     gap: 2px;
     padding: 5px;
-    top: 16px;
-    right: 16px;
   }
 
   /* panel nav-card ke andar hai — hamesha hamburger ke theek neeche */
@@ -471,8 +513,8 @@ body{
     border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: 6px;
     padding: 6px;
-    min-width: 210px;
-    max-height: calc(100dvh - 120px);
+    min-width: clamp(210px, 22vw, 300px);
+    max-height: calc(100dvh - 2 * var(--tube-inset) - 90px);
     overflow-y: auto;
     opacity: 0;
     transform: translateY(-12px);
@@ -511,21 +553,14 @@ body{
     padding: 4px 36px 0px 10px;
   }
 
-  .background.moved .card{
-    left: 16px;
-    top: 16px;
-  }
-
   .nav-card{
     font-size: 11px;
     gap: 2px;
     padding: 4px;
-    top: 16px;
-    right: 16px;
   }
 
   .menu-panel{
-    min-width: 190px;
+    min-width: clamp(190px, 30vw, 240px);
     top: calc(100% + 6px);
   }
 
@@ -540,10 +575,10 @@ body{
   }
 
   .hero{
-    left: 16px;
-    bottom: 16px;
-    max-width: min(560px, calc(100% - 32px));
-    padding: 20px 22px;
+    left: var(--tube-inset);
+    bottom: var(--tube-inset);
+    max-width: min(clamp(420px, 44vw, 980px), calc(100% - 2 * var(--tube-inset)));
+    padding: clamp(18px, 3vw, 24px);
   }
 }
 
@@ -553,17 +588,10 @@ body{
     padding: 4px 18px 0px 8px;
   }
 
-  .background.moved .card{
-    left: 12px;
-    top: 12px;
-  }
-
   .nav-card{
     font-size: 11px;
     gap: 2px;
     padding: 4px;
-    top: 12px;
-    right: 12px;
   }
 
   .menu-panel a{
@@ -579,11 +607,11 @@ body{
   }
 
   .hero{
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
+    left: var(--tube-inset);
+    right: var(--tube-inset);
+    bottom: var(--tube-inset);
     max-width: none;
-    padding: 18px;
+    padding: clamp(16px, 4.5vw, 20px);
   }
 
   .hero-title{

@@ -78,6 +78,7 @@
     "flexlayout-react": "^0.8.19",
     "lucide-react": "^1.34.0",
     "motion": "^13.4.6",
+    "mqtt": "^5.16.0",
     "nanoid": "^6.0.1",
     "node-pty": "^1.1.0",
     "radix-ui": "^1.6.7",
