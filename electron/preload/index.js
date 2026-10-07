@@ -49,6 +49,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("editor:openFile", handler);
     return () => ipcRenderer.removeListener("editor:openFile", handler);
   },
+  // ── OS "Open With Idiot Box" (argv / second-instance / open-file) ─────────
+  // Main sirf ping karta hai; renderer pending files khud pull karta hai —
+  // isliye reload/delivery race me koi file drop nahi hoti.
+  onOsFilesPending: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("editor:osFilesPending", handler);
+    return () => ipcRenderer.removeListener("editor:osFilesPending", handler);
+  },
+  takePendingOsFiles: () => ipcRenderer.invoke("editor:takePendingFiles"),
+  notifyEditorReady: () => ipcRenderer.invoke("editor:rendererReady"),
 
   // ── Directory access ───────────────────────────────────────────────────────
   openFolder:  ()      => ipcRenderer.invoke("dialog:openFolder"),

@@ -1188,6 +1188,10 @@ const App = () => {
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
       setTick((t) => t + 1);
+      // OS "Open With Idiot Box" (argv / second-instance / open-file): model
+      // ready hai → main ko batao; wo pending files ka ping bhejega aur
+      // onOsFilesPending listener unhe tabs me khol dega.
+      try { window.electronAPI.notifyEditorReady?.().catch(() => {}); } catch {}
     })();
   }, []);
 
@@ -2157,6 +2161,59 @@ const App = () => {
       scheduleSaveProjectTabs();
     };
 
+    // ── OS "Open With Idiot Box" (argv / second-instance / open-file) ───────
+    // Har file ko alag tab me kholta hai (multi-select → multiple tabs).
+    // Khali editor tab ho to reuse (VS Code jaisa), warna naya tab — kabhi
+    // existing tab overwrite nahi (unsaved edits safe rehte hain).
+    const openFilesFromOs = (paths) => {
+      const m = modelRef.current;
+      const list = (Array.isArray(paths) ? paths : []).filter((p) => typeof p === "string" && p);
+      if (!m || !list.length) return;
+      let lastTabId = null;
+      for (const filePath of list) {
+        // Media / Excalidraw files → unke dedicated panels me hi khulte hain
+        // (project panel click ke jaisa routing).
+        if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
+          openInMediaViewer(filePath);
+          continue;
+        }
+        if (isExcalidrawFile(filePath)) {
+          openInCanvas(filePath);
+          continue;
+        }
+        const existing = findTabByFilePath(m.getRoot(), filePath);
+        if (existing) { lastTabId = existing.getId(); continue; }
+        const name = filePath.replace(/.*[\\/]/, "") || filePath;
+        const empty = findEmptyEditorTab(m.getRoot());
+        if (empty) {
+          m.doAction(Actions.updateNodeAttributes(empty.getId(), { name, config: { filePath } }));
+          lastTabId = empty.getId();
+          continue;
+        }
+        const tabset = findEditorTabset(m.getRoot());
+        const parentId = tabset ? tabset.getId() : m.getRoot().getId();
+        const tabId = "editor-tab-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+        m.doAction(Actions.addNode({
+          type: "tab", component: "editor", name, enableClose: true,
+          id: tabId,
+          config: { filePath },
+        }, parentId, DockLocation.CENTER, -1, true));
+        lastTabId = tabId;
+      }
+      if (lastTabId) { try { m.doAction(Actions.selectTab(lastTabId)); } catch {} }
+      forceLayoutRedraw(m);
+      scheduleSaveProjectTabs();
+    };
+
+    // Main ping karta hai → pending OS files pull karke khol do.
+    const onOsFilesPending = window.electronAPI.onOsFilesPending?.(() => {
+      try {
+        window.electronAPI.takePendingOsFiles?.().then((paths) => {
+          if (Array.isArray(paths) && paths.length) openFilesFromOs(paths);
+        }).catch(() => {});
+      } catch {}
+    });
+
     const onIpc    = window.electronAPI.onOpenFileInEditor?.(({ filePath }) => openFileInEditor(filePath));
     const onCustom = (e) => { const p = e.detail?.path ?? e.detail?.filePath; if (p) openFileInEditor(p); };
     const onNewTab = (e) => { const p = e.detail?.path ?? e.detail?.filePath; if (p) openFileInNewTab(p, { forceText: e.detail?.forceText === true }); };
@@ -2168,6 +2225,7 @@ const App = () => {
     window.addEventListener("media-viewer:open",           onMediaOpen);
     return () => {
       onIpc?.();
+      onOsFilesPending?.();
       window.removeEventListener("open-file-in-editor",         onCustom);
       window.removeEventListener("open-file-in-new-editor-tab", onNewTab);
       window.removeEventListener("media-viewer:open",           onMediaOpen);

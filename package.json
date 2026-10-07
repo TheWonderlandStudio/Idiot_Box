@@ -129,6 +129,32 @@
         ]
       }
     ],
+    "fileAssociations": [
+      { "ext": ["js", "mjs", "cjs", "jsx"], "name": "IdiotBoxJavaScript", "description": "JavaScript source file", "role": "Editor", "mimeType": "text/javascript" },
+      { "ext": ["ts", "tsx"], "name": "IdiotBoxTypeScript", "description": "TypeScript source file", "role": "Editor", "mimeType": "text/x-typescript" },
+      { "ext": ["html", "htm"], "name": "IdiotBoxHTML", "description": "HTML document", "role": "Editor", "mimeType": "text/html" },
+      { "ext": ["css"], "name": "IdiotBoxCSS", "description": "CSS stylesheet", "role": "Editor", "mimeType": "text/css" },
+      { "ext": ["scss"], "name": "IdiotBoxSCSS", "description": "SCSS stylesheet", "role": "Editor", "mimeType": "text/x-scss" },
+      { "ext": ["less"], "name": "IdiotBoxLESS", "description": "LESS stylesheet", "role": "Editor", "mimeType": "text/x-less" },
+      { "ext": ["json", "jsonc"], "name": "IdiotBoxJSON", "description": "JSON document", "role": "Editor", "mimeType": "application/json" },
+      { "ext": ["md", "markdown"], "name": "IdiotBoxMarkdown", "description": "Markdown document", "role": "Editor", "mimeType": "text/markdown" },
+      { "ext": ["py", "pyw"], "name": "IdiotBoxPython", "description": "Python script", "role": "Editor", "mimeType": "text/x-python" },
+      { "ext": ["c", "h"], "name": "IdiotBoxC", "description": "C source file", "role": "Editor", "mimeType": "text/x-csrc" },
+      { "ext": ["cpp", "cc", "cxx", "hpp", "hh", "hxx"], "name": "IdiotBoxCpp", "description": "C++ source file", "role": "Editor", "mimeType": "text/x-c++src" },
+      { "ext": ["java"], "name": "IdiotBoxJava", "description": "Java source file", "role": "Editor", "mimeType": "text/x-java" },
+      { "ext": ["rs"], "name": "IdiotBoxRust", "description": "Rust source file", "role": "Editor", "mimeType": "text/x-rust" },
+      { "ext": ["go"], "name": "IdiotBoxGo", "description": "Go source file", "role": "Editor", "mimeType": "text/x-go" },
+      { "ext": ["rb"], "name": "IdiotBoxRuby", "description": "Ruby script", "role": "Editor", "mimeType": "text/x-ruby" },
+      { "ext": ["php"], "name": "IdiotBoxPHP", "description": "PHP script", "role": "Editor", "mimeType": "text/x-php" },
+      { "ext": ["sh", "bash", "zsh"], "name": "IdiotBoxShell", "description": "Shell script", "role": "Editor", "mimeType": "application/x-shellscript" },
+      { "ext": ["sql"], "name": "IdiotBoxSQL", "description": "SQL script", "role": "Editor", "mimeType": "text/x-sql" },
+      { "ext": ["yml", "yaml"], "name": "IdiotBoxYAML", "description": "YAML document", "role": "Editor", "mimeType": "text/x-yaml" },
+      { "ext": ["xml"], "name": "IdiotBoxXML", "description": "XML document", "role": "Editor", "mimeType": "text/xml" },
+      { "ext": ["vue"], "name": "IdiotBoxVue", "description": "Vue component", "role": "Editor", "mimeType": "text/x-vue" },
+      { "ext": ["svelte"], "name": "IdiotBoxSvelte", "description": "Svelte component", "role": "Editor", "mimeType": "text/x-svelte" },
+      { "ext": ["toml"], "name": "IdiotBoxTOML", "description": "TOML configuration file", "role": "Editor", "mimeType": "application/toml" },
+      { "ext": ["txt", "log"], "name": "IdiotBoxText", "description": "Plain text document", "role": "Editor", "mimeType": "text/plain" }
+    ],
     "asarUnpack": [
       "**/node-pty/**",
       "**/esbuild/**",
@@ -162,6 +188,9 @@
       "installerHeaderIcon": "electron/renderer/assets/idot_box.png",
       "uninstallDisplayName": "Idiot Box"
     },
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    },
     "linux": {
       "target": [
         {
@@ -181,6 +210,12 @@
       "category": "Development",
       "maintainer": "TheWonderlandStudio <support@thewonderlandstudio.com>",
       "description": "Idiot Box - Code-OSS-backed desktop IDE with an embedded extension host",
+      "mimeTypes": [
+        "text/plain",
+        "video/mp2t",
+        "application/javascript",
+        "text/x-markdown"
+      ],
       "desktop": {
         "Name": "Idiot Box",
         "Comment": "Free open-source desktop IDE: code editor, terminal, browser and project map in one window",

@@ -2,7 +2,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage, clipboard, protocol, net: electronNet, session } = require("electron");
 const path    = require("path");
 const fs      = require("fs");
-const { pathToFileURL } = require("url");
+const { pathToFileURL, fileURLToPath } = require("url");
 const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
 let setupCsp = null;
@@ -144,6 +144,85 @@ async function handleIbxProtocolUrl(raw) {
   return true;
 }
 
+// ─── "Open With Idiot Box" — OS file opens ────────────────────────────────
+// Windows/Linux: files process.argv / second-instance argv me aate hain.
+// macOS: "open-file" event (app ready se pehle bhi aa sakta hai).
+// Renderer flex model ready hone se pehle aaye files pending queue me rehti
+// hain; renderer model banne ke baad "editor:rendererReady" bhejta hai →
+// main ping karta hai → renderer pending files pull karke tabs me kholta hai.
+// Har open pull-par-driven hai, isliye reload/delivery race me file kabhi
+// drop nahi hoti (queue tabhi clear hoti hai jab renderer le chuka ho).
+const pendingOpenFiles = [];
+let osFilesRendererReady = false;
+
+function normalizeOsFilePath(raw) {
+  try {
+    if (typeof raw !== "string" || !raw) return null;
+    let p = raw;
+    if (/^file:\/\//i.test(p)) {                        // Linux %U → file:// URI
+      try { p = fileURLToPath(p); } catch { return null; }
+    }
+    p = path.resolve(p);
+    if (fs.existsSync(p) && fs.statSync(p).isFile()) return p;
+  } catch {}
+  return null;
+}
+
+function extractOsOpenFiles(argv) {
+  try {
+    const list = Array.isArray(argv) ? argv : [];
+    // Packaged: argv[0] = exe, file args argv[1..]. Dev (`electron .`):
+    // argv[1] = app dir/script — skip taaki wo file na ban jaye.
+    const start = app.isPackaged ? 1 : 2;
+    const out = [];
+    for (let i = start; i < list.length; i++) {
+      const a = list[i];
+      if (typeof a !== "string" || !a) continue;
+      if (a.startsWith("-")) continue;                 // --switches
+      if (/^idiotbox:\/\//i.test(a)) continue;         // protocol URL (alag se handle hota)
+      const p = normalizeOsFilePath(a);
+      if (p) out.push(p);
+    }
+    return out;
+  } catch { return []; }
+}
+
+function queueOsFiles(paths) {
+  try {
+    const files = (Array.isArray(paths) ? paths : []).filter((p) => typeof p === "string" && p);
+    if (!files.length) return;
+    let added = false;
+    for (const p of files) { if (!pendingOpenFiles.includes(p)) { pendingOpenFiles.push(p); added = true; } }
+    if (!added) return;
+    console.log(`[open-with] queued ${pendingOpenFiles.length} file(s)`);
+    if (!osFilesRendererReady) return;                 // renderer ready hone par khud pull karega
+    let win = null;
+    try { win = focusMainWindow(); } catch {}
+    if (win && !win.isDestroyed()) win.webContents.send("editor:osFilesPending");
+  } catch (e) { console.warn("[open-with] queue failed:", e?.message || e); }
+}
+
+function takePendingOsFiles() {
+  try { return pendingOpenFiles.splice(0); } catch { return []; }
+}
+
+// Renderer: flex model ready → pending files maang lo (ya live ping par pull).
+ipcMain.handle("editor:rendererReady", (event) => {
+  try {
+    osFilesRendererReady = true;
+    if (pendingOpenFiles.length) {
+      event.sender.send("editor:osFilesPending");
+      console.log(`[open-with] renderer ready — flushing ${pendingOpenFiles.length} pending file(s)`);
+    }
+    return true;
+  } catch { return false; }
+});
+ipcMain.handle("editor:takePendingFiles", () => {
+  const files = takePendingOsFiles();
+  if (files.length) console.log(`[open-with] renderer took ${files.length} file(s)`);
+  return files;
+});
+
 try {
   if (process.defaultApp) {
     // Dev (`electron .`): explicit path ke saath register karo
@@ -166,6 +245,11 @@ if (!_ibxGotSingleLock) {
       const url = findProtocolUrlInArgs(argv);
       if (url) { handleIbxProtocolUrl(url); return; }
     } catch {}
+    // "Open With Idiot Box" (running instance) → files existing window me kholo.
+    try {
+      const files = extractOsOpenFiles(argv);
+      if (files.length) { queueOsFiles(files); return; }
+    } catch {}
     try { focusMainWindow(); } catch {}
   });
   // macOS: dock/protocol open
@@ -173,6 +257,16 @@ if (!_ibxGotSingleLock) {
     app.on("open-url", (event, url) => {
       try { event.preventDefault(); } catch {}
       try { handleIbxProtocolUrl(url); } catch {}
+    });
+  } catch {}
+  // macOS: Finder se "Open With Idiot Box" (cold start me ready se pehle bhi aata hai)
+  try {
+    app.on("open-file", (event, filePath) => {
+      try { event.preventDefault(); } catch {}
+      try {
+        const p = normalizeOsFilePath(filePath);
+        if (p) queueOsFiles([p]);
+      } catch {}
     });
   } catch {}
 }
@@ -5853,6 +5947,8 @@ function buildMenu() {
 
 // ─── Main window ──────────────────────────────────────────────────────────────
 function createWindow() {
+  // Naya window → renderer dobara ready hoga (pending OS files tab tak queue).
+  osFilesRendererReady = false;
   let winState = { width: 1280, height: 720 };
   let wasMaximized = false;
   try {
@@ -6261,6 +6357,10 @@ app.whenReady().then(async () => {
   getShell();
   rebuildMenu();
   createWindow();
+  // Cold start with files: `IdiotBox.exe file1.js file2.ts …` (Open With /
+  // CLI) — renderer ready hone par ye pending files khud pull kar lega.
+  // Lock loser instance ye skip kare (wo to waise bhi quit ho raha hai).
+  try { if (_ibxGotSingleLock) queueOsFiles(extractOsOpenFiles(process.argv)); } catch {}
   // Anonymous stats — install counter + 30s heartbeat (telemetry toggle par depend)
   try { if (tracking && typeof tracking.start === "function") tracking.start({ app, readSettings }); }
   catch (e) { console.warn("[tracking] start failed:", e.message); }
