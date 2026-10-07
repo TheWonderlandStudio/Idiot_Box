@@ -64,6 +64,7 @@ build/              esbuild configs + worker asset copy
 
 - Releases: https://github.com/TheWonderlandStudio/Idiot_Box/releases
 - Download page: https://thewonderlandstudio.github.io/Idiot_Box/download.html
+- Discord: https://discord.gg/Z9DynuSxRY
 
 Other sites offering "Idiot Box" for download are not official.
 
