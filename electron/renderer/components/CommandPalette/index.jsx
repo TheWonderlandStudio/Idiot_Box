@@ -25,6 +25,7 @@ const COMMANDS = [
   { id: "reset-layout",    group: "View", title: "Reset Window Layout",     run: act("resetLayout") },
   // ── Panels ──
   { id: "focus-terminal",  group: "Panels", title: "Focus Terminal",        run: ev("focus-terminal-tab") },
+  { id: "add-ai-agent",    group: "Panels", title: "Add AI Agent Panel",    run: ev("add-ai-agent-panel") },
   { id: "add-browser",     group: "Panels", title: "Add Browser Panel",     run: ev("add-browser-panel") },
   { id: "add-preview",     group: "Panels", title: "Add Component Preview", run: ev("add-component-preview-panel") },
   { id: "add-canvas",      group: "Panels", title: "Add Canvas Panel",      run: ev("add-canvas-panel") },

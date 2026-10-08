@@ -56,6 +56,7 @@ let tracking = null;
 try { tracking = require("./tracking"); } catch (e) { console.warn("[main] tracking not available:", e.message); }
 // Hub chat → Pollinations free AI (main process se fetch, renderer se nahi)
 try { require("./ai-chat").registerAiChat(); } catch (e) { console.warn("[main] ai-chat not available:", e.message); }
+try { require("./opencode-panel").registerOpenCodePanel(() => lastProjectPath); } catch (e) { console.warn("[main] OpenCode panel not available:", e.message); }
 
 // ─── Guard stdio EPIPE — prevent crash when parent closes pipes ──────────────
 // When stdout/stderr is a pipe whose reader has gone away, writes throw EPIPE
@@ -4376,6 +4377,7 @@ ipcMain.handle("panel:addMenu", async (event) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
     const items = [
+      { label: "AI Agent", click: () => act("aiAgent") },
       { label: "Browser", click: () => act("browser") },
       { label: "Terminal", click: () => act("terminal") },
       { label: "Output Panel", click: () => act("output") },

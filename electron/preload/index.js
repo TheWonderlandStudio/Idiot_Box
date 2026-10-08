@@ -284,6 +284,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("ai:chat:error", h3);
     };
   },
+  openCodePanelStart: (rootPath) => ipcRenderer.invoke("opencode-panel:start", rootPath),
+  openCodePanelStop: (leaseId) => ipcRenderer.invoke("opencode-panel:stop", leaseId),
 
   // ── Project Hub — recent / pinned projects ────────────────────────────────
   projectLoadRecent:   ()            => ipcRenderer.invoke("project:load-recent"),

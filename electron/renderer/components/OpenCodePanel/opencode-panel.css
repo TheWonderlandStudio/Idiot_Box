@@ -1,0 +1,79 @@
+.opencode-panel {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.opencode-panel-webview {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg-surface);
+}
+
+.opencode-panel-status {
+  display: flex;
+  width: min(460px, calc(100% - 32px));
+  height: 100%;
+  min-height: 180px;
+  margin: auto;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 9px;
+  padding: 24px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.opencode-panel-status b {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.opencode-panel-status p {
+  max-width: 390px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.opencode-panel-status .opencode-panel-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.opencode-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.opencode-panel-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.opencode-panel-actions button:hover {
+  background: var(--bg-hover);
+}
+
+.opencode-panel-spinner {
+  color: var(--teal);
+  animation: opencode-panel-spin 1s linear infinite;
+}
+
+@keyframes opencode-panel-spin {
+  to { transform: rotate(360deg); }
+}

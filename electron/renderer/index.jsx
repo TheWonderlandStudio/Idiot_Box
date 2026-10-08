@@ -31,6 +31,7 @@ import OutputPanel, { OutputIcon } from "./components/Output/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
 import AndroidEmulatorPanel from "./components/AndroidEmulator/index.jsx";
+import AIAgentPanel from "./components/OpenCodePanel/index.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 
 const DEFAULT_JSON = {
@@ -130,6 +131,7 @@ const renderPanelContent = (json) => {
     case "gitPanel":          return <GitPanel nodeId={nodeId} />;
     case "ports":             return <PortsPanel />;
     case "androidEmulator":   return <AndroidEmulatorPanel />;
+    case "aiAgent":           return <AIAgentPanel />;
     default:                  return null;
   }
 };
@@ -817,7 +819,7 @@ const findAnyTabset = (node) => {
 const PROJECT_PANEL_COMPONENTS = new Set([
   "mediaViewer", "panel3", "projectPanel", "editor", "notebook", "terminal",
   "blank", "componentPreview", "community", "canvas", "problems", "output",
-  "runDebug", "gitPanel", "ports", "androidEmulator", "openPencil",
+  "runDebug", "gitPanel", "ports", "androidEmulator", "openPencil", "aiAgent",
 ]);
 const sanitizeProjectPanels = (json) => {
   try {
@@ -1107,7 +1109,7 @@ const App = () => {
             // "notebook" stays allowed as a compat shim (interim builds saved
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs","openPencil"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs","openPencil","aiAgent"]);
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";
@@ -1715,7 +1717,22 @@ const App = () => {
       }
       addPanel("terminal", "Emulator", { mirrorTabId: mirrorId });
     };
+    const onAiAgent = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findAgent = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "aiAgent") return node;
+          const children = node.getChildren?.();
+          if (children) for (const child of children) { const found = findAgent(child); if (found) return found; }
+          return null;
+        };
+        const existing = findAgent(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("aiAgent", "AI Agent", {});
+    };
     window.addEventListener("add-browser-panel", onBrowser);
+    window.addEventListener("add-ai-agent-panel", onAiAgent);
     window.addEventListener("add-component-preview-panel", onPreview);
     window.addEventListener("add-community-panel", onCommunity);
     window.addEventListener("add-canvas-panel", onCanvas);
@@ -1726,6 +1743,7 @@ const App = () => {
     window.addEventListener("add-android-panel", onAndroid);
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
+      window.removeEventListener("add-ai-agent-panel", onAiAgent);
       window.removeEventListener("add-component-preview-panel", onPreview);
       window.removeEventListener("add-community-panel", onCommunity);
       window.removeEventListener("add-canvas-panel", onCanvas);
@@ -2621,45 +2639,44 @@ const App = () => {
         }
       }}
       onRenderTabSet={(node, renderValues) => {
+        const openPanelAddMenu = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const m = modelRef.current;
+          if (!m) return;
+          try {
+            if (!window.electronAPI?.showPanelAddMenu) {
+              m.doAction(Actions.addNode({
+                type: "tab", component: "blank", name: "New Panel", enableClose: true,
+              }, node.getId(), DockLocation.CENTER, -1, true));
+              return;
+            }
+            const res = await window.electronAPI.showPanelAddMenu();
+            const action = res?.action;
+            if (action === "browser") window.dispatchEvent(new CustomEvent("add-browser-panel"));
+            else if (action === "terminal") window.dispatchEvent(new CustomEvent("add-terminal-panel"));
+            else if (action === "output") window.dispatchEvent(new CustomEvent("add-output-panel"));
+            else if (action === "runDebug") window.dispatchEvent(new CustomEvent("add-run-panel"));
+            else if (action === "aiAgent") window.dispatchEvent(new CustomEvent("add-ai-agent-panel"));
+            else if (action === "android") window.dispatchEvent(new CustomEvent("add-android-panel"));
+            else if (action === "community") window.dispatchEvent(new CustomEvent("add-community-panel"));
+          } catch (error) {
+            console.error("[panel:addMenu] Could not open panel menu:", error);
+          }
+        };
+        const addBlankPanel = () => {
+          const m = modelRef.current;
+          if (!m) return;
+          try {
+            m.doAction(Actions.addNode({
+              type: "tab", component: "blank", name: "New Panel", enableClose: true,
+            }, node.getId(), DockLocation.CENTER, -1, true));
+          } catch {}
+        };
         renderValues.buttons.push(
           <button key="add" className="flexlayout__tab_toolbar_button"
-            onClick={() => {
-              // Left-click: seedha Blank panel — menu nahi.
-              const m = modelRef.current;
-              if (!m) return;
-              try {
-                m.doAction(Actions.addNode({
-                  type: "tab", component: "blank", name: "New Panel", enableClose: true,
-                }, node.getId(), DockLocation.CENTER, -1, true));
-              } catch {}
-            }}
-            onContextMenu={async (e) => {
-              // Right-click: New Panel context menu (Browser / Terminal / Output / AI / Emulator).
-              e.preventDefault();
-              e.stopPropagation();
-              const m = modelRef.current;
-              if (!m) return;
-              const blank = () => {
-                try {
-                  m.doAction(Actions.addNode({
-                    type: "tab", component: "blank", name: "New Panel", enableClose: true,
-                  }, node.getId(), DockLocation.CENTER, -1, true));
-                } catch {}
-              };
-              try {
-                if (!window.electronAPI?.showPanelAddMenu) { blank(); return; }
-                const res = await window.electronAPI.showPanelAddMenu();
-                const action = res?.action;
-                if (action === "browser") window.dispatchEvent(new CustomEvent("add-browser-panel"));
-                else if (action === "terminal") window.dispatchEvent(new CustomEvent("add-terminal-panel"));
-                else if (action === "output") window.dispatchEvent(new CustomEvent("add-output-panel"));
-                else if (action === "runDebug") window.dispatchEvent(new CustomEvent("add-run-panel"));
-                else if (action === "android") window.dispatchEvent(new CustomEvent("add-android-panel"));
-                else if (action === "community") window.dispatchEvent(new CustomEvent("add-community-panel"));
-                else if (!action) { /* menu dismiss — kuch mat karo */ }
-                else blank();
-              } catch {}
-            }}
+            onClick={addBlankPanel}
+            onContextMenu={openPanelAddMenu}
             title="Add Panel"
           >
             <svg style={{ fill: "var(--text-inverse)" }} width="12" height="12" viewBox="0 0 16 16">

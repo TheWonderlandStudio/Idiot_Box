@@ -96,7 +96,7 @@ const I = {
     </svg>
   ),
   community: (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="8" r="3.5" />
         <path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5" />
@@ -105,9 +105,26 @@ const I = {
       </g>
     </svg>
   ),
+  aiAgent: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3.5 13.6 8a2 2 0 0 0 1.2 1.2L19.5 11l-4.7 1.8a2 2 0 0 0-1.2 1.2L12 18.5l-1.6-4.5a2 2 0 0 0-1.2-1.2L4.5 11l4.7-1.8A2 2 0 0 0 10.4 8z" />
+        <path d="M18.5 3v3M20 4.5h-3M5.5 17.5v2.5M6.75 18.75h-2.5" />
+      </g>
+    </svg>
+  ),
 };
 
 const PANEL_TYPES = [
+  {
+    id: "aiAgent",
+    name: "AI Agent",
+    component: "aiAgent",
+    description: "OpenCode's native coding-agent web interface",
+    accent: "var(--code-magenta)",
+    icon: I.aiAgent,
+    config: {},
+  },
   {
     id: "canvas",
     name: "Canvas",
