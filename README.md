@@ -18,7 +18,7 @@ Idiot Box is a modern, customizable desktop IDE designed to make development sim
 - **Command Palette** — quick actions for projects, files, panels and layout.
 - **Session Restore** — remembers your window state and open tabs.
 
-<img src="https://files.catbox.moe/to6wz3.png">
+<img src="https://files.catbox.moe/dx4x76.gif">
 
 ## Stack
 
