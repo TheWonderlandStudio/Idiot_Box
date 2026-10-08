@@ -3234,7 +3234,7 @@ ipcMain.handle("browser:tabContextMenu", (event) => {
 });
 
 // ─── FlexLayout tab context menu ────────────────────────────────────────────
-ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, canPopout = false, canFloat = false, filePath = null } = {}) => {
+ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, canPopout = false, filePath = null } = {}) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
     const sep = { type: "separator" };
@@ -3245,7 +3245,6 @@ ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = fals
     if (canClose) items.push(sep);
     if (canDuplicate) items.push({ label: "Duplicate", click: () => act("duplicate") });
     items.push({ label: "Split Right", click: () => act("splitRight") });
-    if (canFloat) items.push({ label: "Float", click: () => act("float") });
     if (canPopout) items.push({ label: "Popout", click: () => act("popout") });
     if (canRefresh || isBrowser) {
       items.push(sep);
@@ -6091,8 +6090,7 @@ function createWindow() {
     if (url && url.includes("popout.html")) {
       const preloadPath = path.join(__dirname, "../preload/preload-bundle.cjs");
       const opts = {
-        frame: false,
-        titleBarStyle: "hidden",
+        title: "Idiot Box",
         autoHideMenuBar: true,
         backgroundColor: "#0d0d0d",
         resizable: true,
@@ -6284,26 +6282,23 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // ─── Global guard: popout windows me custom electron titlebar (CET) attach
-  // na ho. Sirf main IDE window ke liye setupTitlebar... call ho (explicit).
-  // Yeh listener har naye BrowserWindow ke liye fire karta hai aur agar
-  // wo popout.html hai to use native titlebar + frame set karta hai.
+  // ─── Popout windows use Electron's native frame; keep their content active
+  // while the main IDE window is in the background.
   try {
     app.on("browser-window-created", (_ev, bw) => {
       try {
         const wc = bw?.webContents;
         if (!wc) return;
-        const checkAndFix = () => {
+        const keepPopoutActive = () => {
           try {
             const u = wc.getURL?.() || "";
             if (u && u.includes("popout.html")) {
-              try { bw.setTitleBarOverlay?.(null); } catch {}
               try { bw.webContents.setBackgroundThrottling(false); } catch {}
             }
           } catch {}
         };
-        wc.once("did-finish-load", checkAndFix);
-        checkAndFix();
+        wc.once("did-finish-load", keepPopoutActive);
+        keepPopoutActive();
       } catch {}
     });
   } catch {}

@@ -1,24 +1,26 @@
 // Preload script entry point
 const { contextBridge, ipcRenderer, webUtils, clipboard } = require("electron");
-try {
-  const { createTitlebarOnDOMContentLoaded, TitlebarColor } = require("custom-electron-titlebar");
-  const _tbPromise = createTitlebarOnDOMContentLoaded({
-    containerOverflow: "visible",
-    backgroundColor: TitlebarColor.fromHex("#171717"),
-    menuBarBackgroundColor: TitlebarColor.fromHex("#171717"),
-    itemBackgroundColor: TitlebarColor.fromHex("#2a2d2e"),
-    shadow: true,
-  });
-  // After main calls Menu.setApplicationMenu() it sends cet:refreshMenu so
-  // the renderer re-fetches the menu with fresh commandId values. Without
-  // this, commandIds go stale and menu clicks silently do nothing.
-  ipcRenderer.on("cet:refreshMenu", () => {
-    if (_tbPromise && typeof _tbPromise.then === "function") {
-      _tbPromise.then((tb) => { if (tb && typeof tb.refreshMenu === "function") tb.refreshMenu(); }).catch(() => {});
-    }
-  });
-  if (_tbPromise) _tbPromise.catch(() => {});
-} catch (e) { /* optional dep — preload must not crash even without it */ }
+if (!window.location.pathname.toLowerCase().endsWith("/popout.html")) {
+  try {
+    const { createTitlebarOnDOMContentLoaded, TitlebarColor } = require("custom-electron-titlebar");
+    const _tbPromise = createTitlebarOnDOMContentLoaded({
+      containerOverflow: "visible",
+      backgroundColor: TitlebarColor.fromHex("#171717"),
+      menuBarBackgroundColor: TitlebarColor.fromHex("#171717"),
+      itemBackgroundColor: TitlebarColor.fromHex("#2a2d2e"),
+      shadow: true,
+    });
+    // After main calls Menu.setApplicationMenu() it sends cet:refreshMenu so
+    // the renderer re-fetches the menu with fresh commandId values. Without
+    // this, commandIds go stale and menu clicks silently do nothing.
+    ipcRenderer.on("cet:refreshMenu", () => {
+      if (_tbPromise && typeof _tbPromise.then === "function") {
+        _tbPromise.then((tb) => { if (tb && typeof tb.refreshMenu === "function") tb.refreshMenu(); }).catch(() => {});
+      }
+    });
+    if (_tbPromise) _tbPromise.catch(() => {});
+  } catch (e) { /* optional dep — preload must not crash even without it */ }
+}
 
 contextBridge.exposeInMainWorld("electronAPI", {
   // ── Native file drag (outgoing to OS/external apps) ────────────────────

@@ -40,8 +40,6 @@ const DEFAULT_JSON = {
     tabEnableDrag: true,
     tabEnablePopout: true,
     tabEnablePopoutIcon: true,
-    tabEnableFloat: true,
-    tabEnableFloatIcon: true,
     tabSetEnableMaximize: true,
     tabSetEnableDrop: true,
     tabSetHeaderShown: true,
@@ -108,29 +106,41 @@ const BLANK_JSON = {
   },
 };
 
+// Panel content by tab-JSON — factory (tab node ke JSON attributes) isse
+// render karta hai: component + config + nodeId ek jagah se.
+const renderPanelContent = (json) => {
+  const config = json?.config || {};
+  const nodeId = json?.id;
+  switch (json?.component) {
+    case "mediaViewer":       return <MediaViewer />;
+    case "panel3":            return <BrowserPanel config={config} nodeId={nodeId} />;
+    case "projectPanel":      return <ProjectPanel />;
+    case "projectHub":      return <ProjectHub />;
+    case "editor":            return <EditorPanel config={config} nodeId={nodeId} />;
+    case "notebook":          return <NotebookPanel config={config} nodeId={nodeId} />;
+    case "terminal":          return <TerminalPanel config={config} nodeId={nodeId} />;
+    case "blank":             return <BlankPanel config={config} nodeId={nodeId} />;
+    case "componentPreview":  return <ComponentPreview config={config} nodeId={nodeId} />;
+    case "community":         return <CommunityPanel config={config} nodeId={nodeId} />;
+    case "canvas":            return <CanvasPanel config={config} nodeId={nodeId} />;
+    case "openPencil":        return <OpenPencilPanel config={config} nodeId={nodeId} />;
+    case "problems":          return <ProblemsPanel />;
+    case "runDebug":          return <RunPanel />;
+    case "output":            return <OutputPanel />;
+    case "gitPanel":          return <GitPanel nodeId={nodeId} />;
+    case "ports":             return <PortsPanel />;
+    case "androidEmulator":   return <AndroidEmulatorPanel />;
+    default:                  return null;
+  }
+};
+
 const factory = (node) => {
   try {
-    switch (node.getComponent()) {
-      case "mediaViewer":       return <CrashSafeWrapper cid={node.getId()}><MediaViewer /></CrashSafeWrapper>;
-      case "panel3":            return <CrashSafeWrapper cid={node.getId()}><BrowserPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "projectPanel":      return <CrashSafeWrapper cid={node.getId()}><ProjectPanel /></CrashSafeWrapper>;
-      case "projectHub":      return <CrashSafeWrapper cid={node.getId()}><ProjectHub /></CrashSafeWrapper>;
-      case "editor":            return <CrashSafeWrapper cid={node.getId()}><EditorPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "notebook":          return <CrashSafeWrapper cid={node.getId()}><NotebookPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "terminal":          return <CrashSafeWrapper cid={node.getId()}><TerminalPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "blank":             return <CrashSafeWrapper cid={node.getId()}><BlankPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "componentPreview":  return <CrashSafeWrapper cid={node.getId()}><ComponentPreview config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "community":        return <CrashSafeWrapper cid={node.getId()}><CommunityPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "canvas":            return <CrashSafeWrapper cid={node.getId()}><CanvasPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-      case "openPencil":        return <CrashSafeWrapper cid={node.getId()}><OpenPencilPanel config={node.getConfig()} nodeId={node.getId()} /></CrashSafeWrapper>;
-    case "problems":          return <CrashSafeWrapper cid={node.getId()}><ProblemsPanel /></CrashSafeWrapper>;
-  case "runDebug":          return <CrashSafeWrapper cid={node.getId()}><RunPanel /></CrashSafeWrapper>;
-  case "output":            return <CrashSafeWrapper cid={node.getId()}><OutputPanel /></CrashSafeWrapper>;
-  case "gitPanel":          return <CrashSafeWrapper cid={node.getId()}><GitPanel nodeId={node.getId()} /></CrashSafeWrapper>;
-  case "ports":             return <CrashSafeWrapper cid={node.getId()}><PortsPanel /></CrashSafeWrapper>;
-  case "androidEmulator":   return <CrashSafeWrapper cid={node.getId()}><AndroidEmulatorPanel /></CrashSafeWrapper>;
-      default:                  return null;
-    }
+    return (
+      <CrashSafeWrapper cid={node.getId()}>
+        {renderPanelContent({ component: node.getComponent(), config: node.getConfig(), id: node.getId() })}
+      </CrashSafeWrapper>
+    );
   } catch (e) {
     return (
       <div style={{ padding: 16, color: "var(--ink-muted)", fontFamily: "inherit", fontSize: 12 }}>
@@ -142,7 +152,7 @@ const factory = (node) => {
 };
 
 // ── Crash-safe wrapper: har tab ka root iske andar chalta hai.
-// Popout / Float / normal sab cases me kisi bhi panel ke throw hone se
+// Popout / normal cases me kisi bhi panel ke throw hone se
 // poore FlexLayout tree ko crash hone se bachata hai.
 class CrashSafeWrapper extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
@@ -842,8 +852,6 @@ const enablePopouts = (json) => {
     if (!json.global || typeof json.global !== "object") json.global = {};
     json.global.tabEnablePopout = true;
     json.global.tabEnablePopoutIcon = true;
-    json.global.tabEnableFloat = true;
-    json.global.tabEnableFloatIcon = true;
   } catch {}
   return json;
 };
@@ -2557,35 +2565,8 @@ const App = () => {
                 type: "tab", component: current.getComponent(), name: current.getName(), enableClose: true,
                 config: { ...(current.getConfig?.() || {}) },
               }, parent.getId(), DockLocation.RIGHT, -1, true));
-            } else if (action === "popout") m.doAction(Actions.popoutTab(tabId));
-            else if (action === "float") {
-              try {
-                if (typeof Actions.floatTab === "function") {
-                  m.doAction(Actions.floatTab(tabId));
-                } else {
-                  const r = current.getRect?.();
-                  const parentRect = parent?.getRect?.();
-                  if (r && parentRect) {
-                    const w = Math.max(480, r.width || 600);
-                    const h = Math.max(360, r.height || 450);
-                    const tsId = parent ? parent.getId() : m.getRoot().getId();
-                    const tabJSON = {
-                      type: "tab",
-                      component: current.getComponent(),
-                      name: current.getName(),
-                      enableClose: true,
-                      config: { ...(current.getConfig?.() || {}) },
-                    };
-                    m.doAction(Actions.deleteTab(tabId));
-                    setTimeout(() => {
-                      try {
-                        m.doAction(Actions.addNode(tabJSON, tsId, DockLocation.CENTER, -1, true));
-                      } catch {}
-                    }, 50);
-                  }
-                }
-              } catch {}
             }
+            else if (action === "popout") m.doAction(Actions.popoutTab(tabId));
             else if (action === "copyPath" && filePath) window.electronAPI?.clipboardWrite?.(filePath);
             else if (action === "reveal" && filePath) window.electronAPI?.revealInExplorer?.(filePath);
             scheduleSaveProjectTabs();
@@ -2601,7 +2582,6 @@ const App = () => {
               isBrowser,
               canRefresh: isBrowser || isOpenPencil,
               canPopout: node.isEnablePopout?.() !== false,
-              canFloat: true,
               filePath,
             });
             if (result?.action === "refresh") {
