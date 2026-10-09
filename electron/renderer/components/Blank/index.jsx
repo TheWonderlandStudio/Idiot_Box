@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Actions } from "flexlayout-react";
 import { Search, X } from "lucide-react";
 import { OutputIcon } from "../Output/index.jsx";
@@ -103,6 +103,12 @@ const I = {
         <circle cx="17.5" cy="9" r="2.5" />
         <path d="M16 15.2c2.9.3 4.9 1.9 5.5 4.8" />
       </g>
+    </svg>
+  ),
+  extensions: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
+      <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" d="M9.5 3.5h5a2 2 0 0 1 2 2V7h1.5a2 2 0 0 1 2 2v3H17v1.5a2 2 0 0 1-2 2H13.5V18a2 2 0 0 1-2 2h-3v-1.5a2 2 0 0 1-2-2V15H3V9.5a2 2 0 0 1 2-2H6.5V7a2 2 0 0 1 2-2h1z" />
+      <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" d="M9.5 3.5v3M3.5 9.5h3M17.5 12.5H21" />
     </svg>
   ),
   aiAgent: (
@@ -260,6 +266,15 @@ const PANEL_TYPES = [
     icon: I.community,
     config: {},
   },
+  {
+    id: "extensions",
+    name: "Extensions",
+    component: "extensions",
+    description: "Manage Chrome extensions loaded into the Browser panel",
+    accent: "var(--code-blue)",
+    icon: I.extensions,
+    config: {},
+  },
 ];
 
 // ── Panel usage tracking: picker me most-used panels pehle, least-used aakhir ──
@@ -284,11 +299,39 @@ const BlankPanel = ({ nodeId, config }) => {
   const [usage] = useState(readUsage);
   const searchRef = useRef(null);
 
+  // Extension views — host se live list, picker me "Extension" group ke roop me
+  const [extViews, setExtViews] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await window.electronAPI?.extViews?.();
+        if (alive) setExtViews(Array.isArray(res) ? res : []);
+      } catch { if (alive) setExtViews([]); }
+    };
+    load();
+    const un = window.electronAPI?.onExtChanged?.(load);
+    return () => { alive = false; try { un && un(); } catch {} };
+  }, []);
+
+  const allTypes = useMemo(() => [
+    ...PANEL_TYPES,
+    ...extViews.map((v) => ({
+      id: `ext-${v.extId}-${v.viewType}`,
+      name: v.title || v.viewType,
+      component: "extView",
+      description: `Extension view — ${v.extName}`,
+      accent: "var(--code-magenta)",
+      icon: I.extensions,
+      config: { extId: v.extId, viewType: v.viewType },
+    })),
+  ], [extViews]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = !q
-      ? PANEL_TYPES
-      : PANEL_TYPES.filter((p) =>
+      ? allTypes
+      : allTypes.filter((p) =>
           p.name.toLowerCase().includes(q) ||
           p.description.toLowerCase().includes(q) ||
           p.id.toLowerCase().includes(q)
@@ -297,7 +340,7 @@ const BlankPanel = ({ nodeId, config }) => {
     return [...list].sort(
       (a, b) => (usage[b.component] || 0) - (usage[a.component] || 0)
     );
-  }, [query, usage]);
+  }, [query, usage, allTypes]);
 
   const handleSelect = (panelItem) => {
     bumpPanelUsage(panelItem.component);

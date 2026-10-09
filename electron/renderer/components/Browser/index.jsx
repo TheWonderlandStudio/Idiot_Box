@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
   Search, ChevronUp, ChevronDown,   Pencil, PencilOff, MoreVertical,
   Puzzle, Maximize2, ZoomIn, ZoomOut, Unplug, RotateCw, ExternalLink,
-  Undo2, Check, ArrowUp, ArrowDown, Trash2, Copy, Link2, Code, Info,
+  Undo2, Check, Trash2, Copy, Code,
   GripVertical
 } from "lucide-react";
 
@@ -177,23 +177,6 @@ const decodeB64 = (b) => {
 
 // Edit-mode shortcut hints (confirm bar + tooltip dono me)
 const EDIT_HINTS = "Click text · Enter saves · Esc cancels · Tab next · Ctrl+E edit HTML · Ctrl+Z undo last save · Alt+click attributes · Alt+↑/↓ move · Del remove · Ctrl+D duplicate · Ctrl+K wrap link · Shift+click inspect";
-
-// Sidebar ke shortcut list (chhote kbd chips)
-const EDIT_SHORTCUTS = [
-  ["Click", "edit text"],
-  ["Enter", "apply"],
-  ["Esc", "cancel"],
-  ["Tab", "next element"],
-  ["Del", "remove element"],
-  ["Ctrl+D", "duplicate"],
-  ["Ctrl+K", "wrap as link"],
-  ["Ctrl+E", "raw HTML editor"],
-  ["Ctrl+Z", "undo last save"],
-  ["Alt+click", "attributes"],
-  ["Alt+↑ ↓", "move element"],
-  ["Shift+click", "inspect"],
-  ["Ctrl+click", "follow link"],
-];
 
 // Sidebar style tiles ke chhote labels
 const ALIGN_ABBR = { left: "L", center: "C", right: "R", justify: "J" };
@@ -652,6 +635,11 @@ const BrowserPanel = (props) => {
       setUndoCount(undoStackRef.current.length);
     } catch {}
   }, []);
+  // Edit mode ON = naya session — purana stack hatao, taaki Cancel sirf
+  // isi session ki changes revert kare (purani accepted changes safe rahein).
+  useEffect(() => {
+    if (editMode) { undoStackRef.current = []; setUndoCount(0); }
+  }, [editMode]);
   const undoLiveEdit = useCallback(async () => {
     const top = undoStackRef.current[undoStackRef.current.length - 1];
     if (!top) { showToast("Nothing to undo", "info"); return false; }
@@ -1463,6 +1451,9 @@ const BrowserPanel = (props) => {
   }, [syncActionTab]);
 
   // ── Edit mode toggle → inject into webview ─────────────────────────────────
+  // Cancel apna "Cancelled — reverted" toast dikhata hai; generic
+  // "Edit mode OFF" usse overwrite na kare isliye flag.
+  const skipOffToastRef = useRef(false);
   useEffect(() => {
     const wv = webviewRef.current;
     const js = `window.__ibxSetEditMode && window.__ibxSetEditMode(${editMode ? "true" : "false"})`;
@@ -1472,7 +1463,8 @@ const BrowserPanel = (props) => {
       try { wv.executeJavaScript(`window.__ibxPendingEditMode=${editMode?"true":"false"}`).catch(()=>{}); } catch {}
     }
     if (editMode) showToast("Edit mode ON — " + EDIT_HINTS, "info");
-    else if (attachedRef.current) showToast("Edit mode OFF", "info");
+    else if (attachedRef.current && !skipOffToastRef.current) showToast("Edit mode OFF", "info");
+    skipOffToastRef.current = false;
   }, [editMode, showToast]);
 
   // Edit mode on → sidebar khul jaye; poll taaki style panel ka state sahi rahe
@@ -1684,11 +1676,42 @@ const BrowserPanel = (props) => {
     setMoreOpen(false);
   }, [editMode, handleDoneEditMode]);
 
+  // Cancel: is session ki SAARI saved changes file se revert karo + pending
+  // edit DOM se hatao, phir edit mode band. (Pehle sirf active element revert
+  // hota tha — pehle se save chuke changes file me reh jate the.)
   const handleCancelEditMode = useCallback(async () => {
     try { await webviewRef.current?.executeJavaScript('window.__ibxCancelEdit && window.__ibxCancelEdit()'); } catch {}
+    // In-flight commit ka push abhi aa sakta hai — stack khaali hone tak retry.
+    let reverted = 0;
+    for (let pass = 0; pass < 5 && undoStackRef.current.length; pass++) {
+      while (undoStackRef.current.length) {
+        const top = undoStackRef.current[undoStackRef.current.length - 1];
+        let ok = false;
+        try {
+          const res = await window.electronAPI.liveEditRevert({
+            filePath: top.filePath,
+            appliedText: top.appliedText,
+            originalText: top.originalText,
+          });
+          ok = !!res?.ok;
+        } catch {}
+        if (!ok) break;
+        undoStackRef.current.pop();
+        reverted++;
+      }
+      setUndoCount(undoStackRef.current.length);
+      if (undoStackRef.current.length) await new Promise((r) => setTimeout(r, 350));
+    }
+    setUndoCount(undoStackRef.current.length);
+    if (reverted) {
+      // File wapas original — DOM ko bhi file jaisa karne ke liye reload.
+      try { webviewRef.current?.reload(); } catch {}
+      skipOffToastRef.current = true;
+      showToast(`Cancelled — ${reverted} change${reverted === 1 ? "" : "s"} reverted`, "info");
+    }
     setEditMode(false);
     setMoreOpen(false);
-  }, []);
+  }, [showToast]);
 
   const handleToggleDevTools = useCallback(() => {
     if (webviewRef.current) {
@@ -2136,38 +2159,6 @@ const BrowserPanel = (props) => {
             </div>
 
             <div className="eb-body">
-              <div className="eb-section">
-                <div className="eb-label">Navigate</div>
-                <div className="eb-grid eb-grid--3">
-                  <button className="eb-tbtn" disabled={!canGoBack} onClick={() => webviewRef.current?.goBack()} title="Back (Alt+←)">
-                    <ChevronLeft size={14} /><span>Back</span>
-                  </button>
-                  <button className="eb-tbtn" disabled={!canGoForward} onClick={() => webviewRef.current?.goForward()} title="Forward (Alt+→)">
-                    <ChevronRight size={14} /><span>Fwd</span>
-                  </button>
-                  <button
-                    className="eb-tbtn"
-                    onClick={isLoading ? () => { try { webviewRef.current?.stop(); } catch {} } : handleReload}
-                    title={isLoading ? "Stop loading (Esc)" : "Reload (Ctrl+R)"}
-                  >
-                    {isLoading ? <X size={14} /> : <RefreshCw size={14} />}<span>{isLoading ? "Stop" : "Reload"}</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={openFind} title="Find in page (Ctrl+F)">
-                    <Search size={14} /><span>Find</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={handleToggleDevTools} title="Inspect element / DevTools">
-                    <Info size={14} /><span>DevTools</span>
-                  </button>
-                  <button
-                    className="eb-tbtn"
-                    onClick={() => { try { inputRef.current?.focus(); inputRef.current?.select(); } catch {} }}
-                    title="Edit address (Ctrl+L)"
-                  >
-                    <Globe size={14} /><span>Address</span>
-                  </button>
-                </div>
-              </div>
-
               {/* ── DOM tree (Cursor-style elements panel) ── */}
               <div className="eb-section">
                 <div className="eb-label">
@@ -2204,31 +2195,15 @@ const BrowserPanel = (props) => {
 
               <div className="eb-section">
                 <div className="eb-label">Element tools</div>
-                <div className="eb-hint">Target: the element you last pointed at</div>
-                <div className="eb-grid eb-grid--3">
-                  <button className="eb-tbtn" onClick={() => guestTool("edit")} title="Edit text of the target element">
-                    <Pencil size={14} /><span>Edit</span>
-                  </button>
+                <div className="eb-grid eb-grid--4">
                   <button className="eb-tbtn" onClick={() => guestTool("delete")} title="Remove element (Del)">
-                    <Trash2 size={14} /><span>Delete</span>
+                    <Trash2 size={14} /><span>Del</span>
                   </button>
                   <button className="eb-tbtn" onClick={() => guestTool("duplicate")} title="Duplicate element (Ctrl+D)">
-                    <Copy size={14} /><span>Duplicate</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={() => guestTool("link")} title="Wrap target as link (Ctrl+K)">
-                    <Link2 size={14} /><span>Link</span>
+                    <Copy size={14} /><span>Dup</span>
                   </button>
                   <button className="eb-tbtn" onClick={() => guestTool("html")} title="Edit element as raw HTML (Ctrl+E)">
                     <Code size={14} /><span>HTML</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={() => guestTool("inspect")} title="Inspect element details (Shift+click)">
-                    <Info size={14} /><span>Details</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={() => guestTool("moveUp")} title="Move element up (Alt+↑)">
-                    <ArrowUp size={14} /><span>Move ↑</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={() => guestTool("moveDown")} title="Move element down (Alt+↓)">
-                    <ArrowDown size={14} /><span>Move ↓</span>
                   </button>
                   <button
                     className={`eb-tbtn${editStyle.drag ? " eb-tbtn--on" : ""}`}
@@ -2258,14 +2233,6 @@ const BrowserPanel = (props) => {
                 </div>
               </div>
 
-              {/* TODO(React component props panel — phase 2): neeche "Component"
-                  section hoga. Flow: guest se target outerHTML + hover-locate
-                  payload (`__IBX_LOCATE64__`) → host `liveEditLocate` se source
-                  file → JSX/TSX parse karke component ke props/defaults →
-                  sidebar me props/variant list (bool/enum/number) → edit par
-                  file write (`liveEdit:applyTextChange`) → `component:sourceChanged`
-                  se preview reload. Mapping approximate (tag+class+text
-                  fingerprint) — exact React fiber mapping kabhi nahi. */}
               <div className="eb-section">
                 <div className="eb-label">Visual controls</div>
                 {!editStyle.active && (
@@ -2446,14 +2413,6 @@ const BrowserPanel = (props) => {
                 )}
               </div>
 
-              <div className="eb-section">
-                <div className="eb-label">Shortcuts</div>
-                <div className="eb-keys">
-                  {EDIT_SHORTCUTS.map(([k, t]) => (
-                    <div className="eb-key" key={k}><kbd>{k}</kbd><span>{t}</span></div>
-                  ))}
-                </div>
-              </div>
             </div>
           </aside>
         )}

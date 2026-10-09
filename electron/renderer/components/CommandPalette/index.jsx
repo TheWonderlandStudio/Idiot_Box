@@ -37,6 +37,7 @@ const COMMANDS = [
   { id: "add-android",     group: "Panels", title: "Open Android Emulator", run: ev("add-android-panel") },
   { id: "add-git",         group: "Panels", title: "Add Git Panel",         run: ev("add-git-panel") },
   { id: "add-community",   group: "Panels", title: "Add Community Panel",   run: ev("add-community-panel") },
+  { id: "add-extensions",  group: "Panels", title: "Add Extensions Panel",  run: ev("add-extensions-panel") },
   // ── Edit ──
   { id: "undo",            group: "Edit", title: "Undo",                    run: ed("undo") },
   { id: "redo",            group: "Edit", title: "Redo",                    run: ed("redo") },
@@ -100,6 +101,21 @@ const CommandPalette = () => {
   const listRef = useRef(null);
   const debounceRef = useRef(null);
 
+  // ── App extension commands (host se live) ──
+  const [extCmds, setExtCmds] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await window.electronAPI?.extCommands?.();
+        if (alive) setExtCmds(Array.isArray(res) ? res : []);
+      } catch { if (alive) setExtCmds([]); }
+    };
+    load();
+    const un = window.electronAPI?.onExtChanged?.(load);
+    return () => { alive = false; try { un && un(); } catch {} };
+  }, []);
+
   const raw = query.trim();
   const cmdOnly = raw.startsWith(">");
   const q = (cmdOnly ? raw.slice(1) : raw).trim().toLowerCase();
@@ -131,8 +147,18 @@ const CommandPalette = () => {
       const c = settingsRowCmd(e);
       if (match(c)) out.push(c);
     });
+    extCmds.forEach((c) => {
+      const row = {
+        id: "ext:" + c.id,
+        group: c.category || "Extensions",
+        title: c.title,
+        kw: `${c.extName || ""} extension`,
+        run: () => { try { window.electronAPI?.extInvoke?.(c.id); } catch {} },
+      };
+      if (match(row)) out.push(row);
+    });
     return out;
-  }, [q]);
+  }, [q, extCmds]);
 
   // ── Rows: Files section + grouped Commands (heads selectable nahi) ──
   const rows = useMemo(() => {

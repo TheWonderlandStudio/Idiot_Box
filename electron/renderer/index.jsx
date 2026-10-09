@@ -32,6 +32,9 @@ import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
 import AndroidEmulatorPanel from "./components/AndroidEmulator/index.jsx";
 import AIAgentPanel from "./components/OpenCodePanel/index.jsx";
+import ExtensionsPanel from "./components/Extensions/index.jsx";
+import ExtView from "./components/Extensions/ExtView.jsx";
+import { ExtStatusItems, ExtToasts } from "./components/Extensions/Host.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 
 const DEFAULT_JSON = {
@@ -132,6 +135,8 @@ const renderPanelContent = (json) => {
     case "ports":             return <PortsPanel />;
     case "androidEmulator":   return <AndroidEmulatorPanel />;
     case "aiAgent":           return <AIAgentPanel />;
+    case "extensions":        return <ExtensionsPanel />;
+    case "extView":           return <ExtView config={config} nodeId={nodeId} />;
     default:                  return null;
   }
 };
@@ -820,6 +825,7 @@ const PROJECT_PANEL_COMPONENTS = new Set([
   "mediaViewer", "panel3", "projectPanel", "editor", "notebook", "terminal",
   "blank", "componentPreview", "community", "canvas", "problems", "output",
   "runDebug", "gitPanel", "ports", "androidEmulator", "openPencil", "aiAgent",
+  "extensions", "extView",
 ]);
 const sanitizeProjectPanels = (json) => {
   try {
@@ -1731,8 +1737,46 @@ const App = () => {
       }
       addPanel("aiAgent", "AI Agent", {});
     };
+    const onExtensions = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findExtensions = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "extensions") return node;
+          const children = node.getChildren?.();
+          if (children) for (const child of children) { const found = findExtensions(child); if (found) return found; }
+          return null;
+        };
+        const existing = findExtensions(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("extensions", "Extensions", {});
+    };
+    // Extension views: har (extId, viewType) ke liye ek hi tab — dobara
+    // open request par bas usi tab ko select kar do.
+    const onExtView = (e) => {
+      const d = e?.detail || {};
+      const extId = d.extId, viewType = d.viewType;
+      if (!extId || !viewType) return;
+      const m = modelRef.current;
+      if (m) {
+        const findView = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "extView") {
+            const cfg = node.getConfig?.() || {};
+            if (cfg.extId === extId && cfg.viewType === viewType) return node;
+          }
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findView(c); if (r) return r; }
+          return null;
+        };
+        const existing = findView(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("extView", d.title || `${extId}`, { extId, viewType });
+    };
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-ai-agent-panel", onAiAgent);
+    window.addEventListener("add-extensions-panel", onExtensions);
+    window.addEventListener("add-ext-view-panel", onExtView);
     window.addEventListener("add-component-preview-panel", onPreview);
     window.addEventListener("add-community-panel", onCommunity);
     window.addEventListener("add-canvas-panel", onCanvas);
@@ -1744,6 +1788,8 @@ const App = () => {
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
       window.removeEventListener("add-ai-agent-panel", onAiAgent);
+      window.removeEventListener("add-extensions-panel", onExtensions);
+      window.removeEventListener("add-ext-view-panel", onExtView);
       window.removeEventListener("add-component-preview-panel", onPreview);
       window.removeEventListener("add-community-panel", onCommunity);
       window.removeEventListener("add-canvas-panel", onCanvas);
@@ -1795,6 +1841,12 @@ const App = () => {
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:openAndroid", () => {
       window.dispatchEvent(new CustomEvent("add-android-panel"));
+    });
+    return unsub;
+  }, []);
+  useEffect(() => {
+    const unsub = window.electronAPI.onMenuEvent("menu:openExtensions", () => {
+      window.dispatchEvent(new CustomEvent("add-extensions-panel"));
     });
     return unsub;
   }, []);
@@ -2660,6 +2712,7 @@ const App = () => {
             else if (action === "aiAgent") window.dispatchEvent(new CustomEvent("add-ai-agent-panel"));
             else if (action === "android") window.dispatchEvent(new CustomEvent("add-android-panel"));
             else if (action === "community") window.dispatchEvent(new CustomEvent("add-community-panel"));
+            else if (action === "extensions") window.dispatchEvent(new CustomEvent("add-extensions-panel"));
           } catch (error) {
             console.error("[panel:addMenu] Could not open panel menu:", error);
           }
@@ -2703,6 +2756,7 @@ const App = () => {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)" }}>
           <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: "var(--space-10)" }} />
+          <ExtStatusItems />
           <UpdaterNavButton />
           <button
             onClick={() => window.dispatchEvent(new CustomEvent("add-ports-panel"))}
@@ -2761,6 +2815,7 @@ const App = () => {
 
       <CommandPalette />
       <SearchPanel />
+      <ExtToasts />
     </div>
   );
 };

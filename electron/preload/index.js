@@ -176,13 +176,48 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:fullscreen",
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
       "menu:clearTerminal","menu:killTerminal",
-      "menu:openPorts","menu:openGit","menu:openAndroid",
+      "menu:openPorts","menu:openGit","menu:openAndroid","menu:openExtensions",
       "menu:runAuto","menu:runStop","menu:openRunPanel"
     ];
     if (!valid.includes(channel)) return () => {};
     const handler = (_e, payload) => callback(payload);
     ipcRenderer.on(channel, handler);
     return () => ipcRenderer.removeListener(channel, handler);
+  },
+
+  // ── App extensions (OpenVSX / host) ────────────────────────────────────────
+  extSearch: (q, opts) => ipcRenderer.invoke("ext:search", q, opts),
+  extInstall: (payload) => ipcRenderer.invoke("ext:install", payload),
+  extInstallFolder: () => ipcRenderer.invoke("ext:installFolder"),
+  extInstallVsix: () => ipcRenderer.invoke("ext:installVsix"),
+  extUninstall: (id) => ipcRenderer.invoke("ext:uninstall", id),
+  extSetEnabled: (id, on) => ipcRenderer.invoke("ext:setEnabled", id, on),
+  extList: () => ipcRenderer.invoke("ext:list"),
+  extCommands: () => ipcRenderer.invoke("ext:commands"),
+  extInvoke: (id) => ipcRenderer.invoke("ext:invoke", id),
+  extViews: () => ipcRenderer.invoke("ext:views"),
+  extViewHtml: (extId, viewType) => ipcRenderer.invoke("ext:viewHtml", extId, viewType),
+  extViewMessage: (extId, viewType, msg) => ipcRenderer.invoke("ext:viewMessage", extId, viewType, msg),
+  extStatusItems: () => ipcRenderer.invoke("ext:statusItems"),
+  onExtChanged: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on("ext:changed", handler);
+    return () => ipcRenderer.removeListener("ext:changed", handler);
+  },
+  onExtNotify: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on("ext:notify", handler);
+    return () => ipcRenderer.removeListener("ext:notify", handler);
+  },
+  onExtViewPush: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on("ext:viewPush", handler);
+    return () => ipcRenderer.removeListener("ext:viewPush", handler);
+  },
+  onExtViewHtmlChanged: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on("ext:viewHtmlChanged", handler);
+    return () => ipcRenderer.removeListener("ext:viewHtmlChanged", handler);
   },
 
   // ── Chrome extensions ───────────────────────────────────────────────────────

@@ -62,6 +62,8 @@ try { tracking = require("./tracking"); } catch (e) { console.warn("[main] track
 // Hub chat → Pollinations free AI (main process se fetch, renderer se nahi)
 try { require("./ai-chat").registerAiChat(); } catch (e) { console.warn("[main] ai-chat not available:", e.message); }
 try { require("./opencode-panel").registerOpenCodePanel(() => lastProjectPath); } catch (e) { console.warn("[main] OpenCode panel not available:", e.message); }
+// App extension host — OpenVSX installs + local folders, vscode-shim activation.
+try { require("./extensions").registerExtensions({ getProjectPath: () => lastProjectPath }); } catch (e) { console.warn("[main] extension host not available:", e.message); }
 
 // ─── Guard stdio EPIPE — prevent crash when parent closes pipes ──────────────
 // When stdout/stderr is a pipe whose reader has gone away, writes throw EPIPE
@@ -4417,6 +4419,7 @@ ipcMain.handle("panel:addMenu", async (event) => {
       { label: "Output Panel", click: () => act("output") },
       { label: "Run and Debug", click: () => act("runDebug") },
       { label: "Android Emulator", click: () => act("android") },
+      { label: "Extensions", click: () => act("extensions") },
       { label: "Community", click: () => act("community") },
     ];
     const menu = Menu.buildFromTemplate(items);
@@ -5876,6 +5879,7 @@ function buildMenu() {
         { label: "Split Editor Right", accelerator: "CmdOrCtrl+\\", click: () => sendToRenderer("menu:splitEditorRight", null) },
         { type: "separator" },
         { label: "Ports", click: () => sendToRenderer("menu:openPorts", null) },
+        { label: "Extensions", click: () => sendToRenderer("menu:openExtensions", null) },
         { label: "Android Emulator", click: () => sendToRenderer("menu:openAndroid", null) },
         { type: "separator" },
         { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
