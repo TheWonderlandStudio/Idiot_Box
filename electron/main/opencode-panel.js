@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, ipcMain } = require("electron");
+const { app, ipcMain, session } = require("electron");
 const { spawn } = require("child_process");
 const { createServer } = require("net");
 const fs = require("fs");
@@ -38,10 +38,41 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// `opencode serve` enforces basic auth as soon as OPENCODE_SERVER_PASSWORD is
+// present in the environment (leaks in easily from an OpenCode parent process).
+// Without credentials every probe answer is 401, so the panel never boots.
+const panelCredentials = new Map();
+let panelAuthorizationInstalled = false;
+
+function getServerCredentials() {
+  const password = process.env.OPENCODE_SERVER_PASSWORD;
+  if (!password) return null;
+  return { username: process.env.OPENCODE_SERVER_USERNAME || "opencode", password };
+}
+
+function authorizationHeader(credentials) {
+  return `Basic ${Buffer.from(`${credentials.username}:${credentials.password}`).toString("base64")}`;
+}
+
+function installPanelAuthorization() {
+  if (panelAuthorizationInstalled) return;
+  panelAuthorizationInstalled = true;
+  session.fromPartition("persist:opencode-panel").webRequest.onBeforeSendHeaders(
+    { urls: ["http://127.0.0.1/*"] },
+    (details, callback) => {
+      const credentials = panelCredentials.get(new URL(details.url).port);
+      if (credentials) details.requestHeaders.Authorization = authorizationHeader(credentials);
+      callback({ requestHeaders: details.requestHeaders });
+    }
+  );
+}
+
 async function waitForOpenCode(instance) {
   const { createOpencodeClient } = await import("@opencode-ai/sdk/v2");
+  const headers = instance.credentials ? { Authorization: authorizationHeader(instance.credentials) } : undefined;
   const client = createOpencodeClient({
     baseUrl: instance.url,
+    headers,
     fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(1500) }),
   });
   const deadline = Date.now() + 30000;
@@ -51,12 +82,16 @@ async function waitForOpenCode(instance) {
     if (instance.stopping) throw new Error("OpenCode startup was cancelled.");
     if (instance.failure) throw instance.failure;
     try {
-      await client.global.health();
-      const response = await fetch(instance.url, { signal: AbortSignal.timeout(1500) });
+      const health = await client.global.health();
+      if (health?.error) {
+        const status = health.response?.status;
+        throw new Error(`OpenCode health check failed${status ? ` (HTTP ${status})` : " before the server answered"}.`);
+      }
+      const response = await fetch(instance.url, { headers, signal: AbortSignal.timeout(1500) });
       const servesWebUi = response.ok && response.headers.get("content-type")?.includes("text/html");
       await response.body?.cancel();
       if (!servesWebUi) {
-        throw new Error("OpenCode started without serving its web interface.");
+        throw new Error(`OpenCode started without serving its web interface (HTTP ${response.status || "no response"}).`);
       }
       return;
     } catch (error) {
@@ -73,6 +108,12 @@ async function startInstance(workspace, instance) {
   const port = await getAvailablePort();
   if (instance.stopping) throw new Error("OpenCode startup was cancelled.");
   instance.url = `http://127.0.0.1:${port}`;
+  instance.port = String(port);
+  instance.credentials = getServerCredentials();
+  if (instance.credentials) {
+    panelCredentials.set(instance.port, instance.credentials);
+    installPanelAuthorization();
+  }
   const child = spawn(cliPath, [
     "serve",
     "--hostname", "127.0.0.1",
@@ -103,6 +144,7 @@ async function startInstance(workspace, instance) {
 function stopInstance(instance) {
   if (instance.stopPromise) return instance.stopPromise;
   instance.stopping = true;
+  if (instance.port) panelCredentials.delete(instance.port);
   if (instances.get(instance.workspace) === instance) instances.delete(instance.workspace);
   if (!instance.child || instance.child.exitCode !== null || instance.child.signalCode !== null) {
     instance.stopPromise = Promise.resolve();
@@ -175,6 +217,7 @@ function registerOpenCodePanel(getActiveProjectPath) {
     for (const instance of instances.values()) void stopInstance(instance);
     instances.clear();
     leases.clear();
+    panelCredentials.clear();
   });
 }
 
