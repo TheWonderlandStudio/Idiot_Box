@@ -3,8 +3,9 @@ import { Actions, DockLocation } from "flexlayout-react";
 import { EDIT_HELPER_SOURCE } from "./editHelper.js";
 import {
   ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
-  Search, ChevronUp, ChevronDown, Pencil, PencilOff, Type, MoreVertical,
-  Puzzle, Maximize2, ZoomIn, ZoomOut, Unplug, RotateCw, ExternalLink
+  Search, ChevronUp, ChevronDown, Pencil, PencilOff, MoreVertical,
+  Puzzle, Maximize2, ZoomIn, ZoomOut, Unplug, RotateCw, ExternalLink,
+  Undo2, Check, ArrowUp, ArrowDown, Trash2, Copy, Link2, Code, Info
 } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
@@ -173,6 +174,30 @@ const decodeB64 = (b) => {
   }
 };
 
+// Edit-mode shortcut hints (confirm bar + tooltip dono me)
+const EDIT_HINTS = "Click text · Enter saves · Esc cancels · Tab next · Ctrl+E edit HTML · Ctrl+Z undo last save · Alt+click attributes · Alt+↑/↓ move · Del remove · Ctrl+D duplicate · Ctrl+K wrap link · Shift+click inspect";
+
+// Sidebar ke shortcut list (chhote kbd chips)
+const EDIT_SHORTCUTS = [
+  ["Click", "edit text"],
+  ["Enter", "apply"],
+  ["Esc", "cancel"],
+  ["Tab", "next element"],
+  ["Del", "remove element"],
+  ["Ctrl+D", "duplicate"],
+  ["Ctrl+K", "wrap as link"],
+  ["Ctrl+E", "raw HTML editor"],
+  ["Ctrl+Z", "undo last save"],
+  ["Alt+click", "attributes"],
+  ["Alt+↑ ↓", "move element"],
+  ["Shift+click", "inspect"],
+  ["Ctrl+click", "follow link"],
+];
+
+// Sidebar style tiles ke chhote labels
+const ALIGN_ABBR = { left: "L", center: "C", right: "R", justify: "J" };
+const TT_ABBR = { none: "TT", uppercase: "AA", lowercase: "aa", capitalize: "Aa" };
+
 const BrowserPanel = (props) => {
   const { nodeId, config } = props || {};
   const initialUrl = config?.url || "https://www.google.com";
@@ -191,6 +216,9 @@ const BrowserPanel = (props) => {
   const [moreOpen,     setMoreOpen]     = useState(false);
   const [popupStyle,   setPopupStyle]   = useState({});
   const [editMode,     setEditMode]     = useState(false);
+  // Edit sidebar — edit mode ke saare controls yahan hote hain
+  const [editSidebarOpen, setEditSidebarOpen] = useState(true);
+  const [editStyle,    setEditStyle]    = useState({ active: false });
   const [toast,        setToast]        = useState(null);
   // ── Find in page (webview.findInPage) ──
   const [findOpen,     setFindOpen]     = useState(false);
@@ -356,6 +384,56 @@ const BrowserPanel = (props) => {
     try { await webviewRef.current?.executeJavaScript(`(() => { try{ if(window.__ibxRevertActive) return window.__ibxRevertActive(); if(window.__ibxCancelEdit) return window.__ibxCancelEdit(); }catch{} return false; })()`); } catch {}
   }, []);
 
+  // ── Sidebar → guest controls (edit tools + style panel) ──────────────────
+  const runGuest = useCallback((js) => {
+    try {
+      const p = webviewRef.current?.executeJavaScript(js, false);
+      if (p && typeof p.catch === "function") p.catch(() => {});
+      return p || null;
+    } catch { return null; }
+  }, []);
+  const guestTool = useCallback((name) => {
+    runGuest(`window.__ibxEditAction && window.__ibxEditAction(${JSON.stringify(name)})`);
+  }, [runGuest]);
+  const refreshStyleState = useCallback(() => {
+    const p = runGuest("window.__ibxStyleState ? window.__ibxStyleState() : ({active:false})");
+    if (p && typeof p.then === "function") {
+      p.then((s) => { try { setEditStyle(s && typeof s === "object" ? s : { active: false }); } catch {} }).catch(() => {});
+    }
+  }, [runGuest]);
+  const guestStyle = useCallback((name, val) => {
+    const arg = val == null ? "" : "," + JSON.stringify(String(val));
+    runGuest(`window.__ibxStyleAction && window.__ibxStyleAction(${JSON.stringify(name)}${arg})`);
+    // Turant refresh + poll bhi chalega hi (naye apply ke baad highlight sahi aaye)
+    setTimeout(refreshStyleState, 120);
+  }, [runGuest, refreshStyleState]);
+
+  // ── Sidebar = overlay → guest ko width batao (vw() popups/hints ko
+  //    sidebar ke neeche jaane se rokta hai; webview full width rehta hai)
+  const editSidebarRef    = useRef(null);
+  const sbOpenRef         = useRef(false);
+  const syncSbWidthRef    = useRef(() => {});
+  const syncSidebarWidth  = useCallback(() => {
+    let w = 0;
+    try {
+      if (editModeRef.current && sbOpenRef.current) {
+        const el = editSidebarRef.current;
+        w = (el && el.offsetWidth) ? el.offsetWidth : 252;
+      }
+    } catch {}
+    runGuest(`window.__ibxSidebarW=${Math.round(w)}`);
+  }, [runGuest]);
+  useEffect(() => { syncSbWidthRef.current = syncSidebarWidth; }, [syncSidebarWidth]);
+  useEffect(() => {
+    sbOpenRef.current = !!(editMode && editSidebarOpen);
+    syncSidebarWidth();
+    if (!sbOpenRef.current) return;
+    // Media-query se width badli (narrow window) → dobara bhejo
+    const onResize = () => syncSidebarWidth();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [editMode, editSidebarOpen, syncSidebarWidth]);
+
   const isSavableUrl = useCallback((u) => {
     try {
       const s = String(u || "");
@@ -375,7 +453,7 @@ const BrowserPanel = (props) => {
   }, []);
   const undoLiveEdit = useCallback(async () => {
     const top = undoStackRef.current[undoStackRef.current.length - 1];
-    if (!top) return;
+    if (!top) { showToast("Nothing to undo", "info"); return false; }
     try {
       const res = await window.electronAPI.liveEditRevert({
         filePath: top.filePath,
@@ -386,14 +464,30 @@ const BrowserPanel = (props) => {
         undoStackRef.current.pop();
         setUndoCount(undoStackRef.current.length);
         showToast(`Undone — ${top.rel}`, "success");
+        return true;
       } else {
         showToast(`Undo failed: ${res?.error || "unknown"}`, "error");
+        return false;
       }
-    } catch { showToast("Undo failed", "error"); }
+    } catch { showToast("Undo failed", "error"); return false; }
   }, [showToast]);
 
   const handleLiveEdit = useCallback(async (data) => {
-    const mode = data?.mode === "html" ? "html" : "text";
+    const rawMode = String(data?.mode || "");
+    const mode = rawMode === "html" || rawMode === "undo" || rawMode === "notice" ? rawMode : "text";
+    // ── Guest se chhoti notice (sidebar tool bina target ke, wagairah) ──
+    if (mode === "notice") {
+      showToast(String(data?.msg || "Nothing selected").slice(0, 160), "info");
+      return;
+    }
+    // ── Ctrl+Z (guest): last saved edit revert karo — file + DOM dono ──
+    if (mode === "undo") {
+      const ok = await undoLiveEdit();
+      if (ok) {
+        try { await webviewRef.current?.executeJavaScript('window.__ibxUndoLastVisual && window.__ibxUndoLastVisual()'); } catch {}
+      }
+      return;
+    }
     // ── Validate per mode ──
     let oldText = "", newText = "", oldHtml = "", newHtml = "";
     if (mode === "html") {
@@ -465,7 +559,7 @@ const BrowserPanel = (props) => {
       try { await revertActiveInGuest(); } catch {}
       showToast(`${e?.message || String(e)} — reverted`, "error");
     }
-  }, [displayUrl, showToast, revertActiveInGuest, isSavableUrl]);
+  }, [displayUrl, showToast, revertActiveInGuest, isSavableUrl, undoLiveEdit]);
 
   // Track last Browser group — so links from terminal/port/preview open in same group
   useEffect(() => {
@@ -813,7 +907,11 @@ const BrowserPanel = (props) => {
           .then((ok)=>{
             if (!ok && attempt < 3) setTimeout(()=> injectEditHelper(attempt+1), 250);
             else if (editModeRef.current) {
-              setTimeout(()=> { try{ wv.executeJavaScript('window.__ibxSetEditMode && window.__ibxSetEditMode(true)'); }catch{} }, 120);
+              setTimeout(()=> {
+                try{ wv.executeJavaScript('window.__ibxSetEditMode && window.__ibxSetEditMode(true)'); }catch{}
+                // Navigation = naya guest window → sidebar width var gayab
+                try{ syncSbWidthRef.current && syncSbWidthRef.current(); }catch{}
+              }, 120);
             }
           })
           .catch(()=> setTimeout(()=> injectEditHelper(attempt+1), 250));
@@ -1175,9 +1273,20 @@ const BrowserPanel = (props) => {
       // also store pending flag for next navigation if helpers not yet installed
       try { wv.executeJavaScript(`window.__ibxPendingEditMode=${editMode?"true":"false"}`).catch(()=>{}); } catch {}
     }
-    if (editMode) showToast("Edit mode ON — click text · Alt+click attributes · Tab jumps · Del removes · Ctrl+D duplicates · Ctrl+K wraps as link · Shift+click inspects", "info");
+    if (editMode) showToast("Edit mode ON — " + EDIT_HINTS, "info");
     else if (attachedRef.current) showToast("Edit mode OFF", "info");
   }, [editMode, showToast]);
+
+  // Edit mode on → sidebar khul jaye; poll taaki style panel ka state sahi rahe
+  useEffect(() => {
+    if (editMode) setEditSidebarOpen(true);
+  }, [editMode]);
+  useEffect(() => {
+    if (!editMode || !editSidebarOpen) return;
+    refreshStyleState();
+    const iv = setInterval(refreshStyleState, 800);
+    return () => clearInterval(iv);
+  }, [editMode, editSidebarOpen, refreshStyleState]);
 
   const isVisualOnlyUrl = (() => {
     try {
@@ -1294,16 +1403,21 @@ const BrowserPanel = (props) => {
     };
   }, [moreOpen]);
 
+  // Done: pending edit save karke edit mode band (Cancel ka opposite)
+  const handleDoneEditMode = useCallback(async () => {
+    try { await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); } catch {}
+    // Give page-title-updated a beat to deliver the payload before helpers detach
+    setTimeout(()=> setEditMode(false), 350);
+  }, []);
+
   const handleToggleEditMode = useCallback(async () => {
     if (editMode) {
-      try { await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); } catch {}
-      // Give page-title-updated a beat to deliver the payload before helpers detach
-      setTimeout(()=> setEditMode(false), 350);
+      await handleDoneEditMode();
     } else {
       setEditMode(true);
     }
     setMoreOpen(false);
-  }, [editMode]);
+  }, [editMode, handleDoneEditMode]);
 
   const handleCancelEditMode = useCallback(async () => {
     try { await webviewRef.current?.executeJavaScript('window.__ibxCancelEdit && window.__ibxCancelEdit()'); } catch {}
@@ -1501,13 +1615,25 @@ const BrowserPanel = (props) => {
             </button>
             {moreOpen && (
               <div className="browser__more-menu" onClick={(e) => e.stopPropagation()}>
-                <button className="browser__more-item" onClick={handleToggleEditMode} title={editMode ? "Done — save pending edit & exit" : "Edit Mode — click any text to edit"}>
+                <button className="browser__more-item" onClick={handleToggleEditMode} title={editMode ? "Done — save pending edit & exit" : "Edit Mode — click text to edit · Ctrl+E raw HTML · Ctrl+Z undo · Alt+↑/↓ move"}>
                   <span className="browser__more-icon" style={editMode ? { color: "var(--teal)" } : undefined}>
                     {editMode ? <PencilOff size={14} /> : <Pencil size={14} />}
                   </span>
                   <span className="browser__more-label">{editMode ? "Done — exit edit mode" : "Edit mode"}</span>
                   {editMode && <span className="browser__more-badge">ON</span>}
                 </button>
+                {editMode && (
+                  <button
+                    className="browser__more-item"
+                    onClick={() => { setEditSidebarOpen((v) => !v); setMoreOpen(false); }}
+                    title="Show/hide the edit sidebar (all edit controls)"
+                  >
+                    <span className="browser__more-icon">
+                      {editSidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                    </span>
+                    <span className="browser__more-label">{editSidebarOpen ? "Hide edit sidebar" : "Show edit sidebar"}</span>
+                  </button>
+                )}
                 {/* Page zoom — Ctrl+Scroll alternative */}
                 <button className="browser__more-item" onClick={() => { bumpZoom("in"); }} title="Zoom in (Ctrl++ / Ctrl+Scroll up)">
                   <span className="browser__more-icon"><ZoomIn size={14} /></span>
@@ -1552,48 +1678,6 @@ const BrowserPanel = (props) => {
         </div>
       )}
 
-      {/* Edit Mode Banner */}
-      {editMode && !barHidden && (
-        <div style={{
-          display:"flex", alignItems:"center", gap:"var(--space-8)", flexWrap:"wrap",
-          padding:"var(--space-3) var(--space-10)",
-          background: isVisualOnlyUrl ? "var(--warn-tint-a12)" : "var(--teal-a12)",
-          borderBottom: isVisualOnlyUrl ? "1px solid var(--warn-tint-a30)" : "1px solid var(--teal-a25)",
-          color: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-semibold)", flexShrink:0, letterSpacing:0.2,
-        }}>
-          <Type size={12} />
-          <span>{isVisualOnlyUrl
-            ? "EDIT MODE — VISUAL ONLY (no project open, saves revert) • Click text • Enter applies visually • Esc cancels"
-            : "EDIT MODE ON — Click text • Alt+click attributes • Tab jumps • Ctrl+click follows links • Del removes • Ctrl+D duplicates • Ctrl+K links • Shift+click inspects"}</span>
-          {undoCount > 0 && (
-            <button
-              onClick={undoLiveEdit}
-              title={`Undo last live edit (${undoCount} in stack)`}
-              style={{ marginLeft:"var(--space-4)", background:"transparent", color: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", border:`1px solid ${isVisualOnlyUrl ? "var(--warn-tint-a50)" : "var(--teal-a50)"}`, borderRadius:"var(--radius-sm)", padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", cursor:"pointer", whiteSpace: "nowrap" }}
-            >
-              ↩ Undo{undoCount > 1 ? ` (${undoCount})` : ""}
-            </button>
-          )}
-          <span style={{ marginLeft:"auto", background: isVisualOnlyUrl ? "var(--warn-tint-a25)" : "var(--teal-a22)", padding:"var(--space-1) var(--space-6)", borderRadius:"var(--radius-sm)", fontSize:"var(--fs-tiny)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-bold)" }}>{isVisualOnlyUrl ? "VISUAL" : "LIVE"}</span>
-          <button
-            onClick={handleCancelEditMode}
-            title="Cancel edit and revert"
-            style={{ marginLeft:"var(--space-4)", background:"transparent", color: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", border:`1px solid ${isVisualOnlyUrl ? "var(--warn-tint-a50)" : "var(--teal-a50)"}`, borderRadius:"var(--radius-sm)", padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", cursor:"pointer" }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={async ()=>{
-              try{ await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); }catch{}
-              setTimeout(()=> setEditMode(false), 350);
-            }}
-            style={{ marginLeft:"var(--space-4)", background: isVisualOnlyUrl ? "var(--warning)" : "var(--teal)", color:"var(--ink-on-teal)", border:"none", borderRadius:"var(--radius-sm)", padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)", cursor:"pointer" }}
-          >
-            Done
-          </button>
-        </div>
-      )}
-
       {barHidden && (
         <button className="browser__show-btn" onClick={() => setBarHidden(false)} title="Show toolbar">
           <ChevronDown size={14} />
@@ -1627,7 +1711,10 @@ const BrowserPanel = (props) => {
       )}
 
       {/* Webview — hamesha SAME element (no remount, no reload) */}
-      <div ref={viewWrapRef} className="browser__view-wrap">
+      <div
+        ref={viewWrapRef}
+        className={`browser__view-wrap${editMode && editSidebarOpen ? " browser__view-wrap--sidebar" : ""}`}
+      >
         {isLoading && <div className="browser__progress-bar" />}
         <webview
           key="browser-webview"
@@ -1667,8 +1754,8 @@ const BrowserPanel = (props) => {
         {/* Find in page bar */}
         {findOpen && (
           <div
+            className="browser__findbar"
             style={{
-              position: "absolute", top: 8, right: 12, zIndex: "var(--z-toast)",
               display: "flex", alignItems: "center", gap: 4,
               background: "var(--bg-vscode)", border: "1px solid var(--border-strong)",
               borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-pop)",
@@ -1718,19 +1805,29 @@ const BrowserPanel = (props) => {
         )}
         {/* Edit mode overlay hint when bar hidden */}
         {editMode && barHidden && (
-          <div style={{
-            position:"absolute", top:8, left:"50%", transform:"translateX(-50%)",
-            background:"var(--teal-a95)", color:"var(--ink-on-teal)", fontSize:"var(--fs-small)", fontWeight:"var(--fw-bold)",
-            padding:"var(--space-4) var(--space-10)", borderRadius:"var(--radius-md)", display:"flex", alignItems:"center", gap:"var(--space-6)",
-            boxShadow:"0 4px 12px var(--overlay-a30)", zIndex:"var(--z-toast)", pointerEvents:"none"
-          }}>
-            <Pencil size={12} /> EDIT MODE ON — click text · Del removes · Ctrl+D duplicates
+          <div
+            className={`browser__edit-pill${isVisualOnlyUrl ? " browser__edit-pill--warn" : ""}`}
+            title={isVisualOnlyUrl ? "VISUAL ONLY — " + EDIT_HINTS : EDIT_HINTS}
+          >
+            <Pencil size={12} />
+            {isVisualOnlyUrl ? "EDIT MODE — VISUAL" : "EDIT MODE ON"}
+            <span className="browser__edit-pill-hints">· Ctrl+E HTML · Ctrl+Z undo · Del removes · Ctrl+D duplicates</span>
           </div>
+        )}
+        {/* Sidebar collapsed → floating open button */}
+        {editMode && !editSidebarOpen && (
+          <button
+            className="browser__edit-open"
+            style={{ right: findOpen ? 384 : 12 }}
+            onClick={() => setEditSidebarOpen(true)}
+            title="Show edit sidebar (all edit controls)"
+          >
+            <Pencil size={12} /> Edit panel
+          </button>
         )}
         {/* Toast */}
         {toast && (
-          <div style={{
-            position:"absolute", bottom:16, left:"50%", transform:"translateX(-50%)",
+          <div className="browser__toast" style={{
             background: toast.type==="error" ? "var(--error-border)" : toast.type==="success" ? "var(--success-bg)" : "var(--bg-vscode)",
             color: toast.type==="error" ? "var(--error-text)" : toast.type==="success" ? "var(--teal)" : "var(--text-highlight)",
             border: `1px solid ${toast.type==="error" ? "var(--error-border-short)" : toast.type==="success" ? "var(--success-border)" : "var(--border-strong)"}`,
@@ -1740,6 +1837,128 @@ const BrowserPanel = (props) => {
           }}>
             {toast.type==="success" ? "✓" : toast.type==="error" ? "✕" : "•"} <span>{toast.msg}</span>
           </div>
+        )}
+
+        {/* ── Edit sidebar — edit mode ke saare controls ── */}
+        {editMode && (
+          <aside ref={editSidebarRef} className={`browser__edit-sidebar${isVisualOnlyUrl ? " browser__edit-sidebar--warn" : ""}`}>
+            <div className="eb-head">
+              <span className="eb-head-title"><Pencil size={12} /> EDIT MODE</span>
+              <span className={`eb-chip${isVisualOnlyUrl ? " eb-chip--warn" : ""}`}>{isVisualOnlyUrl ? "VISUAL" : "LIVE"}</span>
+              <button className="eb-iconbtn" onClick={() => setEditSidebarOpen(false)} title="Collapse sidebar">
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            <div className="eb-actions">
+              <button className="eb-btn eb-btn--primary" onClick={handleDoneEditMode} title="Save pending edit and exit edit mode">
+                <Check size={13} /> Done
+              </button>
+              <button className="eb-btn" onClick={handleCancelEditMode} title="Cancel edit and revert the page">
+                <X size={13} /> Cancel
+              </button>
+              <button
+                className="eb-btn"
+                disabled={!undoCount}
+                onClick={undoLiveEdit}
+                title={undoCount ? `Undo last save (${undoCount} in stack) — Ctrl+Z inside page` : "Nothing to undo — Ctrl+Z inside page"}
+              >
+                <Undo2 size={13} />{undoCount > 1 ? ` Undo (${undoCount})` : " Undo"}
+              </button>
+            </div>
+
+            <div className="eb-body">
+              <div className="eb-section">
+                <div className="eb-label">Navigate</div>
+                <div className="eb-grid eb-grid--3">
+                  <button className="eb-tbtn" disabled={!canGoBack} onClick={() => webviewRef.current?.goBack()} title="Back (Alt+←)">
+                    <ChevronLeft size={14} /><span>Back</span>
+                  </button>
+                  <button className="eb-tbtn" disabled={!canGoForward} onClick={() => webviewRef.current?.goForward()} title="Forward (Alt+→)">
+                    <ChevronRight size={14} /><span>Fwd</span>
+                  </button>
+                  <button
+                    className="eb-tbtn"
+                    onClick={isLoading ? () => { try { webviewRef.current?.stop(); } catch {} } : handleReload}
+                    title={isLoading ? "Stop loading (Esc)" : "Reload (Ctrl+R)"}
+                  >
+                    {isLoading ? <X size={14} /> : <RefreshCw size={14} />}<span>{isLoading ? "Stop" : "Reload"}</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={openFind} title="Find in page (Ctrl+F)">
+                    <Search size={14} /><span>Find</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={handleToggleDevTools} title="Inspect element / DevTools">
+                    <Info size={14} /><span>DevTools</span>
+                  </button>
+                  <button
+                    className="eb-tbtn"
+                    onClick={() => { try { inputRef.current?.focus(); inputRef.current?.select(); } catch {} }}
+                    title="Edit address (Ctrl+L)"
+                  >
+                    <Globe size={14} /><span>Address</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="eb-section">
+                <div className="eb-label">Element tools</div>
+                <div className="eb-hint">Target: the element you last pointed at</div>
+                <div className="eb-grid eb-grid--3">
+                  <button className="eb-tbtn" onClick={() => guestTool("edit")} title="Edit text of the target element">
+                    <Pencil size={14} /><span>Edit</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={() => guestTool("delete")} title="Remove element (Del)">
+                    <Trash2 size={14} /><span>Delete</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={() => guestTool("duplicate")} title="Duplicate element (Ctrl+D)">
+                    <Copy size={14} /><span>Duplicate</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={() => guestTool("link")} title="Wrap target as link (Ctrl+K)">
+                    <Link2 size={14} /><span>Link</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={() => guestTool("html")} title="Edit element as raw HTML (Ctrl+E)">
+                    <Code size={14} /><span>HTML</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={() => guestTool("inspect")} title="Inspect element details (Shift+click)">
+                    <Info size={14} /><span>Details</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={() => guestTool("moveUp")} title="Move element up (Alt+↑)">
+                    <ArrowUp size={14} /><span>Move ↑</span>
+                  </button>
+                  <button className="eb-tbtn" onClick={() => guestTool("moveDown")} title="Move element down (Alt+↓)">
+                    <ArrowDown size={14} /><span>Move ↓</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="eb-section">
+                <div className="eb-label">Style {editStyle.active && editStyle.tag ? `· <${editStyle.tag}>` : ""}</div>
+                {!editStyle.active && <div className="eb-hint">Click text in the page to style it</div>}
+                <div className="eb-grid eb-grid--4">
+                  <button className={`eb-tbtn${editStyle.bold ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("bold")} title="Bold"><b>B</b></button>
+                  <button className={`eb-tbtn${editStyle.italic ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("italic")} title="Italic"><i>I</i></button>
+                  <button className={`eb-tbtn${editStyle.underline ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("underline")} title="Underline"><span style={{ textDecoration: "underline" }}>U</span></button>
+                  <button className={`eb-tbtn${editStyle.strike ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("strike")} title="Strikethrough"><span style={{ textDecoration: "line-through" }}>S</span></button>
+                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("size+")} title="Bigger text (+2px)">A+</button>
+                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("size-")} title="Smaller text (−2px)">A−</button>
+                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("align")} title={`Text align — now: ${editStyle.align || "left"}`}>{ALIGN_ABBR[editStyle.align] || "L"}</button>
+                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("tt")} title={`Text transform — now: ${editStyle.tt || "none"}`}>{TT_ABBR[editStyle.tt] || "TT"}</button>
+                  <input className="eb-color" type="color" title="Text color" disabled={!editStyle.active} value={editStyle.color || "#000000"} onChange={(e) => guestStyle("color", e.target.value)} />
+                  <input className="eb-color" type="color" title="Background color" disabled={!editStyle.active} value={editStyle.bg || "#ffffff"} onChange={(e) => guestStyle("bg", e.target.value)} />
+                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("clear")} title="Clear inline styles">✕</button>
+                </div>
+              </div>
+
+              <div className="eb-section">
+                <div className="eb-label">Shortcuts</div>
+                <div className="eb-keys">
+                  {EDIT_SHORTCUTS.map(([k, t]) => (
+                    <div className="eb-key" key={k}><kbd>{k}</kbd><span>{t}</span></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </aside>
         )}
       </div>
     </div>

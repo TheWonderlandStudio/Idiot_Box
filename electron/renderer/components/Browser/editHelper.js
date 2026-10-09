@@ -31,10 +31,16 @@ export const EDIT_HELPER_SOURCE = `(() => {
         let locateTimer = null;
         let locateSeq = 0;
         let lastLocateEl = null;
+        // v4: Ctrl+E fallback ke liye last mouse point
+        let lastPt = null;
         // v3: delete/duplicate/wrap-link, inspector, style-bar extras
         let inspectPopup = null;
         let linkPopup = null;
         let lastCommitEl = null;
+        // v4: raw HTML editor popup
+        let htmlPopup = null;
+        // v5: sidebar-style ka pending (debounced) commit target
+        let styleCommitEl = null;
         // Mutation ke dauran real mouse re-hover hover-class wapas na laga de
         // (warna anchor snapshot me artifact aake file-match toot jata hai).
         let busy = 0;
@@ -45,6 +51,13 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{
             if(el && el.removeAttribute && String(el.className||'').trim()==='') el.removeAttribute('class');
           }catch{}
+        }
+        // Edit sidebar ke peeche popup na chhupo — host viewport me se sidebar
+        // ki width ghata kar deta hai (window.__ibxSidebarW, px).
+        function vw(){
+          let w=window.innerWidth||800;
+          try{ const s=Number(window.__ibxSidebarW)||0; if(s>0) w=Math.max(240, w-s); }catch{}
+          return w;
         }
         function ensureStyle(){
           if (styleEl) return;
@@ -63,11 +76,14 @@ export const EDIT_HELPER_SOURCE = `(() => {
             .__ibx-popup input { width: 100% !important; box-sizing: border-box !important; padding: 4px 6px !important; border: 1px solid #bbbbbb !important; border-radius: 4px !important; font: inherit !important; color: #111111 !important; background: #ffffff !important; }
             .__ibx-popup button { font: inherit !important; padding: 3px 12px !important; margin: 8px 6px 0 0 !important; border-radius: 4px !important; border: 1px solid #999999 !important; background: #f0f0f0 !important; color: #111111 !important; cursor: pointer !important; }
             .__ibx-popup button.__ibx-primary { background: #4ec9b0 !important; border-color: #4ec9b0 !important; color: #06281f !important; font-weight: bold !important; }
-            .__ibx-stylebar { position: fixed !important; z-index: 2147483647 !important; background: #111111 !important; border-radius: 6px !important; padding: 3px 5px !important; display: flex !important; gap: 3px !important; align-items: center !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; flex-wrap: wrap !important; max-width: 448px !important; }
+            .__ibx-stylebar { position: fixed !important; z-index: 2147483647 !important; background: #111111 !important; border-radius: 6px !important; padding: 3px 5px !important; display: flex !important; gap: 3px !important; align-items: center !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; flex-wrap: nowrap !important; white-space: nowrap !important; max-width: none !important; }
             body { cursor: text !important; }
             .__ibx-stylebar button { background: transparent !important; color: #eeeeee !important; border: 1px solid transparent !important; border-radius: 4px !important; font: 12px/1.5 system-ui, sans-serif !important; padding: 2px 7px !important; cursor: pointer !important; min-width: 24px !important; }
             .__ibx-stylebar button:hover { background: #333333 !important; }
             .__ibx-stylebar input[type=color] { width: 26px !important; height: 20px !important; border: none !important; background: none !important; padding: 0 !important; cursor: pointer !important; }
+            .__ibx-popup textarea { display:block !important; width:100% !important; box-sizing:border-box !important; min-height:170px !important; max-height:340px !important; margin-top:2px !important; padding:6px !important; border:1px solid #bbbbbb !important; border-radius:4px !important; font:12px/1.45 Consolas,'Courier New',monospace !important; color:#111111 !important; background:#ffffff !important; resize:vertical !important; }
+            .__ibx-popup .__ibx-note { font-size:11px !important; color:#666666 !important; margin-top:6px !important; }
+            .__ibx-moveflash { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; }
           \`;
           (document.head||document.documentElement).appendChild(styleEl);
         }
@@ -121,6 +137,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         function onMouseOver(e){
           if(!window.__ibxEditEnabled || activeEl || busy) return;
           if(isUiNode(e.target)) return;
+          try{ lastPt={ x:e.clientX, y:e.clientY }; }catch{}
           let t=null; try{ t=findEditableTarget(e.target); }catch{}
           if(t===hoverEl) return;
           clearHover();
@@ -285,7 +302,15 @@ export const EDIT_HELPER_SOURCE = `(() => {
           sendPayload(payload);
         }
         window.__ibxCommitPendingEdit = function(){
-          try{ if(activeEl && !committing) commitEdit(); return true; }catch(e){ return false; }
+          try{
+            // Sidebar-style ka pending commit abhi chala do (Done = sab save).
+            const pel=styleCommitEl;
+            if(pel && pel.__ibxStyleTimer && !activeEl){
+              clearTimeout(pel.__ibxStyleTimer); pel.__ibxStyleTimer=null; styleCommitEl=null;
+              if(document.contains(pel)){ hideStyleBar(); commitHtml(pel); return true; }
+            }
+            if(activeEl && !committing) commitEdit(); return true;
+          }catch(e){ return false; }
         };
         window.__ibxRevertActive = function(){
           try{
@@ -304,6 +329,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         };
         window.__ibxCancelEdit = function(){
           try{
+            clearPendingStyle(true);
             if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); restoreOriginal(el); }
             clearHover();
             return true;
@@ -395,6 +421,28 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{}
           const mod=(e.ctrlKey||e.metaKey);
           if(e.key!=='Tab'){
+            // ── v4 shortcuts (hovered element par; hover outline = target) ──
+            if(mod && !e.shiftKey && (e.key==='e'||e.key==='E')){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              let t=hoverEl;
+              if(!t && lastPt){ try{ t=findEditableTarget(document.elementFromPoint(lastPt.x, lastPt.y)); }catch{} t=t||null; }
+              if(!t){ try{ t=findEditableTarget(e.target); }catch{} t=t||null; }
+              if(t) openHtmlEditor(t);
+              return;
+            }
+            if(mod && !e.shiftKey && !e.altKey && (e.key==='z'||e.key==='Z')){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              requestUndo();
+              return;
+            }
+            if(e.altKey && (e.key==='ArrowUp'||e.key==='ArrowDown')){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              moveHovered(e.key==='ArrowUp' ? -1 : 1);
+              return;
+            }
             // ── v3 shortcuts (hovered element par; hover outline = target) ──
             if(e.key==='Delete' && !mod && hoverEl){
               e.preventDefault(); e.stopPropagation();
@@ -472,7 +520,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{}
           activateEl(t);
         }
-        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} try{ closeInspect(); }catch{} try{ closeLinkPopup(); }catch{} }
+        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} try{ closeInspect(); }catch{} try{ closeLinkPopup(); }catch{} try{ closeHtmlPopup(); }catch{} }
         // ── Attribute editor (Alt+click) ─────────────────────────────
         const ATTR_DEFS=[
           {k:'href',label:'Link URL'},
@@ -543,7 +591,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }
           html+='<div><button data-act="save" class="__ibx-primary">Save</button><button data-act="cancel">Cancel</button></div>';
           box.innerHTML=html;
-          const bx=Math.max(4, Math.min((window.innerWidth||800)-300, (x||100)+8));
+          const bx=Math.max(4, Math.min((vw())-300, (x||100)+8));
           const by=Math.max(4, Math.min((window.innerHeight||600)-200, (y||100)+10));
           box.style.left=bx+'px'; box.style.top=by+'px';
           document.body.appendChild(box);
@@ -586,6 +634,60 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{}
         }
         // ── Quick styles toolbar (active text element par) ─────────────
+        function toggleDeco(el, word){
+          try{
+            const cur=String(el.style.textDecorationLine||'');
+            const parts=cur ? cur.split(' ') : [];
+            let nx='';
+            if(parts.indexOf(word)!==-1){
+              nx=parts.filter(function(w){ return w!==word; }).join(' ');
+            } else {
+              nx=(cur ? cur+' ':'')+word;
+            }
+            el.style.textDecorationLine=nx || 'none';
+            el.__ibxDirtyHTML=true;
+          }catch{}
+        }
+        // computed textAlign 'start'/'end' de sakta hai — cycle/display me
+        // logical keywords ko physical me badlo warna cycle atak jati hai.
+        function normAlign(v){
+          const s=String(v||'left');
+          if(s==='start' || s==='match-parent') return 'left';
+          if(s==='end') return 'right';
+          return s;
+        }
+        // Sidebar se apply kiya gaya style (jab target edit-me NA ho) ek baar
+        // debounced commit hota hai — color-drag par har tick ka file-save nahi.
+        function clearPendingStyle(revert){
+          try{
+            const el=styleCommitEl;
+            styleCommitEl=null;
+            if(el && el.__ibxStyleTimer){
+              clearTimeout(el.__ibxStyleTimer);
+              el.__ibxStyleTimer=null;
+              if(revert && document.contains(el)) restoreOriginal(el);
+            }
+          }catch{}
+        }
+        function scheduleStyleCommit(el, tries){
+          try{
+            if(!el || !document.contains(el)) return;
+            if(el.__ibxStyleTimer) clearTimeout(el.__ibxStyleTimer);
+            styleCommitEl=el;
+            el.__ibxStyleTimer=setTimeout(function(){
+              try{
+                el.__ibxStyleTimer=null;
+                if(styleCommitEl===el) styleCommitEl=null;
+                if(!document.contains(el)) return;
+                // Doosra element edit ho raha hai — thodi der baad phir koshish.
+                if(activeEl && activeEl!==el && (tries||0)<6){ scheduleStyleCommit(el, (tries||0)+1); return; }
+                if(activeEl) return;
+                hideStyleBar();
+                commitHtml(el);
+              }catch{}
+            }, 500);
+          }catch{}
+        }
         function hideStyleBar(){ try{ if(styleBar) styleBar.remove(); }catch{} styleBar=null; }
         function placeStyleBar(bar, el){
           try{
@@ -593,7 +695,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             let top=r.top-36;
             if(top<4) top=r.bottom+6;
             const w=bar.offsetWidth||340;
-            const left=Math.max(4, Math.min((window.innerWidth||800)-w-8, r.left));
+            const left=Math.max(4, Math.min((vw())-w-8, r.left));
             bar.style.left=left+'px'; bar.style.top=Math.max(4, top)+'px';
           }catch{}
         }
@@ -627,6 +729,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{}
           styleBtn(bar, 'B', 'Bold', function(){ el.style.fontWeight=(el.style.fontWeight==='bold'?'':'bold'); el.__ibxDirtyHTML=true; });
           styleBtn(bar, 'I', 'Italic', function(){ el.style.fontStyle=(el.style.fontStyle==='italic'?'':'italic'); el.__ibxDirtyHTML=true; });
+          // v4: underline / strikethrough toggles (sidebar STYLE section bhi yahi use karti hai)
+          styleBtn(bar, 'U', 'Underline', function(){ toggleDeco(el, 'underline'); });
+          styleBtn(bar, 'S', 'Strikethrough', function(){ toggleDeco(el, 'line-through'); });
           styleBtn(bar, 'A+', 'Font bigger', function(){
             let s=16;
             try{ s=parseFloat(window.getComputedStyle(el).fontSize)||16; }catch{}
@@ -650,8 +755,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           const aligns=['left','center','right','justify'];
           const ab=styleBtn(bar, '≡', 'Text align (cycle)', function(){
             let cur='';
-            try{ cur=window.getComputedStyle(el).textAlign||'left'; }catch{}
-            const nx=aligns[(aligns.indexOf(cur)+1+aligns.length)%aligns.length]||'left';
+            try{ cur=normAlign(window.getComputedStyle(el).textAlign||'left'); }catch{}
+            let i=aligns.indexOf(cur); if(i<0) i=0;
+            const nx=aligns[(i+1)%aligns.length]||'left';
             el.style.textAlign=nx; el.__ibxDirtyHTML=true;
             try{ ab.textContent=nx.charAt(0).toUpperCase(); }catch{}
           });
@@ -713,6 +819,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           bg.addEventListener('input', function(){ try{ el.style.backgroundColor=bg.value; el.__ibxDirtyHTML=true; }catch{} });
           bg.addEventListener('click', function(e){ try{ e.stopPropagation(); }catch{} });
           bar.appendChild(bg);
+          styleBtn(bar, 'HTML', 'Edit element as raw HTML (Ctrl+E)', function(){ try{ openHtmlEditor(el); }catch{} });
           styleBtn(bar, '✕', 'Clear inline styles', function(){ try{ el.removeAttribute('style'); }catch{} el.__ibxDirtyHTML=true; });
           document.body.appendChild(bar);
           styleBar=bar;
@@ -918,9 +1025,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
             for(let i=0;i<rows.length;i++){
               html+='<div style="display:flex;gap:8px;font-size:12px;padding:1px 0;"><span style="color:#555555;min-width:64px;flex-shrink:0;">'+rows[i][0]+'</span><span style="word-break:break-all;">'+rows[i][1]+'</span></div>';
             }
-            html+='<div><button data-act="copy">Copy HTML</button><button data-act="attrs">Attributes</button><button data-act="close">Close</button></div>';
+            html+='<div><button data-act="copy">Copy HTML</button><button data-act="edit">Edit HTML</button><button data-act="attrs">Attributes</button><button data-act="close">Close</button></div>';
             box.innerHTML=html;
-            const bx=Math.max(4, Math.min((window.innerWidth||800)-300, (x||100)+8));
+            const bx=Math.max(4, Math.min((vw())-300, (x||100)+8));
             const by=Math.max(4, Math.min((window.innerHeight||600)-250, (y||100)+10));
             box.style.left=bx+'px'; box.style.top=by+'px';
             document.body.appendChild(box);
@@ -936,6 +1043,12 @@ export const EDIT_HELPER_SOURCE = `(() => {
                   const act=btn.getAttribute('data-act');
                   const target=(inspectPopup && inspectPopup.el) || el;
                   if(act==='close'){ closeInspect(); return; }
+                  if(act==='edit'){
+                    const et=(inspectPopup && inspectPopup.el) || el;
+                    closeInspect();
+                    if(et && document.contains(et)) openHtmlEditor(et);
+                    return;
+                  }
                   if(act==='copy'){
                     let ok=false;
                     try{ ok=copyText(String(target.outerHTML||'')); }catch{}
@@ -980,7 +1093,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             html+='<label>Link URL</label><input data-url placeholder="https://" spellcheck="false">';
             html+='<div><button data-act="wrap" class="__ibx-primary">Wrap</button><button data-act="cancel">Cancel</button></div>';
             box.innerHTML=html;
-            const bx=Math.max(4, Math.min((window.innerWidth||800)-300, x+8));
+            const bx=Math.max(4, Math.min((vw())-300, x+8));
             const by=Math.max(4, Math.min((window.innerHeight||600)-200, y+10));
             box.style.left=bx+'px'; box.style.top=by+'px';
             document.body.appendChild(box);
@@ -1035,6 +1148,347 @@ export const EDIT_HELPER_SOURCE = `(() => {
             }catch{}
           }catch{}
         }
+        // ── v4: raw HTML editor (Ctrl+E / stylebar / inspector) ─────────
+        function closeHtmlPopup(){
+          try{
+            if(htmlPopup && htmlPopup.box){
+              try{ if(htmlPopup.box.contains(document.activeElement)) document.activeElement.blur(); }catch{}
+              htmlPopup.box.remove();
+            }
+          }catch{}
+          htmlPopup=null;
+        }
+        function openHtmlBox(target){
+          try{
+            if(!target || !document.contains(target)) return;
+            closeAttrPopup(); closeInspect(); closeLinkPopup(); closeHtmlPopup(); hideHint();
+            lastCommitEl=null;
+            snapshot(target);
+            const tag=String(target.tagName||'').toLowerCase();
+            const box=document.createElement('div');
+            box.setAttribute('data-ibx-ui','1');
+            box.className='__ibx-popup';
+            box.style.width='352px';
+            let html='<div style="font-weight:bold;margin-bottom:2px;">Edit HTML &lt;'+escAttr(tag)+'&gt;</div>';
+            html+='<textarea data-html spellcheck="false"></textarea>';
+            html+='<div class="__ibx-note">Ctrl+Enter applies &nbsp;·&nbsp; Esc cancels</div>';
+            html+='<div><button data-act="apply" class="__ibx-primary">Apply</button><button data-act="cancel">Cancel</button></div>';
+            box.innerHTML=html;
+            const ta=box.querySelector('textarea[data-html]');
+            try{ if(ta) ta.value=String(target.outerHTML||''); }catch{}
+            let x=60, y=60;
+            try{ const r=target.getBoundingClientRect(); x=r.left; y=r.bottom+8; }catch{}
+            box.style.left=Math.max(4, Math.min((vw())-368, x+8))+'px';
+            box.style.top=Math.max(4, Math.min((window.innerHeight||600)-330, y+10))+'px';
+            document.body.appendChild(box);
+            htmlPopup={ box: box, el: target };
+            const stop=function(e){ try{ e.stopPropagation(); }catch{} };
+            try{ box.addEventListener('mousedown', stop, false); }catch{}
+            try{ box.addEventListener('click', stop, false); }catch{}
+            const apply=function(){
+              try{
+                const el=htmlPopup && htmlPopup.el;
+                const val=ta? String(ta.value||'').trim() : '';
+                if(!el || !document.contains(el) || !val){ closeHtmlPopup(); return; }
+                let parsed=null;
+                try{
+                  const holder=document.createElement('div');
+                  holder.innerHTML=val;
+                  const first=holder.firstElementChild;
+                  if(first) parsed=first.outerHTML;
+                }catch{ parsed=null; }
+                if(!parsed || parsed===String(el.outerHTML||'').trim()){ return; }
+                if(parsed.length>14000){ return; }
+                busy++;
+                let ok=false;
+                try{
+                  clearHover(); hideStyleBar();
+                  ok=commitViaAnchor(el, function(){ el.outerHTML=parsed; }, 1.2);
+                }catch{ ok=false; } finally { busy--; }
+                if(!ok && document.contains(el)){ try{ el.outerHTML=parsed; }catch{} }
+              }catch{}
+              closeHtmlPopup();
+              clearHover();
+            };
+            const btns=box.querySelectorAll('button');
+            for(let i=0;i<btns.length;i++){
+              (function(btn){
+                btn.addEventListener('click', function(e){
+                  try{ e.preventDefault(); e.stopPropagation(); }catch{}
+                  if(btn.getAttribute('data-act')==='cancel'){ closeHtmlPopup(); return; }
+                  apply();
+                });
+              })(btns[i]);
+            }
+            if(ta){
+              ta.addEventListener('keydown', function(e){
+                try{ e.stopPropagation(); }catch{}
+                const mod=(e.ctrlKey||e.metaKey);
+                if(mod && e.key==='Enter'){ try{ e.preventDefault(); }catch{} apply(); }
+                else if(e.key==='Escape'){ try{ e.preventDefault(); }catch{} closeHtmlPopup(); }
+              });
+              ta.focus();
+            }
+          }catch{}
+        }
+        // Pending text/style edit ho to pehle save karo (DOM file ke barabar ho
+        // jaye) — warna HTML editor ka parent-needle save fail hoke revert karta.
+        function openHtmlEditor(target){
+          try{
+            if(!target || !document.contains(target)) return;
+            if(activeEl){
+              const el=activeEl;
+              let hasChange=false;
+              try{ hasChange = !!el.__ibxDirtyHTML || (readElText(el)!==String(el.__ibxOldText||'').trim()); }catch{}
+              if(hasChange || committing){
+                if(!committing){ try{ commitEdit(); }catch{} }
+                setTimeout(function(){ try{ openHtmlBox(target); }catch{} }, 600);
+                return;
+              }
+              try{ cleanupActive(false); }catch{}
+              try{ hideStyleBar(); }catch{}
+            }
+            openHtmlBox(target);
+          }catch{}
+        }
+        // ── v4: move hovered element among siblings (Alt+Up / Alt+Down) ──
+        function moveHovered(dir){
+          const el=hoverEl;
+          if(!el || !document.contains(el) || activeEl) return;
+          try{
+            if(!el.parentElement) return;
+            if(dir<0 && !el.previousElementSibling) return;
+            if(dir>0 && !el.nextElementSibling) return;
+          }catch{ return; }
+          busy++;
+          try{
+            clearHover();
+            const swap=function(){
+              if(dir<0){
+                const prev=el.previousElementSibling;
+                if(!prev) throw new Error('edge');
+                el.parentElement.insertBefore(el, prev);
+              } else {
+                const nx=el.nextElementSibling;
+                if(!nx) throw new Error('edge');
+                nx.parentElement.insertBefore(nx, el);
+              }
+            };
+            let ok=false;
+            try{ ok=commitViaAnchor(el, swap, 1.6); }catch{ ok=false; }
+            if(!ok && document.contains(el)){ try{ swap(); }catch{} }
+          } finally { busy--; }
+          clearHover();
+        }
+        // ── v4: Ctrl+Z → host se last save revert + DOM wapas ────────────
+        // NOTE: payload me nonce (n) zaroori — host 5s me same title string
+        // dedupe karta hai, warna dobara Ctrl+Z dabane par undo swallow ho jata.
+        let undoSeq=0;
+        function requestUndo(){
+          try{
+            if(activeEl || committing) return false;
+            sendPayload({ mode:'undo', n: ++undoSeq, at: Date.now(), url: location.href });
+            return true;
+          }catch{ return false; }
+        }
+        // Host ne file revert kar di — DOM ka last commit bhi wapas lao.
+        window.__ibxUndoLastVisual=function(){
+          try{
+            if(activeEl) return false;
+            const el=lastCommitEl;
+            lastCommitEl=null;
+            if(!el || !document.contains(el)) return false;
+            restoreOriginal(el);
+            clearHover(); hideHint();
+            return true;
+          }catch{ return false; }
+        };
+        // ── v5: sidebar APIs (host sidebar ke buttons yahan se chalte hain) ──
+        function sendNotice(msg){
+          try{ sendPayload({ mode:'notice', msg:String(msg||''), at: Date.now() }); }catch{}
+        }
+        // Sidebar par mouse page me nahi hota — last pointed element = target.
+        function resolveTarget(needText){
+          try{
+            if(activeEl && document.contains(activeEl)) return activeEl;
+            if(hoverEl && document.contains(hoverEl)) return hoverEl;
+            if(!lastPt) return null;
+            const hit=document.elementFromPoint(lastPt.x, lastPt.y);
+            if(!hit || isUiNode(hit)) return null;
+            const t=findEditableTarget(hit);
+            if(t) return t;
+            if(needText) return null;
+            let el=hit, d=0;
+            while(el && el!==document.body && el!==document.documentElement && d<5){
+              if(el.nodeType===1 && el.tagName){
+                const tg=String(el.tagName).toUpperCase();
+                if(['SCRIPT','STYLE','NOSCRIPT','HEAD','META','LINK'].indexOf(tg)===-1) return el;
+              }
+              el=el.parentElement; d++;
+            }
+          }catch{}
+          return null;
+        }
+        // Pending text/style edit ho to pehle save karo, phir tool chalao
+        // (HTML tool ka openHtmlEditor bhi yahi karta hai).
+        function runTool(fn){
+          try{
+            if(activeEl){
+              const el=activeEl;
+              let hasChange=false;
+              try{ hasChange = !!el.__ibxDirtyHTML || (readElText(el)!==String(el.__ibxOldText||'').trim()); }catch{}
+              if(hasChange || committing){
+                if(!committing){ try{ commitEdit(); }catch{} }
+                setTimeout(function(){ try{ fn(); }catch{} }, 600);
+                return true;
+              }
+              try{ cleanupActive(false); }catch{}
+              try{ hideStyleBar(); }catch{}
+            }
+            fn();
+            return true;
+          }catch{ return false; }
+        }
+        window.__ibxEditAction=function(name){
+          try{
+            if(!window.__ibxEditEnabled) return false;
+            if(name==='cancel'){ try{ window.__ibxCancelEdit && window.__ibxCancelEdit(); }catch{} return true; }
+            const needText=(name==='edit'||name==='html');
+            const t=resolveTarget(needText);
+            if(!t){ sendNotice('Point at an element in the page first'); return false; }
+            const has=function(){ try{ return document.contains(t); }catch{ return false; } };
+            const closeAll=function(){ try{ closeAttrPopup(); closeInspect(); closeLinkPopup(); closeHtmlPopup(); hideHint(); }catch{} };
+            if(name==='edit'){
+              runTool(function(){
+                if(!has()) return;
+                closeAll();
+                clearHover();
+                activateEl(t);
+                try{ t.scrollIntoView({block:'nearest'}); }catch{}
+              });
+              return true;
+            }
+            if(name==='delete'){
+              runTool(function(){ if(has()){ closeAll(); clearHover(); hoverEl=t; deleteHovered(); } });
+              return true;
+            }
+            if(name==='duplicate'){
+              runTool(function(){ if(has()){ closeAll(); clearHover(); hoverEl=t; duplicateHovered(); } });
+              return true;
+            }
+            if(name==='link'){
+              runTool(function(){ if(has()){ clearHover(); openLinkWrap(t); } });
+              return true;
+            }
+            if(name==='html'){
+              runTool(function(){ if(has()){ clearHover(); openHtmlBox(t); } });
+              return true;
+            }
+            if(name==='inspect'){
+              runTool(function(){
+                if(!has()) return;
+                closeAll(); clearHover(); hideStyleBar();
+                let x=100, y=100;
+                try{ const r=t.getBoundingClientRect(); x=r.left; y=r.bottom+8; }catch{}
+                openInspector(t, x, y);
+              });
+              return true;
+            }
+            if(name==='moveUp' || name==='moveDown'){
+              const dir=(name==='moveUp') ? -1 : 1;
+              runTool(function(){ if(has()){ closeAll(); clearHover(); hoverEl=t; moveHovered(dir); } });
+              return true;
+            }
+            return false;
+          }catch{ return false; }
+        };
+        // STYLE section: name se inline style apply (sidebar + state dono) ──
+        function applyStyle(el, name, val){
+          try{
+            if(name==='bold'){ el.style.fontWeight=(el.style.fontWeight==='bold'?'':'bold'); return true; }
+            if(name==='italic'){ el.style.fontStyle=(el.style.fontStyle==='italic'?'':'italic'); return true; }
+            if(name==='underline'){ toggleDeco(el,'underline'); return true; }
+            if(name==='strike'){ toggleDeco(el,'line-through'); return true; }
+            if(name==='size+' || name==='size-'){
+              let s=16;
+              try{ s=parseFloat(window.getComputedStyle(el).fontSize)||16; }catch{}
+              const nx=(name==='size+') ? Math.min(72, s+2) : Math.max(8, s-2);
+              el.style.fontSize=nx+'px';
+              return true;
+            }
+            if(name==='color'){ if(val){ el.style.color=String(val); return true; } return false; }
+            if(name==='bg'){ if(val){ el.style.backgroundColor=String(val); return true; } return false; }
+            if(name==='align'){
+              const aligns=['left','center','right','justify'];
+              let cur='';
+              try{ cur=normAlign(window.getComputedStyle(el).textAlign||'left'); }catch{}
+              let i=aligns.indexOf(cur); if(i<0) i=0;
+              el.style.textAlign=aligns[(i+1)%aligns.length];
+              return true;
+            }
+            if(name==='tt'){
+              const tts=['none','uppercase','lowercase','capitalize'];
+              let cur='none';
+              try{ cur=window.getComputedStyle(el).textTransform||'none'; }catch{}
+              let i=tts.indexOf(cur); if(i<0) i=0;
+              el.style.textTransform=tts[(i+1)%tts.length];
+              return true;
+            }
+            if(name==='clear'){ try{ el.removeAttribute('style'); }catch{} return true; }
+          }catch{}
+          return false;
+        }
+        window.__ibxStyleAction=function(name, val){
+          try{
+            if(!window.__ibxEditEnabled) return false;
+            let el=activeEl;
+            let own=false;
+            if(!el || !document.contains(el)){
+              el=resolveTarget(true);
+              if(!el){ sendNotice('Click a text element first'); return false; }
+              // Pending style-session chal raha ho to snapshot mat taazo —
+              // warna needle (orig) har tick ke saath drift kar save fail karega.
+              if(!el.__ibxStyleTimer) snapshot(el);
+              own=true;
+            }
+            if(!applyStyle(el, name, val)) return false;
+            el.__ibxDirtyHTML=true;
+            if(own){
+              try{ hideStyleBar(); }catch{}
+              scheduleStyleCommit(el, 0);
+            }
+            return true;
+          }catch{ return false; }
+        };
+        // Sidebar ka STYLE panel isi se highlight/state padhta hai (host poll).
+        window.__ibxStyleState=function(){
+          try{
+            const el=activeEl;
+            if(!el || !document.contains(el)) return { active:false };
+            const is=window.getComputedStyle(el);
+            const deco=String(el.style.textDecorationLine||'');
+            let color='#000000', bg='';
+            try{ color=rgbToHex(is.color||''); }catch{}
+            try{
+              const b=String(is.backgroundColor||'');
+              if(b && b!=='rgba(0, 0, 0, 0)' && b!=='rgba(0,0,0,0)' && b!=='transparent') bg=rgbToHex(b);
+            }catch{}
+            return {
+              active: true,
+              tag: String(el.tagName||'').toLowerCase(),
+              text: String(el.textContent||'').trim().slice(0,60),
+              bold: String(el.style.fontWeight||'')==='bold',
+              italic: String(el.style.fontStyle||'')==='italic',
+              underline: deco.split(' ').indexOf('underline')!==-1,
+              strike: deco.split(' ').indexOf('line-through')!==-1,
+              color: color,
+              bg: bg,
+              align: normAlign(el.style.textAlign||is.textAlign||'left'),
+              tt: String(el.style.textTransform||is.textTransform||'none'),
+              size: Math.round(parseFloat(is.fontSize)||16)
+            };
+          }catch{ return { active:false }; }
+        };
         // ── Hover locate hint (file guess badge) ───────────────────────
         function hideHint(){ try{ if(hintBadge) hintBadge.remove(); }catch{} hintBadge=null; }
         function queueLocate(el){
@@ -1071,7 +1525,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               b.setAttribute('data-ibx-ui','1');
               b.className='__ibx-hint';
               b.textContent=String(label).slice(0,80);
-              b.style.left=Math.max(4, Math.min((window.innerWidth||800)-180, r.left))+'px';
+              b.style.left=Math.max(4, Math.min((vw())-180, r.left))+'px';
               b.style.top=Math.max(4, r.top-22)+'px';
               document.body.appendChild(b);
               hintBadge=b;
@@ -1103,6 +1557,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ closeAttrPopup(); }catch{}
             try{ closeInspect(); }catch{}
             try{ closeLinkPopup(); }catch{}
+            try{ closeHtmlPopup(); }catch{}
             try{ hideStyleBar(); }catch{}
             clearHover();
             removeStyle();

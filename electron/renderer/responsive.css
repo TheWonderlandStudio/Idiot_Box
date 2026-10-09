@@ -21,12 +21,16 @@
   .pw-sidebar { width: 120px !important; }
   .browser__bar { gap: var(--space-1) !important; padding: var(--space-3) var(--space-4) !important; }
   .browser__btn { width: 24px !important; height: 24px !important; }
+  .browser__edit-pill-hints { display: none !important; }
   /* Panel headers wrap */
   .flexlayout__tabset_content { overflow: auto !important; }
 }
 
 /* 640px — new min: stack project body, make layout scrollable, wrap headers */
 @media (max-width: 640px) {
+  /* Edit sidebar chhoti window par patli rakho */
+  .browser { --edit-sb-w: 200px !important; }
+  .eb-hint { display: none !important; }
   /* Top IDE bar: allow wrap */
   #root > div > div:last-child { /* status bar */
     flex-wrap: wrap !important;
