@@ -89,9 +89,10 @@ const ExtensionsPage = () => {
         </div>
       </div>
 
+      <section className="sw-frame">
       <div
-        className="sw-row"
-        style={{ alignItems: "center", border: "1px solid var(--ext-active-border)", background: "var(--teal-a06)", marginBottom: "var(--space-12)" }}
+        className="sw-row sw-row--actions"
+        style={{ background: "var(--teal-a06)" }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
           <span className="sw-row__label" style={{ marginBottom: "var(--space-2)" }}>Get more extensions</span>
@@ -103,6 +104,7 @@ const ExtensionsPage = () => {
           Open Chrome Web Store
         </button>
       </div>
+      </section>
 
       {error && <div style={{ color: "var(--error-muted)", fontSize: "var(--fs-body)", marginBottom: "var(--space-10)" }}>{error}</div>}
 
@@ -114,11 +116,12 @@ const ExtensionsPage = () => {
           (e.g. a folder with manifest.json), or use File &rarr; Load Extension&hellip; from the main window.
         </div>
       ) : (
-        list.map((ext) => (
+        <section className="sw-frame">
+        {list.map((ext) => (
           <div
             key={ext.id}
-            className="sw-row"
-            style={{ opacity: ext.enabled ? 1 : 0.55, alignItems: "center" }}
+            className="sw-row sw-row--actions"
+            style={{ opacity: ext.enabled ? 1 : 0.55 }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
               <span className="sw-row__label" style={{ marginBottom: "var(--space-2)" }}>{ext.name}</span>
@@ -158,7 +161,8 @@ const ExtensionsPage = () => {
               Remove
             </button>
           </div>
-        ))
+        ))}
+        </section>
       )}
     </div>
   );

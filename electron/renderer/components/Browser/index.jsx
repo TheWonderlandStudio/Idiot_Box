@@ -3,9 +3,10 @@ import { Actions, DockLocation } from "flexlayout-react";
 import { EDIT_HELPER_SOURCE } from "./editHelper.js";
 import {
   ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
-  Search, ChevronUp, ChevronDown, Pencil, PencilOff, MoreVertical,
+  Search, ChevronUp, ChevronDown,   Pencil, PencilOff, MoreVertical,
   Puzzle, Maximize2, ZoomIn, ZoomOut, Unplug, RotateCw, ExternalLink,
-  Undo2, Check, ArrowUp, ArrowDown, Trash2, Copy, Link2, Code, Info
+  Undo2, Check, ArrowUp, ArrowDown, Trash2, Copy, Link2, Code, Info,
+  GripVertical
 } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
@@ -198,6 +199,136 @@ const EDIT_SHORTCUTS = [
 const ALIGN_ABBR = { left: "L", center: "C", right: "R", justify: "J" };
 const TT_ABBR = { none: "TT", uppercase: "AA", lowercase: "aa", capitalize: "Aa" };
 
+// Visual controls ke options (Cursor-style property panel)
+const JC_OPTS = [
+  ["", "auto"], ["flex-start", "start"], ["center", "center"],
+  ["flex-end", "end"], ["space-between", "between"],
+  ["space-around", "around"], ["space-evenly", "evenly"],
+];
+const AI_OPTS = [
+  ["", "auto"], ["flex-start", "start"], ["center", "center"],
+  ["flex-end", "end"], ["stretch", "stretch"], ["baseline", "baseline"],
+];
+// Generic families pehle order me — computed fontFamily me yahi milte hain
+const FF_OPTS = [
+  ["system-ui", "System"], ["sans-serif", "Sans"], ["serif", "Serif"],
+  ["monospace", "Mono"], ["cursive", "Cursive"],
+];
+const FW_OPTS = [300, 400, 500, 600, 700, 800];
+const PALETTE = [
+  "#000000", "#ffffff", "#ef4444", "#f97316", "#eab308",
+  "#22c55e", "#14b8a6", "#3b82f6", "#a855f7", "#6b7280",
+];
+
+// Ek line ka slider row (label + range + live value)
+function EbSlider({ label, val, min, max, step, unit, display, disabled, onChange }) {
+  return (
+    <div className="eb-slider">
+      <span className="eb-slider-label">{label}</span>
+      <input
+        type="range" min={min} max={max} step={step || 1} value={val}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <span className="eb-slider-val">{display != null ? display : `${val}${unit || ""}`}</span>
+    </div>
+  );
+}
+
+// Ek tree row (DOM node) — recursion se children render hote hain.
+// DnD: row drag → target row ke before/after/inside (Y-position se).
+function EbTreeRow({ node, depth, expanded, sel, row, onToggle, onSel, onHover, onDropRow, onDragStartRow, onDragEndRow, setRow }) {
+  const kids = node.k || null;
+  const hasKids = !!(kids && kids.length);
+  const open = !!expanded[node.i];
+  const isSel = sel === node.i;
+  const isDrop = !!(row && row.id === node.i);
+  const onDragOver = (e) => {
+    try {
+      e.preventDefault();
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      const y = (e.clientY - r.top) / Math.max(1, r.height);
+      const pos = y < 0.3 ? "before" : (y > 0.7 ? "after" : "inside");
+      if (!row || row.id !== node.i || row.pos !== pos) setRow({ id: node.i, pos });
+    } catch {}
+  };
+  const onDrop = (e) => {
+    try { e.preventDefault(); e.stopPropagation(); } catch {}
+    const target = node.i;
+    const pos = row && row.id === node.i ? row.pos : "after";
+    setRow(null);
+    onDropRow(target, pos);
+  };
+  return (
+    <div className="eb-tree__node">
+      <div
+        className={
+          "eb-tree__row" +
+          (isSel ? " eb-tree__row--sel" : "") +
+          (isDrop ? " eb-tree__row--drop-" + row.pos : "") +
+          (node.h ? " eb-tree__row--muted" : "")
+        }
+        style={{ paddingLeft: 6 + depth * 12 }}
+        draggable
+        onDragStart={(e) => { try { e.dataTransfer.setData("text/plain", String(node.i)); e.dataTransfer.effectAllowed = "move"; } catch {} setRow(null); onDragStartRow(node.i); }}
+        onDragOver={onDragOver}
+        onDragLeave={() => { if (isDrop) setRow(null); }}
+        onDrop={onDrop}
+        onDragEnd={() => { setRow(null); onDragEndRow(); }}
+        onClick={() => onSel(node.i)}
+        onMouseEnter={() => onHover(node.i)}
+        title={(node.tx || node.c || "") + (node.t ? " <" + node.t + ">" : "")}
+      >
+        <span
+          className={"eb-tree__chev" + (hasKids ? "" : " eb-tree__chev--leaf") + (open ? " eb-tree__chev--open" : "")}
+          onClick={(e) => { e.stopPropagation(); if (hasKids) onToggle(node.i); }}
+        >
+          {hasKids ? (open ? "▾" : "▸") : "·"}
+        </span>
+        <span className="eb-tree__tag">{node.t}</span>
+        {node.x ? <span className="eb-tree__id">#{node.x}</span> : null}
+        {node.c ? <span className="eb-tree__cls">.{String(node.c).split(" ")[0]}</span> : null}
+        {node.tx ? <span className="eb-tree__tx">{node.tx}</span> : null}
+      </div>
+      {hasKids && open && (
+        <div className="eb-tree__kids">
+          {kids.map((k) => (
+            <EbTreeRow
+              key={k.i} node={k} depth={depth + 1} expanded={expanded} sel={sel} row={row}
+              onToggle={onToggle} onSel={onSel} onHover={onHover} onDropRow={onDropRow}
+              onDragStartRow={onDragStartRow} onDragEndRow={onDragEndRow} setRow={setRow}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Text input row — poll ke rerender par focus/value na hile, Enter/blur par commit.
+function EbTextRow({ label, value, placeholder, onCommit }) {
+  const [v, setV] = useState(value || "");
+  const focusedRef = useRef(false);
+  useEffect(() => { if (!focusedRef.current) setV(value || ""); }, [value]);
+  const commit = () => { const nv = String(v || ""); if (nv !== String(value || "")) onCommit(nv); };
+  return (
+    <div className="eb-srow">
+      <span title={label}>{label}</span>
+      <input
+        className="eb-input"
+        value={v}
+        placeholder={placeholder || ""}
+        spellCheck={false}
+        onFocus={() => { focusedRef.current = true; }}
+        onBlur={() => { focusedRef.current = false; commit(); }}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+      />
+    </div>
+  );
+}
+
 const BrowserPanel = (props) => {
   const { nodeId, config } = props || {};
   const initialUrl = config?.url || "https://www.google.com";
@@ -220,6 +351,17 @@ const BrowserPanel = (props) => {
   const [editSidebarOpen, setEditSidebarOpen] = useState(true);
   const [editStyle,    setEditStyle]    = useState({ active: false });
   const [toast,        setToast]        = useState(null);
+  // ── v7: DOM tree panel (Cursor-style elements tree) ──
+  const [treeData,     setTreeData]     = useState({ on: false, nodes: [] });
+  const [treeSel,      setTreeSel]      = useState(0);
+  const [treeRow,      setTreeRow]      = useState(null); // drag indicator { id, pos }
+  const [treeExpanded, setTreeExpanded] = useState({});
+  const treeDragRef    = useRef(0);   // drag session ka source id (poll skip ke liye bhi)
+  // ── v7: properties panel (attrs + source locate) ──
+  const [propState,    setPropState]    = useState({ active: false });
+  const [propLoc,      setPropLoc]      = useState(null);
+  // ── v7: design tokens (project palette) ──
+  const [tokens,       setTokens]       = useState([]);
   // ── Find in page (webview.findInPage) ──
   const [findOpen,     setFindOpen]     = useState(false);
   const [findText,     setFindText]     = useState("");
@@ -408,31 +550,90 @@ const BrowserPanel = (props) => {
     setTimeout(refreshStyleState, 120);
   }, [runGuest, refreshStyleState]);
 
-  // ── Sidebar = overlay → guest ko width batao (vw() popups/hints ko
-  //    sidebar ke neeche jaane se rokta hai; webview full width rehta hai)
+  // ── v7: tree / properties / tokens helpers ────────────────────────────────
+  const refreshTree = useCallback(() => {
+    const p = runGuest("window.__ibxTreeState ? window.__ibxTreeState() : ({on:false,nodes:[]})");
+    if (p && typeof p.then === "function") {
+      p.then((s) => { try { setTreeData(s && typeof s === "object" && s.nodes ? s : { on: false, nodes: [] }); } catch {} }).catch(() => {});
+    }
+  }, [runGuest]);
+  const refreshProps = useCallback(() => {
+    const p = runGuest("window.__ibxPropState ? window.__ibxPropState() : ({active:false})");
+    if (p && typeof p.then === "function") {
+      p.then((s) => { try { setPropState(s && typeof s === "object" ? s : { active: false }); } catch {} }).catch(() => {});
+    }
+  }, [runGuest]);
+  const selectTreeRow = useCallback((id) => {
+    const n = Number(id) || 0;
+    setTreeSel(n);
+    runGuest(`window.__ibxTreeSelect && window.__ibxTreeSelect(${n})`);
+    setTimeout(() => { refreshTree(); refreshStyleState(); refreshProps(); }, 140);
+  }, [runGuest, refreshTree, refreshStyleState, refreshProps]);
+  const hoverTreeRow = useCallback((id) => {
+    runGuest(`window.__ibxTreeHover && window.__ibxTreeHover(${Number(id) || 0})`);
+  }, [runGuest]);
+  const toggleTree = useCallback((id) => {
+    setTreeExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+  const clearTreeSel = useCallback(() => {
+    setTreeSel(0);
+    runGuest("window.__ibxTreeClear && window.__ibxTreeClear()");
+    setTimeout(() => { refreshTree(); refreshStyleState(); refreshProps(); }, 140);
+  }, [runGuest, refreshTree, refreshStyleState, refreshProps]);
+  const moveTreeRow = useCallback(async (srcId, refId, pos) => {
+    const p = runGuest(`window.__ibxTreeMove ? window.__ibxTreeMove(${Number(srcId) || 0}, ${Number(refId) || 0}, ${JSON.stringify(String(pos))}) : false`);
+    if (p && typeof p.then === "function") { try { await p; } catch {} }
+    refreshTree(); refreshStyleState(); refreshProps();
+  }, [runGuest, refreshTree, refreshStyleState, refreshProps]);
+  // HTML5 DnD drop → src (drag session se) + target row + position
+  const dropTreeRow = useCallback((targetId, pos) => {
+    const src = treeDragRef.current;
+    treeDragRef.current = 0;
+    setTreeRow(null);
+    if (!src || !targetId || src === targetId) return;
+    moveTreeRow(src, targetId, pos);
+  }, [moveTreeRow]);
+  const propSet = useCallback((name, val) => {
+    runGuest(`window.__ibxPropSet && window.__ibxPropSet(${JSON.stringify(String(name))}, ${JSON.stringify(String(val == null ? "" : val))})`);
+    setTimeout(() => { refreshProps(); refreshStyleState(); }, 180);
+  }, [runGuest, refreshProps, refreshStyleState]);
+
+  // ── v7: design tokens (project-scope palette) ─────────────────────────────
+  const loadTokens = useCallback(() => {
+    try {
+      const root = window.__currentProjectPath || null;
+      if (!root) { setTokens([]); return; }
+      const p = window.electronAPI.readVisualTokens(root);
+      if (p && typeof p.then === "function") p.then((t) => { if (Array.isArray(t)) setTokens(t); }).catch(() => {});
+    } catch {}
+  }, []);
+  const saveTokens = useCallback((next) => {
+    setTokens(next);
+    try {
+      const root = window.__currentProjectPath || null;
+      if (root) { const p = window.electronAPI.writeVisualTokens(root, next); if (p && p.catch) p.catch(() => {}); }
+    } catch {}
+  }, []);
+  const addToken = useCallback(() => {
+    const c = String(editStyle.color || "").toLowerCase();
+    if (!/^#[0-9a-f]{6}$/.test(c)) { showToast("Element select karke text color set karo pehle", "info"); return; }
+    if (tokens.indexOf(c) !== -1) { showToast(`${c} pehle se token me hai`, "info"); return; }
+    saveTokens([...tokens, c]);
+    showToast(`Token ${c} saved (project)`, "success");
+  }, [editStyle.color, tokens, saveTokens, showToast]);
+  const removeToken = useCallback((c) => {
+    saveTokens(tokens.filter((x) => x !== c));
+  }, [tokens, saveTokens]);
+
+  // ── Sidebar = docked panel → webview apne aap shrink hota hai, isliye
+  //    guest ko kabhi sidebar-width subtract nahi karni (vw() = innerWidth).
   const editSidebarRef    = useRef(null);
-  const sbOpenRef         = useRef(false);
   const syncSbWidthRef    = useRef(() => {});
   const syncSidebarWidth  = useCallback(() => {
-    let w = 0;
-    try {
-      if (editModeRef.current && sbOpenRef.current) {
-        const el = editSidebarRef.current;
-        w = (el && el.offsetWidth) ? el.offsetWidth : 252;
-      }
-    } catch {}
-    runGuest(`window.__ibxSidebarW=${Math.round(w)}`);
+    runGuest("window.__ibxSidebarW=0");
   }, [runGuest]);
   useEffect(() => { syncSbWidthRef.current = syncSidebarWidth; }, [syncSidebarWidth]);
-  useEffect(() => {
-    sbOpenRef.current = !!(editMode && editSidebarOpen);
-    syncSidebarWidth();
-    if (!sbOpenRef.current) return;
-    // Media-query se width badli (narrow window) → dobara bhejo
-    const onResize = () => syncSidebarWidth();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [editMode, editSidebarOpen, syncSidebarWidth]);
+  useEffect(() => { syncSidebarWidth(); }, [editMode, editSidebarOpen, syncSidebarWidth]);
 
   const isSavableUrl = useCallback((u) => {
     try {
@@ -541,13 +742,10 @@ const BrowserPanel = (props) => {
           }
         } catch {}
         try { window.dispatchEvent(new CustomEvent("liveEdit:applied", { detail: { filePath: res.filePath, oldText: mode === "html" ? oldHtml.slice(0, 120) : oldText, newText: mode === "html" ? newHtml.slice(0, 120) : newText, rel } })); } catch {}
-        // live code refresh: if ibx-file, reload webview after short delay
-        try {
-          const cur = webviewRef.current?.getURL?.() || "";
-          if (cur.startsWith("ibx-file://") && res.filePath && cur.includes(encodeURI(res.filePath.replace(/\\/g,"/")).slice(-40))) {
-            setTimeout(()=> { try { webviewRef.current?.reload(); } catch {} }, 400);
-          }
-        } catch {}
+        // NOTE: webview reload NAHI — guest DOM pehle se updated hai (wahi
+        // mutation save hui hai). Reload karne se tree selection/highlight/
+        // drag state wipe ho jata tha aur har button click "selection lost"
+        // jaisa lagta tha.
         // also trigger fs watcher friendly toast for Monaco
         try { window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: res.filePath, code: await window.electronAPI.readTextFile(res.filePath) } })); } catch {}
       } else {
@@ -1284,9 +1482,76 @@ const BrowserPanel = (props) => {
   useEffect(() => {
     if (!editMode || !editSidebarOpen) return;
     refreshStyleState();
-    const iv = setInterval(refreshStyleState, 800);
+    refreshTree();
+    refreshProps();
+    const iv = setInterval(() => {
+      refreshStyleState();
+      refreshProps();
+      // Tree tabhi refresh karo jab DnD chal na raha ho (warna row hat
+      // jaati aur drop target stale ho jata)
+      if (!treeDragRef.current) refreshTree();
+    }, 800);
     return () => clearInterval(iv);
-  }, [editMode, editSidebarOpen, refreshStyleState]);
+  }, [editMode, editSidebarOpen, refreshStyleState, refreshTree, refreshProps]);
+
+  // Edit mode off → saara v7 panel state reset (guest khud clear karta hai)
+  useEffect(() => {
+    if (editMode) return;
+    setTreeData({ on: false, nodes: [] });
+    setTreeSel(0);
+    setTreeRow(null);
+    setTreeExpanded({});
+    setPropState({ active: false });
+    setPropLoc(null);
+    treeDragRef.current = 0;
+  }, [editMode]);
+
+  // Edit mode on → project ke design tokens load
+  useEffect(() => { if (editMode) loadTokens(); }, [editMode, hasProject, loadTokens]);
+
+  // Tree auto-expand: top 2 levels hamesha + target path (page se click
+  // kiya ho to us row tak khul jaye)
+  useEffect(() => {
+    if (!treeData || !treeData.on) return;
+    setTreeExpanded((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      const walkInit = (n, d) => {
+        try {
+          if (!n) return;
+          if (d < 2 && n.k && n.k.length && !next[n.i]) { next[n.i] = true; changed = true; }
+          if (n.k) for (let i = 0; i < n.k.length; i++) walkInit(n.k[i], d + 1);
+        } catch {}
+      };
+      const nodes = treeData.nodes || [];
+      for (let i = 0; i < nodes.length; i++) walkInit(nodes[i], 0);
+      const path = treeData.tgtPath || [];
+      for (let i = 0; i < path.length - 1; i++) {
+        if (!next[path[i]]) { next[path[i]] = true; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [treeData]);
+
+  // Properties → source file guess (hover badge wali hi liveEditLocate call).
+  // Deps primitives hain — poll me same element par same values → no re-run.
+  useEffect(() => {
+    if (!propState.active || !propState.text) { setPropLoc(null); return; }
+    let dead = false;
+    (async () => {
+      try {
+        const res = await window.electronAPI.liveEditLocate({
+          projectRoot: window.__currentProjectPath || null,
+          url: webviewRef.current?.getURL?.() || "",
+          oldText: String(propState.text || ""),
+          outerSnippet: String(propState.outer || ""),
+          tagName: String(propState.tag || ""),
+        });
+        if (!dead) setPropLoc(res && res.ok ? res : null);
+      } catch { if (!dead) setPropLoc(null); }
+    })();
+    return () => { dead = true; };
+  }, [propState.active, propState.text, propState.outer, propState.tag]);
 
   const isVisualOnlyUrl = (() => {
     try {
@@ -1710,10 +1975,12 @@ const BrowserPanel = (props) => {
         </>
       )}
 
+      {/* Row: webview (flex:1) + docked edit sidebar (fixed width) */}
+      <div className="browser__main">
       {/* Webview — hamesha SAME element (no remount, no reload) */}
       <div
         ref={viewWrapRef}
-        className={`browser__view-wrap${editMode && editSidebarOpen ? " browser__view-wrap--sidebar" : ""}`}
+        className="browser__view-wrap"
       >
         {isLoading && <div className="browser__progress-bar" />}
         <webview
@@ -1838,9 +2105,10 @@ const BrowserPanel = (props) => {
             {toast.type==="success" ? "✓" : toast.type==="error" ? "✕" : "•"} <span>{toast.msg}</span>
           </div>
         )}
+      </div>{/* /.browser__view-wrap */}
 
-        {/* ── Edit sidebar — edit mode ke saare controls ── */}
-        {editMode && (
+        {/* ── Edit sidebar — docked panel, edit mode ke saare controls ── */}
+        {editMode && editSidebarOpen && (
           <aside ref={editSidebarRef} className={`browser__edit-sidebar${isVisualOnlyUrl ? " browser__edit-sidebar--warn" : ""}`}>
             <div className="eb-head">
               <span className="eb-head-title"><Pencil size={12} /> EDIT MODE</span>
@@ -1900,6 +2168,40 @@ const BrowserPanel = (props) => {
                 </div>
               </div>
 
+              {/* ── DOM tree (Cursor-style elements panel) ── */}
+              <div className="eb-section">
+                <div className="eb-label">
+                  Elements
+                  <span className="eb-label-actions">
+                    <button className="eb-mini" onClick={refreshTree} title="Refresh tree">
+                      <RefreshCw size={11} />
+                    </button>
+                    <button className="eb-mini" disabled={!treeSel} onClick={clearTreeSel} title="Clear selection">
+                      <X size={11} />
+                    </button>
+                  </span>
+                </div>
+                <div className="eb-hint">Click = select · drag row = reorder · hover = page me highlight</div>
+                <div className="eb-tree">
+                  {treeData && treeData.on && treeData.nodes.length ? (
+                    treeData.nodes.map((n) => (
+                      <EbTreeRow
+                        key={n.i} node={n} depth={0} expanded={treeExpanded}
+                        sel={treeData.tgt || treeSel} row={treeRow}
+                        onToggle={toggleTree} onSel={selectTreeRow} onHover={hoverTreeRow}
+                        onDropRow={dropTreeRow}
+                        onDragStartRow={(id) => { treeDragRef.current = id; }}
+                        onDragEndRow={() => { treeDragRef.current = 0; setTreeRow(null); }}
+                        setRow={setTreeRow}
+                      />
+                    ))
+                  ) : (
+                    <div className="eb-hint">Page load hone do…</div>
+                  )}
+                  {treeData && treeData.trunc && <div className="eb-hint">… truncated (bade page ka hissa)</div>}
+                </div>
+              </div>
+
               <div className="eb-section">
                 <div className="eb-label">Element tools</div>
                 <div className="eb-hint">Target: the element you last pointed at</div>
@@ -1928,6 +2230,13 @@ const BrowserPanel = (props) => {
                   <button className="eb-tbtn" onClick={() => guestTool("moveDown")} title="Move element down (Alt+↓)">
                     <ArrowDown size={14} /><span>Move ↓</span>
                   </button>
+                  <button
+                    className={`eb-tbtn${editStyle.drag ? " eb-tbtn--on" : ""}`}
+                    onClick={() => { guestTool("dragToggle"); setTimeout(refreshStyleState, 150); }}
+                    title="Drag-to-reorder mode — drag elements in the page onto each other"
+                  >
+                    <GripVertical size={14} /><span>Drag</span>
+                  </button>
                 </div>
               </div>
 
@@ -1947,6 +2256,194 @@ const BrowserPanel = (props) => {
                   <input className="eb-color" type="color" title="Background color" disabled={!editStyle.active} value={editStyle.bg || "#ffffff"} onChange={(e) => guestStyle("bg", e.target.value)} />
                   <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("clear")} title="Clear inline styles">✕</button>
                 </div>
+              </div>
+
+              {/* TODO(React component props panel — phase 2): neeche "Component"
+                  section hoga. Flow: guest se target outerHTML + hover-locate
+                  payload (`__IBX_LOCATE64__`) → host `liveEditLocate` se source
+                  file → JSX/TSX parse karke component ke props/defaults →
+                  sidebar me props/variant list (bool/enum/number) → edit par
+                  file write (`liveEdit:applyTextChange`) → `component:sourceChanged`
+                  se preview reload. Mapping approximate (tag+class+text
+                  fingerprint) — exact React fiber mapping kabhi nahi. */}
+              <div className="eb-section">
+                <div className="eb-label">Visual controls</div>
+                {!editStyle.active && (
+                  <div className="eb-hint">Point at an element in the page, then click it</div>
+                )}
+
+                <div className="eb-sub">Layout</div>
+                <div className="eb-grid eb-grid--4">
+                  <button
+                    className={`eb-tbtn${editStyle.disp === "flex" && (editStyle.dir || "").indexOf("row") === 0 ? " eb-tbtn--on" : ""}`}
+                    disabled={!editStyle.active} onClick={() => guestStyle("dir", "row")}
+                    title="display: flex — row"
+                  ><span>Row</span></button>
+                  <button
+                    className={`eb-tbtn${editStyle.disp === "flex" && (editStyle.dir || "").indexOf("column") === 0 ? " eb-tbtn--on" : ""}`}
+                    disabled={!editStyle.active} onClick={() => guestStyle("dir", "col")}
+                    title="display: flex — column"
+                  ><span>Col</span></button>
+                  <button
+                    className={`eb-tbtn${editStyle.disp === "grid" ? " eb-tbtn--on" : ""}`}
+                    disabled={!editStyle.active} onClick={() => guestStyle("grid")}
+                    title="display: grid (dobara click = remove)"
+                  ><span>Grid</span></button>
+                  <button
+                    className={`eb-tbtn${editStyle.disp && editStyle.disp !== "flex" && editStyle.disp !== "grid" ? " eb-tbtn--on" : ""}`}
+                    disabled={!editStyle.active} onClick={() => guestStyle("dir", "off")}
+                    title="Remove display override"
+                  ><span>Off</span></button>
+                </div>
+                {editStyle.disp === "grid" && (
+                  <>
+                    <EbTextRow label="Cols" value={editStyle.gcols || ""} placeholder="3 ya repeat(3, 1fr)"
+                      onCommit={(v) => guestStyle("gcols", v)} />
+                    <EbTextRow label="Rows" value={editStyle.grows || ""} placeholder="auto"
+                      onCommit={(v) => guestStyle("grows", v)} />
+                  </>
+                )}
+                <div className="eb-srow">
+                  <span>Justify</span>
+                  <select className="eb-select" value={editStyle.jc || ""} disabled={!editStyle.active}
+                    onChange={(e) => guestStyle("jc", e.target.value)}>
+                    {JC_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="eb-srow">
+                  <span>Align</span>
+                  <select className="eb-select" value={editStyle.ai || ""} disabled={!editStyle.active}
+                    onChange={(e) => guestStyle("ai", e.target.value)}>
+                    {AI_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="eb-srow">
+                  <span>Wrap</span>
+                  <select className="eb-select" value={editStyle.wrap || ""} disabled={!editStyle.active}
+                    onChange={(e) => guestStyle("wrap", e.target.value)}
+                    title="flex-wrap — items ko next line me wrap karo">
+                    <option value="">auto</option>
+                    <option value="nowrap">nowrap</option>
+                    <option value="wrap">wrap</option>
+                  </select>
+                </div>
+                <EbSlider label="Gap" val={editStyle.gap ?? 0} min={0} max={96} unit="px"
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("gap", v)} />
+
+                <div className="eb-sub">Type</div>
+                <EbSlider label="Size" val={editStyle.fs ?? 16} min={8} max={96} unit="px"
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("fs", v)} />
+                <EbSlider label="Line-h" val={Math.round((editStyle.lh ?? 1.2) * 100)} min={50} max={300} step={5}
+                  display={(editStyle.lh ?? 1.2).toFixed(1)}
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("lh", String(Number(v) / 100))} />
+                <EbSlider label="Letter" val={editStyle.ls ?? 0} min={-5} max={20} step={0.5} unit="px"
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("ls", v)} />
+                <div className="eb-srow">
+                  <span>Weight</span>
+                  <select className="eb-select"
+                    value={FW_OPTS.indexOf(editStyle.fw) !== -1 ? String(editStyle.fw) : ""}
+                    disabled={!editStyle.active}
+                    onChange={(e) => { if (e.target.value) guestStyle("fw", e.target.value); }}>
+                    <option value="">auto</option>
+                    {FW_OPTS.map((w) => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+                <div className="eb-srow">
+                  <span>Font</span>
+                  <select className="eb-select"
+                    value={(function () {
+                      const ff = String(editStyle.ff || "").toLowerCase();
+                      if (!ff || !editStyle.active) return "";
+                      const m = FF_OPTS.find(([tok]) => ff.indexOf(tok) !== -1);
+                      return m ? m[0] : "";
+                    })()}
+                    disabled={!editStyle.active}
+                    onChange={(e) => { if (e.target.value) guestStyle("ff", e.target.value); }}>
+                    <option value="">auto</option>
+                    {FF_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </div>
+
+                <div className="eb-sub">Space &amp; shape</div>
+                <EbSlider label="Pad" val={editStyle.pad ?? 0} min={0} max={96} unit="px"
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("pad", v)} />
+                <EbSlider label="Margin" val={editStyle.mg ?? 0} min={0} max={96} unit="px"
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("mg", v)} />
+                <EbSlider label="Radius" val={editStyle.rad ?? 0} min={0} max={96} unit="px"
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("rad", v)} />
+                <EbSlider label="Opacity" val={editStyle.op ?? 100} min={0} max={100} unit="%"
+                  disabled={!editStyle.active} onChange={(v) => guestStyle("op", v)} />
+
+                <div className="eb-sub">Palette</div>
+                <div className="eb-swatches">
+                  {tokens.map((c) => (
+                    <button key={"tok-" + c} className="eb-swatch eb-swatch--tok" style={{ background: c }}
+                      disabled={!editStyle.active}
+                      onClick={(e) => { if (e.altKey || e.shiftKey) guestStyle("bg", c); else guestStyle("color", c); }}
+                      onContextMenu={(e) => { e.preventDefault(); removeToken(c); }}
+                      title={`Project token ${c} — click: text color · Alt+click: background · right-click: remove`} />
+                  ))}
+                  {PALETTE.map((c) => (
+                    <button key={c} className="eb-swatch" style={{ background: c }}
+                      disabled={!editStyle.active}
+                      onClick={(e) => { if (e.altKey || e.shiftKey) guestStyle("bg", c); else guestStyle("color", c); }}
+                      title={`Text color ${c} (Alt+click = background)`} />
+                  ))}
+                  <button className="eb-swatch eb-swatch--add" disabled={!editStyle.active} onClick={addToken}
+                    title="Current text color ko project token me save karo (+)">
+                    +
+                  </button>
+                </div>
+                {!tokens.length && (
+                  <div className="eb-hint">+ se color project me save hoga (right-click se remove)</div>
+                )}
+              </div>
+
+              {/* ── Properties: selected element ke attributes + source ── */}
+              <div className="eb-section">
+                <div className="eb-label">
+                  Properties{propState.active && propState.tag ? ` · <${propState.tag}>` : ""}
+                </div>
+                {!propState.active && (
+                  <div className="eb-hint">Page ya tree me element select karo</div>
+                )}
+                {propState.active && (
+                  <>
+                    <EbTextRow label="ID" value={propState.id || ""} placeholder="—"
+                      onCommit={(v) => propSet("id", v)} />
+                    <EbTextRow label="Class" value={propState.cls || ""} placeholder="—"
+                      onCommit={(v) => propSet("class", v)} />
+                    {(propState.attrs || [])
+                      .filter((a) => a.n !== "id" && a.n !== "class")
+                      .map((a) => (
+                        <EbTextRow key={a.n} label={a.n} value={a.v} placeholder=""
+                          onCommit={(v) => propSet(a.n, v)} />
+                      ))}
+                    <div className="eb-sub">Source</div>
+                    {propLoc && propLoc.ok ? (
+                      <div className="eb-srow">
+                        <span className="eb-src" title={String(propLoc.filePath || "")}>
+                          {propLoc.rel}{propLoc.candidates > 1 ? ` (+${propLoc.candidates - 1})` : ""}
+                        </span>
+                        <button
+                          className="eb-mini"
+                          title="Open in editor"
+                          onClick={() => {
+                            try {
+                              window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: propLoc.filePath } }));
+                            } catch {}
+                          }}
+                        >
+                          <ExternalLink size={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="eb-hint">
+                        {propState.text ? "Source file nahi mila" : "Text wale element par source match hota hai"}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               <div className="eb-section">

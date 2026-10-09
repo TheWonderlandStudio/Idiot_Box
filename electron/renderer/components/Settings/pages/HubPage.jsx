@@ -111,6 +111,8 @@ const HubPage = ({ settings, onSave }) => {
 
   return (
     <div>
+      <section className="sw-frame">
+      <div className="sw-section-title">Profile &amp; Heatmap</div>
       {/* ── GitHub Username ──────────────────────────────────────────── */}
       <div className="sw-row">
         <span className="sw-row__label">GitHub Username</span>
@@ -152,8 +154,11 @@ const HubPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+      </section>
 
       {/* ── Custom Cursor ────────────────────────────────────────────── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Experience</div>
       <div className="sw-row">
         <span className="sw-row__label">Custom Cursor</span>
         <span className="sw-row__desc">
@@ -225,8 +230,11 @@ const HubPage = ({ settings, onSave }) => {
           />
         </div>
       </div>
+      </section>
 
       {/* ── Reset Onboarding ─────────────────────────────────────────── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">App Data</div>
       <div className="sw-row">
         <span className="sw-row__label">Reset Onboarding</span>
         <span className="sw-row__desc">
@@ -269,6 +277,7 @@ const HubPage = ({ settings, onSave }) => {
           </button>
         </div>
       </div>
+      </section>
 
       {msg && (
         <div style={{

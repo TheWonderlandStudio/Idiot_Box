@@ -55,6 +55,8 @@ const TerminalPage = ({ settings, onSave }) => {
 
   return (
     <div>
+      <section className="sw-frame">
+      <div className="sw-section-title">Font</div>
       {/* ── Font Family ────────────────────────────────────────────────── */}
       <div className="sw-row">
         <span className="sw-row__label">Font Family</span>
@@ -98,8 +100,11 @@ const TerminalPage = ({ settings, onSave }) => {
           <span className="sw-inline-label">px</span>
         </div>
       </div>
+      </section>
 
       {/* ── Cursor Style ───────────────────────────────────────────────── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Cursor</div>
       <div className="sw-row">
         <span className="sw-row__label">Cursor Style</span>
         <span className="sw-row__desc">Shape of the terminal cursor.</span>
@@ -132,8 +137,11 @@ const TerminalPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+      </section>
 
       {/* ── Scrollback ─────────────────────────────────────────────────── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Buffer</div>
       <div className="sw-row">
         <span className="sw-row__label">Scrollback</span>
         <span className="sw-row__desc">Number of lines to keep in the terminal buffer. Higher values use more memory.</span>
@@ -167,6 +175,7 @@ const TerminalPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+      </section>
     </div>
   );
 };

@@ -41,6 +41,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
         let htmlPopup = null;
         // v5: sidebar-style ka pending (debounced) commit target
         let styleCommitEl = null;
+        // v7: DOM tree panel (sidebar) — tree selection + highlight + id map
+        let treeSelEl = null;
+        let treeHiEl = null;
         // Mutation ke dauran real mouse re-hover hover-class wapas na laga de
         // (warna anchor snapshot me artifact aake file-match toot jata hai).
         let busy = 0;
@@ -50,6 +53,31 @@ export const EDIT_HELPER_SOURCE = `(() => {
         function stripEmptyClass(el){
           try{
             if(el && el.removeAttribute && String(el.className||'').trim()==='') el.removeAttribute('class');
+          }catch{}
+        }
+        // Edit-mode ke transient classes/attrs file-needle me NAHI aane chahiye.
+        // __ibxTreeHover / mouse-hover target pe __ibx-edit-hover chhod jata hai
+        // — snapshot/commit ke waqt outerHTML me shamil ho jati thi to host ko
+        // "Element not found in project" mila aur pura change revert ho jata tha.
+        function stripEditArtifacts(root){
+          if(!root) return;
+          try{
+            root.removeAttribute('contenteditable');
+            root.removeAttribute('spellcheck');
+            root.classList.remove('__ibx-edit-hover','__ibx-edit-active');
+            stripEmptyClass(root);
+          }catch{}
+          try{
+            const nodes=root.querySelectorAll('.__ibx-edit-hover,.__ibx-edit-active,[contenteditable],[spellcheck="false"]');
+            for(let i=0;i<nodes.length;i++){
+              try{
+                const n=nodes[i];
+                n.removeAttribute('contenteditable');
+                n.removeAttribute('spellcheck');
+                n.classList.remove('__ibx-edit-hover','__ibx-edit-active');
+                stripEmptyClass(n);
+              }catch{}
+            }
           }catch{}
         }
         // Edit sidebar ke peeche popup na chhupo — host viewport me se sidebar
@@ -138,13 +166,18 @@ export const EDIT_HELPER_SOURCE = `(() => {
           if(!window.__ibxEditEnabled || activeEl || busy) return;
           if(isUiNode(e.target)) return;
           try{ lastPt={ x:e.clientX, y:e.clientY }; }catch{}
+          // Drag mode me hover outline nahi — ghost/drop-line hi feedback hai.
+          if(dragMode) return;
           let t=null; try{ t=findEditableTarget(e.target); }catch{}
           if(t===hoverEl) return;
           clearHover();
+          // Page par naya element point kiya → purani tree selection hatao
+          // (warna sidebar tools stale tree target par chalte rahenge).
+          try{ if(t && treeSelEl && t!==treeSelEl) treeSelEl=null; }catch{}
           if(t){ hoverEl=t; try{ hoverEl.classList.add('__ibx-edit-hover'); }catch{} queueLocate(t); }
         }
         function onMouseOut(e){
-          if(!window.__ibxEditEnabled || activeEl) return;
+          if(!window.__ibxEditEnabled || activeEl || dragMode) return;
           try{ const rel=e.relatedTarget; if(hoverEl && rel && hoverEl.contains(rel)) return; }catch{}
           clearHover();
         }
@@ -153,7 +186,14 @@ export const EDIT_HELPER_SOURCE = `(() => {
           // (fail par host revert karta hai), isliye "pehle wala orig"
           // stale ho jata tha — agla commit us purane needle se fail hota tha.
           try{
-            let h=String(el.outerHTML||'');
+            // Clone se serialize: live DOM pe se class/attr hatana highlight
+            // ko todta hai — clone silent hai, dono taraf artifacts safe.
+            let h='';
+            try{
+              const c=el.cloneNode(true);
+              stripEditArtifacts(c);
+              h=String(c.outerHTML||'');
+            }catch{ h=String(el.outerHTML||''); }
             // spellcheck=false sirf edit-time lagta hai; purane cycle se node
             // par chipak jaye to orig/file-needle me NA aaye — warna html save
             // "Element not found in project" se fail hoke revert hota tha.
@@ -209,11 +249,15 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{ oldHtml=String(el.__ibxOrigHTML||''); }catch{}
           try{ el.removeAttribute('contenteditable'); }catch{}
           try{ el.removeAttribute('spellcheck'); }catch{}
-          try{ el.classList.remove('__ibx-edit-active'); stripEmptyClass(el); }catch{}
+          stripEditArtifacts(el);
           try{ el.style.outline=''; }catch{}
           hideStyleBar();
           let cur='';
           try{ cur=String(el.outerHTML||''); }catch{}
+          // Selection persist: commit ke baad activeEl null hota hai — tab tak
+          // mouse sidebar par hota hai (hoverEl/lastPt galat element point kar
+          // sakte the). treeSelEl = agle button clicks ka stable target.
+          try{ if(document.contains(el)) treeSelEl=el; }catch{}
           activeEl=null; committing=false;
           if(!oldHtml.trim()||!cur.trim()||oldHtml===cur){
             try{ restoreOriginal(el); }catch{}
@@ -256,6 +300,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               el.classList.remove('__ibx-edit-active');
               stripEmptyClass(el);
               el.style.outline='';
+              try{ if(document.contains(el)) treeSelEl=el; }catch{}
             }
           }catch{}
         }
@@ -295,6 +340,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             el.style.outline='';
           }catch{}
           hideStyleBar();
+          try{ if(document.contains(el)) treeSelEl=el; }catch{}
           activeEl=null; committing=false;
           clearHover();
           try{ capturePrevTitle(); }catch{}
@@ -411,6 +457,15 @@ export const EDIT_HELPER_SOURCE = `(() => {
         }
         function onDocKey(e){
           if(!window.__ibxEditEnabled) return;
+          // Drag in progress ho to sirf Esc cancel karo (baaki keys ruk jayen)
+          if(dragSrc || dragActive){
+            if(e.key==='Escape'){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              cancelDrag();
+            }
+            if(dragActive || dragSrc) return;
+          }
           if(activeEl) return; // text edit me native keys rehne do
           try{ if(e.target && e.target.closest && e.target.closest('[data-ibx-ui]')) return; }catch{}
           try{
@@ -481,7 +536,16 @@ export const EDIT_HELPER_SOURCE = `(() => {
         }
         function onClick(e){
           if(!window.__ibxEditEnabled) return;
+          // Drag-drop ke baad ka click (ya drag-mode ka simple press) — edit
+          // activate na ho. 350ms suppress window.
+          if(Date.now()<suppressClickUntil){
+            try{ e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+            return;
+          }
           try{ if(e.target && e.target.closest && e.target.closest('[data-ibx-ui]')) return; }catch{}
+          // Drag mode: click par text-edit activate NAHI — grab-cursor hai,
+          // click = drag intent. Warna activeEl set hokar drag block hota.
+          if(dragMode) return;
           // Alt+click = attributes (img src, link href, ...). Text edit nahi.
           if(e.altKey){
             e.preventDefault(); e.stopPropagation();
@@ -520,7 +584,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{}
           activateEl(t);
         }
-        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} try{ closeInspect(); }catch{} try{ closeLinkPopup(); }catch{} try{ closeHtmlPopup(); }catch{} }
+        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ treeSelEl=null; setTreeHi(null); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} try{ closeInspect(); }catch{} try{ closeLinkPopup(); }catch{} try{ closeHtmlPopup(); }catch{} }
         // ── Attribute editor (Alt+click) ─────────────────────────────
         const ATTR_DEFS=[
           {k:'href',label:'Link URL'},
@@ -896,6 +960,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             const p=pickCommitAnchor(el, ratio||1.2);
             if(!p) return false;
             const hidden=detachUi(p);
+            stripEditArtifacts(p);
             let oldHtml='';
             try{ oldHtml=String(p.outerHTML||''); }catch{}
             if(!oldHtml){ reattachUi(hidden); return false; }
@@ -903,7 +968,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             let mutated=false;
             try{ mutate(p); mutated=true; }catch{}
             let cur='';
-            if(mutated){ try{ cur=String(p.outerHTML||''); }catch{} }
+            if(mutated){ stripEditArtifacts(p); try{ cur=String(p.outerHTML||''); }catch{} }
             reattachUi(hidden);
             if(!mutated || !cur || oldHtml===cur || cur.length>14000){
               try{ restoreOriginal(p); }catch{}
@@ -989,6 +1054,12 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{}
           inspectPopup=null;
         }
+        // TODO(React props panel — phase 2): inspector ke saath hi "Props"
+        // section hoga. Guest: target ka outerHTML + tag/class fingerprint
+        // bhejo; host: liveEditLocate se source file nikal kar JSX/TSX me
+        // component ke props/defaults parse karo, sidebar me variant list
+        // dikhao (enum/bool/number), edit par file write → preview reload.
+        // DOM→component mapping approximate (tagName+className+text) chalegi.
         function openInspector(el, x, y){
           try{
             if(!el || el.nodeType!==1 || !el.tagName) return;
@@ -1311,6 +1382,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         function resolveTarget(needText){
           try{
             if(activeEl && document.contains(activeEl)) return activeEl;
+            if(treeSelEl && document.contains(treeSelEl)) return treeSelEl;
             if(hoverEl && document.contains(hoverEl)) return hoverEl;
             if(!lastPt) return null;
             const hit=document.elementFromPoint(lastPt.x, lastPt.y);
@@ -1328,6 +1400,24 @@ export const EDIT_HELPER_SOURCE = `(() => {
             }
           }catch{}
           return null;
+        }
+        // Style controls ka target: text-edit na bhi ho, page ka element
+        // styled ho sakta hai (card par padding/radius wagarah). body/html/
+        // hamare apne UI nodes ko chhod kar wahi resolution jo tools karte hain.
+        function resolveStyleTarget(){
+          try{
+            if(activeEl && document.contains(activeEl)) return activeEl;
+            if(treeSelEl && document.contains(treeSelEl)) return treeSelEl;
+            if(hoverEl && document.contains(hoverEl)) return hoverEl;
+            if(!lastPt) return null;
+            const hit=document.elementFromPoint(lastPt.x, lastPt.y);
+            if(!hit || hit.nodeType!==1 || isUiNode(hit)) return null;
+            const tg=String(hit.tagName||'').toUpperCase();
+            if(tg==='HTML'||tg==='HEAD'||tg==='BODY') return null;
+            const t=findEditableTarget(hit);
+            if(t) return t;
+            return hit;
+          }catch{ return null; }
         }
         // Pending text/style edit ho to pehle save karo, phir tool chalao
         // (HTML tool ka openHtmlEditor bhi yahi karta hai).
@@ -1353,6 +1443,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{
             if(!window.__ibxEditEnabled) return false;
             if(name==='cancel'){ try{ window.__ibxCancelEdit && window.__ibxCancelEdit(); }catch{} return true; }
+            // Drag toggle ko target ki zaroorat nahi — mode sirf on/off hai.
+            if(name==='dragToggle'){ try{ window.__ibxSetDragMode(!dragMode); }catch{} return true; }
             const needText=(name==='edit'||name==='html');
             const t=resolveTarget(needText);
             if(!t){ sendNotice('Point at an element in the page first'); return false; }
@@ -1402,6 +1494,234 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return false;
           }catch{ return false; }
         };
+        // ── v6: drag-and-drop rearrange (sidebar "Drag" toggle) ────────────────
+        // Drag mode ON: element ko grab karke kisi bhi doosre element ke
+        // upar/neeche (parent ke axis ke hisaab se) chhodo — order/parent
+        // badalta hai aur (anchor ancestor ke) html commit se file me save
+        // hota hai. Ghost chip + teal drop-line indicator.
+        let dragMode=false, dragSrc=null, dragActive=false, dragStart=null,
+            dragGhost=null, dragLine=null, dragStyleEl=null,
+            dragParent=null, dragRef=null, suppressClickUntil=0;
+        function setDragCursor(on){
+          try{
+            if(on){
+              if(!dragStyleEl){
+                dragStyleEl=document.createElement('style');
+                dragStyleEl.setAttribute('data-ibx-ui','1');
+                dragStyleEl.textContent='html,body,body *{cursor:grab !important;}';
+                (document.head||document.documentElement).appendChild(dragStyleEl);
+              }
+            } else if(dragStyleEl){ try{ dragStyleEl.remove(); }catch{} dragStyleEl=null; }
+          }catch{}
+        }
+        function ensureDragUi(){
+          try{
+            if(!dragGhost){
+              dragGhost=document.createElement('div');
+              dragGhost.setAttribute('data-ibx-ui','1');
+              dragGhost.style.cssText='position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;background:#111111 !important;color:#4ec9b0 !important;font:11px/1.4 system-ui,sans-serif !important;padding:2px 8px !important;border-radius:4px !important;box-shadow:0 4px 14px rgba(0,0,0,0.4) !important;display:none !important;';
+              document.body.appendChild(dragGhost);
+            }
+            if(!dragLine){
+              dragLine=document.createElement('div');
+              dragLine.setAttribute('data-ibx-ui','1');
+              dragLine.style.cssText='position:fixed !important;z-index:2147483646 !important;background:#4ec9b0 !important;pointer-events:none !important;display:none !important;';
+              document.body.appendChild(dragLine);
+            }
+          }catch{}
+        }
+        function removeDragUi(){
+          try{ if(dragGhost){ dragGhost.remove(); dragGhost=null; } }catch{}
+          try{ if(dragLine){ dragLine.remove(); dragLine=null; } }catch{}
+        }
+        function hideDragUi(){
+          try{ if(dragGhost) dragGhost.style.display='none'; }catch{}
+          try{ if(dragLine) dragLine.style.display='none'; }catch{}
+        }
+        function dragEndVisual(){
+          try{ if(dragSrc){ dragSrc.classList.remove('__ibx-edit-hover'); stripEmptyClass(dragSrc); } }catch{}
+          hideDragUi();
+        }
+        function dragSkipNode(n){
+          try{
+            if(!n || n.nodeType!==1) return true;
+            const tg=String(n.tagName||'').toUpperCase();
+            if(tg==='HTML'||tg==='HEAD'||tg==='BODY') return true;
+            if(isUiNode(n)) return true;
+            if(dragSrc && (n===dragSrc || dragSrc.contains(n))) return true;
+          }catch{ return true; }
+          return false;
+        }
+        // Drop point ka target/axis nirdharit karo + drop-line dikhao.
+        // Axis: parent block/grid → vertical (upar/neeche), flex-row/inline →
+        // horizontal (pehle/baad me). Sibling insert = Cursor jaisa reorder.
+        function dragUpdate(x, y){
+          try{
+            let T=null;
+            try{ T=document.elementFromPoint(x, y); }catch{}
+            if(T && T.nodeType===3) T=T.parentElement;
+            if(!T || dragSkipNode(T) || !T.parentElement){ hideDragUi(); dragParent=null; dragRef=null; return; }
+            const P=T.parentElement;
+            if(dragSkipNode(P)){ hideDragUi(); dragParent=null; dragRef=null; return; }
+            let axis='y';
+            try{
+              const cs=window.getComputedStyle(P);
+              const d=String(cs.display||'');
+              const fd=String(cs.flexDirection||'');
+              if(d==='flex'||d==='inline-flex'){ axis=(fd.indexOf('row')!==-1 && fd.indexOf('column')===-1)?'x':'y'; }
+              else if(d==='inline'||d==='inline-block'||d==='table'||d==='table-row-group'){ axis='x'; }
+            }catch{}
+            const r=T.getBoundingClientRect();
+            const before=(axis==='x') ? (x < r.left+r.width/2) : (y < r.top+r.height/2);
+            dragParent=P;
+            dragRef=before ? T : T.nextElementSibling;
+            ensureDragUi();
+            try{
+              if(axis==='y'){
+                dragLine.style.left=r.left+'px';
+                dragLine.style.width=Math.max(8, r.width)+'px';
+                dragLine.style.height='2px';
+                dragLine.style.top=((before ? r.top : r.bottom)-1)+'px';
+              } else {
+                dragLine.style.top=r.top+'px';
+                dragLine.style.height=Math.max(8, r.height)+'px';
+                dragLine.style.width='2px';
+                dragLine.style.left=((before ? r.left : r.right)-1)+'px';
+              }
+              dragLine.style.display='block';
+            }catch{}
+          }catch{}
+        }
+        // Move commit: anchor aisa hona chahiye jo purani DONO jagah (old parent
+        // aur naya parent) contain kare — warna cross-parent drop me file me
+        // sirf purani jagah se hat-ta aur nayi jagah add hi na hota.
+        function dragCommitMove(src, P, ref){
+          try{
+            if(!src || !document.contains(src) || !P || !document.contains(P)) return false;
+            if(src===P || src.contains(P)) return false;
+            const oldP=src.parentElement;
+            if(!oldP) return false;
+            if(ref===src) return true; // no-op drop
+            if(!ref && oldP===P && !src.nextElementSibling) return true; // no-op drop
+            let C=null;
+            if(oldP===P){
+              try{ C=pickCommitAnchor(src, 1.6); }catch{ C=null; }
+              if(C && !(C===P || (C.contains && C.contains(src)))) C=null;
+            }
+            if(!C){
+              let x=oldP, g=0;
+              while(x && g++<12 && x!==document.documentElement){
+                if(x===P || (x.contains && x.contains(P))){ C=x; break; }
+                x=x.parentElement;
+              }
+            }
+            if(!C) C=P;
+            const hidden=detachUi(C);
+            stripEditArtifacts(C);
+            let oldHtml='';
+            try{ oldHtml=String(C.outerHTML||''); }catch{}
+            C.__ibxOrigHTML=oldHtml;
+            let moved=false;
+            try{ P.insertBefore(src, ref||null); moved=true; }catch{ moved=false; }
+            let cur='';
+            if(moved){ stripEditArtifacts(C); try{ cur=String(C.outerHTML||''); }catch{} }
+            reattachUi(hidden);
+            if(!moved || !oldHtml || !cur || oldHtml===cur || oldHtml.length>14000 || cur.length>14000){
+              try{ restoreOriginal(C); }catch{}
+              return false;
+            }
+            try{ capturePrevTitle(); }catch{}
+            lastCommitEl=C;
+            sendPayload({ mode:'html', oldHtml: oldHtml, newHtml: cur, tagName: String(C.tagName||''), url: location.href });
+            return true;
+          }catch{ return false; }
+        }
+        function onDragDown(e){
+          try{
+            if(!dragMode || !window.__ibxEditEnabled || e.button!==0) return;
+            if(e.ctrlKey||e.metaKey||e.altKey) return;
+            if(isUiNode(e.target)) return;
+            // Text-edit active hai to pehle use khatam karo — warna poora
+            // drag session isi check par ruk jata tha (drag "dead" lagta tha).
+            if(activeEl){ try{ commitEdit(); }catch{} }
+            if(activeEl){ try{ cleanupActive(false); }catch{} }
+            if(activeEl) return;
+            let t=e.target;
+            if(t && t.nodeType===3) t=t.parentElement;
+            if(!t || t.nodeType!==1) return;
+            let hit=findEditableTarget(t);
+            if(!hit){
+              const tg=String(t.tagName||'').toUpperCase();
+              if(tg==='HTML'||tg==='HEAD'||tg==='BODY') return;
+              hit=t;
+            }
+            if(!hit || !hit.parentElement || isUiNode(hit)) return;
+            dragSrc=hit;
+            dragActive=false;
+            dragStart={ x:e.clientX, y:e.clientY };
+            dragParent=null; dragRef=null;
+            try{ e.preventDefault(); e.stopPropagation(); }catch{}
+          }catch{}
+        }
+        function onDragMove(e){
+          try{
+            if(!dragSrc) return;
+            if(!dragActive){
+              if(!dragStart) return;
+              if(Math.abs(e.clientX-dragStart.x)+Math.abs(e.clientY-dragStart.y)<6) return;
+              dragActive=true;
+              try{ clearHover(); }catch{}
+              try{ hideStyleBar(); hideHint(); }catch{}
+              ensureDragUi();
+              try{
+                dragSrc.classList.add('__ibx-edit-hover');
+                dragGhost.textContent=String(dragSrc.tagName||'').toLowerCase()+(dragSrc.id?'#'+dragSrc.id:'');
+                dragGhost.style.display='block';
+              }catch{}
+            }
+            try{
+              dragGhost.style.left=(e.clientX+14)+'px';
+              dragGhost.style.top=(e.clientY+14)+'px';
+            }catch{}
+            dragUpdate(e.clientX, e.clientY);
+          }catch{}
+        }
+        function onDragUp(){
+          try{
+            if(!dragSrc) return;
+            const src=dragSrc, was=dragActive, P=dragParent, ref=dragRef;
+            dragSrc=null; dragActive=false; dragStart=null; dragParent=null; dragRef=null;
+            suppressClickUntil=Date.now()+350;
+            dragEndVisual();
+            if(!was) return; // drag nahi hua (simple press-release) — click bhi suppress
+            if(!P || !document.contains(src)) return;
+            busy++;
+            try{ dragCommitMove(src, P, ref); }
+            finally { busy--; }
+            try{ clearHover(); }catch{}
+          }catch{}
+        }
+        function cancelDrag(){
+          try{
+            dragSrc=null; dragActive=false; dragStart=null; dragParent=null; dragRef=null;
+            suppressClickUntil=Date.now()+350;
+            dragEndVisual();
+          }catch{}
+        }
+        window.__ibxSetDragMode=function(on){
+          try{
+            dragMode=!!on;
+            if(dragMode){
+              // Active text-edit block karta tha (onDragDown activeEl par
+              // ruk jata tha) — drag ON karte hi pending edit commit kar do.
+              try{ if(activeEl) commitEdit(); }catch{}
+              try{ if(activeEl) cleanupActive(false); }catch{}
+              setDragCursor(true);
+            }
+            else { cancelDrag(); setDragCursor(false); removeDragUi(); }
+          }catch{}
+          return dragMode;
+        };
         // STYLE section: name se inline style apply (sidebar + state dono) ──
         function applyStyle(el, name, val){
           try{
@@ -1434,6 +1754,66 @@ export const EDIT_HELPER_SOURCE = `(() => {
               el.style.textTransform=tts[(i+1)%tts.length];
               return true;
             }
+            // ── Visual controls (sliders/layout — host sidebar se) ──
+            const num=function(dflt,min,max){
+              const v=parseFloat(val);
+              if(!isFinite(v)) return dflt;
+              return Math.min(max, Math.max(min,v));
+            };
+            if(name==='fs'){ el.style.fontSize=Math.round(num(16,6,240))+'px'; return true; }
+            if(name==='fw'){ el.style.fontWeight=String(Math.round(num(400,100,900))); return true; }
+            if(name==='lh'){ el.style.lineHeight=String(Math.round(num(1.2,0.3,5)*100)/100); return true; }
+            if(name==='ls'){ el.style.letterSpacing=(Math.round(num(0,-10,40)*2)/2)+'px'; return true; }
+            if(name==='ff'){ if(val){ el.style.fontFamily=String(val); return true; } return false; }
+            if(name==='pad'){ el.style.padding=Math.round(num(0,0,160))+'px'; return true; }
+            if(name==='mg'){ el.style.margin=Math.round(num(0,0,160))+'px'; return true; }
+            if(name==='rad'){ el.style.borderRadius=Math.round(num(0,0,160))+'px'; return true; }
+            if(name==='op'){ el.style.opacity=String(Math.round(num(100,0,100))/100); return true; }
+            if(name==='gap'){ el.style.gap=Math.round(num(0,0,128))+'px'; return true; }
+            if(name==='dir'){
+              if(val==='off'){
+                try{ el.style.removeProperty('display'); el.style.removeProperty('flex-direction'); }catch{}
+                return true;
+              }
+              if(val==='row'||val==='col'){
+                el.style.display='flex';
+                el.style.flexDirection=(val==='col')?'column':'row';
+                return true;
+              }
+              return false;
+            }
+            if(name==='jc'){
+              if(val){ el.style.justifyContent=String(val); }
+              else { try{ el.style.removeProperty('justify-content'); }catch{} }
+              return true;
+            }
+            if(name==='ai'){
+              if(val){ el.style.alignItems=String(val); }
+              else { try{ el.style.removeProperty('align-items'); }catch{} }
+              return true;
+            }
+            // ── Grid controls (sidebar Layout section) ──
+            if(name==='grid'){
+              if(String(el.style.display||'')==='grid'){ try{ el.style.removeProperty('display'); }catch{} }
+              else { el.style.display='grid'; }
+              return true;
+            }
+            if(name==='block'){ try{ el.style.removeProperty('display'); }catch{} return true; }
+            if(name==='gcols' || name==='grows'){
+              const prop=(name==='gcols') ? 'grid-template-columns' : 'grid-template-rows';
+              const s=String(val==null?'':val).trim();
+              if(!s){ try{ el.style.removeProperty(prop); }catch{} return true; }
+              // Number likha ho to repeat(n, 1fr) — baaki user ka raw value
+              let v=s;
+              if(/^[0-9]+$/.test(s)) v='repeat('+s+', 1fr)';
+              try{ el.style.setProperty(prop, v); }catch{ return false; }
+              return true;
+            }
+            if(name==='wrap'){
+              if(!val || val==='off'){ try{ el.style.removeProperty('flex-wrap'); }catch{} return true; }
+              el.style.flexWrap=(val==='wrap') ? 'wrap' : 'nowrap';
+              return true;
+            }
             if(name==='clear'){ try{ el.removeAttribute('style'); }catch{} return true; }
           }catch{}
           return false;
@@ -1444,8 +1824,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             let el=activeEl;
             let own=false;
             if(!el || !document.contains(el)){
-              el=resolveTarget(true);
-              if(!el){ sendNotice('Click a text element first'); return false; }
+              el=resolveStyleTarget();
+              if(!el){ sendNotice('Point at an element in the page first'); return false; }
               // Pending style-session chal raha ho to snapshot mat taazo —
               // warna needle (orig) har tick ke saath drift kar save fail karega.
               if(!el.__ibxStyleTimer) snapshot(el);
@@ -1463,8 +1843,13 @@ export const EDIT_HELPER_SOURCE = `(() => {
         // Sidebar ka STYLE panel isi se highlight/state padhta hai (host poll).
         window.__ibxStyleState=function(){
           try{
-            const el=activeEl;
-            if(!el || !document.contains(el)) return { active:false };
+            // Target chain: active text edit → tree selection → hover →
+            // last pointed element (sidebar poll tab bhi live rahe).
+            let el=activeEl;
+            if(!el || !document.contains(el)) el=treeSelEl;
+            if(!el || !document.contains(el)) el=hoverEl;
+            if(!el || !document.contains(el)) el=resolveStyleTarget();
+            if(!el || !document.contains(el)) return { active:false, drag: dragMode };
             const is=window.getComputedStyle(el);
             const deco=String(el.style.textDecorationLine||'');
             let color='#000000', bg='';
@@ -1473,8 +1858,33 @@ export const EDIT_HELPER_SOURCE = `(() => {
               const b=String(is.backgroundColor||'');
               if(b && b!=='rgba(0, 0, 0, 0)' && b!=='rgba(0,0,0,0)' && b!=='transparent') bg=rgbToHex(b);
             }catch{}
+            // ── visual controls readback (slider/select values) ──
+            let fs=16, fw=400, lh=1.2, ls=0;
+            try{ fs=Math.round(parseFloat(is.fontSize)||16); }catch{}
+            try{ fw=parseInt(is.fontWeight,10)||400; }catch{}
+            try{
+              const lhv=parseFloat(is.lineHeight);
+              lh = (isFinite(lhv) && lhv>0 && fs>0) ? Math.round((lhv/fs)*10)/10 : 1.2;
+            }catch{}
+            try{
+              const lsv=parseFloat(is.letterSpacing);
+              ls = isFinite(lsv) ? Math.round(lsv*2)/2 : 0;
+            }catch{}
+            let pad=0, mg=0, rad=0, op=100, gap=0;
+            try{ pad=Math.round(parseFloat(is.paddingTop)||0); }catch{}
+            try{ mg=Math.round(parseFloat(is.marginTop)||0); }catch{}
+            try{ rad=Math.round(parseFloat(String(is.borderRadius||'').split(' ')[0])||0); }catch{}
+            try{ op=Math.round((parseFloat(is.opacity)||0)*100); if(op<0) op=0; if(op>100) op=100; }catch{}
+            try{ gap=Math.round(parseFloat(el.style.gap||is.gap||'')||0); }catch{}
+            let jc=String(is.justifyContent||''); if(jc==='normal') jc='';
+            let ai=String(is.alignItems||''); if(ai==='normal') ai='';
+            let gcols='', grows='', wrap='';
+            try{ gcols=String(el.style.gridTemplateColumns||''); }catch{}
+            try{ grows=String(el.style.gridTemplateRows||''); }catch{}
+            try{ wrap=String(is.flexWrap||''); if(wrap==='normal') wrap=''; }catch{}
             return {
               active: true,
+              drag: dragMode,
               tag: String(el.tagName||'').toLowerCase(),
               text: String(el.textContent||'').trim().slice(0,60),
               bold: String(el.style.fontWeight||'')==='bold',
@@ -1485,9 +1895,16 @@ export const EDIT_HELPER_SOURCE = `(() => {
               bg: bg,
               align: normAlign(el.style.textAlign||is.textAlign||'left'),
               tt: String(el.style.textTransform||is.textTransform||'none'),
-              size: Math.round(parseFloat(is.fontSize)||16)
+              size: Math.round(parseFloat(is.fontSize)||16),
+              fs: fs, fw: fw, lh: lh, ls: ls,
+              ff: String(is.fontFamily||''),
+              pad: pad, mg: mg, rad: rad, op: op, gap: gap,
+              disp: String(is.display||''),
+              dir: String(is.flexDirection||''),
+              jc: jc, ai: ai,
+              gcols: gcols, grows: grows, wrap: wrap
             };
-          }catch{ return { active:false }; }
+          }catch{ return { active:false, drag: dragMode }; }
         };
         // ── Hover locate hint (file guess badge) ───────────────────────
         function hideHint(){ try{ if(hintBadge) hintBadge.remove(); }catch{} hintBadge=null; }
@@ -1498,7 +1915,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ txt=String(el.innerText||'').trim().slice(0,200); }catch{}
             if(!txt) return;
             let outer='';
-            try{ outer=String(el.outerHTML||'').slice(0,300); }catch{}
+            try{
+              const c=el.cloneNode(true);
+              stripEditArtifacts(c);
+              outer=String(c.outerHTML||'').slice(0,300);
+            }catch{}
             const tag=String(el.tagName||'');
             const id=++locateSeq;
             lastLocateEl=el;
@@ -1533,6 +1954,232 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return true;
           }catch{ return false; }
         };
+        // ── v7: DOM tree panel (sidebar) + properties panel ──────────────────
+        // Tree ids: WeakMap se stable (page lifetime), Map sirf latest
+        // snapshot ke elements rakhta hai (stale id → miss → host refresh).
+        let treeSeq=0;
+        const treeWeak=(typeof WeakMap!=='undefined') ? new WeakMap() : null;
+        let treeMap=new Map();
+        function treeIdOf(el){
+          try{
+            if(!treeWeak) return 0;
+            let id=treeWeak.get(el);
+            if(!id){ id=++treeSeq; treeWeak.set(el, id); }
+            return id;
+          }catch{ return 0; }
+        }
+        function treeElOf(id){
+          try{ return treeMap.get(Number(id)||0)||null; }catch{ return null; }
+        }
+        function treeSkipNode(n){
+          try{
+            if(!n || n.nodeType!==1) return true;
+            if(isUiNode(n)) return true;
+            const tg=String(n.tagName||'');
+            if(['SCRIPT','STYLE','NOSCRIPT','META','LINK','TITLE','BASE','TEMPLATE'].indexOf(tg)!==-1) return true;
+            return false;
+          }catch{ return true; }
+        }
+        function treeVisible(el){
+          try{
+            const s=window.getComputedStyle(el);
+            if(s.display==='none' || s.visibility==='hidden') return false;
+            return true;
+          }catch{ return true; }
+        }
+        // Target path (root→target) taaki host tree me us row ko expand kar sake
+        function treePathOf(el){
+          const out=[];
+          try{
+            let x=el, g=0;
+            while(x && g++<40){
+              if(treeSkipNode(x)) { x=null; break; }
+              out.push(treeIdOf(x));
+              if(x===document.body || x===document.documentElement) break;
+              x=x.parentElement;
+            }
+          }catch{}
+          return out.reverse();
+        }
+        function setTreeHi(el){
+          try{
+            if(treeHiEl && treeHiEl!==el){ try{ treeHiEl.classList.remove('__ibx-edit-hover'); stripEmptyClass(treeHiEl); }catch{} treeHiEl=null; }
+            if(el && document.contains(el)){ treeHiEl=el; el.classList.add('__ibx-edit-hover'); }
+          }catch{}
+        }
+        // Host poll: poora (depth-limited) tree JSON — caps taaki huge
+        // pages par bhi sidebar responsive rahe.
+        window.__ibxTreeState=function(){
+          try{
+            if(!window.__ibxEditEnabled) return { on:false, nodes:[] };
+            treeMap=new Map();
+            const MAX=900, MAXKIDS=80, MAXDEPTH=12;
+            let count=0, trunc=false;
+            function walk(el, depth){
+              if(count>=MAX || depth>MAXDEPTH){ trunc=true; return null; }
+              if(treeSkipNode(el)) return null;
+              const id=treeIdOf(el);
+              if(!id) return null;
+              count++;
+              treeMap.set(id, el);
+              const node={ i:id, t:String(el.tagName||'').toLowerCase(), d:depth };
+              try{ if(el.id) node.x=String(el.id).slice(0,40); }catch{}
+              try{
+                const cl=el.className;
+                if(typeof cl==='string' && cl.trim()) node.c=cl.trim().split(/\\s+/).filter(function(w){ return !!w && w!=='__ibx-edit-hover' && w!=='__ibx-edit-active'; }).slice(0,3).join(' ').slice(0,60);
+              }catch{}
+              try{
+                if(el.children && el.children.length<=2){
+                  const tx=String(el.innerText||'').trim().split(/\\s+/).join(' ').slice(0,40);
+                  if(tx) node.tx=tx;
+                }
+              }catch{}
+              if(!treeVisible(el)) node.h=1;
+              const kids=[];
+              try{
+                const ch=el.children;
+                if(ch){
+                  const lim=Math.min(ch.length, MAXKIDS);
+                  for(let k=0;k<lim;k++){
+                    const cn=walk(ch[k], depth+1);
+                    if(cn) kids.push(cn);
+                    if(count>=MAX){ trunc=true; break; }
+                  }
+                  if(ch.length>lim) trunc=true;
+                }
+              }catch{}
+              if(kids.length) node.k=kids;
+              return node;
+            }
+            const root=walk(document.body||document.documentElement, 0);
+            // Current target (page click / tree select / hover) + uska path
+            let tgt=null;
+            try{
+              if(activeEl && document.contains(activeEl)) tgt=activeEl;
+              else if(treeSelEl && document.contains(treeSelEl)) tgt=treeSelEl;
+              else if(hoverEl && document.contains(hoverEl)) tgt=hoverEl;
+            }catch{}
+            const tgtId=tgt ? treeIdOf(tgt) : 0;
+            const tgtPath=tgt ? treePathOf(tgt) : [];
+            return { on:true, nodes: root?[root]:[], tgt:tgtId, tgtPath:tgtPath, trunc:trunc };
+          }catch(e){ return { on:false, nodes:[] }; }
+        };
+        window.__ibxTreeHover=function(id){
+          try{
+            if(!window.__ibxEditEnabled) return false;
+            const el=treeElOf(id);
+            setTreeHi(el);
+            if(el){ try{ el.scrollIntoView({block:'nearest'}); }catch{} }
+            return !!el;
+          }catch{ return false; }
+        };
+        window.__ibxTreeSelect=function(id){
+          try{
+            if(!window.__ibxEditEnabled) return false;
+            const el=treeElOf(id);
+            if(!el) return false;
+            try{ clearHover(); }catch{}
+            treeSelEl=el;
+            try{ el.scrollIntoView({block:'nearest'}); }catch{}
+            return true;
+          }catch{ return false; }
+        };
+        window.__ibxTreeClear=function(){
+          try{ treeSelEl=null; setTreeHi(null); }catch{}
+          return true;
+        };
+        // Tree se drag karke reorder — wahi anchor-based HTML commit jo
+        // in-page drag (dragCommitMove) use karta hai.
+        window.__ibxTreeMove=function(srcId, refId, pos){
+          try{
+            if(!window.__ibxEditEnabled) return false;
+            const src=treeElOf(srcId), ref=treeElOf(refId);
+            if(!src || !ref || src===ref) return false;
+            if(!document.contains(src) || !document.contains(ref)) return false;
+            const ts=String(src.tagName||''), tr=String(ref.tagName||'');
+            if(ts==='BODY'||ts==='HTML'||tr==='BODY'||tr==='HTML') return false;
+            if(src.contains(ref)) return false;
+            let P=null, r=null;
+            if(pos==='inside'){ P=ref; r=null; }
+            else { P=ref.parentElement; r=ref; }
+            if(!P) return false;
+            try{ setTreeHi(null); }catch{}
+            busy++;
+            try{ return !!dragCommitMove(src, P, r); }
+            finally { busy--; }
+          }catch{ return false; }
+        };
+        // ── Properties panel: attributes read/edit ──
+        function resolvePropTarget(){
+          try{
+            if(activeEl && document.contains(activeEl)) return activeEl;
+            if(treeSelEl && document.contains(treeSelEl)) return treeSelEl;
+            if(hoverEl && document.contains(hoverEl)) return hoverEl;
+            return resolveStyleTarget();
+          }catch{ return null; }
+        }
+        window.__ibxPropState=function(){
+          try{
+            if(!window.__ibxEditEnabled) return { active:false };
+            const el=resolvePropTarget();
+            if(!el) return { active:false };
+            const attrs=[];
+            try{
+              const named=el.attributes;
+              for(let i=0; named && i<named.length; i++){
+                const a=named[i];
+                if(!a || a.name==='style' || a.name==='contenteditable' || a.name==='spellcheck') continue;
+                attrs.push({ n:String(a.name), v:String(a.value||'').slice(0,300) });
+              }
+            }catch{}
+            let cls='';
+            try{ cls=(typeof el.className==='string') ? el.className : ''; }catch{}
+            try{
+              cls=cls.split('__ibx-edit-hover').join(' ').split('__ibx-edit-active').join(' ');
+              cls=cls.split(' ').filter(function(w){ return !!w; }).join(' ');
+            }catch{}
+            let txt='';
+            try{ txt=String(el.innerText||'').trim().split(/\\s+/).join(' ').slice(0,160); }catch{}
+            let outer='';
+            try{
+              const c=el.cloneNode(true);
+              stripEditArtifacts(c);
+              outer=String(c.outerHTML||'').slice(0,300);
+            }catch{}
+            return {
+              active:true,
+              tag:String(el.tagName||'').toLowerCase(),
+              id:String(el.id||''),
+              cls:cls, attrs:attrs, text:txt, outer:outer,
+              kids: el.children ? el.children.length : 0
+            };
+          }catch(e){ return { active:false }; }
+        };
+        window.__ibxPropSet=function(name, val){
+          try{
+            if(!window.__ibxEditEnabled) return false;
+            const n=String(name==null?'':name).trim();
+            if(!n || !/^[a-zA-Z][a-zA-Z0-9:._-]*$/.test(n)) return false;
+            const el=resolvePropTarget();
+            if(!el){ sendNotice('Point at an element in the page first'); return false; }
+            const v=String(val==null?'':val);
+            let cur=null;
+            try{ cur=el.getAttribute(n); }catch{}
+            if(String(cur==null?'':cur)===v) return true;
+            let own=false;
+            if(!(activeEl===el)){
+              if(!el.__ibxStyleTimer) snapshot(el);
+              own=true;
+            }
+            try{
+              if(v==='') el.removeAttribute(n);
+              else el.setAttribute(n, v);
+            }catch{ return false; }
+            el.__ibxDirtyHTML=true;
+            if(own){ try{ hideStyleBar(); }catch{} scheduleStyleCommit(el, 0); }
+            return true;
+          }catch{ return false; }
+        };
         window.__ibxSetEditMode = function(enabled){
           window.__ibxEditEnabled = !!enabled;
           if(window.__ibxEditEnabled){
@@ -1541,6 +2188,10 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ document.addEventListener('mouseout', onMouseOut, true); }catch{}
             try{ document.addEventListener('click', onClick, true); }catch{}
             try{ document.addEventListener('keydown', onDocKey, true); }catch{}
+            // v6: drag-and-drop rearrange (sidebar Drag toggle)
+            try{ document.addEventListener('mousedown', onDragDown, true); }catch{}
+            try{ document.addEventListener('mousemove', onDragMove, true); }catch{}
+            try{ document.addEventListener('mouseup', onDragUp, true); }catch{}
             // NOTE: cursor inline style ME mat lagao — body.outerHTML file se
             // match karna chahiye (body anchor commits). CSS sheet me hai.
             try{ window.addEventListener('pagehide', onPageHide); }catch{}
@@ -1550,7 +2201,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ document.removeEventListener('mouseout', onMouseOut, true); }catch{}
             try{ document.removeEventListener('click', onClick, true); }catch{}
             try{ document.removeEventListener('keydown', onDocKey, true); }catch{}
+            try{ document.removeEventListener('mousedown', onDragDown, true); }catch{}
+            try{ document.removeEventListener('mousemove', onDragMove, true); }catch{}
+            try{ document.removeEventListener('mouseup', onDragUp, true); }catch{}
             try{ window.removeEventListener('pagehide', onPageHide); }catch{}
+            try{ window.__ibxSetDragMode && window.__ibxSetDragMode(false); }catch{}
             // Host already commits via __ibxCommitPendingEdit before disabling.
             // Any leftover active edit here is stale — restore to avoid broken UI.
             try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); restoreOriginal(el); } }catch{}
@@ -1559,6 +2214,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ closeLinkPopup(); }catch{}
             try{ closeHtmlPopup(); }catch{}
             try{ hideStyleBar(); }catch{}
+            try{ treeSelEl=null; setTreeHi(null); }catch{}
             clearHover();
             removeStyle();
           }

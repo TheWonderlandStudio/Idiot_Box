@@ -34,6 +34,9 @@ const GitPage = ({ settings, onSave }) => {
 
   return (
     <div>
+      <section className="sw-frame">
+      <div className="sw-section-title">Sync</div>
+
       {/* ── Auto Fetch ─────────────────────────────────────────────────── */}
       <div className="sw-row">
         <span className="sw-row__label">Auto Fetch</span>
@@ -54,6 +57,30 @@ const GitPage = ({ settings, onSave }) => {
         </label>
       </div>
 
+      {/* ── Auto Stash on Pull ─────────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Auto Stash on Pull</span>
+        <span className="sw-row__desc">
+          Automatically stash and reapply local changes when pulling.
+        </span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{autoStash ? "Enabled" : "Disabled"}</span>
+          <button
+            className={`sw-toggle-btn${autoStash ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => toggle("autoStash", autoStash)}
+            aria-checked={autoStash}
+            role="switch"
+            aria-label="Toggle auto stash"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+      </section>
+
+      <section className="sw-frame">
+      <div className="sw-section-title">Editor</div>
+
       {/* ── Show Git Gutter ────────────────────────────────────────────── */}
       <div className="sw-row">
         <span className="sw-row__label">Show Git Gutter</span>
@@ -71,46 +98,6 @@ const GitPage = ({ settings, onSave }) => {
             aria-checked={showGutter && enableGutter}
             role="switch"
             aria-label="Toggle git gutter"
-          >
-            <span className="sw-toggle-thumb" />
-          </button>
-        </label>
-      </div>
-
-      {/* ── Confirm Commit ─────────────────────────────────────────────── */}
-      <div className="sw-row">
-        <span className="sw-row__label">Confirm Before Commit</span>
-        <span className="sw-row__desc">
-          Require confirmation when committing without a message or with no staged changes.
-        </span>
-        <label className="sw-toggle-row">
-          <span className="sw-toggle-label">{confirmCommit ? "Enabled" : "Disabled"}</span>
-          <button
-            className={`sw-toggle-btn${confirmCommit ? " sw-toggle-btn--on" : ""}`}
-            onClick={() => toggle("confirmCommit", confirmCommit)}
-            aria-checked={confirmCommit}
-            role="switch"
-            aria-label="Toggle confirm commit"
-          >
-            <span className="sw-toggle-thumb" />
-          </button>
-        </label>
-      </div>
-
-      {/* ── Auto Stash ─────────────────────────────────────────────────── */}
-      <div className="sw-row">
-        <span className="sw-row__label">Auto Stash on Pull</span>
-        <span className="sw-row__desc">
-          Automatically stash and reapply local changes when pulling.
-        </span>
-        <label className="sw-toggle-row">
-          <span className="sw-toggle-label">{autoStash ? "Enabled" : "Disabled"}</span>
-          <button
-            className={`sw-toggle-btn${autoStash ? " sw-toggle-btn--on" : ""}`}
-            onClick={() => toggle("autoStash", autoStash)}
-            aria-checked={autoStash}
-            role="switch"
-            aria-label="Toggle auto stash"
           >
             <span className="sw-toggle-thumb" />
           </button>
@@ -136,6 +123,34 @@ const GitPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+      </section>
+
+      <section className="sw-frame">
+      <div className="sw-section-title">Commits</div>
+
+      {/* ── Confirm Before Commit ─────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Confirm Before Commit</span>
+        <span className="sw-row__desc">
+          Require confirmation when committing without a message or with no staged changes.
+        </span>
+        <label className="sw-toggle-row">
+          <span className="sw-toggle-label">{confirmCommit ? "Enabled" : "Disabled"}</span>
+          <button
+            className={`sw-toggle-btn${confirmCommit ? " sw-toggle-btn--on" : ""}`}
+            onClick={() => toggle("confirmCommit", confirmCommit)}
+            aria-checked={confirmCommit}
+            role="switch"
+            aria-label="Toggle confirm commit"
+          >
+            <span className="sw-toggle-thumb" />
+          </button>
+        </label>
+      </div>
+      </section>
+
+      <section className="sw-frame">
+      <div className="sw-section-title">About</div>
 
       {/* ── Info ───────────────────────────────────────────────────────── */}
       <div className="sw-row">
@@ -144,6 +159,7 @@ const GitPage = ({ settings, onSave }) => {
           Idiot Box uses your system Git installation. Ensure <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)" }}>git</code> is available on PATH for full functionality.
         </span>
       </div>
+      </section>
     </div>
   );
 };

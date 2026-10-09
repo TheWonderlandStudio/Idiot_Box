@@ -66,32 +66,39 @@
       <h1 class="sr-only">Idiot Box privacy policy</h1>
       <article class="doc-card">
         <h2 class="doc-title">Privacy Policy</h2>
-        <p class="doc-meta"><strong>Effective:</strong> September 24, 2026<br><strong>App:</strong> Idiot Box by The Wonderland Studio</p>
+        <p class="doc-meta"><strong>Effective:</strong> October 8, 2026<br><strong>App:</strong> Idiot Box by The Wonderland Studio</p>
 
-        <p>Idiot Box is a free, open-source desktop IDE. Your code, settings, API keys, and chat history stay on your machine. We do not run user accounts or servers that collect your data.</p>
+        <p>Idiot Box is a free, open-source desktop IDE. Your code, settings, projects, and chats stay on your machine. We do not run user accounts or servers that collect your data.</p>
 
         <h3>1. What stays on your device</h3>
         <p>Idiot Box stores its app data locally in your system's app-data folder, such as <code>%AppData%/idiot-box</code> on Windows.</p>
         <p>This includes:</p>
         <ul>
-          <li><strong>Settings:</strong> Your theme, fonts, AI provider and model choices, GitHub username, cursor and wallpaper preferences.</li>
-          <li><strong>Projects:</strong> Recent and pinned project paths, open tabs, canvas drawings, and project-specific app state. Your actual project files are never moved or copied.</li>
-          <li><strong>AI API keys:</strong> These are stored only in your local <code>settings.json</code>. They are sent directly from your machine to the AI provider you selected. We never see, log, or store them on our servers.</li>
-          <li><strong>Chat history:</strong> Your AI conversations are stored locally on your device.</li>
+          <li><strong>Settings:</strong> A local <code>settings.json</code> holds your theme, fonts, layout presets, terminal, git, canvas and cursor preferences, your GitHub username, and the telemetry toggle.</li>
+          <li><strong>Projects:</strong> Recent and pinned project paths, open tabs, canvas drawings, and project-specific app state under <code>projects/</code>. Your actual project files are never moved or copied.</li>
+          <li><strong>Install ID:</strong> A random 24-character id in <code>install-id.json</code>, used only for the anonymous stats described below. It never identifies you.</li>
+          <li><strong>Sessions and extensions:</strong> Window/session restore, layout presets, recent-project lists, and any browser extensions you choose to install — all stored locally.</li>
+          <li><strong>Chats:</strong> The Hub assistant chat is held in memory only while the app is open and disappears when you close it. OpenCode agent sessions are saved locally by the bundled OpenCode runtime in its own storage.</li>
+          <li><strong>Voice input:</strong> Microphone audio is transcribed offline using your operating system's built-in speech recognition. The recording never leaves your device and the temporary audio file is deleted immediately afterwards.</li>
+          <li><strong>Toolchains:</strong> If you run Android setup or need a runtime for the Run panel, the Android SDK, JDK and the mise binary are downloaded into the same app-data folder.</li>
         </ul>
-        <p>You can view or delete this data through the app's storage controls, or by deleting the app-data folder. Uninstalling Idiot Box does not delete your project files.</p>
+        <p>Idiot Box itself never asks for or stores AI API keys. Anything you hand to the OpenCode agent, including credentials, is handled by OpenCode's own configuration on your machine. You can delete all of this data by removing the app-data folder. Uninstalling Idiot Box does not delete your project files.</p>
 
         <h3>2. When Idiot Box connects to the internet</h3>
-        <p>Idiot Box can work offline. Internet access is only used by features you choose to use.</p>
-        <p>Depending on the features you enable, the app may connect to:</p>
+        <p>Idiot Box can work offline. Apart from the automatic update check below, internet access is only used by features you choose to use.</p>
+        <p>Depending on what you use, the app may connect to:</p>
         <ul>
-          <li><strong>AI providers</strong> such as OpenAI, Anthropic, Google, OpenRouter, Groq, Together, DeepSeek, xAI, Mistral, Ollama, OpenCode Zen, Pollinations, or a server you provide.</li>
-          <li><strong>GitHub API</strong> for contribution information and checking releases or updates.</li>
-          <li><strong>Anonymous usage stats</strong> (opt-out, on by default): a random install ID that never identifies you, the app version, and a timestamp. This powers the public "total users" counter and the "online now" number on our download page. No file paths, no project names, no IP logging on our side. Turn it off any time in <em>Settings → General → Telemetry</em>.</li>
-          <li><strong>Ollama or custom local servers</strong> when you configure them.</li>
-          <li><strong>Public icon CDNs</strong> such as vscode-icons and devicons for project and file icons.</li>
+          <li><strong>Anonymous usage stats</strong> (opt-out, on by default): one hit on a public install counter per install, then a heartbeat every 30 seconds while the app is open. The whole payload is your random install ID, the app version, and a timestamp — no file paths, no project names, no personal data. This powers the "total users" counter and the "online now" number on our download page. The relay is public by design, so anyone can see that a random ID is currently online; that is the trade-off for a counter we cannot tamper with. Turn it all off any time in <em>Settings → General → Telemetry</em>.</li>
+          <li><strong>Update checks:</strong> roughly every six hours, and shortly after launch, the app asks GitHub Releases whether a new version exists. A download only starts after you approve it.</li>
+          <li><strong>Built-in assistant:</strong> the project-setup chat and AI commit messages are sent to <strong>Pollinations</strong> (text.pollinations.ai) and, when that is unavailable, to <strong>OVHcloud AI Endpoints</strong>' anonymous tier. No API key is involved. Whatever you type there is covered by those providers' own privacy policies.</li>
+          <li><strong>GitHub:</strong> release and update information from api.github.com. If you enter a GitHub username and enable the Hub heatmap, your contribution graph is loaded through a third-party public proxy (github-contributions-api.jogruber.de) and your repository list through api.github.com.</li>
+          <li><strong>Icon CDNs:</strong> file and framework icons from raw.githubusercontent.com (vscode-icons), cdn.jsdelivr.net (devicons), cdn.simpleicons.org, and the Tailwind browser build used by the component preview.</li>
+          <li><strong>Tool downloads:</strong> when you press Setup or Run, the app fetches an Eclipse Temurin JDK from Adoptium, Android command-line tools and system images from Google, and the mise binary from GitHub releases.</li>
+          <li><strong>Embedded web panels:</strong> the Community panel loads wonder-no-server-chat.pages.dev and the OpenPencil panel loads app.openpencil.dev. Both are third-party sites with their own privacy policies. The OpenCode agent itself runs as a local server on 127.0.0.1.</li>
+          <li><strong>Your own providers:</strong> anything you point the OpenCode agent at — including Ollama or other local servers — is contacted directly from your machine.</li>
         </ul>
         <p>When using an AI provider, your prompts, attached files, and tool results may be sent to that provider. Each provider has its own privacy policy.</p>
+        <p>Idiot Box contains no analytics SDKs, no advertising code, and no crash reporting that uploads. Crash dumps are written to disk locally and never sent anywhere.</p>
 
         <h3>3. This website</h3>
         <p>The Idiot Box website is a static site hosted on GitHub Pages.</p>
@@ -100,8 +107,8 @@
         <p>Download and source-code buttons simply take you to GitHub.</p>
 
         <h3>4. Browsing inside the app</h3>
-        <p>The built-in Browser panel allows you to browse the web directly.</p>
-        <p>Websites you visit through it are responsible for their own privacy practices. Idiot Box does not proxy, record, or monitor your browser traffic.</p>
+        <p>The built-in Browser panel allows you to browse the web directly, and any Chrome extensions you install run inside it.</p>
+        <p>Websites you visit through it — and the extensions themselves — are responsible for their own privacy practices. Idiot Box does not proxy, record, or monitor your browser traffic.</p>
 
         <h3>5. Children</h3>
         <p>Idiot Box is a general-purpose developer tool and is not specifically designed for children under 13.</p>

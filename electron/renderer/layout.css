@@ -495,6 +495,13 @@ body,
   border-bottom: none;
   flex-shrink: 0;
 }
+/* Row: webview + docked edit sidebar (overlay NAHI — webview shrink hota hai) */
+.browser__main {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+}
 .browser__btn {
   display: flex;
   align-items: center;
@@ -710,19 +717,14 @@ body,
 
 /* ── Edit-mode sidebar (edit mode ke saare controls) ───────────────────────── */
 .browser { --edit-sb-w: 252px; }
-/* Overlay: webview full width rehta hai; sidebar uske upar right me float. */
+/* Docked panel: webview ke bagal me apni column, content cover NAHI karta. */
 .browser__edit-sidebar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
   width: var(--edit-sb-w);
-  z-index: var(--z-popover);
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-pop);
   overflow: hidden;
 }
 .eb-head {
@@ -855,6 +857,82 @@ body,
 .eb-tbtn:disabled { opacity: 0.35; cursor: default; }
 .eb-tbtn--on { background: var(--teal-a18); border-color: var(--teal-a50); color: var(--teal); }
 .eb-tbtn--on:hover:not(:disabled) { background: var(--teal-a22); border-color: var(--teal); color: var(--teal-bright); }
+
+/* ── Visual controls (sliders / selects / palette) ────────────────────────── */
+.eb-sub {
+  margin: var(--space-10) 0 var(--space-5);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-extrabold);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+.eb-sub:first-child { margin-top: 0; }
+.eb-slider {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.eb-slider-label {
+  font-size: var(--fs-tiny);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eb-slider input[type="range"] {
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+.eb-slider input[type="range"]:disabled { opacity: 0.4; cursor: default; }
+.eb-slider-val {
+  font-size: var(--fs-tiny);
+  color: var(--icon);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.eb-srow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.eb-srow > span {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: var(--fs-tiny);
+  color: var(--text-muted);
+}
+.eb-select {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--icon);
+  font-family: inherit;
+  font-size: var(--fs-tiny);
+  cursor: pointer;
+}
+.eb-select:disabled { opacity: 0.4; cursor: default; }
+.eb-swatches { display: flex; flex-wrap: wrap; gap: var(--space-5); }
+.eb-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  padding: 0;
+  cursor: pointer;
+}
+.eb-swatch:hover:not(:disabled) { outline: 2px solid var(--teal); outline-offset: 1px; }
+.eb-swatch:disabled { opacity: 0.35; cursor: default; }
 .eb-color {
   width: 100%;
   min-height: 44px;
@@ -889,13 +967,126 @@ body,
   font-weight: var(--fw-bold);
   text-align: center;
 }
+.eb-srow > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Sidebar overlay ke neeche na chale jaye isliye floating bars ko side me hatao */
+/* ── Label ke right me chhote action buttons (tree refresh/clear) ─────────── */
+.eb-label-actions { margin-left: auto; display: flex; gap: var(--space-3); }
+.eb-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--t-normal), color var(--t-normal), border-color var(--t-normal);
+}
+.eb-mini:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-hover); border-color: var(--border-strong); }
+.eb-mini:disabled { opacity: 0.35; cursor: default; }
+
+/* ── DOM tree (Elements panel) ────────────────────────────────────────────── */
+.eb-tree {
+  max-height: 210px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  padding: var(--space-3) 0;
+}
+.eb-tree__node { min-width: 0; }
+.eb-tree__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 2px var(--space-5) 2px 6px;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background var(--t-normal);
+}
+.eb-tree__row:hover { background: var(--bg-hover); color: var(--text-hover); }
+.eb-tree__row--sel { background: var(--teal-a18); color: var(--teal); }
+.eb-tree__row--muted { opacity: 0.45; }
+.eb-tree__row--drop-before { box-shadow: inset 0 2px 0 var(--teal); }
+.eb-tree__row--drop-after { box-shadow: inset 0 -2px 0 var(--teal); }
+.eb-tree__row--drop-inside { background: var(--teal-a18); outline: 1px dashed var(--teal-a50); outline-offset: -1px; }
+.eb-tree__chev {
+  width: 10px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 9px;
+  text-align: center;
+}
+.eb-tree__chev--leaf { opacity: 0.3; }
+.eb-tree__chev--open { color: var(--teal); }
+.eb-tree__tag {
+  flex-shrink: 0;
+  font-weight: var(--fw-bold);
+  color: var(--icon);
+}
+.eb-tree__row--sel .eb-tree__tag { color: var(--teal); }
+.eb-tree__id { flex-shrink: 0; color: var(--warning); overflow: hidden; text-overflow: ellipsis; }
+.eb-tree__cls { flex-shrink: 0; color: var(--teal); overflow: hidden; text-overflow: ellipsis; }
+.eb-tree__tx {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.eb-tree__kids { min-width: 0; }
+
+/* ── Properties panel (attr inputs + source row) ──────────────────────────── */
+.eb-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--icon);
+  font-family: inherit;
+  font-size: var(--fs-tiny);
+}
+.eb-input:focus { outline: none; border-color: var(--teal-a50); background: var(--bg-app); }
+.eb-src {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-tiny);
+  color: var(--teal);
+}
+
+/* ── Design tokens (palette ke saved swatches + add button) ────────────────── */
+.eb-swatch--tok { position: relative; box-shadow: 0 0 0 1px var(--bg-surface), 0 0 0 2px var(--teal-a50); }
+.eb-swatch--add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-raised);
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: var(--fw-extrabold);
+  line-height: 1;
+}
+.eb-swatch--add:hover:not(:disabled) { background: var(--teal-a18); color: var(--teal-bright); }
+
+/* Findbar/toast — view-wrap ke andar absolute (sidebar docked hai, webview
+   apni column me hai — extra offset ki zaroorat nahi) */
 .browser__findbar { position: absolute; top: 8px; right: 12px; z-index: var(--z-toast); }
-.browser__view-wrap--sidebar .browser__findbar { right: calc(var(--edit-sb-w) + 12px); }
 .browser__toast { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); }
-.browser__view-wrap--sidebar .browser__toast { left: calc(50% - var(--edit-sb-w) / 2); }
-.browser__view-wrap--sidebar .browser__edit-pill { left: calc(50% - var(--edit-sb-w) / 2); }
 
 /* Sidebar collapsed → floating open button */
 .browser__edit-open {
@@ -928,6 +1119,7 @@ body,
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   width: 100%;
 }
 .browser__view {

@@ -32,6 +32,10 @@ const GeneralPage = ({ settings, onSave }) => {
 
   return (
     <div>
+      {/* ── Appearance ──────────────────────────────────────────────────── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Appearance</div>
+
       {/* ── Theme ──────────────────────────────────────────────────────── */}
       <div className="sw-row">
         <span className="sw-row__label">Theme</span>
@@ -83,8 +87,11 @@ const GeneralPage = ({ settings, onSave }) => {
           <span className="sw-inline-label">%</span>
         </div>
       </div>
+      </section>
 
       {/* ── Restore Tabs ───────────────────────────────────────────────── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Session &amp; Files</div>
       <div className="sw-row">
         <span className="sw-row__label">Restore Previous Session</span>
         <span className="sw-row__desc">
@@ -143,8 +150,11 @@ const GeneralPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+      </section>
 
       {/* ── Confirm Delete ─────────────────────────────────────────────── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Privacy &amp; Safety</div>
       <div className="sw-row">
         <span className="sw-row__label">Confirm Before Delete</span>
         <span className="sw-row__desc">
@@ -184,6 +194,7 @@ const GeneralPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+      </section>
     </div>
   );
 };

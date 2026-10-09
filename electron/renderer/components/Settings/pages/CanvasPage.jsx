@@ -36,6 +36,8 @@ const CanvasPage = ({ settings, onSave }) => {
 
   return (
     <div>
+      <section className="sw-frame">
+      <div className="sw-section-title">Appearance</div>
       {/* ── Theme ──────────────────────────────────────────────────────── */}
       <div className="sw-row">
         <span className="sw-row__label">Canvas Theme</span>
@@ -53,6 +55,28 @@ const CanvasPage = ({ settings, onSave }) => {
           <option value="light">Light</option>
         </select>
       </div>
+
+      {/* ── Background ─────────────────────────────────────────────────── */}
+      <div className="sw-row">
+        <span className="sw-row__label">Background</span>
+        <span className="sw-row__desc">
+          Drawing canvas background: solid black, solid white, or grid. You can also change it from the toolbar.
+        </span>
+        <select
+          className="sw-select"
+          value={bgMode}
+          onChange={(e) => updateCanvas({ bgMode: e.target.value })}
+          aria-label="Canvas background"
+        >
+          <option value="black">Black</option>
+          <option value="white">White</option>
+          <option value="grid">Grid</option>
+        </select>
+      </div>
+      </section>
+
+      <section className="sw-frame">
+      <div className="sw-section-title">Saving</div>
 
       {/* ── Autosave ───────────────────────────────────────────────────── */}
       <div className="sw-row">
@@ -74,31 +98,14 @@ const CanvasPage = ({ settings, onSave }) => {
         </label>
       </div>
 
-      {/* ── Background ─────────────────────────────────────────────────── */}
-      <div className="sw-row">
-        <span className="sw-row__label">Background</span>
-        <span className="sw-row__desc">
-          Drawing canvas background: solid black, solid white, or grid. You can also change it from the toolbar.
-        </span>
-        <select
-          className="sw-select"
-          value={bgMode}
-          onChange={(e) => updateCanvas({ bgMode: e.target.value })}
-          aria-label="Canvas background"
-        >
-          <option value="black">Black</option>
-          <option value="white">White</option>
-          <option value="grid">Grid</option>
-        </select>
-      </div>
-
       {/* ── Storage note ───────────────────────────────────────────────── */}
       <div className="sw-row">
         <span className="sw-row__label">Storage</span>
         <span className="sw-row__desc">
-          The scratch drawing saves per-project (drawing.excalidraw). Any .excalidraw file in your project opens in the Canvas when clicked.
+          The scratch drawing saves per-project (drawing.excalidraw).           Any .excalidraw file in your project opens in the Canvas when clicked.
         </span>
       </div>
+      </section>
     </div>
   );
 };

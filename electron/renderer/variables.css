@@ -468,6 +468,6 @@
 :root[data-theme="light"] .sw-nav-item { color: #555; }
 :root[data-theme="light"] .sw-nav-item:hover { background: #e5e5e5; color: #1a1a1a; }
 :root[data-theme="light"] .sw-nav-item--active { background: #e8e8e8; color: #1a1a1a; border-left-color: #007acc; }
-:root[data-theme="light"] .sw-content__header { background: #ffffff; border-bottom-color: #e0e0e0; }
+:root[data-theme="light"] .sw-content__header { background: transparent; border-bottom-color: #e0e0e0; }
 :root[data-theme="light"] .sw-content__title { color: #1a1a1a; }
 :root[data-theme="light"] html, :root[data-theme="light"] body, :root[data-theme="light"] #settings-root { background: #f3f3f3; color: #1a1a1a; }

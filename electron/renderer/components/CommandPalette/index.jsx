@@ -4,6 +4,8 @@
 // QuickOpen isme merge hai — alag overlay nahi rakha jata.
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { NAV } from "../Settings/nav.js";
+import { SETTINGS_INDEX } from "../Settings/searchIndex.js";
 
 const ed = (c) => () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: c } }));
 const act = (c) => () => window.dispatchEvent(new CustomEvent("menu:action", { detail: { cmd: c } }));
@@ -58,6 +60,24 @@ const COMMANDS = [
   { id: "settings",        group: "App", title: "Settings",                 run: () => window.electronAPI.openSettingsWindow() },
 ];
 
+// Settings pages + individual settings rows — palette se directly open/jump.
+const SETTINGS_CMDS = NAV.map((n) => ({
+  id: "settings:" + n.id,
+  group: "Settings",
+  title: "Settings: " + n.label,
+  kw: `${n.desc} ${n.keywords || ""}`,
+  run: () => window.electronAPI.openSettingsWindow(n.id),
+}));
+
+const settingsRowCmd = (e) => ({
+  id: "setting:" + e.page + ":" + e.label,
+  group: "Settings",
+  meta: NAV.find((n) => n.id === e.page)?.label || e.page,
+  title: e.label,
+  kw: `${e.desc} ${e.kw || ""}`,
+  run: () => window.electronAPI.openSettingsWindow(e.page, e.label),
+});
+
 const headStyle = {
   padding: "var(--space-6) var(--space-12) var(--space-4)",
   fontSize: "var(--fs-tiny)",
@@ -101,11 +121,18 @@ const CommandPalette = () => {
     return () => clearTimeout(debounceRef.current);
   }, [q, open, cmdOnly]);
 
-  // ── Commands (local fuzzy) ──
-  const cmds = useMemo(
-    () => COMMANDS.filter((c) => !q || c.title.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)),
-    [q]
-  );
+  // ── Commands (local fuzzy) + Settings (pages + rows) ──
+  const cmds = useMemo(() => {
+    const match = (c) => !q || `${c.title} ${c.group} ${c.kw || ""}`.toLowerCase().includes(q);
+    const out = COMMANDS.filter(match);
+    SETTINGS_CMDS.forEach((c) => { if (match(c)) out.push(c); });
+    if (q) SETTINGS_INDEX.forEach((e) => {
+      if (e.kind === "page") return;
+      const c = settingsRowCmd(e);
+      if (match(c)) out.push(c);
+    });
+    return out;
+  }, [q]);
 
   // ── Rows: Files section + grouped Commands (heads selectable nahi) ──
   const rows = useMemo(() => {
@@ -261,7 +288,7 @@ const CommandPalette = () => {
                 ) : (
                   <>
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.c.title}</span>
-                    <span style={{ flexShrink: 0, fontSize: "var(--fs-tiny)", opacity: on ? 0.85 : 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{r.c.group}</span>
+                    <span style={{ flexShrink: 0, fontSize: "var(--fs-tiny)", opacity: on ? 0.85 : 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{r.c.meta || r.c.group}</span>
                   </>
                 )}
               </div>

@@ -533,7 +533,7 @@ body{
   align-items: center;
   text-align: center;
   gap: 0;
-  animation: crawl-up 80s linear infinite;
+  animation: crawl-up 95s linear infinite;
   font-family: Inter, system-ui, sans-serif;
   color: #ececec;
 }

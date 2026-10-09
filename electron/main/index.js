@@ -7,6 +7,11 @@ const fs      = require("fs");
 const { pathToFileURL, fileURLToPath } = require("url");
 const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
+// Windows taskbar icon: shell AUMID ke through hi icon/name milta hai. Ye value
+// package.json build.appId ke barabar honi chahiye — dev (`electron .`) me bhi
+// taskbar par Electron ki jagah Idiot Box ka icon dikhe.
+// (BrowserWindow ka `icon` sirf window/Alt-Tab deta hai, taskbar button nahi.)
+try { app.setAppUserModelId("com.thewonderlandstudio.idiotbox"); } catch (e) { console.warn("[main] setAppUserModelId:", e && e.message); }
 let setupCsp = null;
 try { ({ setupCsp } = require("./csp")); } catch (e) { console.warn("[main] csp module not available:", e.message); }
 let chokidar = null;
@@ -476,7 +481,7 @@ function safeRename(src, dest) {
 //     index.json                  ← { version: 2, folders: { "<ProjectName>": { path, addedAt } } }
 //     <ProjectName>/              ← project ke naam par folder (same naam ho to " (2)", " (3)")
 //       project.json              ← { projectPath, addedAt } (self-describing)
-//       tabs.json / pinconfig.json / canvas-layout.json / drawing.excalidraw
+//       tabs.json / pinconfig.json / canvas-layout.json / drawing.excalidraw / visual-tokens.json
 // Purane `<name>-<hash12>` folders pehli access par auto-migrate ho jate hain
 // (rename only — data safe, project files untouched).
 const crypto = require("crypto");
@@ -2257,6 +2262,35 @@ ipcMain.handle("fs:writePinConfig", async (_e, rootPath, data) => {
       const legacyDir = path.join(rootPath, ".project_config");
       if (fs.existsSync(legacyDir) && fs.readdirSync(legacyDir).length === 0) fs.rmdirSync(legacyDir);
     } catch {}
+    return true;
+  } catch { return false; }
+});
+
+// ─── Visual editor: project design tokens (Browser edit sidebar palette) ─────
+// Store: <projectStore>/visual-tokens.json — array of "#rrggbb" strings.
+ipcMain.handle("fs:readVisualTokens", async (_e, rootPath) => {
+  if (!rootPath) return [];
+  try {
+    const storeDir = getProjectStoreDir(rootPath);
+    if (storeDir) {
+      const filePath = path.join(storeDir, "visual-tokens.json");
+      if (fs.existsSync(filePath)) {
+        const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        if (Array.isArray(data)) return data.filter((x) => typeof x === "string").slice(0, 60);
+      }
+    }
+  } catch {}
+  return [];
+});
+
+ipcMain.handle("fs:writeVisualTokens", async (_e, rootPath, tokens) => {
+  if (!rootPath) return false;
+  try {
+    const storeDir = getProjectStoreDir(rootPath);
+    if (!storeDir) return false;
+    fs.mkdirSync(storeDir, { recursive: true });
+    const arr = (Array.isArray(tokens) ? tokens : []).filter((x) => typeof x === "string").slice(0, 60);
+    fs.writeFileSync(path.join(storeDir, "visual-tokens.json"), JSON.stringify(arr, null, 2));
     return true;
   } catch { return false; }
 });
@@ -5597,12 +5631,13 @@ ipcMain.handle("chrome:removeExtension", (_e, id) => {
 
 // ─── Settings window ──────────────────────────────────────────────────────────
 let settingsWin = null;
-function openSettingsWindow(initialPage) {
+function openSettingsWindow(initialPage, initialFocus) {
   const page = typeof initialPage === "string" && initialPage ? initialPage : null;
+  const focus = typeof initialFocus === "string" && initialFocus ? initialFocus : null;
   if (settingsWin && !settingsWin.isDestroyed()) {
     settingsWin.focus();
-    // Already open — navigate to requested page (e.g. extensions)
-    if (page) { try { settingsWin.webContents.send("settings:navigate", page); } catch {} }
+    // Already open - navigate to requested page (e.g. extensions)
+    if (page || focus) { try { settingsWin.webContents.send("settings:navigate", page, focus); } catch {} }
     return;
   }
   settingsWin = new BrowserWindow({
@@ -5624,12 +5659,26 @@ function openSettingsWindow(initialPage) {
     const iz = getUiZoomFactor();
     if (iz !== 1) settingsWin.webContents.setZoomFactor(iz);
   } catch {}
-  settingsWin.loadFile(path.join(__dirname, "../renderer/settings.html"), page ? { query: { page } } : undefined);
+  const query = {};
+  if (page) query.page = page;
+  if (focus) query.focus = focus;
+  settingsWin.loadFile(path.join(__dirname, "../renderer/settings.html"), Object.keys(query).length ? { query } : undefined);
   settingsWin.once("ready-to-show", () => settingsWin.show());
   settingsWin.on("closed", () => { settingsWin = null; });
+  // Ctrl+K / Ctrl+F menu accelerators settings window me global search ko focus karwayein
+  try {
+    settingsWin.webContents.on("before-input-event", (event, input) => {
+      if (input.type !== "keyDown" || input.altKey) return;
+      const k = String(input.key || "").toLowerCase();
+      if ((input.control || input.meta) && (k === "f" || k === "k")) {
+        event.preventDefault();
+        try { event.sender.send("settings:focusSearch"); } catch {}
+      }
+    });
+  } catch {}
 }
 
-ipcMain.handle("settings:openWindow", (_e, initialPage) => openSettingsWindow(initialPage));
+ipcMain.handle("settings:openWindow", (_e, initialPage, initialFocus) => openSettingsWindow(initialPage, initialFocus));
 ipcMain.handle("menu:popup", (event, menuId) => {
   const menu = Menu.getApplicationMenu();
   const item = menu?.getMenuItemById(String(menuId || ""));

@@ -103,12 +103,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   readPinConfig:  (rootPath) => ipcRenderer.invoke("fs:readPinConfig", rootPath),
   writePinConfig: (rootPath, data) => ipcRenderer.invoke("fs:writePinConfig", rootPath, data),
 
+  // ── Visual editor design tokens (Browser edit sidebar) ──────────────────────
+  readVisualTokens:  (rootPath) => ipcRenderer.invoke("fs:readVisualTokens", rootPath),
+  writeVisualTokens: (rootPath, tokens) => ipcRenderer.invoke("fs:writeVisualTokens", rootPath, tokens),
+
   // ── Settings ───────────────────────────────────────────────────────────────
   readSettings:  ()     => ipcRenderer.invoke("settings:read"),
   writeSettings: (data) => ipcRenderer.invoke("settings:write", data),
   listEditors:   ()     => ipcRenderer.invoke("editors:list"),
-  openSettingsWindow: (page) => ipcRenderer.invoke("settings:openWindow", page),
-  onSettingsNavigate: (cb) => { const h=(_e,page)=>cb(page); ipcRenderer.on("settings:navigate", h); return ()=>ipcRenderer.removeListener("settings:navigate", h); },
+  openSettingsWindow: (page, focus) => ipcRenderer.invoke("settings:openWindow", page, focus),
+  onSettingsNavigate: (cb) => { const h=(_e,page,focus)=>cb(page, focus); ipcRenderer.on("settings:navigate", h); return ()=>ipcRenderer.removeListener("settings:navigate", h); },
+  onSettingsFocusSearch: (cb) => { const h=()=>cb(); ipcRenderer.on("settings:focusSearch", h); return ()=>ipcRenderer.removeListener("settings:focusSearch", h); },
   onSettingsUpdated: (cb) => { const h=(_e,data)=>cb(data); ipcRenderer.on("settings:updated", h); return ()=>ipcRenderer.removeListener("settings:updated", h); },
 
   // ── Browser context menus ──────────────────────────────────────────────────

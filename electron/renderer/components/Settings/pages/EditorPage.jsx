@@ -85,12 +85,17 @@ const EditorPage = ({ settings, onSave }) => {
 
   return (
     <div>
-      <ToggleRow flagKey="lineNumbers" on={lineNumbers} label="Line Numbers" desc="Show line numbers in the gutter." />
-      <ToggleRow flagKey="lineWrapping" on={lineWrapping} label="Word Wrap" desc="Wrap long lines (no horizontal scroll)." />
-      <ToggleRow flagKey="autocompletion" on={autocompletion} label="Autocompletion" desc="Suggest popup (Ctrl+Space)." />
-      <ToggleRow flagKey="tabAcceptsCompletion" on={tabAcceptsCompletion} label="Tab Accepts Suggestion" desc="Tab accepts an open suggestion, otherwise normal indent." />
+      <section className="sw-frame">
+      <div className="sw-section-title">Editing</div>
+      <ToggleRow className="sw-row" flagKey="lineNumbers" on={lineNumbers} label="Line Numbers" desc="Show line numbers in the gutter." />
+      <ToggleRow className="sw-row" flagKey="lineWrapping" on={lineWrapping} label="Word Wrap" desc="Wrap long lines (no horizontal scroll)." />
+      <ToggleRow className="sw-row" flagKey="autocompletion" on={autocompletion} label="Autocompletion" desc="Suggest popup (Ctrl+Space)." />
+      <ToggleRow className="sw-row" flagKey="tabAcceptsCompletion" on={tabAcceptsCompletion} label="Tab Accepts Suggestion" desc="Tab accepts an open suggestion, otherwise normal indent." />
+      </section>
 
       {/* ── Theme ── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Appearance</div>
       <div className="sw-row">
         <span className="sw-row__label">Theme</span>
         <span className="sw-row__desc">          vscodeDark / vscodeLight / oneDark. Applies instantly.</span>
@@ -155,8 +160,11 @@ const EditorPage = ({ settings, onSave }) => {
           <span className="sw-inline-label">px</span>
         </div>
       </div>
+      </section>
 
       {/* ── Tab Size + Indent Unit ── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Indentation</div>
       <div className="sw-row">
         <span className="sw-row__label">Tab Size</span>
         <span className="sw-row__desc">Tab stop width (1–8).</span>
@@ -185,8 +193,11 @@ const EditorPage = ({ settings, onSave }) => {
           ))}
         </select>
       </div>
+      </section>
 
       {/* ── Auto Save ── */}
+      <section className="sw-frame">
+      <div className="sw-section-title">Saving &amp; Advanced</div>
       <div className="sw-row">
         <span className="sw-row__label">Auto Save</span>
         <span className="sw-row__desc">Auto-saves after a short pause. If it is off, press Ctrl+S.</span>
@@ -205,7 +216,7 @@ const EditorPage = ({ settings, onSave }) => {
       </div>
 
       {/* ── Snippets ── */}
-      <ToggleRow flagKey="snippets" on={snippets} label="Snippets" desc="Code snippets in autocomplete (for, if, class, etc.)" />
+      <ToggleRow className="sw-row" flagKey="snippets" on={snippets} label="Snippets" desc="Code snippets in autocomplete (for, if, class, etc.)" />
 
       {/* ── Vim Mode ── */}
       <div className="sw-row">
@@ -224,6 +235,7 @@ const EditorPage = ({ settings, onSave }) => {
           </button>
         </label>
       </div>
+      </section>
     </div>
   );
 };
