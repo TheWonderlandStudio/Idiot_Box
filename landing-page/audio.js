@@ -21,7 +21,7 @@
 
   function fade(audio, to, ms) {
     return new Promise(function (resolve) {
-      const from = audio.volume;
+     const from = audio.volume;
       if (from === to) return resolve();
       const steps = 20;
       const step = (to - from) / steps;

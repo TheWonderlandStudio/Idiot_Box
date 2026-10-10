@@ -3,8 +3,8 @@
 // renders exactly ONE file from `config.filePath`. Tab strip, closing and
 // dirty ● markers go through flexlayout itself.
 //
-// Plain by design: file load/save, highlighting, basic editing, AI bridge.
-// No LSP, lint, git gutter, formatter, or custom find UI — CodeMirror
+// Plain by design: file load/save, highlighting, basic editing, formatter bridge, AI bridge.
+// No LSP, lint, git gutter, or custom find UI — CodeMirror
 // defaults (built-in search panel, indent-Tab). Vim + snippets optional
 // (settings flags). Engine: ./cm/extensions.js, ./cm/languages.js,
 // ./cm/settings.js, ./cm/snippets.js. AI-panel contract: ./cm/bridge.js
@@ -19,7 +19,7 @@ import {
 } from "@codemirror/commands";
 import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/search";
 import NotebookPanel from "../Notebook/index.jsx";
-import { Play, Square } from "lucide-react";
+import { Play, Sparkles, Square } from "lucide-react";
 import { MarkdownPreview, DbPreview } from "./preview.jsx";
 import "./editor.css";
 // Shared editor state (dirty flags, settings sync) — engine-agnostic.
@@ -83,6 +83,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1, totalLines: 1 });
   const [cmSettings, setCmSettings] = useState(() => ({ ...DEFAULT_CM_SETTINGS }));
   const [autoSave, setAutoSave] = useState(false);
+  const [formatBusy, setFormatBusy] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [langQuery, setLangQuery] = useState("");
   const [binaryFile, setBinaryFile] = useState(false);
@@ -329,6 +330,42 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     flashStatus(`Saved as: ${fileName(newPath)}`);
   }, [nodeId, isIpynb]);
 
+  const formatDocument = useCallback(async () => {
+    const view = viewRef.current;
+    const p = pathRef.current;
+    if (!view || !p || isIpynb || binaryRef.current || formatBusy) return;
+    setFormatBusy(true);
+    try {
+      const original = view.state.doc.toString();
+      const indentUnit = cmSettings.indentUnit || "  ";
+      const result = await window.electronAPI?.extFormat?.(p, original, langRef.current, {
+        tabSize: cmSettings.tabSize,
+        insertSpaces: !indentUnit.startsWith("\t"),
+      });
+      if (!result?.ok) {
+        flashStatus(result?.error || "No active document formatter is available");
+        return;
+      }
+      if (typeof result.text !== "string") {
+        flashStatus("Formatter returned invalid output");
+        return;
+      }
+      if (result.text !== original) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: result.text },
+          scrollIntoView: true,
+        });
+      }
+      flashStatus(result.text === original
+        ? `Already formatted${result.extName ? ` · ${result.extName}` : ""}`
+        : `Formatted${result.extName ? ` · ${result.extName}` : ""}`);
+    } catch (e) {
+      flashStatus(`Format failed: ${String((e && e.message) || e)}`);
+    } finally {
+      setFormatBusy(false);
+    }
+  }, [cmSettings, isIpynb, formatBusy]);
+
   // ── Editor command executor (is tab ke view par) ──
   const execCommand = useCallback(async (cmd) => {
     const view = viewRef.current;
@@ -375,16 +412,17 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         case "replace": openSearchPanel(view); break;
         case "gotoLine": gotoLine(view); break;
         case "commentLine": toggleComment(view); break;
+        case "format": await formatDocument(); break;
         case "copyLineDown": copyLineDown(view); break;
         case "copyLineUp": copyLineUp(view); break;
         case "moveLineUp": moveLineUp(view); break;
         case "moveLineDown": moveLineDown(view); break;
         case "deleteLine": deleteLine(view); break;
-        default: break; // format / gotoSymbol retired with the plain editor
+        default: break; // gotoSymbol retired with the plain editor
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isIpynb]);
+  }, [isIpynb, formatDocument]);
 
   // ── File & Edit menu commands (sirf active tab react kare) ──
   useEffect(() => {
@@ -603,7 +641,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
               ) : (
                 <div
                   style={{ position: "absolute", inset: 0 }}
-                  onContextMenu={onEditorContextMenu}
+                  onContextMenuCapture={onEditorContextMenu}
                 >
                   <CodeMirror
                     value={doc}
@@ -660,6 +698,22 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                 <span>{statusMsg || (isDbFile ? "SQLite database · read-only" : `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`)}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
+                {!isDbFile && !binaryFile && (
+                  <button
+                    type="button"
+                    onClick={formatDocument}
+                    disabled={formatBusy}
+                    title="Format Document"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: "var(--space-4)",
+                      padding: "0 var(--space-4)", border: 0, background: "transparent",
+                      color: "inherit", font: "inherit", cursor: formatBusy ? "wait" : "pointer",
+                      opacity: formatBusy ? 0.65 : 1,
+                    }}
+                  >
+                    <Sparkles size={11} /> {formatBusy ? "Formatting…" : "Format"}
+                  </button>
+                )}
                 {(autoSave || isAutoSaveEnabled()) && <span>AutoSave: On</span>}
                 <span>Spaces: {tabSize}</span>
                 <span>UTF-8</span>

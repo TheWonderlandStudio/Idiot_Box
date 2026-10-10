@@ -185,16 +185,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener(channel, handler);
   },
 
-  // ── App extensions (OpenVSX / host) ────────────────────────────────────────
-  extSearch: (q, opts) => ipcRenderer.invoke("ext:search", q, opts),
-  extInstall: (payload) => ipcRenderer.invoke("ext:install", payload),
+  // ── App extensions (host) ──────────────────────────────────────────────────
   extInstallFolder: () => ipcRenderer.invoke("ext:installFolder"),
-  extInstallVsix: () => ipcRenderer.invoke("ext:installVsix"),
+  extCommunityList: (repo) => ipcRenderer.invoke("ext:communityList", repo),
+  extCommunityInstall: (repo, extFolder) => ipcRenderer.invoke("ext:communityInstall", repo, extFolder),
+  extCommunityReadme: (repo, extFolder) => ipcRenderer.invoke("ext:communityReadme", repo, extFolder),
+  extDetails: (id) => ipcRenderer.invoke("ext:details", id),
   extUninstall: (id) => ipcRenderer.invoke("ext:uninstall", id),
   extSetEnabled: (id, on) => ipcRenderer.invoke("ext:setEnabled", id, on),
   extList: () => ipcRenderer.invoke("ext:list"),
   extCommands: () => ipcRenderer.invoke("ext:commands"),
   extInvoke: (id) => ipcRenderer.invoke("ext:invoke", id),
+  extFormat: (filePath, text, languageId, options) =>
+    ipcRenderer.invoke("ext:format", { filePath, text, languageId, options }),
   extViews: () => ipcRenderer.invoke("ext:views"),
   extViewHtml: (extId, viewType) => ipcRenderer.invoke("ext:viewHtml", extId, viewType),
   extViewMessage: (extId, viewType, msg) => ipcRenderer.invoke("ext:viewMessage", extId, viewType, msg),

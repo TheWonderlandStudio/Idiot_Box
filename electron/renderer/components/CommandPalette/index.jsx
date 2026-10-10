@@ -152,8 +152,15 @@ const CommandPalette = () => {
         id: "ext:" + c.id,
         group: c.category || "Extensions",
         title: c.title,
-        kw: `${c.extName || ""} extension`,
-        run: () => { try { window.electronAPI?.extInvoke?.(c.id); } catch {} },
+        meta: c.extName || c.extId || "Extension",
+        kw: `${c.extName || ""} ${c.extId || ""} extension`,
+        run: () => {
+          if (c.editorAction) {
+            window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: c.editorAction } }));
+            return;
+          }
+          try { window.electronAPI?.extInvoke?.(c.id); } catch {}
+        },
       };
       if (match(row)) out.push(row);
     });

@@ -62,8 +62,12 @@ try { tracking = require("./tracking"); } catch (e) { console.warn("[main] track
 // Hub chat → Pollinations free AI (main process se fetch, renderer se nahi)
 try { require("./ai-chat").registerAiChat(); } catch (e) { console.warn("[main] ai-chat not available:", e.message); }
 try { require("./opencode-panel").registerOpenCodePanel(() => lastProjectPath); } catch (e) { console.warn("[main] OpenCode panel not available:", e.message); }
-// App extension host — OpenVSX installs + local folders, vscode-shim activation.
-try { require("./extensions").registerExtensions({ getProjectPath: () => lastProjectPath }); } catch (e) { console.warn("[main] extension host not available:", e.message); }
+// App extension host — local folder installs, vscode-shim activation.
+let extHost = null;
+try {
+  extHost = require("./extensions");
+  extHost.registerExtensions({ getProjectPath: () => lastProjectPath });
+} catch (e) { console.warn("[main] extension host not available:", e.message); }
 
 // ─── Guard stdio EPIPE — prevent crash when parent closes pipes ──────────────
 // When stdout/stderr is a pipe whose reader has gone away, writes throw EPIPE
@@ -3454,6 +3458,32 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal") },
       ];
+      // App extension commands (jaise Prettier) — bottom me "Extensions" submenu.
+      try {
+        const extCmds = extHost && typeof extHost.listCommands === "function" ? extHost.listCommands() : [];
+        if (extCmds.length) {
+          const byExt = new Map();
+          for (const c of extCmds) {
+            const label = c.extName || c.extId || "Extension";
+            if (!byExt.has(label)) byExt.set(label, []);
+            byExt.get(label).push(c);
+          }
+          const submenu = [];
+          for (const [extName, cmds] of byExt) {
+            submenu.push({
+              label: extName,
+              submenu: cmds.map((c) => ({
+                label: c.title || c.id,
+                click: () => {
+                  if (c.editorAction) { act(c.editorAction); return; }
+                  try { extHost.runCommand(c.id); } catch (e) { console.warn("[main] ext command failed:", c.id, e && e.message); }
+                },
+              })),
+            });
+          }
+          items.push(sep, { label: "Extensions", submenu });
+        }
+      } catch (e) { console.warn("[main] ext context menu failed:", e && e.message); }
     } else if (type === "mediaViewer") {
       const filePath = selectedPaths?.[0] || "";
       const extName = path.extname(filePath).toLowerCase();

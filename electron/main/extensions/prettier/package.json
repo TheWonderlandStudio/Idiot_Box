@@ -1,0 +1,35 @@
+{
+  "name": "idiotbox.prettier",
+  "displayName": "Prettier",
+  "publisher": "Idiot Box",
+  "version": "1.0.0",
+  "description": "Format supported files with Prettier.",
+  "main": "extension.js",
+  "idiotbox": {
+    "id": "idiotbox.prettier",
+    "name": "Prettier",
+    "version": "1.0.0",
+    "main": "extension.js",
+    "commands": [
+      {
+        "command": "prettier.formatDocument",
+        "title": "Format Document",
+        "category": "Prettier",
+        "editorAction": "format"
+      }
+    ]
+  },
+  "activationEvents": [
+    "*"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "prettier.formatDocument",
+        "title": "Format Document",
+        "category": "Prettier",
+        "editorAction": "format"
+      }
+    ]
+  }
+}

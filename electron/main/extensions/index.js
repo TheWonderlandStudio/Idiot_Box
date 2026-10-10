@@ -1,19 +1,20 @@
 // ─── App extension host ──────────────────────────────────────────────────────
-// OpenVSX se install hue (aur local unpacked) extensions ko load karke unhe
-// ek VS Code-jaisa API surface deta hai. Sab kuch main process me chalta hai,
-// renderer sirf IPC bridge hai (commands → palette, views → iframe tabs,
-// status items → status bar, messages → toasts).
+// Installed (local unpacked) extensions ko load karke unhe Idiot Box-native
+// API surface deta hai. Sab kuch main process me chalta hai, renderer sirf
+// IPC bridge hai (commands → palette, views → iframe tabs, status items →
+// status bar, messages → toasts).
 //
-//   require("vscode")  → shim (commands/window/workspace/env/storage/…)
-//   context.ibox       → hamara asli API (same cheezein, terse names)
+//   context.ibox       → Idiot Box API
 //   activate(context)  → extension entry (function export bhi chalega)
 "use strict";
 
 const { app, ipcMain, BrowserWindow, dialog, shell, clipboard } = require("electron");
 const fs = require("fs");
 const path = require("path");
-const Module = require("module");
-const openvsx = require("./openvsx");
+const { pathToFileURL } = require("url");
+const folder = require("./folder");
+const community = require("./community");
+const { summarizeContributions } = require("./contrib");
 
 // ── Paths / state ───────────────────────────────────────────────────────────
 const stateFile = () => path.join(app.getPath("userData"), "extensions-state.json");
@@ -31,6 +32,32 @@ function saveJson(file, data) {
   try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); return true; } catch { return false; }
 }
 
+// ── contributes.commands → { id: { title, category } } (NLS titles resolved) ─
+function resolveNlsValue(nls, v) {
+  const s = String(v || "");
+  const m = s.match(/^%(.+)%$/);
+  return m ? (nls[m[1]] || s) : s;
+}
+function contribCommandMeta(dir) {
+  const mf = loadJson(path.join(dir, "package.json"), {});
+  const list = (mf.contributes && mf.contributes.commands) || [];
+  let nls = {};
+  try {
+    const nlsFile = path.join(dir, "package.nls.json");
+    if (fs.existsSync(nlsFile)) nls = JSON.parse(fs.readFileSync(nlsFile, "utf8"));
+  } catch {}
+  const map = new Map();
+  for (const c of list) {
+    if (!c || !c.command) continue;
+    map.set(c.command, {
+      title: resolveNlsValue(nls, c.title) || c.command,
+      category: resolveNlsValue(nls, c.category) || "",
+      editorAction: c.editorAction || "",
+    });
+  }
+  return map;
+}
+
 let state = loadJson(stateFile(), { extensions: {} });
 if (!state.extensions || typeof state.extensions !== "object") state.extensions = {};
 let kvStore = loadJson(storeFile(), {});
@@ -42,7 +69,70 @@ const persistStore = () => saveJson(storeFile(), kvStore);
 // extId → { disposables:[], commands:Map, views:Map, statusItems:Map, error }
 const runtime = new Map();
 const commandRegistry = new Map();   // commandId → { extId, title, category }
+const builtInCommands = new Map();    // commandId → { fn, title, category }
+const builtInRegistry = new Map();    // explicit native command registry
 let statusSeq = 0;
+
+function normalizeManifest(extDir, manifest = {}) {
+  const custom = manifest.idiotbox || manifest.ibox || {};
+  const id = custom.id || manifest.name || path.basename(extDir) || "unknown-extension";
+  const name = custom.name || manifest.displayName || manifest.name || id;
+  const version = custom.version || manifest.version || "0.0.0";
+  const description = custom.description || manifest.description || "";
+  const main = custom.main || manifest.main || manifest.browser || "extension.js";
+  const commands = Array.isArray(custom.commands) ? custom.commands : (manifest.contributes && Array.isArray(manifest.contributes.commands) ? manifest.contributes.commands : []);
+  const views = Array.isArray(custom.views) ? custom.views : (manifest.contributes && Array.isArray(manifest.contributes.views) ? manifest.contributes.views : []);
+  const asset = custom.asset || custom.window || {};
+  return {
+    id,
+    name,
+    rawName: manifest.name || id,
+    publisher: manifest.publisher || custom.publisher || (String(id).split(".")[0] || ""),
+    version,
+    description: String(description).slice(0, 400),
+    main,
+    commands,
+    views,
+    asset,
+    engines: custom.engines || "",
+  };
+}
+
+function registerBuiltInCommand(id, fn, meta = {}) {
+  const info = { fn, title: meta.title || id, category: meta.category || "Idiot Box" };
+  builtInCommands.set(id, info);
+  builtInRegistry.set(id, { extId: "__ibox__", title: info.title, category: info.category });
+  commandRegistry.set(id, { extId: "__ibox__", title: info.title, category: info.category });
+}
+
+function registerBuiltInCommands() {
+  registerBuiltInCommand("ibox:reload-extensions", async () => {
+    await activateAll();
+    notify("info", "Extensions reloaded");
+    return { ok: true };
+  }, { title: "Reload extensions", category: "Idiot Box" });
+
+  registerBuiltInCommand("ibox:toggle-devtools", () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win || win.isDestroyed()) return { ok: false, error: "No focused window" };
+    const wc = win.webContents;
+    if (wc.isDevToolsOpened()) wc.closeDevTools();
+    else wc.openDevTools({ mode: "detach" });
+    return { ok: true };
+  }, { title: "Toggle DevTools", category: "Idiot Box" });
+
+  registerBuiltInCommand("ibox:show-notification", (_, type, message) => {
+    notify(type || "info", message || "");
+    return { ok: true };
+  }, { title: "Show notification", category: "Idiot Box" });
+
+  registerBuiltInCommand("ibox:copy-to-clipboard", (_, text) => {
+    clipboard.writeText(String(text ?? ""));
+    return { ok: true };
+  }, { title: "Copy to clipboard", category: "Idiot Box" });
+}
+
+registerBuiltInCommands();
 
 // ── Broadcast helpers ───────────────────────────────────────────────────────
 function broadcast(channel, payload) {
@@ -100,18 +190,18 @@ let getProjectPath = () => null;
 // ── Per-extension pieces ────────────────────────────────────────────────────
 function ensureRuntime(extId) {
   let rt = runtime.get(extId);
-  if (!rt) { rt = { disposables: [], commands: new Map(), views: new Map(), statusItems: new Map(), error: null }; runtime.set(extId, rt); }
+  if (!rt) { rt = { disposables: [], commands: new Map(), views: new Map(), statusItems: new Map(), formatters: [], error: null }; runtime.set(extId, rt); }
   return rt;
 }
 
-function registerCommand(extId, commandId, fn, title, category) {
+function registerCommand(extId, commandId, fn, title, category, editorAction) {
   const rt = ensureRuntime(extId);
   const id = String(commandId || "");
   if (!id || typeof fn !== "function") return Disposable(() => {});
   if (commandRegistry.has(id) && commandRegistry.get(id).extId !== extId) {
     console.warn(`[ext] command id collision: ${id} (${commandRegistry.get(id).extId} vs ${extId})`);
   }
-  commandRegistry.set(id, { extId, title: title || id, category: category || "" });
+  commandRegistry.set(id, { extId, title: title || id, category: category || "", editorAction: editorAction || "" });
   rt.commands.set(id, fn);
   changed();
   return Disposable(() => {
@@ -121,19 +211,27 @@ function registerCommand(extId, commandId, fn, title, category) {
   });
 }
 
-function runCommand(commandId) {
+async function runCommand(commandId, ...args) {
+  const builtIn = builtInCommands.get(commandId);
+  if (builtIn && typeof builtIn.fn === "function") {
+    try {
+      const res = await builtIn.fn(...args);
+      return res && typeof res === "object" && "ok" in res ? res : { ok: true, result: res };
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      notify("error", `${commandId}: ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
   const entry = commandRegistry.get(commandId);
   if (!entry) return { ok: false, error: `Unknown command: ${commandId}` };
   try {
     const rt = runtime.get(entry.extId);
     const fn = rt && rt.commands.get(commandId);
     if (!fn) return { ok: false, error: `Command not active: ${commandId}` };
-    const r = fn();
-    if (r && typeof r.then === "function") {
-      r.then(() => ({ ok: true })).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
-      return { ok: true };
-    }
-    return { ok: true };
+    const res = await fn(...args);
+    return res && typeof res === "object" && "ok" in res ? res : { ok: true, result: res };
   } catch (e) {
     const msg = String((e && e.message) || e);
     notify("error", `${commandId}: ${msg}`);
@@ -224,7 +322,7 @@ function getViewHtml(extId, viewType) {
   return injectBridge(String(view._html || ""), extId, String(viewType));
 }
 
-// Iframe ke andar chhota bridge: extension code `ibx.post()` / `acquireVsCodeApi()`
+// Iframe ke andar chhota native bridge: extension code `ibx.post()` / `window.__iboxBridge`
 // se main window ko message bhej sakta hai — reverse path bhi yahi se aata hai.
 function injectBridge(html, extId, viewType) {
   const boot = `<script>(function(){
@@ -238,10 +336,14 @@ function deliver(m){
     try{window.dispatchEvent(new CustomEvent("ibx-message",{detail:m}));}catch(e){}
   }finally{BUSY=false;}
 }
-window.ibx={post:post,on:function(fn){LISTENERS.push(fn);return{dispose:function(){var i=LISTENERS.indexOf(fn);if(i>=0)LISTENERS.splice(i,1);}};}};
+window.__iboxBridge={
+  post: post,
+  on: function(fn){LISTENERS.push(fn);return{dispose:function(){var i=LISTENERS.indexOf(fn);if(i>=0)LISTENERS.splice(i,1);}};},
+  getState: function(){return window.__iboxState || (window.__iboxState = {});},
+  setState: function(v){window.__iboxState=v||{};},
+};
+window.ibx = window.__iboxBridge;
 window.addEventListener("message",function(e){var d=e.data;if(d&&d.__ibxHost&&d.extId===EXT&&d.viewType===VIEW)deliver(d.msg);});
-var _state={};
-window.acquireVsCodeApi=function(){return{postMessage:post,getState:function(){return _state;},setState:function(v){_state=v;}};};
 })();<\/script>`;
   if (!html) return `<!doctype html><html><head><meta charset="utf-8"></head><body>${boot}</body></html>`;
   const i = html.toLowerCase().lastIndexOf("</body>");
@@ -262,10 +364,12 @@ function memento(extId, scope) {
   };
 }
 
-// ── vscode shim + ibox API ──────────────────────────────────────────────────
+// ── Idiot Box native extension API ───────────────────────────────────────────
+
 function createApis(extRec) {
   const extId = extRec.id;
   const rt = ensureRuntime(extId);
+  const cmdMeta = contribCommandMeta(extRec.dir);
   const showMessage = (kind, ...raw) => {
     const items = raw.filter((x) => typeof x === "string");
     const message = items.shift() || "";
@@ -298,13 +402,29 @@ function createApis(extRec) {
   class Pos {
     constructor(l, c) { this.line = l; this.character = c; }
     compareTo(o) { return this.line - o.line || this.character - o.character; }
+    isAfter(o) { return this.compareTo(o) > 0; }
+    isAfterOrEqual(o) { return this.compareTo(o) >= 0; }
+    isBefore(o) { return this.compareTo(o) < 0; }
+    isBeforeOrEqual(o) { return this.compareTo(o) <= 0; }
+    isEqual(o) { return this.compareTo(o) === 0; }
   }
   class Rng {
     constructor(a, b, c, d) {
       if (typeof a === "number") { this.start = new Pos(a, b); this.end = new Pos(c, d); }
       else { this.start = a; this.end = b; }
     }
-    contains() { return false; }
+    get isEmpty() { return this.start.isEqual(this.end); }
+    get isSingleLine() { return this.start.line === this.end.line; }
+    contains(value) {
+      const range = value && value.start && value.end ? value : new Rng(value, value);
+      return this.start.isBeforeOrEqual(range.start) && this.end.isAfterOrEqual(range.end);
+    }
+  }
+  class TextEdit {
+    constructor(range, newText) { this.range = range; this.newText = String(newText ?? ""); }
+    static replace(range, newText) { return new TextEdit(range, newText); }
+    static insert(position, newText) { return new TextEdit(new Rng(position, position), newText); }
+    static delete(range) { return new TextEdit(range, ""); }
   }
   class Sel extends Rng {}
   class Loc { constructor(uri, range) { this.uri = uri; this.range = range; } }
@@ -320,65 +440,84 @@ function createApis(extRec) {
     dispose() {}
   }
 
-  const vsCode = {
-    version: "1.94.0",
-    Uri, Disposable, Emitter,
-    ViewColumn: { Active: -1, Beside: -2, One: 1, Two: 2, Three: 3 },
-    ProgressLocation: { SourceControl: 1, Window: 10, Notification: 15 },
-    StatusBarAlignment: { Left: 1, Right: 2 },
-    ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+  const workspaceConfig = (section) => {
+    const prefix = section ? `${section}.` : "";
+    const api = {
+      get: (key, def) => {
+        const full = `${prefix}${key}`;
+        const b = memento(extId, "config");
+        const v = b.get(full, undefined);
+        if (v !== undefined) return v;
+        return Object.prototype.hasOwnProperty.call(defaults, full) ? defaults[full] : def;
+      },
+      update: (key, value) => memento(extId, "config").update(`${prefix}${key}`, value),
+      has: (key) => Object.prototype.hasOwnProperty.call(defaults, `${prefix}${key}`),
+      inspect: (key) => ({ key, defaultValue: defaults[`${prefix}${key}`], globalValue: memento(extId, "config").get(`${prefix}${key}`, undefined) }),
+    };
+    return new Proxy(api, {
+      get(t, p) {
+        if (typeof p === "symbol" || p in t) return Reflect.get(t, p);
+        if (typeof p !== "string") return undefined;
+        return t.get(p, undefined);
+      },
+    });
+  };
+
+  const ibox = {
+    extension: { id: extId, name: extRec.name, version: extRec.version, dir: extRec.dir },
     commands: {
-      registerCommand: (id, fn, meta) => registerCommand(extId, id, fn, (meta && meta.title) || String(id).split(".").pop(), meta && meta.category),
-      executeCommand: (id, ...args) => { const r = runCommand(id); return r.ok ? Promise.resolve() : Promise.reject(new Error(r.error)); },
-      getCommands: () => Promise.resolve([...commandRegistry.keys()]),
+      registerCommand: (id, fn, title, category) => registerCommand(extId, id, fn, title, category),
+      executeCommand: (id, ...args) => runCommand(id, ...args),
+    },
+    languages: {
+      registerDocumentFormattingEditProvider: (selector, provider) => {
+        const rt = ensureRuntime(extId);
+        const entry = { selector, provider };
+        rt.formatters.push(entry);
+        changed();
+        return Disposable(() => {
+          rt.formatters = rt.formatters.filter((item) => item !== entry);
+          changed();
+        });
+      },
     },
     window: {
-      showInformationMessage: (...a) => showMessage(0, ...a),
-      showWarningMessage: (...a) => showMessage(1, ...a),
-      showErrorMessage: (...a) => showMessage(2, ...a),
-      createStatusBarItem: (idOrOpts, alignment, priority) => {
-        const opts = typeof idOrOpts === "object" && idOrOpts ? idOrOpts : { id: idOrOpts, alignment, priority };
-        return createStatusItem(extId, opts);
+      showMessage: (msg, type) => { notify(type || "info", msg); return Promise.resolve(); },
+      showInfo: (msg) => { notify("info", msg); return Promise.resolve(); },
+      showWarning: (msg) => { notify("warn", msg); return Promise.resolve(); },
+      showError: (msg) => { notify("error", msg); return Promise.resolve(); },
+      createStatusBarItem: (opts) => createStatusItem(extId, opts || {}),
+      createPanel: (opts) => createWebviewPanel(extId, (opts && (opts.id || opts.viewType)) || "view", (opts && opts.title) || extRec.name, opts),
+    },
+    panels: {
+      register: (opts) => {
+        const p = createWebviewPanel(extId, opts.id || opts.viewType, opts.title || extRec.name, opts);
+        if (opts && opts.html) p.webview.html = opts.html;
+        return p;
       },
-      createWebviewPanel: (viewType, title, opts) => createWebviewPanel(extId, viewType, title, opts),
-      onDidChangeActiveTextEditor: new Emitter().event,
-      onDidChangeVisibleTextEditors: new Emitter().event,
-      onDidChangeWindowState: new Emitter().event,
-      activeTextEditor: undefined,
-      visibleTextEditors: [],
-      withProgress: (_opts, task) => Promise.resolve(task({ report: () => {} })),
-      createOutputChannel: (name) => ({
-        name, appendLine: (l) => console.log(`[${extId}:${name}]`, l), append: (l) => process.stdout.write(String(l)), clear: () => {}, show: () => {}, dispose: () => {},
-      }),
-      createQuickPick: () => { throw new Error("createQuickPick not supported yet"); },
-      setStatusBarMessage: (text) => createStatusItem(extId, { id: `spm-${++statusSeq}`, text: String(text || "") }),
-      registerWebviewViewProvider: () => Disposable(() => {}),
+    },
+    storage: { globalState: memento(extId, "globalState"), workspaceState: memento(extId, "workspaceState") },
+    env: {
+      appName: "Idiot Box",
+      appRoot: app.getAppPath(),
+      language: "en",
+      machineId: "idiotbox",
+      sessionId: String(process.pid),
+      clipboard: {
+        writeText: (t) => { clipboard.writeText(String(t || "")); return Promise.resolve(); },
+        readText: () => Promise.resolve(String(clipboard.readText() || "")),
+      },
+      openExternal: (uri) => shell.openExternal(typeof uri === "string" ? uri : uri.toString()),
+      uriScheme: "idiotbox",
+      isTelemetryEnabled: false,
     },
     workspace: {
-      workspaceFolders: workspaceFolders(),
-      getConfiguration: (section) => {
-        const prefix = section ? `${section}.` : "";
-        return {
-          get: (key, def) => {
-            const full = `${prefix}${key}`;
-            const b = memento(extId, "config");
-            const v = b.get(full, undefined);
-            if (v !== undefined) return v;
-            return Object.prototype.hasOwnProperty.call(defaults, full) ? defaults[full] : def;
-          },
-          update: (key, value) => memento(extId, "config").update(`${prefix}${key}`, value),
-          has: (key) => Object.prototype.hasOwnProperty.call(defaults, `${prefix}${key}`),
-          inspect: (key) => ({ key, defaultValue: defaults[`${prefix}${key}`], globalValue: memento(extId, "config").get(`${prefix}${key}`, undefined) }),
-        };
+      getProjectPath: () => getProjectPath(),
+      getConfiguration: workspaceConfig,
+      workspaceFolders: () => {
+        const p = getProjectPath();
+        return p ? [{ uri: Uri.file(p), name: path.basename(p), index: 0 }] : [];
       },
-      onDidChangeConfiguration: new Emitter().event,
-      onDidOpenTextDocument: new Emitter().event,
-      onDidSaveTextDocument: new Emitter().event,
-      onDidCloseTextDocument: new Emitter().event,
-      onDidChangeWorkspaceFolders: new Emitter().event,
-      textDocuments: [],
-      openTextDocument: () => Promise.reject(new Error("openTextDocument not supported yet")),
-      findFiles: () => Promise.resolve([]),
       fs: {
         readFile: (uri) => fs.promises.readFile(uri.fsPath || String(uri)),
         writeFile: (uri, data) => fs.promises.writeFile(uri.fsPath || String(uri), data),
@@ -389,84 +528,17 @@ function createApis(extRec) {
         readDirectory: async (uri) => { const entries = await fs.promises.readdir(uri.fsPath || String(uri), { withFileTypes: true }); return entries.map((e) => [e.name, e.isDirectory() ? 1 : 2]); },
       },
     },
-    env: {
-      appName: "Idiot Box",
-      appRoot: app.getAppPath(),
-      language: "en",
-      machineId: "idiotbox",
-      sessionId: String(process.pid),
-      clipboard: { writeText: (t) => { clipboard.writeText(String(t || "")); return Promise.resolve(); }, readText: () => Promise.resolve(String(clipboard.readText() || "")) },
-      openExternal: (uri) => shell.openExternal(typeof uri === "string" ? uri : uri.toString()),
-      uriScheme: "idiotbox",
-      isTelemetryEnabled: false,
-    },
-    extensions: {
-      getExtension: (id) => {
-        const rec = state.extensions[id];
-        if (!rec) return undefined;
-        return { id, extensionUri: Uri.file(rec.dir), extensionPath: rec.dir, isActive: runtime.has(id), packageJSON: loadJson(path.join(rec.dir, "package.json"), {}), activate: () => Promise.resolve() };
-      },
-      all: () => Object.keys(state.extensions).map((id) => vsCode.extensions.getExtension(id)).filter(Boolean),
-    },
-    languages: {
-      registerHoverProvider: () => Disposable(() => {}),
-      registerCompletionItemProvider: () => Disposable(() => {}),
-      registerCodeActionProvider: () => Disposable(() => {}),
-      registerDefinitionProvider: () => Disposable(() => {}),
-      registerDocumentSymbolProvider: () => Disposable(() => {}),
-      registerDocumentFormattingEditProvider: () => Disposable(() => {}),
-      registerSignatureHelpProvider: () => Disposable(() => {}),
-      registerRenameProvider: () => Disposable(() => {}),
-      registerSemanticTokensProvider: () => Disposable(() => {}),
-      registerCodeLensProvider: () => Disposable(() => {}),
-      registerLinkProvider: () => Disposable(() => {}),
-      registerDocumentHighlightProvider: () => Disposable(() => {}),
-      registerInlineCompletionItemProvider: () => Disposable(() => {}),
-    },
-    // Class-level helpers jo bohot se extensions import karti hain
-    Position: Pos,
-    Range: Rng,
-    Selection: Sel,
-    Location: Loc,
-    ThemeColor,
-    MarkdownString,
-    CancellationTokenSource,
-    EventEmitter: Emitter,
-    Disposable: { from: (...ds) => ({ dispose: () => ds.forEach((d) => d && d.dispose && d.dispose()) }), create: Disposable },
-  };
-
-  // ── ibox: hamara asli API (chhota, seedha) ──────────────────────────────
-  const ibox = {
-    extension: { id: extId, name: extRec.name, version: extRec.version, dir: extRec.dir },
-    commands: {
-      registerCommand: (id, fn, title, category) => registerCommand(extId, id, fn, title, category),
-      executeCommand: (id, ...args) => runCommand(id, ...args),
-    },
-    window: {
-      showMessage: (msg, type) => { notify(type || "info", msg); return Promise.resolve(); },
-      createStatusBarItem: (opts) => createStatusItem(extId, opts || {}),
-      createPanel: (opts) => createWebviewPanel(extId, (opts && (opts.id || opts.viewType)) || "view", (opts && opts.title) || extRec.name, opts),
-    },
-    panels: {
-      register: (opts) => {
-        const p = createWebviewPanel(extId, opts.id || opts.viewType, opts.title || extRec.name, opts);
-        if (opts.html) p.webview.html = opts.html;
-        return p;
-      },
-    },
-    storage: { globalState: memento(extId, "globalState"), workspaceState: memento(extId, "workspaceState") },
-    env: vsCode.env,
-    workspace: { getProjectPath: () => getProjectPath(), getConfiguration: vsCode.workspace.getConfiguration },
     log: (...a) => console.log(`[ext:${extId}]`, ...a),
   };
 
-  return { vsCode, ibox };
+  return { ibox };
 }
 
 // ── Activation / deactivation ───────────────────────────────────────────────
 function deactivate(extId) {
   const rt = runtime.get(extId);
   if (!rt) return;
+  const rec = state.extensions[extId];
   for (const d of rt.disposables.splice(0)) { try { d && d.dispose && d.dispose(); } catch {} }
   for (const cmdId of [...rt.commands.keys()]) {
     if (commandRegistry.get(cmdId)?.extId === extId) commandRegistry.delete(cmdId);
@@ -492,29 +564,56 @@ async function activate(extRec) {
     changed();
     return;
   }
-  const { vsCode, ibox } = createApis(extRec);
+  const { ibox } = createApis(extRec);
+  const storagePath = path.join(rootDir(), ".state", extRec.id);
+  const logPath = path.join(storagePath, "logs");
+  try { fs.mkdirSync(logPath, { recursive: true }); } catch {}
+  // Env-var collection ka minimal stub — extensions `persistent` set karti hain
+  const envCollection = () => ({
+    persistent: true,
+    description: "",
+    replace: () => {}, append: () => {}, prepend: () => {}, delete: () => {}, clear: () => {},
+    forEach: () => {}, get: () => undefined, getScoped: () => envCollection(), dispose: () => {},
+  });
+  const extUri = Uri.file(extRec.dir);
   const context = {
     subscriptions: rt.disposables,
-    extension: { id: extRec.id, extensionUri: Uri.file(extRec.dir), extensionPath: extRec.dir, packageJSON: loadJson(path.join(extRec.dir, "package.json"), {}) },
+    extension: { id: extRec.id, extensionUri: extUri, extensionPath: extRec.dir, packageJSON: loadJson(path.join(extRec.dir, "package.json"), {}) },
+    // Purana (pre-1.7x) context fields
+    extensionId: extRec.id,
+    extensionUri: extUri,
+    extensionPath: extRec.dir,
+    // Storage fields (1.7x+)
+    storagePath,
+    storageUri: Uri.file(storagePath),
+    globalStoragePath: storagePath,
+    globalStorageUri: Uri.file(storagePath),
+    logPath,
+    logUri: Uri.file(logPath),
+    globalState: memento(extRec.id, "globalState"),
+    workspaceState: memento(extRec.id, "workspaceState"),
+    environmentVariableCollection: envCollection(),
     ibox,
-    storagePath: path.join(rootDir(), ".state", extRec.id),
   };
   try { fs.mkdirSync(context.storagePath, { recursive: true }); } catch {}
 
-  const origLoad = Module._load;
-  Module._load = function (request) {
-    if (request === "vscode") return vsCode;
-    return origLoad.apply(this, arguments);
-  };
   let mod;
   try {
     try { delete require.cache[require.resolve(mainPath)]; } catch {}
-    mod = require(mainPath);
+    try {
+      mod = require(mainPath);
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      // ESM-only dist (require(esm) unavailable) → dynamic import fallback.
+      // Thoda ruk kar import taaki require(esm) ka in-flight graph settle ho.
+      if (err && (err.code === "ERR_REQUIRE_ESM" || /Cannot use import statement|Unexpected token 'export'/.test(msg))) {
+        await new Promise((r) => setTimeout(r, 50));
+        mod = await import(pathToFileURL(mainPath).href);
+      } else throw err;
+    }
   } catch (e) {
     rt.error = String((e && e.message) || e);
     console.warn(`[ext] failed to load ${extRec.id}:`, rt.error);
-  } finally {
-    Module._load = origLoad;
   }
   if (mod && !rt.error) {
     try {
@@ -534,6 +633,19 @@ async function activate(extRec) {
 }
 
 async function activateAll() {
+  const builtinDir = path.join(__dirname, "prettier");
+  const manifest = loadJson(path.join(builtinDir, "package.json"), null);
+  if (manifest && manifest.name) {
+    const builtin = addInstalled({
+      id: manifest.name,
+      dir: builtinDir,
+      manifest,
+      source: "builtin",
+    });
+    builtin.builtIn = true;
+    builtin.enabled = true;
+    persistState();
+  }
   const recs = Object.values(state.extensions);
   console.log(`[ext] activateAll — ${recs.length} installed`);
   for (const rec of recs) {
@@ -545,40 +657,34 @@ async function activateAll() {
 // ── Install / uninstall ─────────────────────────────────────────────────────
 function addInstalled({ id, dir, manifest, source }) {
   const prev = state.extensions[id] || {};
-  state.extensions[id] = {
+  const normalized = normalizeManifest(dir, manifest || {});
+  const finalId = String(id || normalized.id || path.basename(dir) || "unknown-extension");
+  state.extensions[finalId] = {
     ...prev,
-    id,
+    id: finalId,
     dir,
-    name: manifest.displayName || manifest.name || id,
-    rawName: manifest.name || id,
-    publisher: manifest.publisher || (id.split(".")[0] || ""),
-    version: manifest.version || "0.0.0",
-    description: String((manifest.description || "").slice(0, 400)),
-    main: manifest.main || manifest.browser || "extension.js",
+    name: normalized.name,
+    rawName: normalized.rawName,
+    publisher: normalized.publisher,
+    version: normalized.version,
+    description: normalized.description,
+    main: normalized.main,
     enabled: prev.enabled !== false,
-    source: source || "vsx",
+    source: source || "local",
     installedAt: prev.installedAt || Date.now(),
-    engines: manifest.engines && manifest.engines.vscode ? manifest.engines.vscode : "",
+    engines: normalized.engines || "",
+    commands: normalized.commands,
+    views: normalized.views,
   };
   persistState();
-  return state.extensions[id];
-}
-
-async function installFromRegistry(payload = {}) {
-  const { namespace, name, version, vsix } = payload;
-  if (!namespace || !name) return { ok: false, error: "namespace + name required" };
-  const r = await openvsx.installFromRegistry(rootDir(), { namespace, name, version, vsix });
-  const rec = addInstalled(r);
-  await activate(rec);
-  notify("info", `Installed ${rec.name} ${rec.version}`);
-  return { ok: true, id: rec.id };
+  return state.extensions[finalId];
 }
 
 async function installFolderDialog() {
   const r = await dialog.showOpenDialog({ title: "Load unpacked extension folder", properties: ["openDirectory"] });
   if (r.canceled || !r.filePaths.length) return { ok: false, canceled: true };
   try {
-    const res = openvsx.installFromFolder(r.filePaths[0], rootDir());
+    const res = folder.installFromFolder(r.filePaths[0], rootDir());
     const rec = addInstalled({ ...res, source: "folder" });
     await activate(rec);
     notify("info", `Loaded ${rec.name}`);
@@ -586,26 +692,25 @@ async function installFolderDialog() {
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 
-async function installVsixDialog() {
-  const r = await dialog.showOpenDialog({
-    title: "Install extension (.vsix)",
-    properties: ["openFile"],
-    filters: [{ name: "VSIX extension", extensions: ["vsix"] }],
-  });
-  if (r.canceled || !r.filePaths.length) return { ok: false, canceled: true };
+async function installFromCommunity(repo, extFolder) {
   try {
-    const buf = fs.readFileSync(r.filePaths[0]);
-    const res = await openvsx.installFromBuffer(buf, rootDir());
-    const rec = addInstalled({ ...res, source: "vsix" });
-    await activate(rec);
-    notify("info", `Installed ${rec.name} ${rec.version}`);
-    return { ok: true, id: rec.id };
+    const { tmp, src } = await community.downloadExtension(repo, extFolder);
+    try {
+      const res = folder.installFromFolder(src, rootDir());
+      const rec = addInstalled({ ...res, source: "local" });
+      await activate(rec);
+      notify("info", `Installed ${rec.name} ${rec.version}`);
+      return { ok: true, id: rec.id };
+    } finally {
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+    }
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 
 async function uninstall(extId) {
   const rec = state.extensions[extId];
   if (!rec) return { ok: false, error: "Not installed" };
+  if (rec.builtIn) return { ok: false, error: "Built-in extensions cannot be uninstalled" };
   deactivate(extId);
   try { fs.rmSync(rec.dir, { recursive: true, force: true }); } catch {}
   delete state.extensions[extId];
@@ -618,6 +723,7 @@ async function uninstall(extId) {
 async function setEnabled(extId, on) {
   const rec = state.extensions[extId];
   if (!rec) return { ok: false, error: "Not installed" };
+  if (rec.builtIn && !on) return { ok: false, error: "Built-in extensions cannot be disabled" };
   rec.enabled = !!on;
   persistState();
   if (on) await activate(rec); else deactivate(extId);
@@ -634,6 +740,7 @@ function listInstalled() {
       publisher: rec.publisher,
       version: rec.version,
       description: rec.description,
+      builtIn: rec.builtIn === true,
       enabled: rec.enabled !== false,
       source: rec.source,
       engines: rec.engines || "",
@@ -641,6 +748,7 @@ function listInstalled() {
       activated: !!rt,
       error: (rt && rt.error) || rec.error || null,
       commandCount: rt ? rt.commands.size : 0,
+      formatterCount: rt ? rt.formatters.length : 0,
       views: rt ? [...rt.views.values()].map((v) => ({ viewType: v.viewType, title: v.title })) : [],
       dir: rec.dir,
     };
@@ -648,10 +756,201 @@ function listInstalled() {
 }
 
 function listCommands() {
-  return [...commandRegistry.entries()].map(([id, e]) => {
-    const rec = state.extensions[e.extId];
-    return { id, title: e.title, category: e.category, extId: e.extId, extName: rec ? rec.name : e.extId };
+  const builtInEntries = [...builtInRegistry.entries()].map(([id, e]) => ({
+    id,
+    title: e.title,
+    category: e.category,
+    extId: e.extId,
+    extName: "Idiot Box",
+  }));
+  const customEntries = [...commandRegistry.entries()]
+    .filter(([id]) => !builtInRegistry.has(id))
+    .map(([id, e]) => {
+      const rec = state.extensions[e.extId];
+      return {
+        id,
+        title: e.title,
+        category: e.category,
+        extId: e.extId,
+        extName: rec ? rec.name : e.extId,
+        ...(e.editorAction ? { editorAction: e.editorAction } : {}),
+      };
+    });
+  return [...builtInEntries, ...customEntries];
+}
+
+function formattingSelectorMatches(selector, languageId) {
+  if (!selector) return true;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  return selectors.some((item) => {
+    if (typeof item === "string") return item === "*" || item === languageId;
+    if (!item || typeof item !== "object") return false;
+    if (item.language && item.language !== "*" && item.language !== languageId) return false;
+    if (item.scheme && item.scheme !== "*" && item.scheme !== "file") return false;
+    return true;
   });
+}
+
+function makeFormattingDocument(filePath, text, languageId) {
+  const lines = text.split(/\r\n|\r|\n/);
+  const starts = [];
+  let offset = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    starts.push(offset);
+    offset += line.length;
+    if (i < lines.length - 1) offset += text.startsWith("\r\n", offset) ? 2 : 1;
+  }
+  const clampPosition = (position) => {
+    const line = Math.max(0, Math.min(Number(position?.line) || 0, lines.length - 1));
+    const character = Math.max(0, Math.min(Number(position?.character) || 0, lines[line].length));
+    return { line, character };
+  };
+  const offsetAt = (position) => {
+    const p = clampPosition(position);
+    return starts[p.line] + p.character;
+  };
+  const positionAt = (index) => {
+    const target = Math.max(0, Math.min(Number(index) || 0, text.length));
+    let line = 0;
+    while (line + 1 < starts.length && starts[line + 1] <= target) line++;
+    return { line, character: Math.min(target - starts[line], lines[line].length) };
+  };
+  const range = (from, to) => ({ start: positionAt(from), end: positionAt(to) });
+  return {
+    uri: Uri.file(filePath),
+    fileName: filePath,
+    languageId,
+    version: 1,
+    isClosed: false,
+    eol: text.includes("\r\n") ? "\r\n" : "\n",
+    lineCount: lines.length,
+    getText: (r) => r ? text.slice(offsetAt(r.start), offsetAt(r.end)) : text,
+    offsetAt,
+    positionAt,
+    validateRange: (r) => range(offsetAt(r.start), offsetAt(r.end)),
+    lineAt: (lineOrPosition) => {
+      const line = typeof lineOrPosition === "number" ? lineOrPosition : lineOrPosition?.line;
+      if (!Number.isInteger(line) || line < 0 || line >= lines.length) throw new RangeError("Invalid line number");
+      const from = starts[line];
+      const to = from + lines[line].length;
+      const lineEnd = line + 1 < lines.length ? to + (text.slice(to, to + 2) === "\r\n" ? 2 : 1) : to;
+      return {
+        lineNumber: line,
+        text: lines[line],
+        range: range(from, to),
+        rangeIncludingLineBreak: range(from, lineEnd),
+        firstNonWhitespaceCharacterIndex: Math.max(0, lines[line].search(/\S|$/)),
+        isEmptyOrWhitespace: /^\s*$/.test(lines[line]),
+      };
+    },
+  };
+}
+
+async function formatDocument(filePath, text, languageId, formatOptions = {}) {
+  if (!filePath || typeof text !== "string") return { ok: false, error: "No active text document to format" };
+  const requestedLanguageId = String(languageId || "plaintext");
+  const documentLanguageId = ({ jsx: "javascriptreact", tsx: "typescriptreact" })[requestedLanguageId] || requestedLanguageId;
+  const document = makeFormattingDocument(String(filePath), text, documentLanguageId);
+  const token = { isCancellationRequested: false, onCancellationRequested: new Emitter().event };
+  const options = {
+    tabSize: Number.isInteger(formatOptions.tabSize) && formatOptions.tabSize > 0 ? formatOptions.tabSize : 2,
+    insertSpaces: formatOptions.insertSpaces !== false,
+  };
+  const errors = [];
+  for (const [extId, rt] of runtime) {
+    const rec = state.extensions[extId];
+    if (!rec || rec.enabled === false) continue;
+    for (const { selector, provider } of rt.formatters) {
+      if (!formattingSelectorMatches(selector, document.languageId)) continue;
+      try {
+        const edits = await provider.provideDocumentFormattingEdits(document, options, token);
+        if (!Array.isArray(edits)) continue;
+        if (edits.length === 0) continue;
+        const normalized = edits.map((edit) => {
+          if (!edit || typeof edit.newText !== "string" || !edit.range?.start || !edit.range?.end) {
+            throw new Error("Formatter returned an invalid text edit");
+          }
+          const from = document.offsetAt(edit.range.start);
+          const to = document.offsetAt(edit.range.end);
+          if (to < from) throw new Error("Formatter returned an invalid edit range");
+          return { from, to, newText: edit.newText };
+        }).sort((a, b) => a.from - b.from || a.to - b.to);
+        for (let i = 1; i < normalized.length; i++) {
+          if (normalized[i].from < normalized[i - 1].to) throw new Error("Formatter returned overlapping edits");
+        }
+        let formatted = text;
+        for (const edit of normalized.reverse()) {
+          formatted = formatted.slice(0, edit.from) + edit.newText + formatted.slice(edit.to);
+        }
+        return { ok: true, text: formatted, extId, extName: rec.name || extId };
+      } catch (e) {
+        const message = String((e && e.message) || e);
+        errors.push(`${rec.name || extId}: ${message}`);
+        console.warn(`[ext] formatter failed ${extId}:`, message);
+      }
+    }
+  }
+  return {
+    ok: false,
+    error: errors.length
+      ? errors.join("\n")
+      : `No active document formatter is available for ${document.languageId}`,
+  };
+}
+
+// ── Details (README + features) — Installed tab ke details panel ke liye ────
+function readReadme(dir) {
+  for (const f of ["README.md", "readme.md", "README.markdown", "Readme.md"]) {
+    const p = path.join(dir, f);
+    try { if (fs.existsSync(p) && fs.statSync(p).isFile()) return { file: f, text: fs.readFileSync(p, "utf8") }; } catch {}
+  }
+  return null;
+}
+
+function extDetails(extId) {
+  const rec = state.extensions[extId];
+  if (!rec) return { ok: false, error: "Not installed" };
+  const rt = runtime.get(extId);
+  const readme = readReadme(rec.dir);
+  const commands = [...commandRegistry.entries()]
+    .filter(([, e]) => e.extId === extId)
+    .map(([id, e]) => ({
+      id,
+      title: e.title,
+      category: e.category || "",
+      ...(e.editorAction ? { editorAction: e.editorAction } : {}),
+    }));
+  const views = rt ? [...rt.views.values()].map((v) => ({ viewType: v.viewType, title: v.title })) : [];
+  const statusItems = rt
+    ? [...rt.statusItems.values()].filter((v) => v.visible && v.text).map((v) => ({ text: v.text, tooltip: v.tooltip || "", command: v.command || null }))
+    : [];
+  const mf = loadJson(path.join(rec.dir, "package.json"), {});
+  return {
+    ok: true,
+    info: {
+      id: rec.id,
+      name: rec.name,
+      publisher: rec.publisher || "",
+      version: rec.version || "",
+      description: rec.description || "",
+      source: rec.source || "local",
+      enabled: rec.enabled !== false,
+      activated: !!rt,
+      error: (rt && rt.error) || rec.error || null,
+      engines: rec.engines || "",
+      main: rec.main || "",
+      installedAt: rec.installedAt || 0,
+      dir: rec.dir,
+    },
+    contributes: summarizeContributions(mf),
+    commands,
+    formatterCount: rt ? rt.formatters.length : 0,
+    views,
+    statusItems,
+    readme: readme ? readme.text : "",
+    readmeFile: readme ? readme.file : null,
+  };
 }
 
 // ── Registration (index.js ise call karta hai) ──────────────────────────────
@@ -659,18 +958,26 @@ function registerExtensions(deps = {}) {
   console.log("[ext] host registered");
   if (typeof deps.getProjectPath === "function") getProjectPath = deps.getProjectPath;
 
-  ipcMain.handle("ext:search", async (_e, q, opts) => {
-    try { return await openvsx.search(q, opts || {}); }
-    catch (e) { return { total: 0, items: [], error: String((e && e.message) || e) }; }
-  });
-  ipcMain.handle("ext:install", (_e, payload) => installFromRegistry(payload || {}));
   ipcMain.handle("ext:installFolder", () => installFolderDialog());
-  ipcMain.handle("ext:installVsix", () => installVsixDialog());
+  ipcMain.handle("ext:communityList", async (_e, repo) => {
+    try { return { ok: true, ...(await community.listExtensions(repo || "")) }; }
+    catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+  });
+  ipcMain.handle("ext:communityInstall", (_e, repo, extFolder) => installFromCommunity(String(repo || ""), String(extFolder || "")));
+  ipcMain.handle("ext:communityReadme", async (_e, repo, extFolder) => {
+    try {
+      const r = await community.readme(String(repo || ""), String(extFolder || ""));
+      return { ok: true, readme: r ? r.text : "", file: r ? r.file : null };
+    } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+  });
+  ipcMain.handle("ext:details", (_e, id) => extDetails(String(id || "")));
   ipcMain.handle("ext:uninstall", (_e, id) => uninstall(String(id || "")));
   ipcMain.handle("ext:setEnabled", (_e, id, on) => setEnabled(String(id || ""), !!on));
   ipcMain.handle("ext:list", () => listInstalled());
   ipcMain.handle("ext:commands", () => listCommands());
   ipcMain.handle("ext:invoke", (_e, id) => runCommand(String(id || "")));
+  ipcMain.handle("ext:format", (_e, payload = {}) =>
+    formatDocument(payload.filePath, payload.text, payload.languageId, payload.options));
   ipcMain.handle("ext:views", () => viewsList());
   ipcMain.handle("ext:viewHtml", (_e, extId, viewType) => getViewHtml(String(extId || ""), String(viewType || "")));
   ipcMain.handle("ext:viewMessage", (_e, extId, viewType, msg) => {
@@ -689,4 +996,4 @@ function registerExtensions(deps = {}) {
   app.on("will-quit", () => { for (const id of [...runtime.keys()]) deactivate(id); });
 }
 
-module.exports = { registerExtensions };
+module.exports = { registerExtensions, listCommands, runCommand, formatDocument };
