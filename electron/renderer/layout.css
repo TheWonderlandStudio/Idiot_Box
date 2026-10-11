@@ -131,6 +131,32 @@ body,
 .cet-menubar-menu-title {
   pointer-events: auto !important;
 }
+/* Dropdown menu items — gap compact (library CSS runtime me inject hoti hai,
+   isliye !important zaroori hai warna library ke defaults override kar dete hain) */
+.cet-menubar-menu-container .cet-action-menu-item {
+  margin: 1px 3px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+}
+.cet-menubar-menu-container .cet-action-item {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.cet-menubar-menu-container .cet-action-label,
+.cet-menubar-menu-container .cet-action-label:not(.separator) {
+  padding: 0 1.2em 0 0.7em !important;
+  line-height: 1.2 !important;
+}
+.cet-menubar-menu-container .cet-action-label.separator.text {
+  padding: 0.3em 1em !important;
+}
+.cet-menubar-menu-container .cet-menu-item-icon {
+  margin: 0 0 0 8px !important;
+}
+.cet-menubar-menu-container .keybinding,
+.cet-menubar-menu-container .cet-submenu-indicator {
+  padding: 0 1.2em 0 0.5em !important;
+}
 
 /* ── Title bar right: Layouts button (hub-jaisa ghost chip) ─────────────── */
 .tb-workspaces {
