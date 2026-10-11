@@ -1,0 +1,132 @@
+---
+title: "Extension Manifest (package.json)"
+description: "Reference guide for package.json configuration and contribution points"
+---
+
+# Extension Manifest (`package.json`)
+
+The `package.json` file describes the metadata, entry point, dependencies, and contribution points of an extension.
+
+```json
+{
+  "name": "my-extension",
+  "displayName": "My Extension",
+  "version": "1.0.0",
+  "publisher": "acme",
+  "description": "Short description of what the extension provides.",
+  "main": "extension.js",
+  "engines": {
+    "idiotbox": "*"
+  },
+  "idiotbox": {
+    "id": "acme.my-extension",
+    "name": "My Extension",
+    "version": "1.0.0",
+    "main": "extension.js"
+  },
+  "contributes": {
+    "commands": [],
+    "menus": {},
+    "views": {},
+    "configuration": {}
+  }
+}
+```
+
+---
+
+## Top-Level Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `string` | Extension slug name (e.g. `"my-extension"`). |
+| `displayName` | `string` | Human-friendly title shown in UI. |
+| `publisher` | `string` | Identifier for the creator or organisation. |
+| `version` | `string` | Semver version (e.g. `"1.0.0"`). |
+| `description` | `string` | Summary displayed in the Extensions panel. |
+| `main` | `string` | Relative path to the Node.js entry file (defaults to `"extension.js"`). |
+| `engines.idiotbox` | `string` | Compatible version constraint (e.g. `"*"`). |
+
+---
+
+## `idiotbox` Namespace
+
+The custom `idiotbox` object overrides standard package fields:
+
+```json
+"idiotbox": {
+  "id": "publisher.extension-name",
+  "name": "Display Name",
+  "version": "1.0.0",
+  "main": "extension.js"
+}
+```
+
+---
+
+## `contributes` Section
+
+The `contributes` object declares integration points across the IDE without running JavaScript code up front.
+
+### 1. `contributes.commands`
+Exposes commands to the Command Palette (`Ctrl+Shift+P`):
+
+```json
+"commands": [
+  {
+    "command": "acme.my-extension.format",
+    "title": "Format File",
+    "category": "My Extension"
+  }
+]
+```
+
+### 2. `contributes.menus`
+Hooks commands into context menus:
+
+```json
+"menus": {
+  "editor/context": [
+    {
+      "command": "acme.my-extension.format",
+      "group": "modification"
+    }
+  ],
+  "explorer/context": [
+    {
+      "command": "acme.my-extension.export",
+      "group": "navigation"
+    }
+  ]
+}
+```
+
+### 3. `contributes.views`
+Registers panel views for the editor:
+
+```json
+"views": {
+  "ibox": [
+    {
+      "id": "acme.my-extension.dashboard",
+      "name": "Dashboard"
+    }
+  ]
+}
+```
+
+### 4. `contributes.configuration`
+Declares user-configurable settings accessible via `ibox.workspace.getConfiguration`:
+
+```json
+"configuration": {
+  "title": "My Extension Settings",
+  "properties": {
+    "myExtension.enableAutoSave": {
+      "type": "boolean",
+      "default": true,
+      "description": "Automatically save files on format."
+    }
+  }
+}
+```

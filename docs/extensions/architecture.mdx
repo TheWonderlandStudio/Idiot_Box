@@ -1,0 +1,132 @@
+---
+title: "Extension Architecture"
+description: "How the Extension Host, IPC communication, and UI integration work"
+---
+
+# Extension Host Architecture
+
+Idiot Box separates extension execution from UI rendering to ensure stability, responsiveness, and security.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MAIN PROCESS (Node.js)                   │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │                  Extension Host                       │  │
+│  │   • Activates extensions in Node.js                   │  │
+│  │   • Provides `context.ibox` API object                │  │
+│  │   • Manages command registry & formatters             │  │
+│  │   • Persists state to `extensions-state.json`         │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                             │                               │
+│                             ▼                               │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │                   IPC Channel Dispatcher              │  │
+│  │   • ext:list            • ext:invoke                  │  │
+│  │   • ext:setEnabled      • ext:viewPush                │  │
+│  │   • ext:format          • ext:statusItems             │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
+                              ▼ (IPC / Preload Bridge)
+┌─────────────────────────────────────────────────────────────┐
+│                   RENDERER PROCESS (React UI)               │
+│                                                             │
+│   • Command Palette: Triggers commands                      │
+│   • Extensions Panel: Install / Enable / Disable / Delete   │
+│   • Status Bar: Renders live extension status items         │
+│   • Editor View: Renders iframe-sandboxed webview panels    │
+│   • Context Menus: Shows registered context actions         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. Main Process (The Extension Host)
+
+- **Entry**: `electron/main/extensions/index.js`
+- **Isolation**: Each extension is loaded via Node's `require()` inside the main process when activated.
+- **Sandboxed File Access**: `ibox.workspace.fs` enforces that extensions can only perform file I/O within the currently open project directory or the extension's own directory.
+- **Disposables Lifecycle**: When an extension registers a command, panel, or status bar item, it receives a `Disposable` that is placed into `context.subscriptions`. Deactivation disposes of all resources cleanly.
+
+---
+
+## 2. Preload IPC Bridge
+
+The preload script (`electron/preload/index.js`) exposes a hardened IPC bridge under `window.electronAPI`. All calls go through Electron's `contextBridge` — the renderer **never** has access to Node.js APIs directly.
+
+### Extension APIs
+
+```javascript
+window.electronAPI.extList()                    // → Promise<Extension[]>  List all installed extensions
+window.electronAPI.extSetEnabled(id, bool)      // → Promise<void>         Enable or disable an extension
+window.electronAPI.extInvoke(id, ...args)       // → Promise<any>          Execute a registered command
+window.electronAPI.extFormat(payload)           // → Promise<string>       Format document via extension formatter
+window.electronAPI.extOpenDir(id)              // → Promise<void>          Open extension folder in OS file manager
+window.electronAPI.extViewPush(id, html)        // → Promise<void>         Push a webview panel from an extension
+window.electronAPI.extStatusItems()             // → Promise<StatusItem[]> Fetch current status bar items
+```
+
+### Event Listeners
+
+```javascript
+window.electronAPI.onExtChanged(cb)             // Fired when extension state changes (install/enable/disable)
+window.electronAPI.onExtNotify(cb)             // Fired when an extension sends a toast notification
+```
+
+> **Security Note**: The preload bridge validates that all outbound URLs opened via `ibox.env.openExternal` use `https:` or `http:` protocols only. `file://`, `javascript:`, and `data:` URIs are blocked at the main-process level.
+
+---
+
+## 3. UI Layer Integration
+
+### Command Palette (`Ctrl+Shift+P`)
+
+The Command Palette queries `ext:commands` to retrieve all registered extension commands and merges them into the global command list. Each entry includes:
+- `id` — unique command identifier (e.g. `my-ext.sayHello`)
+- `label` — human-readable display name
+- `category` — grouping label shown in the palette UI
+
+The user selects a command → renderer calls `window.electronAPI.extInvoke(commandId)` → main process dispatches to the registered handler in the extension.
+
+### Webview Panels
+
+Extensions can push rich HTML UI via `context.ibox.view.push(html)`. These panels are:
+- Rendered inside a **sandboxed `<webview>`** tag in the editor tab area
+- Isolated from the renderer process (no shared `window` object)
+- Able to communicate back to the extension via `ext:viewMessage` IPC, which the extension can subscribe to using `context.ibox.view.onMessage(cb)`
+
+```
+ Extension → ext:viewPush(html) → Renderer mounts <webview>
+ Webview   → ext:viewMessage   → Extension handler receives data
+```
+
+### Status Bar
+
+Status bar items are registered by extensions using `context.ibox.statusBar.addItem({ text, tooltip, command })`. The renderer:
+1. Calls `ext:statusItems` on mount to fetch existing items
+2. Listens to `ext:statusItemsChanged` for live updates pushed from the main process
+3. Renders each item as a clickable chip; clicking it invokes the bound `command`
+
+### Context Menus
+
+Right-clicking inside the editor triggers a lookup of `getContextMenuItems(type, context)` — where `type` is one of `file`, `editor`, or `tab`. Extensions register handlers by calling:
+
+```javascript
+context.ibox.menus.registerContextMenu(type, (ctx) => [
+  { label: 'My Action', command: 'my-ext.doSomething' }
+]);
+```
+
+The main process aggregates contributions from all active extensions and returns the merged list to the renderer for display.
+
+### Extensions Panel
+
+The built-in Extensions Panel (`Ctrl+Shift+X`) reads from `ext:list` and exposes per-extension controls:
+
+| Action | IPC Channel |
+|--------|-------------|
+| Install from disk | `ext:install` |
+| Enable / Disable | `ext:setEnabled` |
+| Delete | `ext:delete` |
+| Open folder | `ext:openDir` |

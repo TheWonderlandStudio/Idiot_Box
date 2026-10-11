@@ -187,6 +187,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── App extensions (host) ──────────────────────────────────────────────────
   extInstallFolder: () => ipcRenderer.invoke("ext:installFolder"),
+  extCreate: (opts) => ipcRenderer.invoke("ext:create", opts),
+  extOpenDir: (id) => ipcRenderer.invoke("ext:openDir", id),
+  extReload: () => ipcRenderer.invoke("ext:reload"),
   extCommunityList: (repo) => ipcRenderer.invoke("ext:communityList", repo),
   extCommunityInstall: (repo, extFolder) => ipcRenderer.invoke("ext:communityInstall", repo, extFolder),
   extCommunityReadme: (repo, extFolder) => ipcRenderer.invoke("ext:communityReadme", repo, extFolder),
@@ -195,7 +198,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   extSetEnabled: (id, on) => ipcRenderer.invoke("ext:setEnabled", id, on),
   extList: () => ipcRenderer.invoke("ext:list"),
   extCommands: () => ipcRenderer.invoke("ext:commands"),
-  extInvoke: (id) => ipcRenderer.invoke("ext:invoke", id),
+  extInvoke: (id, ...args) => ipcRenderer.invoke("ext:invoke", id, ...args),
   extFormat: (filePath, text, languageId, options) =>
     ipcRenderer.invoke("ext:format", { filePath, text, languageId, options }),
   extViews: () => ipcRenderer.invoke("ext:views"),
@@ -221,6 +224,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_e, payload) => cb(payload);
     ipcRenderer.on("ext:viewHtmlChanged", handler);
     return () => ipcRenderer.removeListener("ext:viewHtmlChanged", handler);
+  },
+  onExtViewFocus: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on("ext:viewFocus", handler);
+    return () => ipcRenderer.removeListener("ext:viewFocus", handler);
   },
 
   // ── Chrome extensions ───────────────────────────────────────────────────────

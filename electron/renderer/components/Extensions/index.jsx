@@ -2,7 +2,7 @@
 // teen tabs: Installed · Community · Browser.
 // App extensions main process host me activate hote hain (vscode-shim).
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { RefreshCw, Trash2, FolderOpen, Puzzle, ExternalLink, Download, Info, Play, ArrowLeft } from "lucide-react";
+import { RefreshCw, Trash2, FolderOpen, Puzzle, ExternalLink, Download, Info, Play, ArrowLeft, Plus } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import ChromeSection from "./ChromeSection.jsx";
@@ -355,7 +355,7 @@ const InstalledTab = ({ onChanged }) => {
         <div style={{ textAlign: "center", padding: "var(--space-30) var(--space-20)", color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
           <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-secondary)", marginBottom: "var(--space-6)" }}>No app extensions installed</div>
             <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-small)", lineHeight: 1.6, maxWidth: 460, margin: "0 auto" }}>
-              Load an unpacked extension folder for development.
+              Create one in the app, or load an unpacked folder with <b>package.json</b> + <b>extension.js</b>.
             </div>
         </div>
       )}
@@ -374,7 +374,7 @@ const InstalledTab = ({ onChanged }) => {
               {ext.activated && <span style={{ ...s.chip, color: "var(--teal)" }}>active</span>}
             </div>
             {ext.description ? <div style={s.desc}>{ext.description}</div> : null}
-            <div style={s.meta}>{ext.id}{ext.publisher ? ` · by ${ext.publisher}` : ""}{ext.commandCount ? ` · ${ext.commandCount} command${ext.commandCount > 1 ? "s" : ""}` : ""}{ext.formatterCount ? " · document formatter" : ""}</div>
+            <div style={s.meta}>{ext.id}{ext.publisher ? ` · by ${ext.publisher}` : ""}{ext.commandCount ? ` · ${ext.commandCount} command${ext.commandCount > 1 ? "s" : ""}` : ""}{ext.formatterCount ? " · document formatter" : ""}{ext.menuCount ? ` · ${ext.menuCount} menu item${ext.menuCount > 1 ? "s" : ""}` : ""}</div>
             {ext.error ? <div style={{ ...s.meta, color: "var(--danger)" }}>activation error: {ext.error}</div> : null}
 
             {ext.views && ext.views.length > 0 && (
@@ -401,6 +401,7 @@ const InstalledTab = ({ onChanged }) => {
                 </button>
               </label>
             )}
+            <button onClick={() => window.electronAPI?.extOpenDir?.(ext.id)} title="Open extension folder" style={s.iconBtn}><FolderOpen size={12} /></button>
             <button onClick={() => setSelected(ext.id)} title="Details, features & README" style={s.iconBtn}><Info size={12} /></button>
             {!ext.builtIn && <button onClick={() => remove(ext)} disabled={busyId === ext.id} title="Uninstall" style={s.btnDanger}><Trash2 size={12} /></button>}
           </div>
@@ -547,6 +548,89 @@ const CommunityTab = ({ onInstalled }) => {
   );
 };
 
+const slugPart = (v, fallback) => {
+  const s0 = String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return s0 || fallback;
+};
+
+const CreateForm = ({ onCancel, onCreated }) => {
+  const [displayName, setDisplayName] = useState("Hello Panel");
+  const [publisher, setPublisher] = useState("local");
+  const [name, setName] = useState("hello-panel");
+  const [description, setDescription] = useState("Custom panel, commands, and context menus.");
+  const [features, setFeatures] = useState({ command: true, panel: true, explorerMenu: true, editorMenu: true, statusBar: true });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const id = `${slugPart(publisher, "local")}.${slugPart(name, "hello")}`;
+
+  const toggle = (key) => setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const create = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await window.electronAPI.extCreate({
+        displayName, publisher, name, description, features,
+      });
+      if (r?.error || r?.ok === false) { setError(r?.error || "Create failed"); setBusy(false); return; }
+      if (r?.main) {
+        window.dispatchEvent(new CustomEvent("open-file-in-new-editor-tab", { detail: { path: r.main, forceText: true } }));
+      }
+      onCreated?.(r);
+    } catch (e) {
+      setError(String((e && e.message) || e));
+    }
+    setBusy(false);
+  };
+
+  const check = (key, label) => (
+    <label style={{ ...s.toggle, display: "flex", padding: "var(--space-4) 0" }}>
+      <input type="checkbox" checked={!!features[key]} onChange={() => toggle(key)} />
+      {label}
+    </label>
+  );
+
+  return (
+    <div style={s.scroll}>
+      <div style={{ padding: "var(--space-8) var(--space-10)", borderBottom: "var(--space-1) solid var(--border-row)", display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
+        <button onClick={onCancel} style={s.btn}><ArrowLeft size={12} /> Back</button>
+        <div style={s.name}>New extension</div>
+      </div>
+      <div style={{ padding: "var(--space-12) var(--space-10)", display: "flex", flexDirection: "column", gap: "var(--space-10)", maxWidth: 520 }}>
+        <div>
+          <div style={{ fontSize: "var(--fs-tiny)", color: "var(--text-soft)", marginBottom: 4 }}>Display name</div>
+          <input value={displayName} onChange={(e) => { setDisplayName(e.target.value); setName(slugPart(e.target.value, "hello")); }} style={{ ...s.input, paddingLeft: "var(--space-8)" }} />
+        </div>
+        <div style={{ display: "flex", gap: "var(--space-8)" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "var(--fs-tiny)", color: "var(--text-soft)", marginBottom: 4 }}>Publisher</div>
+            <input value={publisher} onChange={(e) => setPublisher(e.target.value)} style={{ ...s.input, paddingLeft: "var(--space-8)" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "var(--fs-tiny)", color: "var(--text-soft)", marginBottom: 4 }}>Folder name</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} style={{ ...s.input, paddingLeft: "var(--space-8)" }} />
+          </div>
+        </div>
+        <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon-muted)" }}>id: {id}</div>
+        <div>
+          <div style={{ fontSize: "var(--fs-tiny)", color: "var(--text-soft)", marginBottom: 4 }}>Description</div>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} style={{ ...s.input, paddingLeft: "var(--space-8)" }} />
+        </div>
+        {check("command", "Command palette command")}
+        {check("panel", "New panel (webview tab)")}
+        {check("explorerMenu", "Explorer / file context menu")}
+        {check("editorMenu", "Editor context menu")}
+        {check("statusBar", "Status bar item")}
+        {error && <div style={s.err}>{error}</div>}
+        <button onClick={create} disabled={busy} style={s.btnPrimary}>
+          <Plus size={12} /> {busy ? "Creating…" : "Create & activate"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ── Panel with tabs ─────────────────────────────────────────────────────────
 const ExtensionsPanel = () => {
   const [tab, setTab] = useState(() => {
@@ -558,6 +642,7 @@ const ExtensionsPanel = () => {
   const [count, setCount] = useState(0);
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => { try { localStorage.setItem("ibx:extensionsTab", tab); } catch {} }, [tab]);
 
@@ -581,21 +666,33 @@ const ExtensionsPanel = () => {
     } finally { setBusy(""); }
   };
 
+  const reload = async () => {
+    setBusy("reload");
+    try {
+      await window.electronAPI?.extReload?.();
+      refreshCount();
+      showToast("Extensions reloaded");
+    } finally { setBusy(""); }
+  };
+
   return (
     <div style={s.wrap}>
       <div style={s.header}>
         <div style={s.title}>Extensions <span style={s.badge}>{count}</span></div>
         <div style={{ display: "flex", gap: "var(--space-6)", alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={() => { setCreating(true); setTab("installed"); }} title="Scaffold a new extension" style={s.btnPrimary}>
+            <Plus size={12} /> New Extension
+          </button>
           <button onClick={loadFolder} disabled={busy === "folder"} title="Load an unpacked extension folder (development)" style={s.btn}>
             <FolderOpen size={12} /> Load Folder
           </button>
-          <button onClick={refreshCount} title="Refresh" style={s.iconBtn}><RefreshCw size={12} /></button>
+          <button onClick={reload} disabled={busy === "reload"} title="Reload all extensions" style={s.iconBtn}><RefreshCw size={12} /></button>
         </div>
       </div>
 
       <div style={s.tabs}>
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ ...s.tab, ...(tab === t.id ? s.tabOn : {}) }}>
+          <button key={t.id} onClick={() => { setCreating(false); setTab(t.id); }} style={{ ...s.tab, ...(tab === t.id && !creating ? s.tabOn : {}) }}>
             {t.label}{t.id === "installed" && count ? ` (${count})` : ""}
           </button>
         ))}
@@ -603,12 +700,21 @@ const ExtensionsPanel = () => {
 
       {toast && <div style={s.toast}>{toast}</div>}
 
-      {tab === "installed" && <InstalledTab onChanged={refreshCount} />}
-      {tab === "community" && <CommunityTab onInstalled={refreshCount} />}
-      {tab === "browser" && (
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <ChromeSection />
-        </div>
+      {creating ? (
+        <CreateForm
+          onCancel={() => setCreating(false)}
+          onCreated={() => { setCreating(false); setTab("installed"); refreshCount(); showToast("Extension created"); }}
+        />
+      ) : (
+        <>
+          {tab === "installed" && <InstalledTab onChanged={refreshCount} />}
+          {tab === "community" && <CommunityTab onInstalled={refreshCount} />}
+          {tab === "browser" && (
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <ChromeSection />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

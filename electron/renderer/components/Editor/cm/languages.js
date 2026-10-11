@@ -22,7 +22,7 @@ import { yaml } from "@codemirror/lang-yaml";
 export const CM_LANG_IDS = [
   "plaintext", "javascript", "jsx", "typescript", "tsx", "json",
   "html", "css", "python", "java", "cpp", "php", "rust",
-  "markdown", "sql", "xml", "yaml",
+  "markdown", "mdx", "sql", "xml", "yaml",
 ];
 
 const EXT_MAP = {
@@ -36,7 +36,7 @@ const EXT_MAP = {
   c: "cpp", h: "cpp", cpp: "cpp", hpp: "cpp", cc: "cpp", cxx: "cpp", ino: "cpp",
   php: "php",
   rs: "rust",
-  md: "markdown", markdown: "markdown", mdown: "markdown",
+  md: "markdown", markdown: "markdown", mdown: "markdown", mdx: "mdx",
   sql: "sql",
   xml: "xml", xsl: "xml", svg: "xml",
   yaml: "yaml", yml: "yaml",
@@ -52,7 +52,7 @@ const DISPLAY_NAMES = {
   plaintext: "Plain Text", javascript: "JavaScript", jsx: "JavaScript React",
   typescript: "TypeScript", tsx: "TypeScript React", json: "JSON",
   html: "HTML", css: "CSS", python: "Python", java: "Java", cpp: "C++",
-  php: "PHP", rust: "Rust", markdown: "Markdown", sql: "SQL",
+  php: "PHP", rust: "Rust", markdown: "Markdown", mdx: "MDX", sql: "SQL",
   xml: "XML", yaml: "YAML",
 };
 
@@ -94,7 +94,8 @@ export const getLanguageSupport = (cmId) => {
     case "cpp":        return [cpp()];
     case "php":        return [php()];
     case "rust":       return [rust()];
-    case "markdown":   return [markdown()];
+    case "markdown":
+    case "mdx":        return [markdown()];
     case "sql":        return [sql()];
     case "xml":        return [xml()];
     case "yaml":       return [yaml()];

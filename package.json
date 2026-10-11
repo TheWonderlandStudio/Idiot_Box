@@ -20,6 +20,7 @@
     "build:preload": "node build/build-preload.cjs",
     "build:renderer": "node build/build-renderer.cjs",
     "build:settings": "esbuild electron/renderer/settings-entry.jsx --bundle --outfile=electron/renderer/settings-bundle.js --platform=browser --loader:.css=css --loader:.jsx=jsx",
+    "build:icons": "node build/generate-icons.cjs",
     "build": "npm run build:ai-css && npm run build:preload && npm run build:renderer && npm run build:settings",
     "test": "echo \"No tests configured\"",
     "lint": "echo \"No linter configured\"",
@@ -28,6 +29,8 @@
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win nsis",
     "dist:win:dir": "npm run build && electron-builder --win nsis --dir",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac:dir": "npm run build && electron-builder --mac --dir",
     "dist:linux": "npm run build && electron-builder --linux",
     "dist:linux:dir": "npm run build && electron-builder --linux --dir",
     "postinstall": "electron-builder install-app-deps"
@@ -384,15 +387,17 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ],
-      "icon": "electron/renderer/assets/idot_box.png",
+      "icon": "build/icons/icon.ico",
       "publisherName": "TheWonderlandStudio",
       "verifyUpdateCodeSignature": false,
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "signingHashAlgorithms": ["sha256"],
+      "sign": null,
+      "certificateFile": null,
+      "certificatePassword": null
     },
     "nsis": {
       "oneClick": false,
@@ -405,28 +410,42 @@
       "differentialPackage": true,
       "deleteAppDataOnUninstall": false,
       "displayLanguageSelector": false,
-      "installerHeaderIcon": "electron/renderer/assets/idot_box.png",
+      "installerHeaderIcon": "build/icons/icon.ico",
       "uninstallDisplayName": "Idiot Box"
     },
     "mac": {
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "build/icons/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "darkModeSupport": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": false,
+      "afterSign": "build/notarize.cjs"
     },
     "linux": {
       "target": [
         {
           "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         },
         {
           "target": "deb",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ],
-      "icon": "electron/renderer/assets/idot_box.png",
+      "icon": "build/icons/icon.png",
       "category": "Development",
       "maintainer": "TheWonderlandStudio <support@thewonderlandstudio.com>",
       "description": "Idiot Box - Code-OSS-backed desktop IDE with an embedded extension host",

@@ -1773,6 +1773,12 @@ const App = () => {
       }
       addPanel("extView", d.title || `${extId}`, { extId, viewType });
     };
+    const unExtFocus = window.electronAPI?.onExtViewFocus?.((p) => {
+      if (!p?.extId || !p?.viewType) return;
+      window.dispatchEvent(new CustomEvent("add-ext-view-panel", {
+        detail: { extId: p.extId, viewType: p.viewType, title: p.title },
+      }));
+    });
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-ai-agent-panel", onAiAgent);
     window.addEventListener("add-extensions-panel", onExtensions);
@@ -1798,6 +1804,7 @@ const App = () => {
       window.removeEventListener("add-run-panel", onRunDebug);
       window.removeEventListener("add-git-panel", onGit);
       window.removeEventListener("add-android-panel", onAndroid);
+      try { unExtFocus && unExtFocus(); } catch {}
     };
   }, []);
 

@@ -47,3 +47,12 @@ Desktop.ini
 
 # generated Tailwind CSS string module for AI Elements shadow DOM
 electron/renderer/components/ai-elements/ai-tw-css.js
+
+# code signing secrets — NEVER commit
+.env.signing
+
+# generated icon assets (regenerate with: npm run build:icons)
+build/icons/
+
+# generated lazy panel chunks
+electron/renderer/chunks/

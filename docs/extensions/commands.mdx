@@ -1,0 +1,85 @@
+---
+title: "Commands API"
+description: "Registering commands, handling arguments, and Command Palette integration"
+---
+
+# Commands API
+
+Commands are the primary way users and the IDE trigger extension actions.
+
+---
+
+## Registering Commands
+
+Use `ibox.commands.registerCommand()` in your `activate()` function:
+
+```javascript
+function activate(context) {
+  const disposable = context.ibox.commands.registerCommand(
+    "my.command.id",
+    async (contextArg) => {
+      // Logic goes here
+      await context.ibox.window.showInfo("Command executed!");
+    },
+    "Command Title",      // Optional title (if not defined in package.json)
+    "Category Name"       // Optional category
+  );
+
+  context.subscriptions.push(disposable);
+}
+```
+
+---
+
+## Command Arguments
+
+Commands receive contextual arguments depending on where they are invoked:
+
+### From Editor Context Menu:
+```javascript
+ibox.commands.registerCommand("my.format", (ctx) => {
+  // ctx.filePath — full path to the active file
+  ibox.window.showInfo(`Formatting: ${ctx.filePath}`);
+});
+```
+
+### From Explorer Context Menu:
+```javascript
+ibox.commands.registerCommand("my.processFolder", (ctx) => {
+  // ctx.paths     — array of all selected file/folder paths
+  // ctx.filePath  — primary selected path
+  ibox.window.showInfo(`Selected: ${ctx.paths.join(", ")}`);
+});
+```
+
+---
+
+## Executing Commands Programmatically
+
+Any command can be called from code using `executeCommand`:
+
+```javascript
+// Execute your own command:
+await ibox.commands.executeCommand("my.command.id");
+
+// Execute built-in Idiot Box commands:
+await ibox.commands.executeCommand("ibox:reload-extensions");
+await ibox.commands.executeCommand("ibox:toggle-devtools");
+await ibox.commands.executeCommand("ibox:copy-to-clipboard", "Text to copy");
+```
+
+---
+
+## Returning Results
+
+Commands can return values to callers:
+
+```javascript
+ibox.commands.registerCommand("my.calculateSum", (a, b) => {
+  return Number(a) + Number(b);
+});
+
+// Calling it:
+const res = await ibox.commands.executeCommand("my.calculateSum", 10, 20);
+// res → { ok: true, result: 30 }
+```

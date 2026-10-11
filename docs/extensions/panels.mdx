@@ -1,0 +1,101 @@
+---
+title: "Webview Panels"
+description: "Creating custom UI editor tabs and two-way IPC messaging with the ibx bridge"
+---
+
+# Webview Panels
+
+Webview panels let you embed custom HTML, CSS, and JavaScript as tabs inside the Idiot Box editor grid.
+Panels run inside a sandboxed Electron **`<webview>`** element — fully isolated from the renderer process.
+
+---
+
+## 1. Creating a Panel
+
+Use `ibox.window.createPanel()`:
+
+```javascript
+function activate(context) {
+  const panel = context.ibox.window.createPanel({
+    id: "my.extension.dashboard",
+    title: "Project Dashboard",
+    reveal: false,
+    html: `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: system-ui; background: #1e1e1e; color: #fff; padding: 20px; }
+            button { background: #0e639c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+          </style>
+        </head>
+        <body>
+          <h2>Project Dashboard</h2>
+          <button id="sendBtn">Ping Extension Host</button>
+          <div id="status"></div>
+          <script>
+            document.getElementById("sendBtn").onclick = () => {
+              ibx.post({ action: "ping", timestamp: Date.now() });
+            };
+            ibx.on((msg) => {
+              document.getElementById("status").textContent = JSON.stringify(msg);
+            });
+          </script>
+        </body>
+      </html>`
+  });
+
+  // Handle messages from the webview
+  context.subscriptions.push(
+    panel.webview.onDidReceiveMessage((msg) => {
+      if (msg.action === "ping") {
+        panel.webview.postMessage({ response: "pong", time: Date.now() });
+      }
+    })
+  );
+
+  // Command to open / reveal panel
+  context.subscriptions.push(
+    context.ibox.commands.registerCommand("my.extension.openDashboard", () => {
+      panel.reveal();
+    })
+  );
+}
+```
+
+---
+
+## 2. The Built-In `ibx` Bridge
+
+Every panel automatically has the `ibx` bridge injected into its page. No external scripts or CDNs are required.
+
+### Methods Available Inside Webview:
+
+```javascript
+// 1. Send data to the Node.js extension host:
+ibx.post({ type: "saveData", data: { count: 42 } });
+
+// 2. Receive data from the Node.js extension host:
+const subscription = ibx.on((message) => {
+  console.log("Got message from host:", message);
+});
+// To stop listening:
+subscription.dispose();
+
+// 3. Persist local state across view reloads:
+ibx.setState({ activeTab: "settings" });
+const state = ibx.getState();
+```
+
+---
+
+## 3. Dynamically Updating HTML
+
+You can update the HTML of an open panel at any time:
+
+```javascript
+panel.webview.html = `<!doctype html><html><head><meta charset="utf-8"></head><body><h1>Updated Content</h1></body></html>`;
+```
+
+> **Note**: Setting `panel.webview.html` triggers a full `<webview>` reload, not an incremental DOM patch.
+> If you need live data updates without reloading the page, use `panel.webview.postMessage()` instead.

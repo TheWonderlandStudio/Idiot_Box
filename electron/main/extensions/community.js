@@ -78,8 +78,11 @@ async function listExtensions(input) {
       const mf = await ghJson(rawUrl(r, `${r.subfolder}/${d.name}/package.json`));
       if (!mf || !mf.name) return null;
       const native = mf.idiotbox || mf.ibox || {};
+      const id = native.id || (String(mf.name || "").includes(".")
+        ? mf.name
+        : `${mf.publisher || native.publisher || "local"}.${native.name || mf.name}`);
       return {
-        id: `${(native.id || mf.publisher || "local")}.${native.name || mf.name}`,
+        id,
         name: native.name || mf.displayName || mf.name,
         rawName: d.name,
         publisher: native.publisher || mf.publisher || "",

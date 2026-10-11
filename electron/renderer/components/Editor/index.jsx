@@ -20,7 +20,7 @@ import {
 import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/search";
 import NotebookPanel from "../Notebook/index.jsx";
 import { Play, Sparkles, Square } from "lucide-react";
-import { MarkdownPreview, DbPreview } from "./preview.jsx";
+import { MarkdownPreview, MdxPreview, DbPreview } from "./preview.jsx";
 import "./editor.css";
 // Shared editor state (dirty flags, settings sync) — engine-agnostic.
 import {
@@ -62,6 +62,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const isIpynb = !forceText && /\.ipynb$/i.test(filePath || "");
   const isDbFile = !forceText && /\.(db|db3|sqlite|sqlite3)$/i.test(filePath || "");
   const isMdFile = !forceText && /\.(md|markdown|mdown|mkd|mkdn)$/i.test(filePath || "");
+  const isMdxFile = !forceText && /\.mdx$/i.test(filePath || "");
 
   // ── Project gate ──
   const [hasProject, setHasProject] = useState(!!window.__currentProjectPath);
@@ -88,8 +89,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const [langQuery, setLangQuery] = useState("");
   const [binaryFile, setBinaryFile] = useState(false);
 
-  // ── Side preview (markdown render / sqlite inspect) ──
-  const canPreview = !!filePath && !isIpynb && (isDbFile || isMdFile || languageId === "markdown");
+  // ── Side preview (markdown / mdx render / sqlite inspect) ──
+  const canPreview = !!filePath && !isIpynb && (isDbFile || isMdFile || isMdxFile || languageId === "markdown" || languageId === "mdx");
   const [previewOpen, setPreviewOpen] = useState(false);
   // Naya file → db auto-open, baaki band.
   useEffect(() => { setPreviewOpen(isDbFile); }, [filePath, isDbFile]);
@@ -661,7 +662,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
             {canPreview && (
               <button
                 className={"ed-prevbtn" + (previewOpen ? " ed-prevbtn--on" : "")}
-                title={previewOpen ? "Back to editor" : "Show preview"}
+                title={previewOpen ? "Back to editor" : (isMdxFile || languageId === "mdx" ? "Show MDX preview" : "Show preview")}
                 onClick={() => setPreviewOpen((v) => !v)}
               >
                 {previewOpen ? <Square size={11} /> : <Play size={11} />}
@@ -672,6 +673,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
               <div className="ed-prev">
                 {isDbFile ? (
                   <DbPreview filePath={filePath} />
+                ) : (isMdxFile || languageId === "mdx") ? (
+                  <MdxPreview doc={doc} filePath={filePath} />
                 ) : (
                   <MarkdownPreview doc={doc} />
                 )}
@@ -698,6 +701,23 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                 <span>{statusMsg || (isDbFile ? "SQLite database · read-only" : `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`)}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
+                {canPreview && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen((v) => !v)}
+                    title={previewOpen ? "Back to editor" : (isMdxFile || languageId === "mdx" ? "Preview MDX" : "Preview Document")}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: "var(--space-4)",
+                      padding: "0 var(--space-6)", border: "1px solid var(--border-subtle, rgba(255,255,255,0.15))",
+                      borderRadius: "var(--radius-xs)", background: previewOpen ? "var(--accent)" : "rgba(255,255,255,0.08)",
+                      color: "inherit", font: "inherit", cursor: "pointer",
+                      height: 18, lineHeight: "16px", fontSize: "11px",
+                    }}
+                  >
+                    {previewOpen ? <Square size={10} /> : <Play size={10} />}
+                    <span>{previewOpen ? "Editor" : (isMdxFile || languageId === "mdx" ? "MDX Preview" : "Preview")}</span>
+                  </button>
+                )}
                 {!isDbFile && !binaryFile && (
                   <button
                     type="button"

@@ -1,0 +1,140 @@
+---
+title: "Quickstart: Create Your First Extension"
+description: "Step-by-step tutorial to create, load, and test an extension outside the app bundle"
+---
+
+# Quickstart Guide
+
+This guide walks you through creating a working Idiot Box extension from scratch in an external folder.
+
+---
+
+## Step 1: Create the Extension Folder
+
+Create a folder anywhere on your computer (outside the Idiot Box source directory):
+
+```bash
+mkdir my-first-extension
+cd my-first-extension
+```
+
+Create three files:
+1. `package.json`
+2. `extension.js`
+3. `README.md`
+
+---
+
+## Step 2: Configure `package.json`
+
+Add the manifest defining your extension ID, metadata, and contributions:
+
+```json
+{
+  "name": "my-first-extension",
+  "displayName": "My First Extension",
+  "version": "1.0.0",
+  "publisher": "developer",
+  "description": "My first custom extension for Idiot Box",
+  "main": "extension.js",
+  "engines": {
+    "idiotbox": "*"
+  },
+  "idiotbox": {
+    "id": "developer.my-first-extension",
+    "name": "My First Extension",
+    "version": "1.0.0",
+    "main": "extension.js"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "developer.my-first-extension.sayHello",
+        "title": "Say Hello",
+        "category": "My Extension"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "developer.my-first-extension.sayHello",
+          "group": "navigation"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Step 3: Implement `extension.js`
+
+Write the extension activation logic:
+
+```javascript
+"use strict";
+
+function activate(context) {
+  const { ibox, subscriptions } = context;
+
+  // Register command
+  const helloCommand = ibox.commands.registerCommand(
+    "developer.my-first-extension.sayHello",
+    async (args) => {
+      const activePath = args?.filePath || ibox.workspace.getProjectPath();
+      await ibox.window.showInfo(
+        "Hello from My First Extension!" + (activePath ? `\nTarget: ${activePath}` : "")
+      );
+    }
+  );
+  subscriptions.push(helloCommand);
+
+  // Add status bar item
+  const statusItem = ibox.window.createStatusBarItem({
+    text: "$(rocket) My First Ext",
+    tooltip: "Click to run Say Hello",
+    command: "developer.my-first-extension.sayHello"
+  });
+  statusItem.show();
+  subscriptions.push(statusItem);
+}
+
+function deactivate() {
+  // Clean up any timers, watchers, or external resources here
+}
+
+module.exports = { activate, deactivate };
+```
+
+---
+
+## Step 4: Add `README.md`
+
+```markdown
+# My First Extension
+
+This extension demonstrates how to:
+- Register a command in the Command Palette
+- Add a right-click editor context menu item
+- Display a clickable status bar button
+```
+
+---
+
+## Step 5: Load Unpacked in Idiot Box
+
+1. Launch **Idiot Box**.
+2. Open the **Extensions** panel from the left sidebar or the menu.
+3. Click the **Load Unpacked** button in the header.
+4. Select the `my-first-extension` folder.
+5. The extension will be installed to user data and activated immediately!
+
+---
+
+## Step 6: Test & Hot Reload
+
+1. Press `Ctrl+Shift+P` to open the Command Palette.
+2. Type `Say Hello` and press Enter. You will see an info notification.
+3. Edit `extension.js` with new changes.
+4. In the Command Palette, run `Idiot Box: Reload extensions`. Your changes take effect immediately without restarting the application!

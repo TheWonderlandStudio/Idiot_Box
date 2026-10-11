@@ -93,9 +93,11 @@ process.on("uncaughtException", (err) => {
     return;
   }
   try { console.error("[uncaughtException]", err); } catch {}
-  try {
-    dialog.showErrorBox("Idiot Box — Error", String(err?.message || err));
-  } catch {}
+  if (!app.isPackaged) {
+    try {
+      dialog.showErrorBox("Idiot Box — Error", String(err?.message || err));
+    } catch {}
+  }
 });
 process.on("unhandledRejection", (reason) => {
   const msg = String(reason?.message || reason || "");
@@ -3172,12 +3174,23 @@ ipcMain.handle("fs:watch", (event, rootPath) => {
   watcher.on("change",    notify);
 
   watchers.set(key, watcher);
+
+  event.sender.once("destroyed", () => {
+    const w = watchers.get(key);
+    if (w) {
+      try { w.close(); } catch {}
+      watchers.delete(key);
+    }
+  });
 });
 
 ipcMain.handle("fs:unwatch", async (event, rootPath) => {
   const key = watcherKey(rootPath, event.sender.id);
   const w   = watchers.get(key);
-  if (w) { await w.close(); watchers.delete(key); }
+  if (w) {
+    try { await w.close(); } catch {}
+    watchers.delete(key);
+  }
 });
 
 // ─── Browser webview context menu ────────────────────────────────────────────
@@ -3297,6 +3310,12 @@ ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = fals
       items.push({ label: "Copy Path", click: () => act("copyPath") });
       items.push({ label: "Reveal in File Explorer", click: () => act("reveal") });
     }
+    try {
+      const extra = extHost && typeof extHost.getContextMenuItems === "function"
+        ? extHost.getContextMenuItems("tab", { selectedPaths: filePath ? [filePath] : [], filePath, type: "tab" })
+        : [];
+      if (extra && extra.length) items.push(sep, ...extra);
+    } catch (e) { console.warn("[main] ext tab menu failed:", e && e.message); }
     const menu = Menu.buildFromTemplate(items);
     const win = BrowserWindow.fromWebContents(event.sender);
     menu.popup({ window: win, callback: () => resolve(null) });
@@ -3458,32 +3477,6 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal") },
       ];
-      // App extension commands (jaise Prettier) — bottom me "Extensions" submenu.
-      try {
-        const extCmds = extHost && typeof extHost.listCommands === "function" ? extHost.listCommands() : [];
-        if (extCmds.length) {
-          const byExt = new Map();
-          for (const c of extCmds) {
-            const label = c.extName || c.extId || "Extension";
-            if (!byExt.has(label)) byExt.set(label, []);
-            byExt.get(label).push(c);
-          }
-          const submenu = [];
-          for (const [extName, cmds] of byExt) {
-            submenu.push({
-              label: extName,
-              submenu: cmds.map((c) => ({
-                label: c.title || c.id,
-                click: () => {
-                  if (c.editorAction) { act(c.editorAction); return; }
-                  try { extHost.runCommand(c.id); } catch (e) { console.warn("[main] ext command failed:", c.id, e && e.message); }
-                },
-              })),
-            });
-          }
-          items.push(sep, { label: "Extensions", submenu });
-        }
-      } catch (e) { console.warn("[main] ext context menu failed:", e && e.message); }
     } else if (type === "mediaViewer") {
       const filePath = selectedPaths?.[0] || "";
       const extName = path.extname(filePath).toLowerCase();
@@ -3507,6 +3500,13 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Close Media Viewer",       accelerator: "Esc",          click: () => act("close") },
       ];
     }
+
+    try {
+      const extra = extHost && typeof extHost.getContextMenuItems === "function"
+        ? extHost.getContextMenuItems(type, { selectedPaths, clipboardPaths, type })
+        : [];
+      if (extra && extra.length) items.push({ type: "separator" }, ...extra);
+    } catch (e) { console.warn("[main] ext context menu failed:", e && e.message); }
 
     const menu = Menu.buildFromTemplate(items);
     const win  = BrowserWindow.fromWebContents(event.sender);
@@ -3587,12 +3587,22 @@ ipcMain.handle("terminal:open", async (event, { tabId, cwd, forceRestart }) => {
 
   termProcesses.set(key, p);
 
+  const onSenderDestroyed = () => {
+    const proc = termProcesses.get(key);
+    if (proc) {
+      try { proc.kill(); } catch {}
+      termProcesses.delete(key);
+    }
+  };
+  event.sender.once("destroyed", onSenderDestroyed);
+
   p.onData((data) => {
     try { event.sender.send("terminal:data", { tabId, data }); } catch {}
     try { if (typeof sniffPortsFromTerminalOutput === "function") sniffPortsFromTerminalOutput(data); } catch {}
   });
 
   p.onExit(({ exitCode, signal }) => {
+    try { event.sender.removeListener("destroyed", onSenderDestroyed); } catch {}
     if (termProcesses.get(key) === p) termProcesses.delete(key);
     try { event.sender.send("terminal:exit", { tabId, code: exitCode, signal }); } catch {}
   });
@@ -4459,16 +4469,27 @@ ipcMain.handle("panel:addMenu", async (event) => {
 });
 
 ipcMain.handle("open:url", async (_e, url) => {
-  // Allowlist: sirf http(s)/mailto/file — javascript:/data:/vbscript: kabhi nahi.
+  // Allowlist: strictly http, https, and mailto — block file://, javascript:, data:, vbscript:, etc.
   try {
     const u = String(url || "").trim();
-    if (!/^(https?:\/\/|mailto:|file:\/\/)/i.test(u)) return false;
-    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    if (win && require("electron").shell) {
-      require("electron").shell.openExternal(u);
+    if (!u) return false;
+    let parsed;
+    try {
+      parsed = new URL(u);
+    } catch {
+      return false;
+    }
+    if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) {
+      console.warn("[open:url] blocked disallowed protocol:", parsed.protocol, u);
+      return false;
+    }
+    if (shell) {
+      await shell.openExternal(u);
       return true;
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[open:url] openExternal error:", err && err.message);
+  }
   return false;
 });
 
@@ -4582,7 +4603,9 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
       const filePath = path.join(lsRoot, urlPath);
       // Security: prevent directory traversal outside root
       const resolved = path.resolve(filePath);
-      if (!resolved.startsWith(path.resolve(lsRoot))) {
+      const rootResolved = path.resolve(lsRoot);
+      const rootPrefix = rootResolved.endsWith(path.sep) ? rootResolved : rootResolved + path.sep;
+      if (resolved !== rootResolved && !resolved.startsWith(rootPrefix)) {
         res.writeHead(403); res.end("Forbidden"); return;
       }
       fs.readFile(resolved, (err, data) => {

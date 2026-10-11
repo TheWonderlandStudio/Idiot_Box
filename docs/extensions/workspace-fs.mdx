@@ -1,0 +1,63 @@
+---
+title: "Workspace & Environment APIs"
+description: "Safe file system operations, active project access, and environment utilities"
+---
+
+# Workspace & Environment APIs
+
+Idiot Box provides safe workspace and system utilities for extensions.
+
+---
+
+## 1. Project Directory Access
+
+To get the root path of the open project:
+
+```javascript
+const projectPath = context.ibox.workspace.getProjectPath();
+// → e.g. "D:\\my-project" on Windows, or null if no folder is open
+```
+
+---
+
+## 2. Safe File System (`ibox.workspace.fs`)
+
+For security and isolation, `ibox.workspace.fs` enforces that extensions can only perform file system operations inside:
+1. The currently open workspace project directory.
+2. The extension's own directory.
+
+Attempting to read or write files outside these locations will throw an error.
+
+```javascript
+const { Uri } = context.ibox;
+
+// Construct URI for a project file
+const fileUri = Uri.file(path.join(projectPath, "config.json"));
+
+// Read file text
+const buffer = await context.ibox.workspace.fs.readFile(fileUri);
+
+// Write file text
+await context.ibox.workspace.fs.writeFile(fileUri, Buffer.from("content"));
+```
+
+---
+
+## 3. Environment & Clipboard (`ibox.env`)
+
+Access environment helpers:
+
+```javascript
+// Copy to system clipboard:
+await context.ibox.env.clipboard.writeText("Hello from extension");
+
+// Read from system clipboard:
+const text = await context.ibox.env.clipboard.readText();
+
+// Open a link in default browser:
+await context.ibox.env.openExternal("https://github.com");
+
+// Application metadata:
+context.ibox.env.appName;   // → "Idiot Box"
+context.ibox.env.appRoot;   // → Path to application root (read-only)
+```

@@ -1,0 +1,104 @@
+---
+title: "Document Formatters"
+description: "Registering code formatters and providing document edits"
+---
+
+# Document Formatters
+
+Idiot Box supports code formatters via `ibox.languages.registerDocumentFormattingEditProvider()`.
+
+When a user clicks **Format Document** in the editor or presses the shortcut, the active formatter matching the document's language is invoked.
+
+---
+
+## 1. Registering a Formatter
+
+```javascript
+function activate(context) {
+  const disposable = context.ibox.languages.registerDocumentFormattingEditProvider(
+    ["javascript", "typescript", "json"], // Language selector or "*"
+    {
+      async provideDocumentFormattingEdits(document, options, token) {
+        const text = document.getText();
+        
+        // Example: formatting with a library or custom logic
+        const formatted = myCustomFormat(text, {
+          tabSize: options.tabSize,
+          insertSpaces: options.insertSpaces
+        });
+
+        if (formatted === text) return []; // No changes
+
+        // Replace entire document range
+        const fullRange = {
+          start: { line: 0, character: 0 },
+          end: { line: document.lineCount, character: 0 }
+        };
+
+        return [
+          {
+            range: fullRange,
+            newText: formatted
+          }
+        ];
+      }
+    }
+  );
+
+  context.subscriptions.push(disposable);
+}
+```
+
+---
+
+## 2. Document Object API
+
+The `document` passed to `provideDocumentFormattingEdits` provides:
+
+- `document.fileName`: Full absolute path of the file.
+- `document.languageId`: E.g., `"javascript"`, `"json"`, `"markdown"`.
+- `document.lineCount`: Total lines in the document.
+- `document.getText(range?)`: Returns document text (or slice).
+- `document.lineAt(lineNumber)`: Returns line text and range info.
+- `document.offsetAt(position)`: Converts `{ line, character }` to string offset.
+- `document.positionAt(offset)`: Converts string offset to `{ line, character }`.
+
+---
+
+## 3. Prettier Integration Example
+
+You can bundle or require `prettier` inside your extension:
+
+```javascript
+const prettier = require("prettier");
+
+const provider = {
+  async provideDocumentFormattingEdits(document) {
+    const filePath = document.fileName;
+    const source = document.getText();
+    const config = (await prettier.resolveConfig(filePath)) || {};
+
+    const formatted = await prettier.format(source, {
+      ...config,
+      filepath: filePath
+    });
+
+    return [
+      {
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: document.lineCount, character: 0 }
+        },
+        newText: formatted
+      }
+    ];
+  }
+};
+
+// Register and push to subscriptions so it unregisters on deactivation:
+context.subscriptions.push(
+  context.ibox.languages.registerDocumentFormattingEditProvider(
+    ["javascript", "typescript"], provider
+  )
+);
+```

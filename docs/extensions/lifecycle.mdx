@@ -1,0 +1,96 @@
+---
+title: "Extension Lifecycle"
+description: "Understanding activation, subscriptions, deactivation, and enable/disable states"
+---
+
+# Extension Lifecycle
+
+Every extension goes through distinct stages managed by the Extension Host:
+
+```
+[Installed / Loaded]
+         │
+         ▼
+    [activate()]  ──▶ Registers commands, views, formatters
+         │
+         ├──────────────────────────────┐
+         ▼                              ▼
+    (Active) ──[Disable Toggle]──▶ [deactivate()] ──▶ (Disabled)
+         │                              │
+         │                              ▼
+         ▼                      [Enable Toggle]
+    [Reload Extensions]                 │
+         │                              ▼
+         └───────────────────────▶ [activate()]
+```
+
+---
+
+## 1. `activate(context)`
+
+The `activate` function is called when:
+- The app starts up and loads all enabled extensions.
+- An extension is loaded via **Load Unpacked**.
+- An extension is switched from **Disabled** to **Enabled**.
+- The user runs **Idiot Box: Reload extensions**.
+
+### Context Object
+
+```javascript
+function activate(context) {
+  // context.ibox: Main Idiot Box API object
+  // context.subscriptions: Array of Disposables
+}
+```
+
+### The `subscriptions` Array
+Whenever you register a command, view, or status bar item, the register function returns a `Disposable`. Always push it to `context.subscriptions`:
+
+```javascript
+context.subscriptions.push(
+  ibox.commands.registerCommand("my.cmd", () => {})
+);
+```
+
+When the extension is disabled, uninstalled, or reloaded, Idiot Box iterates through `subscriptions` and disposes of all resources automatically.
+
+---
+
+## 2. `deactivate()`
+
+Optional cleanup function called when:
+- An extension is manually disabled.
+- An extension is uninstalled.
+- The application quits.
+
+```javascript
+function deactivate() {
+  // Clean up any background timers, websockets, or child processes
+}
+```
+
+---
+
+## 3. Runtime Enable / Disable Toggles
+
+In the **Extensions Panel → Installed Tab**, users can toggle an extension between **Enabled** and **Disabled**:
+
+- **Disabling**:
+  1. Calls `deactivate()` if defined.
+  2. Cleans up all items in `runtime`.
+  3. Removes all commands from the Command Palette.
+  4. Removes all status bar items.
+  5. Removes all formatter providers.
+  6. Persists `enabled: false` in `extensions-state.json`.
+- **Enabling**:
+  1. Sets `enabled: true` in `extensions-state.json`.
+  2. Calls `activate(context)` to restore commands and UI elements.
+
+---
+
+## 4. Error Handling & Safe Isolation
+
+If `activate()` throws an unhandled error:
+- The error is captured in `state.extensions[id].error`.
+- The extension is marked with an `activation error` badge in the Extensions panel.
+- The rest of the IDE and other extensions continue functioning without crashing.

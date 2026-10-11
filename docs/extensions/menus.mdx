@@ -1,0 +1,87 @@
+---
+title: "Context Menus"
+description: "Adding menu items to File Explorer, Editor, and custom UI locations"
+---
+
+# Context Menus
+
+Extensions can register actions in right-click context menus across Idiot Box.
+
+---
+
+## 1. Registering in `package.json`
+
+The most common approach is declaring menus in `contributes.menus`:
+
+```json
+{
+  "contributes": {
+    "commands": [
+      {
+        "command": "my.plugin.copyRelativePath",
+        "title": "Copy Relative Path"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "my.plugin.copyRelativePath",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "my.plugin.copyRelativePath",
+          "group": "navigation"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## 2. Dynamic Registration via Code
+
+You can also register menus programmatically inside `activate()`:
+
+```javascript
+function activate(context) {
+  const disposable = context.ibox.menus.register({
+    menu: "explorer/context",
+    command: "my.plugin.copyRelativePath",
+    title: "Copy Relative Path",
+    group: "navigation",
+    when: "resourceScheme == file"
+  });
+
+  context.subscriptions.push(disposable);
+}
+```
+
+---
+
+## Supported Menu Locations
+
+| Menu Identifier | Description |
+|---|---|
+| `explorer/context` | Right-click on files or folders in the Project Explorer tree. |
+| `editor/context` | Right-click inside the open Code Editor. |
+| `ibox.file` | Target actions for single files. |
+| `ibox.folder` | Target actions for folder directories. |
+| `ibox.tab` | Right-click on open editor tabs. |
+
+---
+
+## Menu Context Payload
+
+When a context menu item is clicked, the command receives:
+
+```javascript
+ibox.commands.registerCommand("my.plugin.copyRelativePath", (ctx) => {
+  // ctx.type: Menu identifier (e.g., "explorer/context")
+  // ctx.filePath: Selected file or active editor path
+  // ctx.paths: Array of all selected paths if multi-selected
+});
+```

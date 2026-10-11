@@ -14,6 +14,8 @@ const path = require("path");
 const { pathToFileURL } = require("url");
 const folder = require("./folder");
 const community = require("./community");
+const scaffold = require("./scaffold");
+const menus = require("./menus");
 const { summarizeContributions } = require("./contrib");
 
 // ── Paths / state ───────────────────────────────────────────────────────────
@@ -75,7 +77,7 @@ let statusSeq = 0;
 
 function normalizeManifest(extDir, manifest = {}) {
   const custom = manifest.idiotbox || manifest.ibox || {};
-  const id = custom.id || manifest.name || path.basename(extDir) || "unknown-extension";
+  const id = folder.extensionId(manifest) || path.basename(extDir) || "unknown-extension";
   const name = custom.name || manifest.displayName || manifest.name || id;
   const version = custom.version || manifest.version || "0.0.0";
   const description = custom.description || manifest.description || "";
@@ -190,7 +192,12 @@ let getProjectPath = () => null;
 // ── Per-extension pieces ────────────────────────────────────────────────────
 function ensureRuntime(extId) {
   let rt = runtime.get(extId);
-  if (!rt) { rt = { disposables: [], commands: new Map(), views: new Map(), statusItems: new Map(), formatters: [], error: null }; runtime.set(extId, rt); }
+  if (!rt) {
+    rt = { disposables: [], commands: new Map(), views: new Map(), statusItems: new Map(), formatters: [], menus: [], error: null };
+    runtime.set(extId, rt);
+  }
+  if (!Array.isArray(rt.formatters)) rt.formatters = [];
+  if (!Array.isArray(rt.menus)) rt.menus = [];
   return rt;
 }
 
@@ -283,6 +290,7 @@ function createWebviewPanel(extId, viewType, title, opts) {
     extId, viewType: id, title: String(title || id),
     _html: "", onMessage: emitter, column: (opts && opts.viewColumn) || 1,
   };
+  const focus = () => broadcast("ext:viewFocus", { extId, viewType: id, title: rec.title });
   const panel = {
     get title() { return rec.title; },
     set title(v) { rec.title = String(v || ""); changed(); },
@@ -296,12 +304,60 @@ function createWebviewPanel(extId, viewType, title, opts) {
       asWebviewUri: (u) => Uri.parse(String(u)),
     },
     onDidChangeViewState: new Emitter().event,
-    reveal: () => broadcast("ext:viewFocus", { extId, viewType: id }),
+    reveal: focus,
     dispose: () => { rt.views.delete(id); emitter.dispose(); changed(); },
   };
   rt.views.set(id, rec);
   changed();
+  if (opts && opts.reveal === true) setImmediate(focus);
   return panel;
+}
+
+function registerMenuItem(extId, item = {}) {
+  const rt = ensureRuntime(extId);
+  const rec = {
+    extId,
+    menu: String(item.menu || ""),
+    command: String(item.command || ""),
+    title: String(item.title || item.command || ""),
+    group: String(item.group || ""),
+    when: String(item.when || ""),
+  };
+  if (!rec.menu || !rec.command) return Disposable(() => {});
+  rt.menus.push(rec);
+  changed();
+  return Disposable(() => {
+    rt.menus = rt.menus.filter((x) => x !== rec);
+    changed();
+  });
+}
+
+function getContextMenuItems(type, ctx = {}) {
+  const out = [];
+  const seen = new Set();
+  for (const [extId, rt] of runtime.entries()) {
+    const rec = state.extensions[extId];
+    if (!rec || rec.enabled === false) continue;
+    for (const item of rt.menus) {
+      if (!menus.matchesMenu(item.menu, type)) continue;
+      if (!menus.evalWhen(item.when, { ...ctx, type })) continue;
+      const key = `${item.command}::${item.title}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const commandId = item.command;
+      out.push({
+        label: item.title || commandId,
+        click: () => {
+          runCommand(commandId, {
+            type,
+            paths: ctx.selectedPaths || [],
+            filePath: (ctx.selectedPaths && ctx.selectedPaths[0]) || ctx.filePath || "",
+          });
+        },
+      });
+    }
+  }
+  return out;
 }
 
 function viewsList() {
@@ -463,11 +519,31 @@ function createApis(extRec) {
     });
   };
 
+  const allowedFsRoots = () => {
+    const roots = [path.resolve(extRec.dir), path.resolve(path.join(rootDir(), ".state", extId))];
+    const proj = getProjectPath();
+    if (proj) roots.push(path.resolve(proj));
+    return roots;
+  };
+  const resolveExtFs = (uri) => {
+    const p = path.resolve((uri && uri.fsPath) || String(uri || ""));
+    const ok = allowedFsRoots().some((root) => p === root || p.startsWith(root + path.sep));
+    if (!ok) throw new Error("ibox.workspace.fs is limited to the open project and this extension's folder");
+    return p;
+  };
+
   const ibox = {
+    Uri,
     extension: { id: extId, name: extRec.name, version: extRec.version, dir: extRec.dir },
     commands: {
-      registerCommand: (id, fn, title, category) => registerCommand(extId, id, fn, title, category),
+      registerCommand: (id, fn, title, category) => {
+        const meta = cmdMeta.get(id) || {};
+        return registerCommand(extId, id, fn, title || meta.title, category || meta.category, meta.editorAction);
+      },
       executeCommand: (id, ...args) => runCommand(id, ...args),
+    },
+    menus: {
+      register: (opts) => registerMenuItem(extId, opts || {}),
     },
     languages: {
       registerDocumentFormattingEditProvider: (selector, provider) => {
@@ -487,12 +563,23 @@ function createApis(extRec) {
       showWarning: (msg) => { notify("warn", msg); return Promise.resolve(); },
       showError: (msg) => { notify("error", msg); return Promise.resolve(); },
       createStatusBarItem: (opts) => createStatusItem(extId, opts || {}),
-      createPanel: (opts) => createWebviewPanel(extId, (opts && (opts.id || opts.viewType)) || "view", (opts && opts.title) || extRec.name, opts),
+      showInformationMessage: (msg) => { notify("info", msg); return Promise.resolve(); },
+      showWarningMessage: (msg) => { notify("warn", msg); return Promise.resolve(); },
+      showErrorMessage: (msg) => { notify("error", msg); return Promise.resolve(); },
+      createPanel: (opts) => {
+        const o = opts || {};
+        const p = createWebviewPanel(extId, o.id || o.viewType || "view", o.title || extRec.name, { ...o, reveal: o.reveal !== false });
+        if (o.html) p.webview.html = o.html;
+        return p;
+      },
+      createWebviewPanel: (viewType, title, _show, webviewOpts) =>
+        createWebviewPanel(extId, viewType, title, { ...(webviewOpts || {}), reveal: true }),
     },
     panels: {
       register: (opts) => {
-        const p = createWebviewPanel(extId, opts.id || opts.viewType, opts.title || extRec.name, opts);
-        if (opts && opts.html) p.webview.html = opts.html;
+        const o = opts || {};
+        const p = createWebviewPanel(extId, o.id || o.viewType, o.title || extRec.name, { ...o, reveal: o.reveal !== false });
+        if (o.html) p.webview.html = o.html;
         return p;
       },
     },
@@ -507,7 +594,19 @@ function createApis(extRec) {
         writeText: (t) => { clipboard.writeText(String(t || "")); return Promise.resolve(); },
         readText: () => Promise.resolve(String(clipboard.readText() || "")),
       },
-      openExternal: (uri) => shell.openExternal(typeof uri === "string" ? uri : uri.toString()),
+      openExternal: (uri) => {
+        try {
+          const s = typeof uri === "string" ? uri : String(uri?.toString?.() || "");
+          const parsed = new URL(s);
+          if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) {
+            console.warn("[ext:openExternal] blocked protocol:", parsed.protocol, s);
+            return Promise.resolve(false);
+          }
+          return shell.openExternal(s);
+        } catch {
+          return Promise.resolve(false);
+        }
+      },
       uriScheme: "idiotbox",
       isTelemetryEnabled: false,
     },
@@ -519,19 +618,74 @@ function createApis(extRec) {
         return p ? [{ uri: Uri.file(p), name: path.basename(p), index: 0 }] : [];
       },
       fs: {
-        readFile: (uri) => fs.promises.readFile(uri.fsPath || String(uri)),
-        writeFile: (uri, data) => fs.promises.writeFile(uri.fsPath || String(uri), data),
-        appendFile: (uri, data) => fs.promises.appendFile(uri.fsPath || String(uri), data),
-        stat: async (uri) => { const s = await fs.promises.stat(uri.fsPath || String(uri)); return { type: s.isDirectory() ? 1 : 2, size: s.size, ctime: s.ctimeMs, mtime: s.mtimeMs }; },
-        delete: (uri, o) => fs.promises.rm(uri.fsPath || String(uri), { recursive: !!(o && o.recursive), force: true }),
-        rename: (a, b) => fs.promises.rename(a.fsPath || String(a), b.fsPath || String(b)),
-        readDirectory: async (uri) => { const entries = await fs.promises.readdir(uri.fsPath || String(uri), { withFileTypes: true }); return entries.map((e) => [e.name, e.isDirectory() ? 1 : 2]); },
+        readFile: (uri) => fs.promises.readFile(resolveExtFs(uri)),
+        writeFile: (uri, data) => fs.promises.writeFile(resolveExtFs(uri), data),
+        appendFile: (uri, data) => fs.promises.appendFile(resolveExtFs(uri), data),
+        stat: async (uri) => { const s = await fs.promises.stat(resolveExtFs(uri)); return { type: s.isDirectory() ? 1 : 2, size: s.size, ctime: s.ctimeMs, mtime: s.mtimeMs }; },
+        delete: (uri, o) => fs.promises.rm(resolveExtFs(uri), { recursive: !!(o && o.recursive), force: true }),
+        rename: (a, b) => fs.promises.rename(resolveExtFs(a), resolveExtFs(b)),
+        readDirectory: async (uri) => { const entries = await fs.promises.readdir(resolveExtFs(uri), { withFileTypes: true }); return entries.map((e) => [e.name, e.isDirectory() ? 1 : 2]); },
       },
     },
     log: (...a) => console.log(`[ext:${extId}]`, ...a),
   };
 
   return { ibox };
+}
+
+function purgeExtCache(dir) {
+  const resolved = path.resolve(dir);
+  const prefix = resolved + path.sep;
+  for (const key of Object.keys(require.cache)) {
+    try {
+      const abs = path.resolve(key);
+      if (abs === resolved || abs.startsWith(prefix)) delete require.cache[key];
+    } catch {}
+  }
+}
+
+function applyManifestContributions(extRec) {
+  if (!extRec || !extRec.dir) return;
+  const mf = loadJson(path.join(extRec.dir, "package.json"), {});
+  const c = (mf && mf.contributes) || {};
+  const extId = extRec.id;
+  const rt = ensureRuntime(extId);
+  const meta = contribCommandMeta(extRec.dir);
+
+  const viewEntries = [];
+  if (Array.isArray(c.views)) {
+    for (const v of c.views) viewEntries.push(v);
+  } else {
+    for (const entries of Object.values(c.views || {})) {
+      if (Array.isArray(entries)) viewEntries.push(...entries);
+    }
+  }
+  for (const v of extRec.views || []) {
+    if (!v) continue;
+    viewEntries.push(typeof v === "string" ? { id: v, name: v } : v);
+  }
+  for (const v of viewEntries) {
+    const id = v && (v.id || v.viewType);
+    if (!id || rt.views.has(String(id))) continue;
+    createWebviewPanel(extId, String(id), v.name || v.title || id, { reveal: false });
+  }
+
+  for (const [menuId, entries] of Object.entries(c.menus || {})) {
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!entry || !entry.command) continue;
+      const already = rt.menus.some((m) => m.menu === menuId && m.command === entry.command);
+      if (already) continue;
+      const info = meta.get(entry.command) || {};
+      registerMenuItem(extId, {
+        menu: menuId,
+        command: entry.command,
+        title: entry.title || info.title || entry.command,
+        group: entry.group || "",
+        when: entry.when || "",
+      });
+    }
+  }
 }
 
 // ── Activation / deactivation ───────────────────────────────────────────────
@@ -594,11 +748,13 @@ async function activate(extRec) {
     workspaceState: memento(extRec.id, "workspaceState"),
     environmentVariableCollection: envCollection(),
     ibox,
+    asAbsolutePath: (rel) => path.join(extRec.dir, String(rel || "")),
   };
   try { fs.mkdirSync(context.storagePath, { recursive: true }); } catch {}
 
   let mod;
   try {
+    purgeExtCache(extRec.dir);
     try { delete require.cache[require.resolve(mainPath)]; } catch {}
     try {
       mod = require(mainPath);
@@ -620,6 +776,7 @@ async function activate(extRec) {
       const act = typeof mod === "function" ? mod : mod && mod.activate;
       if (typeof act === "function") await act(context);
       if (mod && typeof mod.deactivate === "function") rt.disposables.push(Disposable(() => { try { mod.deactivate(); } catch {} }));
+      applyManifestContributions(extRec);
     } catch (e) {
       rt.error = String((e && e.message) || e);
       console.warn(`[ext] activate failed ${extRec.id}:`, rt.error);
@@ -678,6 +835,37 @@ function addInstalled({ id, dir, manifest, source }) {
   };
   persistState();
   return state.extensions[finalId];
+}
+
+async function createUserExtension(opts = {}) {
+  const publisher = scaffold.slugPart(opts.publisher, "local");
+  const name = scaffold.slugPart(opts.name, "hello");
+  const id = `${publisher}.${name}`;
+  if (state.extensions[id]) return { ok: false, error: `Already installed: ${id}` };
+  const dir = path.join(rootDir(), id);
+  if (fs.existsSync(dir)) return { ok: false, error: `Folder already exists: ${id}` };
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    scaffold.write(dir, {
+      publisher,
+      name,
+      id,
+      displayName: opts.displayName || name,
+      description: opts.description || "",
+      features: opts.features || {},
+    });
+    const manifest = folder.readManifest(dir);
+    const rec = addInstalled({ id, dir, manifest, source: "created" });
+    await activate(rec);
+    const rt = runtime.get(rec.id);
+    const first = rt && [...rt.views.values()][0];
+    if (first) broadcast("ext:viewFocus", { extId: rec.id, viewType: first.viewType, title: first.title });
+    notify("info", `Created ${rec.name}`);
+    return { ok: true, id, dir, main: path.join(dir, "extension.js") };
+  } catch (e) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+    return { ok: false, error: String((e && e.message) || e) };
+  }
 }
 
 async function installFolderDialog() {
@@ -749,6 +937,7 @@ function listInstalled() {
       error: (rt && rt.error) || rec.error || null,
       commandCount: rt ? rt.commands.size : 0,
       formatterCount: rt ? rt.formatters.length : 0,
+      menuCount: rt ? rt.menus.length : 0,
       views: rt ? [...rt.views.values()].map((v) => ({ viewType: v.viewType, title: v.title })) : [],
       dir: rec.dir,
     };
@@ -958,36 +1147,52 @@ function registerExtensions(deps = {}) {
   console.log("[ext] host registered");
   if (typeof deps.getProjectPath === "function") getProjectPath = deps.getProjectPath;
 
-  ipcMain.handle("ext:installFolder", () => installFolderDialog());
-  ipcMain.handle("ext:communityList", async (_e, repo) => {
+  const handle = (channel, fn) => {
+    try { ipcMain.removeHandler(channel); } catch {}
+    ipcMain.handle(channel, fn);
+  };
+
+  handle("ext:installFolder", () => installFolderDialog());
+  handle("ext:create", (_e, opts) => createUserExtension(opts || {}));
+  handle("ext:openDir", (_e, id) => {
+    const rec = id ? state.extensions[String(id)] : null;
+    const dir = rec ? rec.dir : rootDir();
+    return shell.openPath(dir).then((err) => err ? { ok: false, error: err } : { ok: true, dir });
+  });
+  handle("ext:reload", async () => {
+    await activateAll();
+    notify("info", "Extensions reloaded");
+    return { ok: true };
+  });
+  handle("ext:communityList", async (_e, repo) => {
     try { return { ok: true, ...(await community.listExtensions(repo || "")) }; }
     catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   });
-  ipcMain.handle("ext:communityInstall", (_e, repo, extFolder) => installFromCommunity(String(repo || ""), String(extFolder || "")));
-  ipcMain.handle("ext:communityReadme", async (_e, repo, extFolder) => {
+  handle("ext:communityInstall", (_e, repo, extFolder) => installFromCommunity(String(repo || ""), String(extFolder || "")));
+  handle("ext:communityReadme", async (_e, repo, extFolder) => {
     try {
       const r = await community.readme(String(repo || ""), String(extFolder || ""));
       return { ok: true, readme: r ? r.text : "", file: r ? r.file : null };
     } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   });
-  ipcMain.handle("ext:details", (_e, id) => extDetails(String(id || "")));
-  ipcMain.handle("ext:uninstall", (_e, id) => uninstall(String(id || "")));
-  ipcMain.handle("ext:setEnabled", (_e, id, on) => setEnabled(String(id || ""), !!on));
-  ipcMain.handle("ext:list", () => listInstalled());
-  ipcMain.handle("ext:commands", () => listCommands());
-  ipcMain.handle("ext:invoke", (_e, id) => runCommand(String(id || "")));
-  ipcMain.handle("ext:format", (_e, payload = {}) =>
+  handle("ext:details", (_e, id) => extDetails(String(id || "")));
+  handle("ext:uninstall", (_e, id) => uninstall(String(id || "")));
+  handle("ext:setEnabled", (_e, id, on) => setEnabled(String(id || ""), !!on));
+  handle("ext:list", () => listInstalled());
+  handle("ext:commands", () => listCommands());
+  handle("ext:invoke", (_e, id, ...args) => runCommand(String(id || ""), ...args));
+  handle("ext:format", (_e, payload = {}) =>
     formatDocument(payload.filePath, payload.text, payload.languageId, payload.options));
-  ipcMain.handle("ext:views", () => viewsList());
-  ipcMain.handle("ext:viewHtml", (_e, extId, viewType) => getViewHtml(String(extId || ""), String(viewType || "")));
-  ipcMain.handle("ext:viewMessage", (_e, extId, viewType, msg) => {
+  handle("ext:views", () => viewsList());
+  handle("ext:viewHtml", (_e, extId, viewType) => getViewHtml(String(extId || ""), String(viewType || "")));
+  handle("ext:viewMessage", (_e, extId, viewType, msg) => {
     const rt = runtime.get(String(extId || ""));
     const view = rt && rt.views.get(String(viewType || ""));
     if (!view) return { ok: false, error: "view not found" };
     view.onMessage.fire(msg);
     return { ok: true };
   });
-  ipcMain.handle("ext:statusItems", () => statusItemsList());
+  handle("ext:statusItems", () => statusItemsList());
 
   app.whenReady().then(() => {
     console.log("[ext] app ready — scheduling activation");
@@ -996,4 +1201,4 @@ function registerExtensions(deps = {}) {
   app.on("will-quit", () => { for (const id of [...runtime.keys()]) deactivate(id); });
 }
 
-module.exports = { registerExtensions, listCommands, runCommand, formatDocument };
+module.exports = { registerExtensions, listCommands, runCommand, formatDocument, getContextMenuItems };

@@ -1,0 +1,73 @@
+---
+title: "Status Bar Items"
+description: "Creating live counters, indicators, and buttons in the Idiot Box status bar"
+---
+
+# Status Bar Items
+
+Status Bar items appear along the bottom status strip of the IDE. They can display dynamic text, tooltips, and trigger commands when clicked.
+
+---
+
+## 1. Creating a Status Item
+
+Use `ibox.window.createStatusBarItem()`:
+
+```javascript
+function activate(context) {
+  const item = context.ibox.window.createStatusBarItem({
+    text: "$(zap) Ready",
+    tooltip: "Click to run quick check",
+    command: "my.extension.runQuickCheck"
+  });
+
+  // Make visible
+  item.show();
+
+  context.subscriptions.push(item);
+}
+```
+
+---
+
+## 2. Dynamic Updates
+
+Properties of a status bar item can be modified in real time:
+
+```javascript
+let count = 0;
+setInterval(() => {
+  count++;
+  item.text = `$(sync~spin) Processed: ${count}`;
+  item.tooltip = `Last updated: ${new Date().toLocaleTimeString()}`;
+}, 5000);
+```
+
+---
+
+## 3. Controlling Visibility
+
+```javascript
+item.hide(); // Temporarily hide from status bar
+item.show(); // Show again
+item.dispose(); // Remove permanently
+```
+
+---
+
+## Icons in Status Bar
+
+You can include VS Code Codicon shorthands in `item.text`. Any [Codicon](https://microsoft.github.io/vscode-codicons/dist/codicon.html) name works:
+
+| Shorthand | Description |
+|---|---|
+| `$(zap)` | Lightning bolt |
+| `$(sync~spin)` | Spinning sync icon |
+| `$(check)` | Checkmark |
+| `$(alert)` | Warning triangle |
+| `$(rocket)` | Rocket |
+| `$(star)` | Star |
+| `$(symbol-misc)` | Generic symbol icon |
+| `$(ext)` | Extension icon |
+
+Animated icons use the `~spin` modifier (e.g. `$(loading~spin)`).

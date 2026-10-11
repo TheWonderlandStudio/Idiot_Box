@@ -1,0 +1,54 @@
+---
+title: "Storage & Configuration"
+description: "Persisting extension state, memento storage, and configuration settings"
+---
+
+# Storage & Configuration
+
+Idiot Box provides persistent key-value storage so extensions can save data across sessions without managing files directly.
+
+---
+
+## 1. Global State
+
+Persists across all workspaces and app restarts in `extensions-state.json`:
+
+```javascript
+// Reading data:
+const lastCheck = context.ibox.storage.globalState.get("lastCheckTime", 0);
+
+// Writing data:
+await context.ibox.storage.globalState.update("lastCheckTime", Date.now());
+
+// Listing keys:
+const keys = context.ibox.storage.globalState.keys(); // → string[]
+```
+
+---
+
+## 2. Workspace State
+
+Persists data scoped strictly to the currently open project directory:
+
+```javascript
+// Save project-specific bookmark or setting:
+// Note: returns null if no folder is currently open.
+await context.ibox.storage.workspaceState.update("recentBuildTarget", "dev");
+
+const target = context.ibox.storage.workspaceState.get("recentBuildTarget", "prod");
+```
+
+---
+
+## 3. Configuration & Settings
+
+Extensions can read configuration declared in their `package.json` under `contributes.configuration`:
+
+```javascript
+// Read a configuration setting
+const config = ibox.workspace.getConfiguration("myExtension");
+const isAutoSave = config.get("enableAutoSave", true);
+
+// Update a configuration setting
+await config.update("enableAutoSave", false);
+```

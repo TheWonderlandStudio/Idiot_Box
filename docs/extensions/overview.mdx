@@ -1,0 +1,58 @@
+---
+title: "Extensions Overview"
+description: "Introduction to the Idiot Box extension system and zero-bundle architecture"
+---
+
+# Extensions Overview
+
+The **Idiot Box Extension System** allows developers to extend the IDE with custom commands, UI panels, context menus, status bar items, and code formatters.
+
+Extensions run on a native Node.js **Extension Host** in the main process and communicate seamlessly with the React-based frontend editor.
+
+---
+
+## Key Highlights
+
+- **Native Node.js Runtime**: Extensions have direct access to Node.js capabilities and the curated `context.ibox` API.
+- **Zero-Bundle Architecture**: Extensions are never bundled into the app installer or `app.asar`. They live completely in external directories.
+- **Hot Reloading**: Edit extension code and reload instantly using `Ctrl+Shift+P` → `Idiot Box: Reload extensions`.
+- **VS Code Compatibility Shim**: Standard manifests (`package.json`) and VS Code-style API constructs (`activate`, `subscriptions`, `Disposable`, `Uri`, `TextEdit`) are supported.
+- **Enable / Disable Toggles**: Any installed extension can be enabled or disabled at runtime with a single click.
+
+---
+
+## Zero-Bundle Architecture
+
+When Idiot Box is packaged (via `electron-builder`), extensions are **strictly excluded** from the application binary.
+
+### Storage Locations
+All installed and scaffolded extensions live in the operating system's user data directory:
+
+| OS | Extension Storage Path |
+|---|---|
+| **Windows** | `%APPDATA%\Idiot Box\vsx-extensions\<extId>\` |
+| **macOS** | `~/Library/Application Support/Idiot Box/vsx-extensions/<extId>/` |
+| **Linux** | `~/.config/Idiot Box/vsx-extensions/<extId>/` |
+
+State tracking and toggle settings are persisted in:
+`%APPDATA%\Idiot Box\extensions-state.json`
+
+Because extensions live in user data, **updating the IDE will never delete your extensions**, and **installing extensions will never modify the core IDE files**.
+
+---
+
+## Documentation Index
+
+Explore the topic guides:
+
+1. [Architecture](./architecture.mdx) — Main process host, IPC bridge, and sandbox design.
+2. [Quickstart Guide](./quickstart.mdx) — Create your first extension in 2 minutes.
+3. [Manifest Reference (`package.json`)](./manifest.mdx) — Package configuration and contribution points.
+4. [Lifecycle & State](./lifecycle.mdx) — `activate()`, `deactivate()`, subscriptions, enable/disable.
+5. [Commands API](./commands.mdx) — Register and execute commands in the Command Palette.
+6. [Context Menus](./menus.mdx) — Integrate into File Explorer and Editor right-click menus.
+7. [Webview Panels](./panels.mdx) — Custom HTML/CSS tabs with the two-way `ibx` communication bridge.
+8. [Status Bar Items](./status-bar.mdx) — Clickable status bar indicators and counters.
+9. [Document Formatters](./formatters.mdx) — Build language code formatters.
+10. [Storage & Configuration](./storage.mdx) — Global state, workspace state, and settings.
+11. [Workspace & File System](./workspace-fs.mdx) — Safe file operations, project paths, and environment tools.

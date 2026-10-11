@@ -1,0 +1,53 @@
+{
+  "name": "sample-extension",
+  "displayName": "Sample Extension",
+  "description": "A standalone template extension for Idiot Box outside the app bundle.",
+  "version": "1.0.0",
+  "publisher": "community",
+  "main": "extension.js",
+  "engines": {
+    "idiotbox": "*"
+  },
+  "idiotbox": {
+    "id": "community.sample-extension",
+    "name": "Sample Extension",
+    "version": "1.0.0",
+    "main": "extension.js"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "community.sample-extension.hello",
+        "title": "Hello from Sample Extension",
+        "category": "Sample Extension"
+      },
+      {
+        "command": "community.sample-extension.openPanel",
+        "title": "Open Sample Panel",
+        "category": "Sample Extension"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "community.sample-extension.hello",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "community.sample-extension.hello",
+          "group": "navigation"
+        }
+      ]
+    },
+    "views": {
+      "ibox": [
+        {
+          "id": "community.sample-extension.panel",
+          "name": "Sample Extension Panel"
+        }
+      ]
+    }
+  }
+}
