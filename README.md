@@ -17,6 +17,7 @@ Idiot Box is a modern, customizable desktop IDE designed to make development sim
 - **Settings Window** — live-updating editor preferences (minimap, word wrap) via BroadcastChannel.
 - **Command Palette** — quick actions for projects, files, panels and layout.
 - **Session Restore** — remembers your window state and open tabs.
+- **MCP Server** — built-in local Model Context Protocol endpoint so external AI clients (Claude Desktop, Cursor, opencode) can read/write files, run git, execute commands and control the IDE. See [docs/MCP.md](docs/MCP.md).
 
 <img src="https://files.catbox.moe/dx4x76.gif">
 
@@ -35,6 +36,13 @@ npm start
 ```
 
 `npm start` builds the workers, renderer and settings bundles, then launches the app.
+
+## AI control (MCP)
+
+While the app runs it serves a local MCP endpoint at `http://127.0.0.1:39271/mcp` (also written
+to `mcp.json` in the app's user-data folder). Point any Streamable-HTTP MCP client at it and the
+AI can use the IDE — tools for files, git, shell, editor tabs, extensions, notebooks and the
+Android emulator. Setup and the full tool list: [docs/MCP.md](docs/MCP.md).
 
 ## Scripts
 

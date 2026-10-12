@@ -6,6 +6,7 @@ const { createServer } = require("net");
 const fs = require("fs");
 const path = require("path");
 const { randomUUID } = require("crypto");
+const { getMcpUrl, syncOpenCodeConfig } = require("./mcp-server");
 
 const instances = new Map();
 const leases = new Map();
@@ -113,6 +114,12 @@ async function startInstance(workspace, instance) {
   if (instance.credentials) {
     panelCredentials.set(instance.port, instance.credentials);
     installPanelAuthorization();
+  }
+  try {
+    const mcpUrl = getMcpUrl?.();
+    if (mcpUrl && syncOpenCodeConfig) syncOpenCodeConfig(mcpUrl, workspace);
+  } catch (syncErr) {
+    console.warn("[OpenCode panel] Failed to sync MCP config:", syncErr && syncErr.message);
   }
   const child = spawn(cliPath, [
     "serve",

@@ -61,7 +61,7 @@ const OnboardingPage = ({ onDone }) => {
         <style>{ONBOARD_CSS}</style>
         <CustomCursor scope=".ob-page" />
         <div className="ob-wrap" key="s0">
-          <img className="ob-logo" src="assets/idot_box.png" alt="Idiot Box logo" width={96} height={96} />
+          <img className="ob-logo" src="./assets/idot_box.png" alt="Idiot Box logo" width={96} height={96} />
           <div className="ob-brand">idiot box</div>
           <div className="ob-hint">click anywhere to continue</div>
         </div>

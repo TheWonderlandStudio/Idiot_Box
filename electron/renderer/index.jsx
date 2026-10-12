@@ -726,7 +726,7 @@ const TitlebarLogoMenu = ({ hasProject }) => {
   return createPortal(
     <div className="tb-logo-menu" style={pos} ref={menuRef} onMouseDown={(e) => e.stopPropagation()}>
       <div className="tb-logo-head">
-        <img className="tb-logo-head-img" src="assets/idot_box.png" alt="" />
+        <img className="tb-logo-head-img" src="./assets/idot_box.png" alt="" />
         <div className="tb-logo-head-txt">
           <span className="tb-logo-head-name">Idiot Box</span>
           <span className="tb-logo-head-sub">{currentPath ? recentBaseName(currentPath) : "Project Hub"}{currentPath && window.__ibxTransientProject ? " (temp — layout not saved)" : ""}</span>
@@ -995,8 +995,15 @@ const App = () => {
   // Expose layout JSON for main process to grab on close, and model for BrowserPanel to update tabs
   useEffect(() => {
     window.__flexModel = modelRef;
+    window.__flexActions = Actions;
+    window.__flexDockLocation = DockLocation;
     window.__getLayoutJSON = () => modelRef.current ? modelRef.current.toJson() : null;
-    return () => { delete window.__flexModel; delete window.__getLayoutJSON; };
+    return () => {
+      delete window.__flexModel;
+      delete window.__flexActions;
+      delete window.__flexDockLocation;
+      delete window.__getLayoutJSON;
+    };
   }, []);
 
   // ── Save current open editor tabs per project ──────────────────────────
@@ -1807,6 +1814,35 @@ const App = () => {
         detail: { extId: p.extId, viewType: p.viewType, title: p.title },
       }));
     });
+    const onProblems = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findProblems = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "problems") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findProblems(c); if (r) return r; }
+          return null;
+        };
+        const existing = findProblems(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("problems", "Problems", {});
+    };
+    const onOpenPencil = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findPencil = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "openPencil") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findPencil(c); if (r) return r; }
+          return null;
+        };
+        const existing = findPencil(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("openPencil", "OpenPencil", {});
+    };
+
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-ai-agent-panel", onAiAgent);
     window.addEventListener("add-extensions-panel", onExtensions);
@@ -1815,6 +1851,8 @@ const App = () => {
     window.addEventListener("add-community-panel", onCommunity);
     window.addEventListener("add-canvas-panel", onCanvas);
     window.addEventListener("add-ports-panel", onPorts);
+    window.addEventListener("add-problems-panel", onProblems);
+    window.addEventListener("add-open-pencil-panel", onOpenPencil);
     window.addEventListener("add-output-panel", onOutput);
     window.addEventListener("add-run-panel", onRunDebug);
     window.addEventListener("add-git-panel", onGit);
@@ -1828,6 +1866,8 @@ const App = () => {
       window.removeEventListener("add-community-panel", onCommunity);
       window.removeEventListener("add-canvas-panel", onCanvas);
       window.removeEventListener("add-ports-panel", onPorts);
+      window.removeEventListener("add-problems-panel", onProblems);
+      window.removeEventListener("add-open-pencil-panel", onOpenPencil);
       window.removeEventListener("add-output-panel", onOutput);
       window.removeEventListener("add-run-panel", onRunDebug);
       window.removeEventListener("add-git-panel", onGit);

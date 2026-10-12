@@ -85,6 +85,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   moveItem:         (srcPath, destDir)          => ipcRenderer.invoke("fs:moveItem",   { srcPath, destDir }),
   revealInExplorer: (itemPath)                  => ipcRenderer.invoke("fs:revealInExplorer", { itemPath }),
   openFile:         (filePath, editorId)        => ipcRenderer.invoke("fs:openFile",   { filePath, editorId }),
+  tabsList:         ()                          => ipcRenderer.invoke("tabs:list"),
+  tabsOpen:         (opts)                      => ipcRenderer.invoke("tabs:open", opts),
+  tabsClose:        (opts)                      => ipcRenderer.invoke("tabs:close", opts),
+  tabsSelect:       (opts)                      => ipcRenderer.invoke("tabs:select", opts),
   trashItem:        (itemPath, rootPath)        => ipcRenderer.invoke("fs:trashItem",        { itemPath, rootPath }),
   restoreTrashItem: (trashId, rootPath)         => ipcRenderer.invoke("fs:restoreTrashItem", { trashId, rootPath }),
 
@@ -204,6 +208,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   extViews: () => ipcRenderer.invoke("ext:views"),
   extViewHtml: (extId, viewType) => ipcRenderer.invoke("ext:viewHtml", extId, viewType),
   extViewMessage: (extId, viewType, msg) => ipcRenderer.invoke("ext:viewMessage", extId, viewType, msg),
+  extLog: (extId, message, level, opts) => ipcRenderer.invoke("ext:log", extId, message, level, opts),
   extStatusItems: () => ipcRenderer.invoke("ext:statusItems"),
   onExtChanged: (cb) => {
     const handler = () => cb();

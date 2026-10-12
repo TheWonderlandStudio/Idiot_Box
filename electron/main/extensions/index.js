@@ -147,6 +147,83 @@ function broadcast(channel, payload) {
 const changed = () => broadcast("ext:changed", null);
 const notify = (type, message) => broadcast("ext:notify", { type, message: String(message || "") });
 
+// ── Per-extension Output channels (Output panel me har ext ka alag output) ──
+// Channel id: `ext:<extId>` (default) ya `ext:<extId>:<name>` (named).
+// Renderer Output panel inhe Extensions optgroup me dikhata hai.
+function extChannelId(extId, name) {
+  const id = String(extId || "unknown");
+  const nm = String(name || "").trim().slice(0, 40).replace(/[^a-zA-Z0-9_.\- :()]/g, "");
+  return nm ? `ext:${id}:${nm}` : `ext:${id}`;
+}
+function formatExtArgs(args) {
+  try {
+    return (args || []).map((a) => {
+      if (typeof a === "string") return a;
+      if (a instanceof Error) return (a.stack || String(a.message || a)).slice(0, 2000);
+      try { return typeof a === "object" ? JSON.stringify(a) : String(a); }
+      catch { return String(a); }
+    }).join(" ");
+  } catch { return ""; }
+}
+function extLog(extId, message, level = "info", opts = {}) {
+  try {
+    const o = opts && typeof opts === "object" ? opts : {};
+    const rec = state.extensions[String(extId || "")];
+    const channel = extChannelId(extId, o.channelName || o.name || "");
+    broadcast("output:log", {
+      channel,
+      message: String(message ?? ""),
+      level: level === "warn" || level === "error" ? level : "info",
+      ts: Date.now(),
+      extId: String(extId || ""),
+      extName: rec ? (rec.name || String(extId)) : String(extId || ""),
+      reveal: !!o.reveal,
+    });
+  } catch {}
+}
+function extClearChannel(extId, name) {
+  try { broadcast("output:log", { channel: extChannelId(extId, name), clear: true, ts: Date.now(), extId: String(extId || "") }); } catch {}
+}
+function extRevealChannel(extId, name) {
+  try {
+    const rec = state.extensions[String(extId || "")];
+    broadcast("output:log", {
+      channel: extChannelId(extId, name),
+      message: "",
+      level: "info",
+      ts: Date.now(),
+      extId: String(extId || ""),
+      extName: rec ? (rec.name || String(extId)) : String(extId || ""),
+      reveal: true,
+      ensureOnly: true,
+    });
+  } catch {}
+}
+// Extension ke andar bare console.* bhi uske output channel me jaye —
+// activate / command / formatter ke dauran console temporarily wrap hota hai.
+const _origConsole = { log: console.log, info: console.info, warn: console.warn, error: console.error, debug: console.debug };
+async function withExtConsole(extId, fn) {
+  const prefix = `[ext:${extId}]`;
+  const wrap = (orig, level) => (...args) => {
+    try { orig.apply(console, [prefix, ...args]); } catch {}
+    try { extLog(extId, formatExtArgs(args).slice(0, 4000), level); } catch {}
+  };
+  console.log = wrap(_origConsole.log, "info");
+  console.info = wrap(_origConsole.info, "info");
+  console.warn = wrap(_origConsole.warn, "warn");
+  console.error = wrap(_origConsole.error, "error");
+  console.debug = wrap(_origConsole.debug, "info");
+  try {
+    return await fn();
+  } finally {
+    console.log = _origConsole.log;
+    console.info = _origConsole.info;
+    console.warn = _origConsole.warn;
+    console.error = _origConsole.error;
+    console.debug = _origConsole.debug;
+  }
+}
+
 // ── Minimal EventEmitter (VS Code style: event(listener) → Disposable) ──────
 class Emitter {
   constructor() { this.listeners = new Set(); }
@@ -237,11 +314,12 @@ async function runCommand(commandId, ...args) {
     const rt = runtime.get(entry.extId);
     const fn = rt && rt.commands.get(commandId);
     if (!fn) return { ok: false, error: `Command not active: ${commandId}` };
-    const res = await fn(...args);
+    const res = await withExtConsole(entry.extId, () => fn(...args));
     return res && typeof res === "object" && "ok" in res ? res : { ok: true, result: res };
   } catch (e) {
     const msg = String((e && e.message) || e);
     notify("error", `${commandId}: ${msg}`);
+    try { extLog(entry.extId, `Command failed ${commandId}: ${msg}`, "error"); } catch {}
     return { ok: false, error: msg };
   }
 }
@@ -558,14 +636,31 @@ function createApis(extRec) {
       },
     },
     window: {
-      showMessage: (msg, type) => { notify(type || "info", msg); return Promise.resolve(); },
-      showInfo: (msg) => { notify("info", msg); return Promise.resolve(); },
-      showWarning: (msg) => { notify("warn", msg); return Promise.resolve(); },
-      showError: (msg) => { notify("error", msg); return Promise.resolve(); },
+      showMessage: (msg, type) => { notify(type || "info", msg); try { extLog(extId, String(msg ?? ""), type === "error" ? "error" : type === "warn" ? "warn" : "info"); } catch {} return Promise.resolve(); },
+      showInfo: (msg) => { notify("info", msg); try { extLog(extId, String(msg ?? ""), "info"); } catch {} return Promise.resolve(); },
+      showWarning: (msg) => { notify("warn", msg); try { extLog(extId, String(msg ?? ""), "warn"); } catch {} return Promise.resolve(); },
+      showError: (msg) => { notify("error", msg); try { extLog(extId, String(msg ?? ""), "error"); } catch {} return Promise.resolve(); },
       createStatusBarItem: (opts) => createStatusItem(extId, opts || {}),
-      showInformationMessage: (msg) => { notify("info", msg); return Promise.resolve(); },
-      showWarningMessage: (msg) => { notify("warn", msg); return Promise.resolve(); },
-      showErrorMessage: (msg) => { notify("error", msg); return Promise.resolve(); },
+      showInformationMessage: (msg) => { notify("info", msg); try { extLog(extId, String(msg ?? ""), "info"); } catch {} return Promise.resolve(); },
+      showWarningMessage: (msg) => { notify("warn", msg); try { extLog(extId, String(msg ?? ""), "warn"); } catch {} return Promise.resolve(); },
+      showErrorMessage: (msg) => { notify("error", msg); try { extLog(extId, String(msg ?? ""), "error"); } catch {} return Promise.resolve(); },
+      // VS Code-style Output channel — Output panel me is extension ka alag section.
+      // name na do to default channel (`ext:<id>`), warna `ext:<id>:<name>`.
+      createOutputChannel: (name) => {
+        const chName = String(name || "").trim().slice(0, 40);
+        const channel = extChannelId(extId, chName);
+        const api = {
+          name: chName || (extRec.name || extId),
+          channel,
+          append: (value) => { try { extLog(extId, String(value ?? ""), "info", { channelName: chName }); } catch {} },
+          appendLine: (value) => { try { extLog(extId, String(value ?? "") + "\n", "info", { channelName: chName }); } catch {} },
+          clear: () => { try { extClearChannel(extId, chName); } catch {} },
+          show: () => { try { extRevealChannel(extId, chName); } catch {} },
+          hide: () => {},
+          dispose: () => {},
+        };
+        return api;
+      },
       createPanel: (opts) => {
         const o = opts || {};
         const p = createWebviewPanel(extId, o.id || o.viewType || "view", o.title || extRec.name, { ...o, reveal: o.reveal !== false });
@@ -627,7 +722,15 @@ function createApis(extRec) {
         readDirectory: async (uri) => { const entries = await fs.promises.readdir(resolveExtFs(uri), { withFileTypes: true }); return entries.map((e) => [e.name, e.isDirectory() ? 1 : 2]); },
       },
     },
-    log: (...a) => console.log(`[ext:${extId}]`, ...a),
+    log: (...a) => {
+      try { _origConsole.log(`[ext:${extId}]`, ...a); } catch {}
+      try { extLog(extId, formatExtArgs(a).slice(0, 4000), "info"); } catch {}
+    },
+    output: {
+      log: (...a) => { try { extLog(extId, formatExtArgs(a).slice(0, 4000), "info"); } catch {} },
+      warn: (...a) => { try { extLog(extId, formatExtArgs(a).slice(0, 4000), "warn"); } catch {} },
+      error: (...a) => { try { extLog(extId, formatExtArgs(a).slice(0, 4000), "error"); } catch {} },
+    },
   };
 
   return { ibox };
@@ -715,6 +818,7 @@ async function activate(extRec) {
     rt.error = `main not found: ${mainRel}`;
     state.extensions[extRec.id].error = rt.error;
     persistState();
+    try { extLog(extRec.id, `Activation failed: ${rt.error}`, "error"); } catch {}
     changed();
     return;
   }
@@ -769,23 +873,28 @@ async function activate(extRec) {
     }
   } catch (e) {
     rt.error = String((e && e.message) || e);
-    console.warn(`[ext] failed to load ${extRec.id}:`, rt.error);
+    try { _origConsole.warn(`[ext] failed to load ${extRec.id}:`, rt.error); } catch {}
+    try { extLog(extRec.id, `Failed to load ${mainRel}: ${rt.error}`, "error"); } catch {}
   }
   if (mod && !rt.error) {
     try {
       const act = typeof mod === "function" ? mod : mod && mod.activate;
-      if (typeof act === "function") await act(context);
+      if (typeof act === "function") await withExtConsole(extRec.id, () => act(context));
       if (mod && typeof mod.deactivate === "function") rt.disposables.push(Disposable(() => { try { mod.deactivate(); } catch {} }));
       applyManifestContributions(extRec);
     } catch (e) {
       rt.error = String((e && e.message) || e);
-      console.warn(`[ext] activate failed ${extRec.id}:`, rt.error);
+      try { _origConsole.warn(`[ext] activate failed ${extRec.id}:`, rt.error); } catch {}
+      try { extLog(extRec.id, `Activation failed: ${rt.error}`, "error"); } catch {}
     }
   }
   state.extensions[extRec.id].error = rt.error;
   state.extensions[extRec.id].activatedAt = Date.now();
   persistState();
-  if (!rt.error) console.log(`[ext] activated ${extRec.id}@${extRec.version} (${rt.commands.size} commands, ${rt.views.size} views)`);
+  if (!rt.error) {
+    try { _origConsole.log(`[ext] activated ${extRec.id}@${extRec.version} (${rt.commands.size} commands, ${rt.views.size} views)`); } catch {}
+    try { extLog(extRec.id, `Activated ${extRec.version} (${rt.commands.size} commands, ${rt.views.size} views)`, "info"); } catch {}
+  }
   changed();
 }
 
@@ -1076,7 +1185,8 @@ async function formatDocument(filePath, text, languageId, formatOptions = {}) {
       } catch (e) {
         const message = String((e && e.message) || e);
         errors.push(`${rec.name || extId}: ${message}`);
-        console.warn(`[ext] formatter failed ${extId}:`, message);
+        try { _origConsole.warn(`[ext] formatter failed ${extId}:`, message); } catch {}
+        try { extLog(extId, `Formatter failed: ${message}`, "error"); } catch {}
       }
     }
   }
@@ -1189,7 +1299,16 @@ function registerExtensions(deps = {}) {
     const rt = runtime.get(String(extId || ""));
     const view = rt && rt.views.get(String(viewType || ""));
     if (!view) return { ok: false, error: "view not found" };
-    view.onMessage.fire(msg);
+    try {
+      withExtConsole(String(extId || ""), async () => { view.onMessage.fire(msg); });
+    } catch {
+      try { view.onMessage.fire(msg); } catch {}
+    }
+    return { ok: true };
+  });
+  // Renderer se extension channel me log (Extensions panel / webview bridge).
+  handle("ext:log", (_e, extId, message, level, opts) => {
+    try { extLog(String(extId || ""), message, level || "info", opts || {}); } catch {}
     return { ok: true };
   });
   handle("ext:statusItems", () => statusItemsList());

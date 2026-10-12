@@ -7,11 +7,56 @@ const fs      = require("fs");
 const { pathToFileURL, fileURLToPath } = require("url");
 const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
-// Windows taskbar icon: shell AUMID ke through hi icon/name milta hai. Ye value
-// package.json build.appId ke barabar honi chahiye — dev (`electron .`) me bhi
-// taskbar par Electron ki jagah Idiot Box ka icon dikhe.
-// (BrowserWindow ka `icon` sirf window/Alt-Tab deta hai, taskbar button nahi.)
+let ipcInvoke = null;
+try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ipc-invoke not available:", e.message); }
+let mcpServer = null;
+try { mcpServer = require("./mcp-server"); } catch (e) { console.warn("[main] mcp-server not available:", e.message); }
+// Windows taskbar icon notes:
+// - Taskbar button ka icon live window se NAHI, process exe ki identity
+//   (embedded icon + AUMID shortcut-lookup) se aata hai.
+// - Packaged app me ye installer shortcut + exe icon se match hota hai — ye
+//   value package.json build.appId ke barabar honi chahiye.
+// - Dev (`electron .`) me exe node_modules ka electron.exe hai; usme app ka
+//   icon `tools/stamp-dev-icon.cjs` (postinstall + `npm run dev:icon`)
+//   embed karta hai. BrowserWindow `icon` option Alt-Tab/titlebar deta hai,
+//   taskbar button exe icon deta hai — dono lagane padte hain.
 try { app.setAppUserModelId("com.thewonderlandstudio.idiotbox"); } catch (e) { console.warn("[main] setAppUserModelId:", e && e.message); }
+// Platform-aware app icon: .ico on Windows (taskbar + Alt-Tab), .png elsewhere.
+// Packaged app me build/icons/ asar ke andar nahi hota (files me sirf
+// electron/**/* hai), lekin extraResources se electron/renderer/assets/*
+// <resources>/assets/ me real disk path par hota hai. Windows shell (taskbar)
+// asar ke andar ki file se icon nahi utha pata — isliye packaged me pehle
+// process.resourcesPath dekho, phir dev paths (build/icons, renderer/assets).
+function getAppIcon() {
+  let packagedAssets = null;
+  try {
+    if (app.isPackaged && process.resourcesPath) {
+      packagedAssets = path.join(process.resourcesPath, "assets");
+    }
+  } catch {}
+  const iconsDir = path.join(__dirname, "../../build/icons");
+  const assetDir = path.join(__dirname, "../renderer/assets");
+  // Real-disk locations first (packaged), then dev locations.
+  const dirs = packagedAssets ? [packagedAssets, iconsDir, assetDir] : [iconsDir, assetDir];
+  if (process.platform === "win32") {
+    for (const d of dirs) {
+      const ico = path.join(d, "icon.ico");
+      if (fs.existsSync(ico)) return ico;
+    }
+  }
+  if (process.platform === "darwin") {
+    for (const d of dirs) {
+      const icns = path.join(d, "icon.icns");
+      if (fs.existsSync(icns)) return icns;
+    }
+  }
+  for (const d of dirs) {
+    const png = path.join(d, "icon.png");
+    if (fs.existsSync(png)) return png;
+  }
+  // Last resort: the large source asset that has always been packaged
+  return path.join(assetDir, "idot_box.png");
+}
 let setupCsp = null;
 try { ({ setupCsp } = require("./csp")); } catch (e) { console.warn("[main] csp module not available:", e.message); }
 let chokidar = null;
@@ -876,18 +921,221 @@ ipcMain.handle("editors:list", () => getAvailableEditors().map((e) => ({ id: e.i
 
 ipcMain.handle("fs:openFile", async (event, { filePath, editorId }) => {
   if (editorId === "editor") {
-    try { event.sender.send("editor:openFile", { filePath }); } catch {}
-    return;
+    const win = (event.sender && !event.sender.isDestroyed?.() && BrowserWindow.fromWebContents(event.sender)) || focusMainWindow();
+    if (win && !win.isDestroyed()) {
+      try { win.webContents.send("editor:openFile", { filePath }); } catch {}
+    }
+    return { success: true, filePath };
   }
   const editor = KNOWN_EDITORS.find((e) => e.id === editorId);
-  if (!editor || editor.id === "system" || !editor.commands.length) { await shell.openPath(filePath); return; }
+  if (!editor || editor.id === "system" || !editor.commands.length) { await shell.openPath(filePath); return { success: true }; }
   try {
     // Windows editors are .cmd shims (code.cmd etc.) — spawn needs a shell to resolve them
     const child = spawn(editor.commands[0], [filePath], { detached: true, stdio: "ignore", shell: process.platform === "win32" });
     child.on("error", () => { shell.openPath(filePath).catch(() => {}); });
     child.unref();
+    return { success: true };
   }
-  catch { await shell.openPath(filePath); }
+  catch { await shell.openPath(filePath); return { success: true }; }
+});
+
+ipcMain.handle("tabs:list", async (event) => {
+  const win = (event.sender && !event.sender.isDestroyed?.() && BrowserWindow.fromWebContents(event.sender)) || focusMainWindow();
+  if (!win || win.isDestroyed()) return [];
+  try {
+    const list = await win.webContents.executeJavaScript(`(() => {
+      const m = window.__flexModel?.current;
+      if (!m) return [];
+      const tabs = [];
+      const activeTabset = m.getActiveTabset?.();
+      const activeSelectedNode = activeTabset?.getSelectedNode?.();
+      const activeId = activeSelectedNode?.getId?.();
+      const walk = (node) => {
+        if (node.getType?.() === "tab") {
+          const cfg = node.getConfig?.() || {};
+          tabs.push({
+            id: node.getId(),
+            name: node.getName(),
+            component: node.getComponent(),
+            filePath: cfg.filePath || null,
+            url: cfg.url || null,
+            active: node.getId() === activeId || (node.getParent?.()?.getSelectedNode?.() === node),
+          });
+        }
+        const ch = node.getChildren?.();
+        if (ch) ch.forEach(walk);
+      };
+      walk(m.getRoot());
+      return tabs;
+    })()`);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle("tabs:open", async (event, { type, path: filePath, url, title, config } = {}) => {
+  const win = (event.sender && !event.sender.isDestroyed?.() && BrowserWindow.fromWebContents(event.sender)) || focusMainWindow();
+  if (!win || win.isDestroyed()) throw new Error("Main window not available");
+
+  if (type === "settings") {
+    openSettingsWindow(url || "general");
+    return { success: true, tab: "settings" };
+  }
+
+  if (type === "editor" || (!type && filePath)) {
+    const absPath = filePath ? (path.isAbsolute(filePath) ? filePath : path.resolve(lastProjectPath || process.cwd(), filePath)) : null;
+    if (absPath) {
+      try { win.webContents.send("editor:openFile", { filePath: absPath }); } catch {}
+      return { success: true, tab: "editor", filePath: absPath };
+    }
+  }
+
+  const script = `(() => {
+    const t = ${JSON.stringify(type)};
+    const p = ${JSON.stringify(filePath)};
+    const u = ${JSON.stringify(url)};
+    const title = ${JSON.stringify(title)};
+    const cfg = ${JSON.stringify(config || {})};
+
+    if (t === "terminal") {
+      window.dispatchEvent(new CustomEvent("add-terminal-panel"));
+      return { success: true, tab: "terminal" };
+    }
+    if (t === "browser") {
+      const pageUrl = u || "https://www.google.com";
+      window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url: pageUrl, config: { type: "browser", title: title || "Browser", url: pageUrl } } }));
+      return { success: true, tab: "browser", url: pageUrl };
+    }
+    if (t === "canvas") {
+      window.dispatchEvent(new CustomEvent("add-canvas-panel", { detail: { filePath: p } }));
+      return { success: true, tab: "canvas", filePath: p };
+    }
+    if (t === "openPencil") {
+      window.dispatchEvent(new CustomEvent("add-open-pencil-panel"));
+      return { success: true, tab: "openPencil" };
+    }
+    if (t === "git" || t === "gitPanel") {
+      window.dispatchEvent(new CustomEvent("add-git-panel"));
+      return { success: true, tab: "git" };
+    }
+    if (t === "ports") {
+      window.dispatchEvent(new CustomEvent("add-ports-panel"));
+      return { success: true, tab: "ports" };
+    }
+    if (t === "problems") {
+      window.dispatchEvent(new CustomEvent("add-problems-panel"));
+      return { success: true, tab: "problems" };
+    }
+    if (t === "output") {
+      window.dispatchEvent(new CustomEvent("add-output-panel"));
+      return { success: true, tab: "output" };
+    }
+    if (t === "runDebug" || t === "run") {
+      window.dispatchEvent(new CustomEvent("add-run-panel"));
+      return { success: true, tab: "runDebug" };
+    }
+    if (t === "androidEmulator" || t === "android") {
+      window.dispatchEvent(new CustomEvent("add-android-panel"));
+      return { success: true, tab: "androidEmulator" };
+    }
+    if (t === "extensions") {
+      window.dispatchEvent(new CustomEvent("add-extensions-panel"));
+      return { success: true, tab: "extensions" };
+    }
+    if (t === "componentPreview") {
+      window.dispatchEvent(new CustomEvent("add-component-preview-panel"));
+      return { success: true, tab: "componentPreview" };
+    }
+    if (t === "community") {
+      window.dispatchEvent(new CustomEvent("add-community-panel"));
+      return { success: true, tab: "community" };
+    }
+    if (t === "aiAgent" || t === "ai") {
+      window.dispatchEvent(new CustomEvent("add-ai-agent-panel"));
+      return { success: true, tab: "aiAgent" };
+    }
+    return { success: false, error: "Unknown tab type: " + t };
+  })()`;
+  return await win.webContents.executeJavaScript(script);
+});
+
+ipcMain.handle("tabs:close", async (event, { tabId, name, path: filePath } = {}) => {
+  const win = (event.sender && !event.sender.isDestroyed?.() && BrowserWindow.fromWebContents(event.sender)) || focusMainWindow();
+  if (!win || win.isDestroyed()) throw new Error("Main window not available");
+  const script = `(() => {
+    const m = window.__flexModel?.current;
+    const Actions = window.__flexActions;
+    if (!m) return { success: false, error: "Model not found" };
+    const tid = ${JSON.stringify(tabId || null)};
+    const tname = ${JSON.stringify(name ? String(name).toLowerCase() : null)};
+    const tpath = ${JSON.stringify(filePath ? String(filePath).toLowerCase() : null)};
+
+    let target = null;
+    if (tid) target = m.getNodeById(tid);
+    if (!target) {
+      const walk = (node) => {
+        if (target) return;
+        if (node.getType?.() === "tab") {
+          const cfg = node.getConfig?.() || {};
+          const fp = (cfg.filePath || "").toLowerCase();
+          const n = (node.getName?.() || "").toLowerCase();
+          if (tpath && fp && (fp === tpath || fp.endsWith(tpath) || fp.includes(tpath))) target = node;
+          else if (tname && (n === tname || n.includes(tname))) target = node;
+        }
+        const ch = node.getChildren?.();
+        if (ch) ch.forEach(walk);
+      };
+      walk(m.getRoot());
+    }
+    if (target) {
+      const id = target.getId();
+      const n = target.getName();
+      if (Actions?.deleteTab) m.doAction(Actions.deleteTab(id));
+      return { success: true, closed: id, name: n };
+    }
+    return { success: false, error: "Tab not found" };
+  })()`;
+  return await win.webContents.executeJavaScript(script);
+});
+
+ipcMain.handle("tabs:select", async (event, { tabId, name, path: filePath } = {}) => {
+  const win = (event.sender && !event.sender.isDestroyed?.() && BrowserWindow.fromWebContents(event.sender)) || focusMainWindow();
+  if (!win || win.isDestroyed()) throw new Error("Main window not available");
+  const script = `(() => {
+    const m = window.__flexModel?.current;
+    const Actions = window.__flexActions;
+    if (!m) return { success: false, error: "Model not found" };
+    const tid = ${JSON.stringify(tabId || null)};
+    const tname = ${JSON.stringify(name ? String(name).toLowerCase() : null)};
+    const tpath = ${JSON.stringify(filePath ? String(filePath).toLowerCase() : null)};
+
+    let target = null;
+    if (tid) target = m.getNodeById(tid);
+    if (!target) {
+      const walk = (node) => {
+        if (target) return;
+        if (node.getType?.() === "tab") {
+          const cfg = node.getConfig?.() || {};
+          const fp = (cfg.filePath || "").toLowerCase();
+          const n = (node.getName?.() || "").toLowerCase();
+          if (tpath && fp && (fp === tpath || fp.endsWith(tpath) || fp.includes(tpath))) target = node;
+          else if (tname && (n === tname || n.includes(tname))) target = node;
+        }
+        const ch = node.getChildren?.();
+        if (ch) ch.forEach(walk);
+      };
+      walk(m.getRoot());
+    }
+    if (target) {
+      const id = target.getId();
+      const n = target.getName();
+      if (Actions?.selectTab) m.doAction(Actions.selectTab(id));
+      return { success: true, selected: id, name: n };
+    }
+    return { success: false, error: "Tab not found" };
+  })()`;
+  return await win.webContents.executeJavaScript(script);
 });
 
 ipcMain.handle("fs:writeFile", async (_e, { filePath, text }) => {
@@ -1442,7 +1690,26 @@ function openProjectDirect(folderPath, sender) {
     if (!st || !st.isDirectory()) return { ok: false, error: "Not a folder" };
     lastProjectPath = folderPath;
     addRecentProject(folderPath);
-    try { sender.send("menu:openProject", folderPath); } catch {}
+    // Broadcast to the renderer — sender may be a stub (from MCP), so also
+    // fall back to the real main-window webContents if the send fails.
+    let sent = false;
+    try { sender.send("menu:openProject", folderPath); sent = true; } catch {}
+    if (!sent) {
+      try {
+        const wins = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+        const main = wins.find((w) => {
+          const u = w.webContents?.getURL?.() || "";
+          return !u.includes("popout.html") && !u.includes("settings.html");
+        }) || wins[0];
+        if (main) main.webContents.send("menu:openProject", folderPath);
+      } catch {}
+    }
+    // Re-sync the OpenCode MCP config so AI tools target the new project root.
+    try {
+      if (mcpServer && typeof mcpServer.getMcpUrl === "function" && typeof mcpServer.syncOpenCodeConfig === "function") {
+        mcpServer.syncOpenCodeConfig(mcpServer.getMcpUrl(), folderPath);
+      }
+    } catch {}
     return { ok: true };
   } catch (err) { return { ok: false, error: err?.message || String(err) }; }
 }
@@ -5699,7 +5966,7 @@ function openSettingsWindow(initialPage, initialFocus) {
   settingsWin = new BrowserWindow({
     width: 780, height: 520, minWidth: 600, minHeight: 400,
     title: "Settings", backgroundColor: "#1a1a1a",
-    icon: path.join(__dirname, "../renderer/assets/idot_box.png"),
+    icon: getAppIcon(),
     parent: BrowserWindow.getAllWindows()[0], modal: false, show: false,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -6144,7 +6411,7 @@ function createWindow() {
     minHeight: 480,
     backgroundColor: "#0d0d0d",
     titleBarStyle: "hidden",
-    icon: path.join(__dirname, "../renderer/assets/idot_box.png"),
+    icon: getAppIcon(),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload-bundle.cjs"),
@@ -6390,6 +6657,11 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // NOTE: yahan koi app.setIcon() call nahi hai — ye API Electron me exist
+  // hi nahi karti (typeof === "undefined"). Dev taskbar icon stamped
+  // electron.exe se aata hai (tools/stamp-dev-icon.cjs); packaged me exe icon
+  // + installer shortcut se. Window `icon` option Alt-Tab/titlebar ke liye hai.
+  
   // ─── Popout windows use Electron's native frame; keep their content active
   // while the main IDE window is in the background.
   try {
@@ -6582,6 +6854,27 @@ app.whenReady().then(async () => {
   getShell();
   rebuildMenu();
   createWindow();
+  if (ipcInvoke) {
+    try {
+      ipcInvoke.setSenderProvider(() => {
+        const wins = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+        const main = wins.find((w) => {
+          const u = w.webContents?.getURL?.() || "";
+          return !u.includes("popout.html") && !u.includes("settings.html");
+        });
+        return (main || wins[0]) ? (main || wins[0]).webContents : null;
+      });
+    } catch (e) { console.warn("[mcp] sender provider failed:", e.message); }
+  }
+  if (mcpServer && typeof mcpServer.startMcpServer === "function") {
+    mcpServer.startMcpServer({
+      invoke: ipcInvoke ? ipcInvoke.invoke : null,
+      listChannels: ipcInvoke ? ipcInvoke.listChannels : null,
+      getProjectPath: () => lastProjectPath,
+      userDataPath: () => app.getPath("userData"),
+      version: app.getVersion(),
+    }).catch((e) => console.warn("[mcp] start failed:", e && e.message));
+  }
   // Cold start with files: `IdiotBox.exe file1.js file2.ts …` (Open With /
   // CLI) — renderer ready hone par ye pending files khud pull kar lega.
   // Lock loser instance ye skip kare (wo to waise bhi quit ho raha hai).
@@ -6599,3 +6892,8 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+app.on("will-quit", () => {
+  if (mcpServer && typeof mcpServer.stopMcpServer === "function") {
+    try { mcpServer.stopMcpServer(); } catch (e) { console.warn("[mcp] stop failed:", e && e.message); }
+  }
+});

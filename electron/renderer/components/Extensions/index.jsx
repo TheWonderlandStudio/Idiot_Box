@@ -58,6 +58,15 @@ const openView = (extId, viewType, title) => {
   window.dispatchEvent(new CustomEvent("add-ext-view-panel", { detail: { extId, viewType, title } }));
 };
 
+// Har extension ka apna Output channel (`ext:<id>`) — Output panel me kholo.
+const openExtOutput = (extId) => {
+  try {
+    const ch = `ext:${extId}`;
+    window.dispatchEvent(new CustomEvent("add-output-panel", { detail: { channel: ch } }));
+    window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: ch } }));
+  } catch {}
+};
+
 // ── Details panel ke chhote tukde ───────────────────────────────────────────
 const Section = ({ title, children }) => (
   <div style={{ padding: "var(--space-10) var(--space-10)", borderBottom: "var(--space-1) solid var(--border-row)" }}>
@@ -212,6 +221,11 @@ const ExtDetails = ({ extId, onBack }) => {
             </div>
           ) : null}
           {info && info.error ? <div style={{ ...s.meta, color: "var(--danger)" }}>activation error: {info.error}</div> : null}
+        </div>
+        <div style={{ flexShrink: 0 }}>
+          <button onClick={() => openExtOutput(extId)} title="Is extension ka output dekho (Output panel)" style={s.btn}>
+            Output
+          </button>
         </div>
       </div>
 
@@ -403,6 +417,7 @@ const InstalledTab = ({ onChanged }) => {
             )}
             <button onClick={() => window.electronAPI?.extOpenDir?.(ext.id)} title="Open extension folder" style={s.iconBtn}><FolderOpen size={12} /></button>
             <button onClick={() => setSelected(ext.id)} title="Details, features & README" style={s.iconBtn}><Info size={12} /></button>
+            <button onClick={() => openExtOutput(ext.id)} title="Is extension ka output dekho (Output panel)" style={{ ...s.btn, padding: "var(--space-3) var(--space-8)" }}>Output</button>
             {!ext.builtIn && <button onClick={() => remove(ext)} disabled={busyId === ext.id} title="Uninstall" style={s.btnDanger}><Trash2 size={12} /></button>}
           </div>
         </div>

@@ -1,7 +1,10 @@
 // Output Panel — VS Code-style log sink with channels (App / Git / Updater /
-// Live Server). Any renderer code can log via window.__outputLog(channel,
-// message, level). Main-process logs arrive via preload onOutputLog bridge.
+// Live Server / Run + har extension ka apna channel `ext:<extId>`).
+// Any renderer code can log via window.__outputLog(channel, message, level).
+// Main-process logs arrive via preload onOutputLog bridge.
 // Lines are buffered in-memory (cap per channel) so early logs survive.
+// Extension API (main): context.ibox.log(...) → apne ext channel me,
+// context.ibox.window.createOutputChannel(name) → named sub-channel.
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -25,28 +28,126 @@ export const OutputIcon = ({ size = 14, style } = {}) => (
   </svg>
 );
 
-export const OUTPUT_CHANNELS = ["App", "Git", "Updater", "Live Server", "Run"];
+export const BASE_OUTPUT_CHANNELS = ["App", "Git", "Updater", "Live Server", "Run"];
+// Backward-compat: purana import (OUTPUT_CHANNELS) ab base list deta hai.
+export const OUTPUT_CHANNELS = BASE_OUTPUT_CHANNELS;
+export const isExtChannel = (ch) => typeof ch === "string" && ch.startsWith("ext:");
+export const extIdOfChannel = (ch) => {
+  try {
+    if (!isExtChannel(ch)) return "";
+    const rest = String(ch).slice(4);
+    const idx = rest.indexOf(":");
+    return idx >= 0 ? rest.slice(0, idx) : rest;
+  } catch { return ""; }
+};
+export const extSubOfChannel = (ch) => {
+  try {
+    if (!isExtChannel(ch)) return "";
+    const rest = String(ch).slice(4);
+    const idx = rest.indexOf(":");
+    return idx >= 0 ? rest.slice(idx + 1) : "";
+  } catch { return ""; }
+};
 const MAX_LINES = 1000;
 const BUFFER_CAP = 500;
+
+// Channel id sanitize — base + ext:* + 1-80 char custom names allowed.
+const normalizeChannel = (channel) => {
+  try {
+    const raw = String(channel ?? "App").trim();
+    if (!raw) return "App";
+    if (BASE_OUTPUT_CHANNELS.includes(raw)) return raw;
+    if (raw.startsWith("ext:")) {
+      // ext:<extId> ya ext:<extId>:<sub> — extId me alnum . _ - allowed
+      const rest = raw.slice(4);
+      if (!rest || rest.length > 120) return "App";
+      if (/[^a-zA-Z0-9_.\-: ]/.test(rest)) return "App";
+      return raw;
+    }
+    // Custom channel (future-proof) — chhota, safe charset
+    if (raw.length > 80) return "App";
+    if (/[^a-zA-Z0-9_.\- :()]/.test(raw)) return "App";
+    return raw;
+  } catch { return "App"; }
+};
+
+// Channel id → friendly label (ext:* ke liye ext display name).
+const getChannelLabel = (ch) => {
+  try {
+    if (BASE_OUTPUT_CHANNELS.includes(ch)) return ch;
+    const labels = window.__outputChannelLabels || {};
+    if (labels[ch]) return labels[ch];
+    if (isExtChannel(ch)) {
+      const sub = extSubOfChannel(ch);
+      const id = extIdOfChannel(ch);
+      const base = labels[`ext:${id}`] || labels[ch] || id || ch;
+      return sub ? `${base}: ${sub}` : base;
+    }
+    return ch;
+  } catch { return ch; }
+};
 
 // ── Module-level install (once): global log fn + pre-mount buffer ─────────
 if (typeof window !== "undefined" && !window.__outputLog) {
   window.__outputBuffer = window.__outputBuffer || {};
+  window.__outputChannelLabels = window.__outputChannelLabels || {};
+  window.__outputChannelOrder = window.__outputChannelOrder || [];
   window.__outputSeq = window.__outputSeq || 0;
-  window.__outputLog = (channel, message, level = "info") => {
+  window.__normalizeOutputChannel = normalizeChannel;
+  window.__outputChannelLabel = getChannelLabel;
+  window.__outputLog = (channel, message, level = "info", opts = {}) => {
     try {
-      const ch = OUTPUT_CHANNELS.includes(channel) ? channel : "App";
-      const buf = window.__outputBuffer;
-      buf[ch] = buf[ch] || [];
-      buf[ch].push({
-        id: ++window.__outputSeq,
-        ts: Date.now(),
-        level: level === "warn" || level === "error" ? level : "info",
-        msg: String(message ?? ""),
-      });
-      if (buf[ch].length > BUFFER_CAP) buf[ch] = buf[ch].slice(-BUFFER_CAP);
-      window.dispatchEvent(new CustomEvent("output:log", { detail: { channel: ch } }));
+      const o = opts && typeof opts === "object" ? opts : {};
+      const ch = normalizeChannel(channel);
+      // clear request (extension createOutputChannel().clear() → main se aata hai)
+      if (o.clear) {
+        if (window.__outputBuffer) window.__outputBuffer[ch] = [];
+        window.dispatchEvent(new CustomEvent("output:log", { detail: { channel: ch, cleared: true } }));
+        return;
+      }
+      // friendly label yaad rakho (main extName bhejta hai)
+      const label = o.label || o.extName || o.channelName || "";
+      if (label && !BASE_OUTPUT_CHANNELS.includes(ch)) {
+        try {
+          const sub = extSubOfChannel(ch);
+          const id = extIdOfChannel(ch);
+          if (sub && id) {
+            window.__outputChannelLabels[ch] = `${String(label).slice(0, 60)}: ${sub.slice(0, 40)}`;
+            if (!window.__outputChannelLabels[`ext:${id}`]) {
+              window.__outputChannelLabels[`ext:${id}`] = String(label).slice(0, 60);
+            }
+          } else {
+            window.__outputChannelLabels[ch] = String(label).slice(0, 80);
+          }
+        } catch {}
+      }
+      if (!window.__outputChannelOrder.includes(ch)) window.__outputChannelOrder.push(ch);
+      // ensureOnly (show() ne sirf channel khola, koi line nahi) → khaali entry mat banao.
+      const ensureOnly = !!o.ensureOnly && (message === "" || typeof message === "undefined");
+      if (!ensureOnly) {
+        const buf = window.__outputBuffer;
+        buf[ch] = buf[ch] || [];
+        buf[ch].push({
+          id: ++window.__outputSeq,
+          ts: Date.now(),
+          level: level === "warn" || level === "error" ? level : "info",
+          msg: String(message ?? ""),
+        });
+        if (buf[ch].length > BUFFER_CAP) buf[ch] = buf[ch].slice(-BUFFER_CAP);
+      } else if (!window.__outputBuffer[ch]) {
+        window.__outputBuffer[ch] = [];
+      }
+      window.dispatchEvent(new CustomEvent("output:log", { detail: { channel: ch, reveal: !!o.reveal } }));
+      // reveal (extension show() ne manga) → panel kholo + channel select
+      if (o.reveal) {
+        try { window.__outputWantChannel = ch; } catch {}
+        try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: ch } })); } catch {}
+        try { window.dispatchEvent(new CustomEvent("add-output-panel", { detail: { channel: ch } })); } catch {}
+      }
     } catch {}
+  };
+  window.__outputClear = (channel) => {
+    try { window.__outputLog(channel, "", "info", { clear: true }); } catch {}
   };
   // Renderer runtime errors → App channel (rate-limited: max 1 per second)
   const hookErrors = () => {
@@ -142,6 +243,20 @@ const OutputPanel = () => {
   const [lines, setLines] = useState(() => {
     try { return [...(window.__outputBuffer?.["App"] || [])]; } catch { return []; }
   });
+  const [allChannels, setAllChannels] = useState(() => {
+    try {
+      const bufKeys = Object.keys(window.__outputBuffer || {});
+      const ordered = [...(window.__outputChannelOrder || [])];
+      const merged = [...BASE_OUTPUT_CHANNELS];
+      for (const k of [...ordered, ...bufKeys]) {
+        if (!merged.includes(k)) merged.push(k);
+      }
+      return merged;
+    } catch { return [...BASE_OUTPUT_CHANNELS]; }
+  });
+  const [extList, setExtList] = useState([]);
+  const extListRef = useRef([]);
+  useEffect(() => { extListRef.current = extList; }, [extList]);
   const [stick, setStick] = useState(true); // autoscroll lock
   const channelRef = useRef(channel);
   useEffect(() => { channelRef.current = channel; }, [channel]);
@@ -157,13 +272,43 @@ const OutputPanel = () => {
     try { setLines([...(window.__outputBuffer?.[ch] || [])]); } catch { setLines([]); }
   }, []);
 
+  // Saare channels: base + buffer me dikhe + installed extensions (khaali bhi).
+  const refreshChannels = useCallback(() => {
+    try {
+      const buf = window.__outputBuffer || {};
+      const ordered = window.__outputChannelOrder || [];
+      const merged = [...BASE_OUTPUT_CHANNELS];
+      const push = (k) => { if (k && !merged.includes(k)) merged.push(k); };
+      for (const k of ordered) push(k);
+      for (const k of Object.keys(buf)) push(k);
+      // Installed extensions — har extension ka apna channel, log ho ya na ho.
+      try {
+        const labels = window.__outputChannelLabels || {};
+        for (const e of extListRef.current || []) {
+          if (!e || !e.id) continue;
+          const ch = `ext:${e.id}`;
+          push(ch);
+          if (!labels[ch] && e.name) labels[ch] = e.name;
+        }
+      } catch {}
+      setAllChannels(merged);
+    } catch {}
+  }, []);
+
   // Drain buffer on mount + live updates (local event + main bridge)
   useEffect(() => {
-    // Run panel jaise openers channel maangte hain (add-output-panel detail /
-    // output:switchChannel) — mount par pending wish poori karo.
+    const normWant = (w) => {
+      try {
+        if (!w || typeof w !== "string") return null;
+        const fn = window.__normalizeOutputChannel;
+        return fn ? fn(w) : (BASE_OUTPUT_CHANNELS.includes(w) ? w : "App");
+      } catch { return null; }
+    };
+    // Run panel / Extensions panel jaise openers channel maangte hain
+    // (add-output-panel detail / output:switchChannel) — mount par pending wish poori karo.
     try {
-      const want = window.__outputWantChannel;
-      if (want && OUTPUT_CHANNELS.includes(want) && channelRef.current !== want) {
+      const want = normWant(window.__outputWantChannel);
+      if (want && channelRef.current !== want) {
         channelRef.current = want;
         setChannel(want);
         setStick(true);
@@ -176,13 +321,14 @@ const OutputPanel = () => {
     } catch { pullChannel(channelRef.current); }
     const onSwitch = (e) => {
       try {
-        const want = e?.detail?.channel;
-        if (want && OUTPUT_CHANNELS.includes(want)) {
+        const want = normWant(e?.detail?.channel);
+        if (want) {
           window.__outputWantChannel = want;
           channelRef.current = want;
           setChannel(want);
           setStick(true);
           setLines([...(window.__outputBuffer?.[want] || [])]);
+          refreshChannels();
         }
       } catch {}
     };
@@ -190,22 +336,62 @@ const OutputPanel = () => {
     // par belt-and-suspenders: detail.channel yahan bhi suno).
     const onAdd = (e) => {
       try {
-        const want = e?.detail?.channel;
-        if (want && OUTPUT_CHANNELS.includes(want)) onSwitch({ detail: { channel: want } });
+        const want = normWant(e?.detail?.channel);
+        if (want) onSwitch({ detail: { channel: want } });
       } catch {}
     };
-    const refresh = () => {
-      try { setLines([...(window.__outputBuffer?.[channelRef.current] || [])]); } catch {}
+    const refresh = (e) => {
+      try {
+        // clear hua ho to rendered cursor reset (neeche sync effect sambhalta hai)
+        setLines([...(window.__outputBuffer?.[channelRef.current] || [])]);
+      } catch {}
+      refreshChannels();
     };
+    // Installed extensions ki list — dropdown me har ext ka channel dikhe.
+    const loadExts = async () => {
+      try {
+        const list = await window.electronAPI?.extList?.();
+        if (Array.isArray(list)) {
+          setExtList(list.map((x) => ({ id: x.id, name: x.name })));
+          try {
+            const labels = window.__outputChannelLabels || {};
+            for (const x of list) {
+              if (x && x.id && x.name && !labels[`ext:${x.id}`]) labels[`ext:${x.id}`] = x.name;
+            }
+          } catch {}
+        }
+      } catch {}
+      refreshChannels();
+    };
+    loadExts();
     window.addEventListener("output:log", refresh);
     window.addEventListener("output:switchChannel", onSwitch);
     window.addEventListener("add-output-panel", onAdd);
+    let unExt = null;
+    try { unExt = window.electronAPI?.onExtChanged?.(() => loadExts()); } catch {}
     let unsub = null;
     try {
       unsub = window.electronAPI?.onOutputLog?.((entry) => {
         try {
-          if (entry && entry.channel && typeof entry.message !== "undefined") {
-            window.__outputLog(entry.channel, entry.message, entry.level || "info");
+          if (!entry || !entry.channel) return;
+          // clear request (main se createOutputChannel().clear())
+          if (entry.clear) {
+            try { window.__outputLog(entry.channel, "", "info", { clear: true }); } catch {}
+            if (entry.channel === channelRef.current) {
+              renderedRef.current = { channel: entry.channel, lastId: 0, crLen: 0 };
+              try { termRef.current?.clear(); } catch {}
+            }
+            refreshChannels();
+            return;
+          }
+          if (typeof entry.message !== "undefined") {
+            window.__outputLog(entry.channel, entry.message, entry.level || "info", {
+              extId: entry.extId || "",
+              extName: entry.extName || entry.label || "",
+              label: entry.label || entry.extName || "",
+              reveal: !!entry.reveal,
+              ensureOnly: !!entry.ensureOnly,
+            });
           }
         } catch {}
       });
@@ -214,6 +400,7 @@ const OutputPanel = () => {
       window.removeEventListener("output:log", refresh);
       window.removeEventListener("output:switchChannel", onSwitch);
       window.removeEventListener("add-output-panel", onAdd);
+      try { unExt?.(); } catch {}
       try { unsub?.(); } catch {}
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -366,9 +553,24 @@ const OutputPanel = () => {
   }, [lines, channel]);
 
   const switchChannel = useCallback((ch) => {
-    setChannel(ch);
-    setStick(true);
-    try { setLines([...(window.__outputBuffer?.[ch] || [])]); } catch { setLines([]); }
+    try {
+      const fn = window.__normalizeOutputChannel;
+      const norm = fn ? fn(ch) : ch;
+      setChannel(norm);
+      setStick(true);
+      try { setLines([...(window.__outputBuffer?.[norm] || [])]); } catch { setLines([]); }
+      // Naya ext channel pehli baar khula ho to dropdown me turant dikhe.
+      try {
+        const order = window.__outputChannelOrder || [];
+        if (!order.includes(norm)) order.push(norm);
+      } catch {}
+      try {
+        setAllChannels((prev) => (prev.includes(norm) ? prev : [...prev, norm]));
+      } catch {}
+    } catch {
+      setChannel(ch);
+      setStick(true);
+    }
   }, []);
 
   const clearChannel = useCallback(() => {
@@ -394,17 +596,28 @@ const OutputPanel = () => {
           className="output-panel-select"
           value={channel}
           onChange={(e) => switchChannel(e.target.value)}
-          title="Channel"
+          title="Channel — har extension ka apna output"
           style={{
             background: "var(--bg-surface)", color: "var(--text-bright)",
             border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)",
             fontSize: "var(--fs-small)", padding: "var(--space-2) var(--space-6)", cursor: "pointer",
-            maxWidth: 140,
+            maxWidth: 200,
           }}
         >
-          {OUTPUT_CHANNELS.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
+          <optgroup label="Core">
+            {BASE_OUTPUT_CHANNELS.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </optgroup>
+          {allChannels.filter((c) => !BASE_OUTPUT_CHANNELS.includes(c)).length > 0 && (
+            <optgroup label="Extensions">
+              {allChannels.filter((c) => !BASE_OUTPUT_CHANNELS.includes(c)).map((c) => {
+                let label = c;
+                try { label = window.__outputChannelLabel ? window.__outputChannelLabel(c) : c; } catch { label = c; }
+                return <option key={c} value={c}>{label}</option>;
+              })}
+            </optgroup>
+          )}
         </select>
         {errCount > 0 && (
           <span style={{ fontSize: "var(--fs-tiny)", background: "var(--error-bg-solid)", color: "var(--danger)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)" }}>
@@ -446,9 +659,9 @@ const OutputPanel = () => {
         {lines.length === 0 && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 32, color: "var(--text-muted)", fontFamily: "sans-serif", pointerEvents: "none" }}>
             <div>
-              No output yet
+              No output yet — {(() => { try { return window.__outputChannelLabel ? window.__outputChannelLabel(channel) : channel; } catch { return channel; } })()}
               <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>
-                Git, Updater, Live Server &amp; Run logs appear here — or log from anywhere via window.__outputLog
+                Core + har extension ka alag channel — dropdown se extension chuno. Extension se log: ibox.log() / createOutputChannel()
               </div>
             </div>
           </div>

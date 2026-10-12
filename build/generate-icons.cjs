@@ -188,6 +188,7 @@ function buildIcns(sizes, srcPixels, srcW, srcH) {
 
   const ico = buildIco([16,32,48,64,128,256], pixels, width, height);
   fs.writeFileSync(path.join(DEST,"icon.ico"), ico);
+  fs.writeFileSync(path.resolve(__dirname, "../electron/renderer/assets/icon.ico"), ico);
   console.log("[icons] icon.ico  " + (ico.length/1024|0) + " KB");
 
   const icns = buildIcns([16,32,64,128,256,512,1024], pixels, width, height);
@@ -198,7 +199,8 @@ function buildIcns(sizes, srcPixels, srcW, srcH) {
     ? srcBuf
     : encodePng(resizeRGBA(pixels, width, height, 512, 512), 512, 512);
   fs.writeFileSync(path.join(DEST,"icon.png"), linuxPng);
+  fs.writeFileSync(path.resolve(__dirname, "../electron/renderer/assets/icon.png"), linuxPng);
   console.log("[icons] icon.png  " + (linuxPng.length/1024|0) + " KB (512x512)");
 
-  console.log("[icons] Done! Files in build/icons/");
+  console.log("[icons] Done! Files in build/icons/ and electron/renderer/assets/");
 })();
