@@ -31,7 +31,9 @@ Var IB_RegisterCheckbox
 ; Show function for the consent page
 ; ---------------------------------------------------------------------------
 Function IB_RegisterShow
-  !insertmacro MUI_HEADER_TEXT "Editor Registration" "Register Idiot Box as editor?"
+  ; NOTE: MUI_HEADER_TEXT must NOT be used here — this file is included
+  ; before MUI2.nsh in the electron-builder flow, so MUI macros don't
+  ; exist yet at this point (real-build verified).
 
   nsDialogs::Create 1018
   Pop $IB_RegisterDialog
@@ -39,10 +41,10 @@ Function IB_RegisterShow
     Abort
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 0 100% 28u "Idiot Box can open your code files when you double-click them.$\r$\nTick the box below to associate supported file types with Idiot Box."
+  ${NSD_CreateLabel} 0 0 100% 36u "Register Idiot Box as editor?$\r$\n$\r$\nIdiot Box can open your code files when you double-click them.$\r$\nTick the box below to associate supported file types with Idiot Box."
   Pop $0
 
-  ${NSD_CreateCheckbox} 0 36u 100% 12u "Register Idiot Box as editor for supported file types (recommended)"
+  ${NSD_CreateCheckbox} 0 44u 100% 12u "Register Idiot Box as editor for supported file types (recommended)"
   Pop $IB_RegisterCheckbox
 
   ${If} $IB_RegisterAsEditor == "0"
