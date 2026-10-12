@@ -27,11 +27,16 @@ electron/renderer/worker/extensionHost.worker.js
 # electron-builder cache & artifacts
 *.exe
 *.msi
+*.msix
 *.dmg
 *.AppImage
 *.snap
 *.deb
 *.rpm
+*.pacman
+*.blockmap
+latest*.yml
+dist-build/
 
 # logs
 npm-debug.log*

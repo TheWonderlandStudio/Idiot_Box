@@ -27,10 +27,18 @@
     "start": "npm run build && electron .",
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:exe": "npm run build && electron-builder --win nsis",
+    "dist:msi": "npm run build && electron-builder --win msi",
+    "dist:msix": "npm run build && electron-builder --win msix",
+    "dist:win": "npm run build && electron-builder --win nsis msi msix",
     "dist:win:dir": "npm run build && electron-builder --win nsis --dir",
+    "dist:dmg": "npm run build && electron-builder --mac dmg",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:mac:dir": "npm run build && electron-builder --mac --dir",
+    "dist:appimage": "npm run build && electron-builder --linux AppImage",
+    "dist:deb": "npm run build && electron-builder --linux deb",
+    "dist:rpm": "npm run build && electron-builder --linux rpm",
+    "dist:pacman": "npm run build && electron-builder --linux pacman",
     "dist:linux": "npm run build && electron-builder --linux",
     "dist:linux:dir": "npm run build && electron-builder --linux --dir",
     "postinstall": "electron-builder install-app-deps && node tools/stamp-dev-icon.cjs",
@@ -104,7 +112,7 @@
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
     "electron": "^43.2.0",
-    "electron-builder": "^24.9.1",
+    "electron-builder": "^27.0.0-alpha.10",
     "rcedit": "^5.0.2",
     "tailwindcss": "^4.3.3"
   },
@@ -116,6 +124,7 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "afterSign": "build/notarize.cjs",
     "files": [
       "electron/**/*",
       "package.json",
@@ -133,7 +142,17 @@
         ]
       }
     ],
-    "asar": true,
+    "asar": {
+      "unpack": [
+        "**/node-pty/**",
+        "**/esbuild/**",
+        "**/@esbuild/**",
+        "**/node_modules/opencode-ai/bin/**",
+        "**/node_modules/opencode-windows-*/**",
+        "**/node_modules/opencode-linux-*/**",
+        "**/node_modules/opencode-darwin-*/**"
+      ]
+    },
     "protocols": [
       {
         "name": "Idiot Box",
@@ -447,15 +466,9 @@
         "mimeType": "text/plain"
       }
     ],
-    "asarUnpack": [
-      "**/node-pty/**",
-      "**/esbuild/**",
-      "**/@esbuild/**",
-      "**/node_modules/opencode-ai/bin/**",
-      "**/node_modules/opencode-windows-*/**",
-      "**/node_modules/opencode-linux-*/**",
-      "**/node_modules/opencode-darwin-*/**"
-    ],
+    "nativeModules": {
+      "npmRebuild": false
+    },
     "win": {
       "target": [
         {
@@ -463,18 +476,41 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "msix",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icons/icon.ico",
-      "publisherName": "TheWonderlandStudio",
       "verifyUpdateCodeSignature": false,
-      "requestedExecutionLevel": "asInvoker",
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
-      "sign": null,
-      "certificateFile": null,
-      "certificatePassword": null
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "msi": {
+      "upgradeCode": "{925CBAB2-CD9D-4563-9D51-6B79D5C6B8EA}",
+      "artifactName": "Idiot-Box-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Idiot Box",
+      "runAfterFinish": true
+    },
+    "msix": {
+      "identityName": "TheWonderlandStudio.IdiotBox",
+      "publisher": "CN=TheWonderlandStudio",
+      "publisherDisplayName": "TheWonderlandStudio",
+      "applicationId": "IdiotBox",
+      "displayName": "Idiot Box",
+      "artifactName": "Idiot-Box-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -511,12 +547,33 @@
         }
       ],
       "icon": "build/icons/icon.icns",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
       "darkModeSupport": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": false
+      "notarize": false,
+      "sign": {
+        "entitlements": "build/entitlements.mac.plist",
+        "entitlementsInherit": "build/entitlements.mac.plist",
+        "hardenedRuntime": true
+      }
+    },
+    "dmg": {
+      "artifactName": "Idiot-Box-${version}.${ext}",
+      "title": "Idiot Box ${version}",
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "appImage": {
+      "artifactName": "Idiot-Box-${version}.${ext}"
+    },
+    "deb": {
+      "artifactName": "Idiot-Box-${version}.${ext}"
+    },
+    "rpm": {
+      "artifactName": "Idiot-Box-${version}.${ext}"
+    },
+    "pacman": {
+      "artifactName": "Idiot-Box-${version}.${ext}"
     },
     "linux": {
       "target": [
@@ -528,6 +585,18 @@
         },
         {
           "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "pacman",
           "arch": [
             "x64"
           ]
@@ -544,9 +613,11 @@
         "text/x-markdown"
       ],
       "desktop": {
-        "Name": "Idiot Box",
-        "Comment": "Free open-source desktop IDE: code editor, terminal, browser and project map in one window",
-        "StartupWMClass": "Idiot Box"
+        "entry": {
+          "Name": "Idiot Box",
+          "Comment": "Free open-source desktop IDE: code editor, terminal, browser and project map in one window",
+          "StartupWMClass": "Idiot Box"
+        }
       }
     },
     "publish": {

@@ -1,8 +1,11 @@
-name: Release (Windows + Linux)
+name: Release (all installers)
 
-# Cut a release by pushing a tag like v0.1.14 (must match package.json "version").
-# Builds the Windows NSIS installer on windows-latest and AppImage + deb on
-# ubuntu-latest, then attaches everything to one GitHub Release.
+# Cut a release by pushing a tag like v0.1.25 (must match package.json "version").
+# Builds every installer across three runners, then attaches all of them to
+# one GitHub Release:
+#   windows-latest → .exe (NSIS) + .msi (WiX) + .msix
+#   ubuntu-latest  → .AppImage + .deb + .rpm + .pacman
+#   macos-latest   → .dmg (+ .zip for the auto-updater feed)
 
 on:
   push:
@@ -19,13 +22,23 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            builder-args: --win nsis
-            artifact-glob: "dist/Idiot-Box-Setup-*.exe"
-          - os: ubuntu-latest
-            builder-args: --linux
+            builder-args: --win nsis msi msix
             artifact-glob: |
-              dist/*.AppImage
-              dist/*.deb
+              dist/Idiot-Box-Setup-*.exe
+              dist/Idiot-Box-Setup-*.msi
+              dist/Idiot-Box-Setup-*.msix
+          - os: ubuntu-latest
+            builder-args: --linux AppImage deb rpm pacman
+            artifact-glob: |
+              dist/Idiot-Box-*.AppImage
+              dist/Idiot-Box-*.deb
+              dist/Idiot-Box-*.rpm
+              dist/Idiot-Box-*.pacman
+          - os: macos-latest
+            builder-args: --mac dmg zip
+            artifact-glob: |
+              dist/Idiot-Box-*.dmg
+              dist/Idiot-Box-*.zip
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -44,6 +57,12 @@ jobs:
         run: npm run build && npx electron-builder ${{ matrix.builder-args }} --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned builds: don't fail looking for a cert/identity.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # macOS notarization (optional — notarize.cjs skips when unset).
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
@@ -79,7 +98,7 @@ jobs:
           merge-multiple: true
 
       - name: Extract release notes from CHANGELOG
-        # Tagged version (e.g. v0.1.17) ka "## [0.1.17]" section CHANGELOG.md
+        # Tagged version (e.g. v0.1.25) ka "## [0.1.25]" section CHANGELOG.md
         # se nikaal kar release body banao — auto "Full Changelog" link nahi.
         run: |
           node -e 'const fs=require("fs");const md=fs.readFileSync("CHANGELOG.md","utf8");const ver=String(process.env.GITHUB_REF_NAME||"").replace(/^v/,"");const lines=md.split(/\r?\n/);let out=[],cap=false;for(const ln of lines){const m=ln.match(/^## \[(.+?)\]/);if(m){if(cap)break;if(m[1]===ver){cap=true;continue;}}else if(cap)out.push(ln);}let body=out.join("\n").trim();if(!body)body="See CHANGELOG.md for details.";fs.writeFileSync("release-notes.md",body+"\n");console.log("notes for v"+ver+":",body.length,"chars");'
@@ -87,14 +106,20 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # Explicit list: installer + updater feed (latest*.yml) + differential
-          # blockmap zaroor attach hon — `dist/*` se builder-debug junk bhi
-          # chala jata tha aur feed files miss ho sakti thin.
+          # All 8 installer formats + updater feed (latest*.yml) +
+          # differential blockmaps. Explicit list taake builder-debug junk
+          # attach na ho aur feed files miss na hon.
           files: |
             dist/Idiot-Box-Setup-*.exe
+            dist/Idiot-Box-Setup-*.msi
+            dist/Idiot-Box-Setup-*.msix
             dist/*.blockmap
             dist/latest*.yml
-            dist/*.AppImage
-            dist/*.deb
+            dist/Idiot-Box-*.AppImage
+            dist/Idiot-Box-*.deb
+            dist/Idiot-Box-*.rpm
+            dist/Idiot-Box-*.pacman
+            dist/Idiot-Box-*.dmg
+            dist/Idiot-Box-*.zip
           body_path: release-notes.md
           name: Idiot Box ${{ github.ref_name }}
