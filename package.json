@@ -411,7 +411,8 @@
       "deleteAppDataOnUninstall": false,
       "displayLanguageSelector": false,
       "installerHeaderIcon": "build/icons/icon.ico",
-      "uninstallDisplayName": "Idiot Box"
+      "uninstallDisplayName": "Idiot Box",
+      "include": "build/installer.nsh"
     },
     "mac": {
       "category": "public.app-category.developer-tools",
