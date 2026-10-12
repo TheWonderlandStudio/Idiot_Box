@@ -53,6 +53,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Linux packaging deps
+        # fpm needs bsdtar (libarchive-tools) for the pacman target —
+        # without it the build fails with "bsdtar failed (exit code 127)".
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+
       - name: Build and package
         run: npm run build && npx electron-builder ${{ matrix.builder-args }} --publish never
         env:

@@ -3,6 +3,22 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.26] - 2026-10-12
+
+### Added
+- **All 8 installer formats** — every release now ships `.exe` (NSIS),
+  `.msi` (WiX) and `.msix` for Windows, `.AppImage`, `.deb`, `.rpm` and
+  `.pacman` for Linux, and `.dmg` for macOS (Intel + Apple Silicon),
+  built on Windows, Ubuntu and macOS runners and attached to one
+  GitHub Release.
+
+### Fixed
+- **Windows "Register as editor?" rollback** — declining the consent page
+  now correctly restores your previous file handlers again: the rollback
+  was rewritten for electron-builder v27, which registers associations
+  under generated ProgIDs (`IdiotBox.<name><hash>`) and no longer keeps
+  the old backup values the previous script relied on.
+
 ## [0.1.25] - 2026-10-04
 
 ### Added
