@@ -712,12 +712,12 @@ const TitlebarLogoMenu = ({ hasProject }) => {
         <img className="tb-logo-head-img" src="assets/idot_box.png" alt="" />
         <div className="tb-logo-head-txt">
           <span className="tb-logo-head-name">Idiot Box</span>
-          <span className="tb-logo-head-sub">{currentPath ? recentBaseName(currentPath) : "Project Hub"}</span>
+          <span className="tb-logo-head-sub">{currentPath ? recentBaseName(currentPath) : "Project Hub"}{currentPath && window.__ibxTransientProject ? " (temp — layout not saved)" : ""}</span>
         </div>
       </div>
 
       {hasProject && (
-        <button className="tb-logo-item tb-logo-item--primary" onClick={backToHub} title="Save this project and go back to the Hub">
+        <button className="tb-logo-item tb-logo-item--primary" onClick={backToHub} title={window.__ibxTransientProject ? "Close temp view and go back to the Hub (layout is not saved)" : "Save this project and go back to the Hub"}>
           <Home size={14} strokeWidth={1.8} /> <span>Back to Hub</span>
         </button>
       )}
@@ -879,6 +879,9 @@ const App = () => {
   const [hasProject, setHasProject] = useState(false);
   // Current project ka layout mode — "blank" (Create Project ke 2 buttons me se)
   const projectLayoutRef = useRef(null);
+  // Temp project (OS "Open With" file → parent folder as workspace): layout/tabs
+  // persist NAHI hote — sirf file content edit + save hota hai.
+  const transientProjectRef = useRef(false);
   const [tick, setTick] = useState(0);
   const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
   const [titlebarHost, setTitlebarHost] = useState(null);
@@ -993,6 +996,8 @@ const App = () => {
     } catch { return false; }
   };
   const doSaveProjectTabs = () => {
+    // Temp project: layout/tabs kuch bhi persist nahi karna.
+    if (transientProjectRef.current) return;
     const rootPath = currentProjectRef.current;
     if (!rootPath) return;
     const m = modelRef.current;
@@ -1027,6 +1032,7 @@ const App = () => {
   }, []);
 
   const scheduleSaveProjectTabs = () => {
+    if (transientProjectRef.current) return;
     clearTimeout(saveTabsTimer.current);
     saveTabsTimer.current = setTimeout(doSaveProjectTabs, 600);
   };
@@ -1275,6 +1281,9 @@ const App = () => {
       closeProjectTabs(currentProjectRef.current);
       currentProjectRef.current = folderPath;
       window.__currentProjectPath = folderPath;
+      // Real project — temp mode off
+      transientProjectRef.current = false;
+      try { window.__ibxTransientProject = false; } catch {}
       // Project data padho: layout mode ("blank") + saved panel layout
       let saved = null;
       try { saved = await window.electronAPI.readProjectTabs(folderPath); } catch {}
@@ -1318,7 +1327,9 @@ const App = () => {
       closeProjectTabs(currentProjectRef.current);
       currentProjectRef.current = null;
       projectLayoutRef.current = null;
+      transientProjectRef.current = false;
       window.__currentProjectPath = null;
+      try { window.__ibxTransientProject = false; } catch {}
       setHasProject(false);
       // Notify editor panels
       window.dispatchEvent(new CustomEvent("project:closed"));
@@ -2219,11 +2230,35 @@ const App = () => {
       window.dispatchEvent(new CustomEvent("add-canvas-panel", { detail: { filePath } }));
     };
 
+    // Temp project: koi project open nahi aur bahar se file aayi (Open With /
+    // double-click / IPC) → file ke parent folder ko workspace banao.
+    // Layout/tabs persist NAHI hote (transient) — file content edit + save hota hai.
+    const ensureTransientProjectForFile = (filePath) => {
+      try {
+        if (currentProjectRef.current || !filePath || typeof filePath !== "string") return;
+        let dir = String(filePath).replace(/[\\/][^\\/]*$/, "");
+        if (!dir || dir === filePath) return;
+        currentProjectRef.current = dir;
+        try { window.__currentProjectPath = dir; } catch {}
+        transientProjectRef.current = true;
+        try { window.__ibxTransientProject = true; } catch {}
+        projectLayoutRef.current = null;
+        try {
+          modelRef.current = Model.fromJson(JSON.parse(JSON.stringify(DEFAULT_JSON)));
+        } catch {}
+        setHasProject(true);
+        try { window.dispatchEvent(new CustomEvent("project:opened", { detail: { path: dir, transient: true } })); } catch {}
+        try { setTick((t) => t + 1); } catch {}
+        try { forceLayoutRedraw(modelRef.current); } catch {}
+      } catch {}
+    };
+
     // Single-click: replace the active editor tab (VS Code preview-mode style).
     // If the file is already open somewhere, switch to it.
     // If no editor tab exists yet, create one.
     // (.ipynb included — EditorPanel embeds the notebook cell UI itself.)
     const openFileInEditor = (filePath) => {
+      ensureTransientProjectForFile(filePath);
       const m = modelRef.current;
       if (!m || !filePath) return;
       // Project-panel click on a media file → auto-open in Media Viewer (if enabled).
@@ -2278,6 +2313,7 @@ const App = () => {
     // opts.forceText bypasses the already-open check so the same file can be
     // opened a second time as raw text (used for .ipynb "Open as JSON").
     const openFileInNewTab = (filePath, opts) => {
+      ensureTransientProjectForFile(filePath);
       const m = modelRef.current;
       if (!m || !filePath) return;
       if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
@@ -2311,9 +2347,12 @@ const App = () => {
     // Khali editor tab ho to reuse (VS Code jaisa), warna naya tab — kabhi
     // existing tab overwrite nahi (unsaved edits safe rehte hain).
     const openFilesFromOs = (paths) => {
-      const m = modelRef.current;
       const list = (Array.isArray(paths) ? paths : []).filter((p) => typeof p === "string" && p);
-      if (!m || !list.length) return;
+      if (!list.length) return;
+      // Koi project open nahi → pehli file ke folder me temp project banao.
+      if (!currentProjectRef.current) ensureTransientProjectForFile(list[0]);
+      const m = modelRef.current;
+      if (!m) return;
       let lastTabId = null;
       for (const filePath of list) {
         // Media / Excalidraw files → unke dedicated panels me hi khulte hain
@@ -2520,6 +2559,8 @@ const App = () => {
       setTick((t) => t + 1);
       try { forceLayoutRedraw(modelRef.current); } catch {}
       const root = currentProjectRef.current;
+      // Temp project: layout visually apply ho sakta hai, par persist kabhi nahi.
+      if (transientProjectRef.current) return true;
       (async () => {
         try {
           const cur = (await window.electronAPI.readProjectTabs(root)) || {};
