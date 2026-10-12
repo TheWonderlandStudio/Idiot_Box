@@ -38,7 +38,7 @@ jobs:
             builder-args: --mac dmg zip
             artifact-glob: |
               dist/Idiot-Box-*.dmg
-              dist/Idiot-Box-*.zip
+              dist/*.zip
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -126,6 +126,6 @@ jobs:
             dist/Idiot-Box-*.rpm
             dist/Idiot-Box-*.pacman
             dist/Idiot-Box-*.dmg
-            dist/Idiot-Box-*.zip
+            dist/*.zip
           body_path: release-notes.md
           name: Idiot Box ${{ github.ref_name }}
