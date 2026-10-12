@@ -143,21 +143,41 @@
         "ext": [
           "js",
           "mjs",
-          "cjs",
-          "jsx"
+          "cjs"
         ],
         "name": "IdiotBoxJavaScript",
+        "icon": "file-icons/js.ico",
         "description": "JavaScript source file",
         "role": "Editor",
         "mimeType": "text/javascript"
       },
       {
         "ext": [
-          "ts",
-          "tsx"
+          "jsx"
+        ],
+        "name": "IdiotBoxReact",
+        "icon": "file-icons/react.ico",
+        "description": "JSX component",
+        "role": "Editor",
+        "mimeType": "text/javascript"
+      },
+      {
+        "ext": [
+          "ts"
         ],
         "name": "IdiotBoxTypeScript",
+        "icon": "file-icons/ts.ico",
         "description": "TypeScript source file",
+        "role": "Editor",
+        "mimeType": "text/x-typescript"
+      },
+      {
+        "ext": [
+          "tsx"
+        ],
+        "name": "IdiotBoxReactTS",
+        "icon": "file-icons/reactts.ico",
+        "description": "TSX component",
         "role": "Editor",
         "mimeType": "text/x-typescript"
       },
@@ -167,6 +187,7 @@
           "htm"
         ],
         "name": "IdiotBoxHTML",
+        "icon": "file-icons/html.ico",
         "description": "HTML document",
         "role": "Editor",
         "mimeType": "text/html"
@@ -176,6 +197,7 @@
           "css"
         ],
         "name": "IdiotBoxCSS",
+        "icon": "file-icons/css.ico",
         "description": "CSS stylesheet",
         "role": "Editor",
         "mimeType": "text/css"
@@ -185,6 +207,7 @@
           "scss"
         ],
         "name": "IdiotBoxSCSS",
+        "icon": "file-icons/scss.ico",
         "description": "SCSS stylesheet",
         "role": "Editor",
         "mimeType": "text/x-scss"
@@ -194,6 +217,7 @@
           "less"
         ],
         "name": "IdiotBoxLESS",
+        "icon": "file-icons/less.ico",
         "description": "LESS stylesheet",
         "role": "Editor",
         "mimeType": "text/x-less"
@@ -204,6 +228,7 @@
           "jsonc"
         ],
         "name": "IdiotBoxJSON",
+        "icon": "file-icons/json.ico",
         "description": "JSON document",
         "role": "Editor",
         "mimeType": "application/json"
@@ -214,6 +239,7 @@
           "markdown"
         ],
         "name": "IdiotBoxMarkdown",
+        "icon": "file-icons/md.ico",
         "description": "Markdown document",
         "role": "Editor",
         "mimeType": "text/markdown"
@@ -224,39 +250,61 @@
           "pyw"
         ],
         "name": "IdiotBoxPython",
+        "icon": "file-icons/py.ico",
         "description": "Python script",
         "role": "Editor",
         "mimeType": "text/x-python"
       },
       {
         "ext": [
-          "c",
-          "h"
+          "c"
         ],
         "name": "IdiotBoxC",
+        "icon": "file-icons/c.ico",
         "description": "C source file",
         "role": "Editor",
         "mimeType": "text/x-csrc"
       },
       {
         "ext": [
+          "h"
+        ],
+        "name": "IdiotBoxCHeader",
+        "icon": "file-icons/cheader.ico",
+        "description": "C header file",
+        "role": "Editor",
+        "mimeType": "text/x-chdr"
+      },
+      {
+        "ext": [
           "cpp",
           "cc",
-          "cxx",
-          "hpp",
-          "hh",
-          "hxx"
+          "cxx"
         ],
         "name": "IdiotBoxCpp",
+        "icon": "file-icons/cpp.ico",
         "description": "C++ source file",
         "role": "Editor",
         "mimeType": "text/x-c++src"
       },
       {
         "ext": [
+          "hpp",
+          "hh",
+          "hxx"
+        ],
+        "name": "IdiotBoxCppHeader",
+        "icon": "file-icons/cppheader.ico",
+        "description": "C++ header file",
+        "role": "Editor",
+        "mimeType": "text/x-c++hdr"
+      },
+      {
+        "ext": [
           "java"
         ],
         "name": "IdiotBoxJava",
+        "icon": "file-icons/java.ico",
         "description": "Java source file",
         "role": "Editor",
         "mimeType": "text/x-java"
@@ -266,6 +314,7 @@
           "rs"
         ],
         "name": "IdiotBoxRust",
+        "icon": "file-icons/rust.ico",
         "description": "Rust source file",
         "role": "Editor",
         "mimeType": "text/x-rust"
@@ -275,6 +324,7 @@
           "go"
         ],
         "name": "IdiotBoxGo",
+        "icon": "file-icons/go.ico",
         "description": "Go source file",
         "role": "Editor",
         "mimeType": "text/x-go"
@@ -284,6 +334,7 @@
           "rb"
         ],
         "name": "IdiotBoxRuby",
+        "icon": "file-icons/ruby.ico",
         "description": "Ruby script",
         "role": "Editor",
         "mimeType": "text/x-ruby"
@@ -293,6 +344,7 @@
           "php"
         ],
         "name": "IdiotBoxPHP",
+        "icon": "file-icons/php.ico",
         "description": "PHP script",
         "role": "Editor",
         "mimeType": "text/x-php"
@@ -304,6 +356,7 @@
           "zsh"
         ],
         "name": "IdiotBoxShell",
+        "icon": "file-icons/shell.ico",
         "description": "Shell script",
         "role": "Editor",
         "mimeType": "application/x-shellscript"
@@ -313,6 +366,7 @@
           "sql"
         ],
         "name": "IdiotBoxSQL",
+        "icon": "file-icons/sql.ico",
         "description": "SQL script",
         "role": "Editor",
         "mimeType": "text/x-sql"
@@ -323,6 +377,7 @@
           "yaml"
         ],
         "name": "IdiotBoxYAML",
+        "icon": "file-icons/yaml.ico",
         "description": "YAML document",
         "role": "Editor",
         "mimeType": "text/x-yaml"
@@ -332,6 +387,7 @@
           "xml"
         ],
         "name": "IdiotBoxXML",
+        "icon": "file-icons/xml.ico",
         "description": "XML document",
         "role": "Editor",
         "mimeType": "text/xml"
@@ -341,6 +397,7 @@
           "vue"
         ],
         "name": "IdiotBoxVue",
+        "icon": "file-icons/vue.ico",
         "description": "Vue component",
         "role": "Editor",
         "mimeType": "text/x-vue"
@@ -350,6 +407,7 @@
           "svelte"
         ],
         "name": "IdiotBoxSvelte",
+        "icon": "file-icons/svelte.ico",
         "description": "Svelte component",
         "role": "Editor",
         "mimeType": "text/x-svelte"
@@ -359,17 +417,28 @@
           "toml"
         ],
         "name": "IdiotBoxTOML",
+        "icon": "file-icons/toml.ico",
         "description": "TOML configuration file",
         "role": "Editor",
         "mimeType": "application/toml"
       },
       {
         "ext": [
-          "txt",
-          "log"
+          "txt"
         ],
         "name": "IdiotBoxText",
+        "icon": "file-icons/txt.ico",
         "description": "Plain text document",
+        "role": "Editor",
+        "mimeType": "text/plain"
+      },
+      {
+        "ext": [
+          "log"
+        ],
+        "name": "IdiotBoxLog",
+        "icon": "file-icons/log.ico",
+        "description": "Log file",
         "role": "Editor",
         "mimeType": "text/plain"
       }
