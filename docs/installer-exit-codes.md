@@ -1,15 +1,22 @@
 # Idiot Box Windows installer — exit codes & silent flags
 
 The Windows `.exe` installer is built with [NSIS](https://nsis.sourceforge.io/)
-via electron-builder and uses only the standard NSIS exit-code scheme.
-No custom/m Miscellaneous return codes are defined.
+via electron-builder and uses the standard NSIS exit-code scheme
+([NSIS Users Manual, Appendix D — Error Levels](https://nsis.sourceforge.io/Docs/AppendixD.html)).
+No custom/miscellaneous return codes are defined.
 
 ## Exit codes
 
 | Code | Meaning |
 | ---- | ------- |
 | `0` | Success — installation completed. |
-| Non-zero | Installation did not complete (cancelled by the user or an error occurred). |
+| `1` | Installation aborted by the user (cancel button). |
+| `2` | Installation aborted by the script (an error occurred, e.g. disk write failure). |
+
+Scenarios with no distinct code: reinstalling over an existing install
+simply upgrades it (exit `0`); the offline installer performs no downloads
+(no network-failure code) and never requests a reboot. Concurrent installs
+are not blocked with a dedicated code — a failed run exits `2`.
 
 ## Silent / command-line flags
 
