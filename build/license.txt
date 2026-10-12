@@ -1,0 +1,78 @@
+Idiot Box - Privacy Policy
+Effective: October 8, 2026
+App: Idiot Box by The Wonderland Studio
+
+By installing Idiot Box and clicking "I Agree", you accept this
+privacy policy. If you do not agree, click "Cancel" to abort the
+installation.
+
+Idiot Box is a free, open-source desktop IDE. Your code, settings,
+projects, and chats stay on your machine. We do not run user
+accounts or servers that collect your data.
+
+1. WHAT STAYS ON YOUR DEVICE
+----------------------------
+Idiot Box stores its app data locally in your system's app-data
+folder, such as %AppData%/idiot-box on Windows. This includes:
+
+- Settings: theme, fonts, layout presets, terminal, git, canvas
+  and cursor preferences, your GitHub username, and the
+  telemetry toggle (settings.json).
+- Projects: recent and pinned project paths, open tabs, canvas
+  drawings, and project-specific app state. Your actual project
+  files are never moved or copied.
+- Install ID: a random 24-character id used only for the
+  anonymous stats described below. It never identifies you.
+- Sessions and extensions: window/session restore, layout
+  presets, recent-project lists, and browser extensions you
+  install - all stored locally.
+- Chats: the Hub assistant chat lives in memory only while the
+  app is open. OpenCode agent sessions are saved locally by the
+  bundled OpenCode runtime in its own storage.
+- Voice input: transcribed offline by your OS speech
+  recognition. Recordings never leave your device.
+- Toolchains: Android SDK, JDK and the mise binary, downloaded
+  into the same app-data folder when you use those features.
+
+Idiot Box never asks for or stores AI API keys. You can delete
+all of this data by removing the app-data folder. Uninstalling
+does not delete your project files.
+
+2. WHEN IDIOT BOX CONNECTS TO THE INTERNET
+------------------------------------------
+Idiot Box works offline. Apart from the update check below,
+internet is only used by features you choose to use:
+
+- Anonymous usage stats (opt-out, on by default): one install
+  counter hit per install, then a heartbeat every 30 seconds
+  while open. Payload: random install ID, app version,
+  timestamp. No file paths, no project names, no personal data.
+  Turn it off in Settings -> General -> Telemetry.
+- Update checks: roughly every six hours and shortly after
+  launch, via GitHub Releases. Downloads start only after you
+  approve.
+- Built-in assistant: project-setup chat and AI commit messages
+  go to Pollinations (text.pollinations.ai), fallback OVHcloud
+  AI Endpoints anonymous tier. No API key. Their own privacy
+  policies apply to what you type there.
+- GitHub: release info; contribution graph via a public proxy
+  and repo list via api.github.com if you enable the heatmap.
+- Icon CDNs, tool downloads (Adoptium JDK, Google Android
+  tools, mise), embedded Community/OpenPencil web panels.
+- AI providers you choose (including local ones like Ollama)
+  receive your prompts, attached files and tool results, under
+  their own policies.
+
+No analytics SDKs, no ads, no crash-report uploads. Crash dumps
+stay on disk locally.
+
+3. YOUR RESPONSIBILITY
+----------------------
+Idiot Box is just a tool. What you do with it - code you write,
+files you open, edit, delete or share, anything you send to AI
+providers - is entirely your responsibility.
+
+Full policy: https://thewonderlandstudio.github.io/Idiot_Box/privacy.html
+Contact: open an issue at github.com/TheWonderlandStudio/Idiot_Box
+
+The Wonderland Studio

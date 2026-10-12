@@ -489,7 +489,8 @@
       "displayLanguageSelector": false,
       "installerHeaderIcon": "build/icons/icon.ico",
       "uninstallDisplayName": "Idiot Box",
-      "include": "build/installer.nsh"
+      "include": "build/installer.nsh",
+      "license": "build/license.txt"
     },
     "mac": {
       "category": "public.app-category.developer-tools",
