@@ -43,15 +43,16 @@ export default function UpdaterBanner() {
   const [currentVersion, setCurrentVersion] = useState("");
   const autoInstallRef = React.useRef(false);
   const [manualModal, setManualModal] = useState(null); // null | "available" | "not-available"
+  const [dlMinimized, setDlMinimized] = useState(false); // true = downloading modal hidden, banner stays
 
   const isManualRef = React.useRef(false);
   useEffect(() => {
     const unsubs = [];
     if (window.electronAPI?.onUpdaterManualCheck) unsubs.push(window.electronAPI.onUpdaterManualCheck(() => { isManualRef.current = true; }));
-    if (window.electronAPI?.onUpdaterChecking) unsubs.push(window.electronAPI.onUpdaterChecking(() => { setState("checking"); setError(null); autoInstallRef.current = false; setProgress(null); }));
+    if (window.electronAPI?.onUpdaterChecking) unsubs.push(window.electronAPI.onUpdaterChecking(() => { setState("checking"); setError(null); autoInstallRef.current = false; setProgress(null); setDlMinimized(false); }));
     if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i) => {
       const wasManual = isManualRef.current;
-      setInfo(i); setState("available"); setProgress(null);
+      setInfo(i); setState("available"); setProgress(null); setDlMinimized(false);
       if (wasManual) setManualModal("available");
       isManualRef.current = false;
     }));
@@ -69,10 +70,10 @@ export default function UpdaterBanner() {
         });
       }
     }));
-    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError((e) => { setError(e); setState("error"); autoInstallRef.current = false; isManualRef.current = false; setManualModal(null); setProgress(null); }));
+    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError((e) => { setError(e); setState("error"); autoInstallRef.current = false; isManualRef.current = false; setManualModal(null); setProgress(null); setDlMinimized(false); }));
     if (window.electronAPI?.onUpdaterProgress) unsubs.push(window.electronAPI.onUpdaterProgress((p) => { setProgress(p); setState("downloading"); }));
     if (window.electronAPI?.onUpdaterDownloaded) unsubs.push(window.electronAPI.onUpdaterDownloaded((i) => {
-      setInfo(i); setState("downloaded"); setProgress(null);
+      setInfo(i); setState("downloaded"); setProgress(null); setDlMinimized(false);
       isManualRef.current = false;
       setManualModal(null);
       if (autoInstallRef.current) {
@@ -115,6 +116,7 @@ export default function UpdaterBanner() {
 
   const handleDownload = useCallback(async () => {
     autoInstallRef.current = true;
+    setDlMinimized(false);
     setState("downloading");
     setProgress({ percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 });
     try {
@@ -203,7 +205,9 @@ export default function UpdaterBanner() {
   ) : null;
 
   // ── Downloading modal overlay (polished, centered, with progress bar) ──
-  const downloadingModalEl = state === "downloading" ? (
+  // Background dabane par sirf modal hide hota hai — download main process me
+  // chalta rehta hai, top banner + nav button progress dikhate rehte hain.
+  const downloadingModalEl = state === "downloading" && !dlMinimized ? (
     <div style={{ position:"fixed", inset:0, background:"var(--overlay-a58)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:"var(--z-updater-top)", animation:"fadeIn 0.2s ease" }}>
       <div style={{ background:"var(--grad-modal)", border:"1px solid var(--updater-modal-border)", borderRadius:"var(--radius-3xl)", padding:"var(--space-20) 22px var(--space-18)", width:440, maxWidth:"92vw", boxShadow:"0 var(--space-20) 60px var(--overlay-dark), 0 var(--space-1) 0 var(--white-a08) inset", display:"flex", flexDirection:"column", gap:"var(--space-14)" }}>
         {/* Header */}
@@ -281,7 +285,7 @@ export default function UpdaterBanner() {
         </div>
 
         <div style={{ display:"flex", gap:"var(--space-8)", justifyContent:"flex-end" }}>
-          <button onClick={() => { /* keep downloading in background, just hide modal? But keep banner */ }} style={{ ...btnStyle, background:"transparent", border:"1px solid var(--updater-modal-border)", color:"var(--updater-subtle)" }} title="Keep downloading in background (banner stays)">Background</button>
+          <button onClick={() => setDlMinimized(true)} style={{ ...btnStyle, background:"transparent", border:"1px solid var(--updater-modal-border)", color:"var(--updater-subtle)" }} title="Keep downloading in background (banner stays)">Background</button>
           <button onClick={handleViewRelease} style={{ ...btnStyle, background:"var(--bg-active)", border:"1px solid var(--border-strong)", color:"var(--text-bright)" }}><ExternalLink size={12} /> Release</button>
         </div>
       </div>
@@ -382,6 +386,11 @@ export default function UpdaterBanner() {
               <span style={{ display:"inline-flex", alignItems:"center", gap:"var(--space-4)" }}><Clock size={11} /> {eta}</span>
               <span style={{ opacity:0.5 }}>•</span>
               <span>{fmtBytes(transferred)}{total ? ` / ${fmtBytes(total)}` : ""}</span>
+              {dlMinimized ? (
+                <button onClick={() => setDlMinimized(false)} style={{ ...btnStyle, padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", background:"var(--info-blue-a14)", border:"1px solid var(--info-blue-a22)", color:"var(--info-blue)", marginLeft:"var(--space-4)" }} title="Show download details">Details</button>
+              ) : (
+                <button onClick={() => setDlMinimized(true)} style={{ ...btnStyle, padding:"var(--space-2) var(--space-8)", fontSize:"var(--fs-small)", background:"transparent", border:"1px solid var(--updater-modal-border)", color:"var(--updater-subtle)", marginLeft:"var(--space-4)" }} title="Hide popup, keep downloading in background">Background</button>
+              )}
             </span>
           </div>
           {/* Full-width progress bar */}
