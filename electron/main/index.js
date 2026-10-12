@@ -199,6 +199,11 @@ async function handleIbxProtocolUrl(raw) {
   console.log("[protocol] idiotbox://update — triggering update check");
   try { logOutput("Updater", "Update requested from website (idiotbox://update)"); } catch {}
   const win = focusMainWindow();
+  // Store build me GitHub check banned — sirf window focus karo.
+  if (isStoreBuild()) {
+    console.log("[protocol] Store build — skipping update check (managed by Microsoft Store)");
+    return true;
+  }
   // Renderer ko manual-check jaisa UX do (center modal/banner), phir feed check.
   try { if (win && !win.isDestroyed()) win.webContents.send("updater:manualCheck"); } catch {}
   try { await checkForUpdatesProper(win); } catch (e) { console.warn("[protocol] update check failed:", e?.message || e); }
@@ -4940,6 +4945,12 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
 // faisla + differential download (.exe.blockmap — sirf badle blocks).
 // GitHub API sirf release notes/URL enrich + fallback jab feed unreachable ho.
 // Manual check shows center modal; auto checks only banner when available. Periodic check every 6h + 2s launch.
+// NOTE (Microsoft Store): Store build (process.windowsStore === true) me
+// self-update BANNED hai (Store policy 10.1). Store khud update deta hai.
+// Isliye saare updater paths Store pe early-return karte hain.
+function isStoreBuild() {
+  try { return !!process.windowsStore; } catch { return false; }
+}
 let _updaterWindow = null;
 let _updaterState = "idle"; // idle | checking | available | downloading | downloaded | error
 let _latestUpdateInfo = null;
@@ -5050,6 +5061,12 @@ function enrichUpdateInfo(updateInfo, meta) {
 // jab latest.yml unreachable ho. Dev me (unpackaged) sirf GitHub API — wahan
 // download = releases page kholna (manual).
 async function checkForUpdatesProper(win) {
+  // Microsoft Store build: self-update banned — Store handles updates.
+  if (isStoreBuild()) {
+    console.log("[updater] Store build — skipping GitHub check (managed by Microsoft Store)");
+    try { setUpdaterState("idle"); } catch {}
+    return null;
+  }
   const targetWins = win && !win.isDestroyed() ? [win] : BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed());
   const primaryWin = targetWins[0] || null;
   const current = app.getVersion();
@@ -5142,6 +5159,8 @@ async function checkForUpdatesViaGitHub(win) {
 }
 
 function setupAutoUpdater(win) {
+  // Microsoft Store build: no GitHub polling, no autoDownload — Store updates only.
+  if (isStoreBuild()) { console.log("[updater] Store build — auto-updater disabled"); return; }
   if (!autoUpdater) { console.warn("[updater] electron-updater not installed"); return; }
   _updaterWindow = win;
   try {
@@ -5245,6 +5264,7 @@ function setupAutoUpdater(win) {
 }
 
 ipcMain.handle("updater:check", async (e) => {
+  if (isStoreBuild()) return { ok: true, store: true, available: false, state: "idle", message: "Updates are managed by Microsoft Store" };
   const win = BrowserWindow.fromWebContents(e.sender) || _updaterWindow;
   try {
     // Reset state to checking for proper cycle (checkForUpdatesProper bhi yahi karta hai)
@@ -5259,6 +5279,7 @@ ipcMain.handle("updater:check", async (e) => {
   }
 });
 ipcMain.handle("updater:download", async (e) => {
+  if (isStoreBuild()) return { ok: false, store: true, error: "Updates are managed by Microsoft Store" };
   const win = BrowserWindow.fromWebContents(e.sender) || _updaterWindow;
   if (!app.isPackaged) {
     try { shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest"); } catch {}
@@ -5309,6 +5330,7 @@ ipcMain.handle("updater:download", async (e) => {
   }
 });
 ipcMain.handle("updater:install", async () => {
+  if (isStoreBuild()) return { ok: false, store: true, error: "Updates are managed by Microsoft Store" };
   if (!autoUpdater) return { error: "updater not available" };
   try {
     setUpdaterState("installing");
@@ -5317,7 +5339,10 @@ ipcMain.handle("updater:install", async () => {
   return { ok: true };
 });
 ipcMain.handle("updater:getVersion", async () => {
-  try { return { version: app.getVersion(), state: _updaterState, info: _latestUpdateInfo }; } catch (e) { return { error: e.message }; }
+  try { return { version: app.getVersion(), state: _updaterState, info: _latestUpdateInfo, store: isStoreBuild() }; } catch (e) { return { error: e.message }; }
+});
+ipcMain.handle("updater:isStore", async () => {
+  try { return { store: isStoreBuild() }; } catch { return { store: false }; }
 });
 ipcMain.handle("updater:getState", async () => {
   const out = { state: _updaterState, info: _latestUpdateInfo, progress: _downloadProgress, version: app.getVersion() };
@@ -6353,6 +6378,11 @@ function buildMenu() {
         { label: "Check for Updates…", click: async () => {
             const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
             if (!win) return;
+            // Store build: updates Microsoft Store se — GitHub check mat chalao.
+            if (isStoreBuild()) {
+              try { dialog.showMessageBox(win, { type: "info", title: "Updates", message: "Updates are managed by Microsoft Store", detail: "Open Microsoft Store → Library → Get updates to update Idiot Box.", buttons: ["OK"] }); } catch {}
+              return;
+            }
             try {
               // tell renderer this is a manual check so "You're up to date" shows in-app (not auto)
               try { win.webContents.send("updater:manualCheck"); } catch {}

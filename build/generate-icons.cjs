@@ -202,5 +202,40 @@ function buildIcns(sizes, srcPixels, srcW, srcH) {
   fs.writeFileSync(path.resolve(__dirname, "../electron/renderer/assets/icon.png"), linuxPng);
   console.log("[icons] icon.png  " + (linuxPng.length/1024|0) + " KB (512x512)");
 
+  // ── Microsoft Store tiles (build/appx/) ──────────────────────────────────
+  // electron-builder MSIX auto-generates tiles from icon.png, but explicit
+  // high-res overrides avoid Store certification scaling warnings.
+  // Square tiles = direct resize, Wide/Splash = icon centered on #0d0d0d.
+  try {
+    const APPX = path.resolve(__dirname, "appx");
+    if (!fs.existsSync(APPX)) fs.mkdirSync(APPX, { recursive: true });
+    const square = (sz, name) => {
+      const px = resizeRGBA(pixels, width, height, sz, sz);
+      fs.writeFileSync(path.join(APPX, name), encodePng(px, sz, sz));
+      console.log("[icons] appx/" + name + " " + sz + "x" + sz);
+    };
+    const onBg = (w, h, iconSz, name) => {
+      const bg = Buffer.alloc(w * h * 4);
+      for (let i = 0; i < w * h; i++) { bg[i*4]=0x0d; bg[i*4+1]=0x0d; bg[i*4+2]=0x0d; bg[i*4+3]=255; }
+      const icon = resizeRGBA(pixels, width, height, iconSz, iconSz);
+      const ox = Math.round((w - iconSz) / 2), oy = Math.round((h - iconSz) / 2);
+      for (let y = 0; y < iconSz; y++) for (let x = 0; x < iconSz; x++) {
+        const si = (y * iconSz + x) * 4, di = ((oy + y) * w + (ox + x)) * 4;
+        const a = icon[si+3] / 255;
+        bg[di]   = Math.round(icon[si] * a + bg[di] * (1 - a));
+        bg[di+1] = Math.round(icon[si+1] * a + bg[di+1] * (1 - a));
+        bg[di+2] = Math.round(icon[si+2] * a + bg[di+2] * (1 - a));
+        bg[di+3] = 255;
+      }
+      fs.writeFileSync(path.join(APPX, name), encodePng(bg, w, h));
+      console.log("[icons] appx/" + name + " " + w + "x" + h);
+    };
+    square(50, "StoreLogo.png");
+    square(44, "Square44x44Logo.png");
+    square(150, "Square150x150Logo.png");
+    onBg(310, 150, 96, "Wide310x150Logo.png");
+    onBg(620, 300, 180, "SplashScreen.png");
+  } catch (e) { console.warn("[icons] appx tiles skipped:", e.message); }
+
   console.log("[icons] Done! Files in build/icons/ and electron/renderer/assets/");
 })();

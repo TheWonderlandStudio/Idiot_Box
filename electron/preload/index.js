@@ -292,6 +292,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updaterInstall: () => ipcRenderer.invoke("updater:install"),
   updaterGetVersion: () => ipcRenderer.invoke("updater:getVersion"),
   updaterGetState: () => ipcRenderer.invoke("updater:getState"),
+  updaterIsStore: () => ipcRenderer.invoke("updater:isStore"),
   onUpdaterChecking: (cb) => { const h=(_e)=>cb(); ipcRenderer.on("updater:checking", h); return ()=>ipcRenderer.removeListener("updater:checking", h); },
   onUpdaterAvailable: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:available", h); return ()=>ipcRenderer.removeListener("updater:available", h); },
   onUpdaterNotAvailable: (cb) => { const h=(_e,info)=>cb(info); ipcRenderer.on("updater:not-available", h); return ()=>ipcRenderer.removeListener("updater:not-available", h); },

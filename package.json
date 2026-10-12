@@ -30,6 +30,7 @@
     "dist:exe": "npm run build && electron-builder --win nsis",
     "dist:msi": "npm run build && electron-builder --win msi",
     "dist:msix": "npm run build && electron-builder --win msix",
+    "dist:msix-store": "npm run build && electron-builder --win msix --publish never",
     "dist:win": "npm run build && electron-builder --win nsis msi msix",
     "dist:win:dir": "npm run build && electron-builder --win nsis --dir",
     "dist:dmg": "npm run build && electron-builder --mac dmg",
@@ -510,6 +511,15 @@
       "publisherDisplayName": "TheWonderlandStudio",
       "applicationId": "IdiotBox",
       "displayName": "Idiot Box",
+      "backgroundColor": "#0d0d0d",
+      "capabilities": [
+        "internetClient",
+        "privateNetworkClientServer",
+        "runFullTrust"
+      ],
+      "languages": [
+        "en-US"
+      ],
       "artifactName": "Idiot-Box-Setup-${version}.${ext}"
     },
     "nsis": {
