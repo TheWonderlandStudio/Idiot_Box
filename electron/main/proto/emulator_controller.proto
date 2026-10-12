@@ -18,6 +18,9 @@ service EmulatorController {
     // except the bottom-up pixel order documented on Image.image.
     // Empty image (0x0) when the display is not visible.
     rpc getScreenshot(ImageFormat) returns (Image) {}
+
+    // Streams a continuous series of screenshots from the emulator.
+    rpc streamScreenshot(ImageFormat) returns (stream Image) {}
 }
 
 message ImageFormat {

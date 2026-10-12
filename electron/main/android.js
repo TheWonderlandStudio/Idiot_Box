@@ -771,6 +771,53 @@ try { emuGrpc = require("./emulatorGrpc"); } catch (e) { /* gRPC frame source un
 const grpcPorts = new Map(); // avdName -> grpc port
 const grpcAuthFailed = new Set(); // avdName — server demanded auth; don't retry spammy
 const grpcOkLogged = new Set(); // avdName — one-time "frames via gRPC" note
+const grpcStreams = new Map(); // avdName -> { stream, latestFrame, lastError, seq }
+
+function stopGrpcStream(avdName) {
+  const entry = grpcStreams.get(avdName);
+  if (!entry) return;
+  grpcStreams.delete(avdName);
+  try { entry.stream.cancel(); } catch {}
+}
+
+function getOrStartGrpcStream(avdName, port) {
+  let entry = grpcStreams.get(avdName);
+  if (entry && !entry.dead) return entry;
+  if (!emuGrpc) return null;
+  try {
+    const stream = emuGrpc.streamScreenshot(port, { width: emuGrpc.STREAM_WIDTH });
+    entry = { stream, latestFrame: null, lastError: null, dead: false, seq: 0 };
+    stream.on("data", (res) => {
+      try {
+        const parsed = emuGrpc.parseImageResponse(res);
+        entry.latestFrame = parsed;
+        entry.seq++;
+      } catch (e) {
+        entry.lastError = e;
+      }
+    });
+    stream.on("error", (err) => {
+      entry.dead = true;
+      entry.lastError = err;
+      if (emuGrpc.isAuthError(err)) {
+        grpcAuthFailed.add(avdName);
+        broadcast({ op: "frame", phase: "auth", message: `${avdName}: emulator wants gRPC auth — using adb frames instead.`, avd: avdName, at: Date.now() });
+      }
+      stopGrpcStream(avdName);
+    });
+    stream.on("end", () => {
+      entry.dead = true;
+      stopGrpcStream(avdName);
+    });
+    grpcStreams.set(avdName, entry);
+    return entry;
+  } catch (e) {
+    if (emuGrpc.isAuthError(e)) {
+      grpcAuthFailed.add(avdName);
+    }
+    return null;
+  }
+}
 
 function getFreePort() {
   const net = require("net");
@@ -967,6 +1014,7 @@ function evictAvdCaches(avdName) {
       if (avd === avdName) serialAvdCache.delete(serial);
     }
   } catch {}
+  stopGrpcStream(avdName);
   grpcPorts.delete(avdName);
   grpcAuthFailed.delete(avdName);
 }
@@ -1520,7 +1568,13 @@ function setupAndroidIpc() {
   });
 
   ipcMain.handle("android:frameStop", async (_e, { serial } = {}) => {
-    try { if (validSerial(serial)) frameSessionDestroy(serial); } catch {}
+    try {
+      if (validSerial(serial)) {
+        frameSessionDestroy(serial);
+        const avd = serialAvdCache.get(serial);
+        if (avd) stopGrpcStream(avd);
+      }
+    } catch {}
     return { ok: true };
   });
 
@@ -1638,19 +1692,29 @@ function setupAndroidIpc() {
       if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
       let w, h, pixels;
       let framed = null;
-      // 1) gRPC screenshot (persistent channel, server-side scaling, no adb spawn)
+      // 1) gRPC video/screenshot stream or unary screenshot
       const avd = serialAvdCache.get(serial) || null;
       const port = avd ? grpcPorts.get(avd) : null;
       if (emuGrpc && port && avd && !grpcAuthFailed.has(avd)) {
         try {
-          framed = await emuGrpc.getScreenshot(port, { width: emuGrpc.STREAM_WIDTH });
-          if (!grpcOkLogged.has(avd)) {
-            grpcOkLogged.add(avd);
-            broadcast({ op: "frame", phase: "grpc", message: `${avd}: frames via gRPC (${framed.w}x${framed.h}).`, avd, at: Date.now() });
+          const entry = getOrStartGrpcStream(avd, port);
+          if (entry && entry.latestFrame) {
+            framed = entry.latestFrame;
+            if (!grpcOkLogged.has(avd)) {
+              grpcOkLogged.add(avd);
+              broadcast({ op: "frame", phase: "grpc", message: `${avd}: frames via gRPC stream (${framed.w}x${framed.h}).`, avd, at: Date.now() });
+            }
+          } else {
+            framed = await emuGrpc.getScreenshot(port, { width: emuGrpc.STREAM_WIDTH });
+            if (!grpcOkLogged.has(avd)) {
+              grpcOkLogged.add(avd);
+              broadcast({ op: "frame", phase: "grpc", message: `${avd}: frames via gRPC (${framed.w}x${framed.h}).`, avd, at: Date.now() });
+            }
           }
         } catch (e) {
           if (e?.grpcAuth) {
             grpcAuthFailed.add(avd);
+            stopGrpcStream(avd);
             broadcast({ op: "frame", phase: "auth", message: `${avd}: emulator wants gRPC auth — using adb frames instead.`, avd, at: Date.now() });
           }
           framed = null;
@@ -1671,7 +1735,7 @@ function setupAndroidIpc() {
       if (prev && prev.length === pixels.length && prev.equals(pixels)) {
         return { ok: true, unchanged: true, w, h };
       }
-      lastRawFrames.set(serial, Buffer.from(pixels));
+      lastRawFrames.set(serial, Buffer.isBuffer(pixels) ? pixels : Buffer.from(pixels));
       if (lastRawFrames.size > 10) {
         try { lastRawFrames.delete(lastRawFrames.keys().next().value); } catch {}
       }
