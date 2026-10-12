@@ -106,18 +106,7 @@ function getScreenshot(port, { width = STREAM_WIDTH, timeoutMs = 10000 } = {}) {
           return reject(err);
         }
         try {
-          const fmt = res?.format || {};
-          const w = fmt.width || res?.width || 0;
-          const h = fmt.height || res?.height || 0;
-          const img = res?.image;
-          if (!w || !h || w > 4096 || h > 4096) {
-            return reject(new Error(`empty/invalid gRPC frame (${w}x${h}) — display off?`));
-          }
-          if (!img || img.length < w * h * 4) {
-            return reject(new Error(`short gRPC frame (${img?.length || 0} < ${w * h * 4})`));
-          }
-          const pixels = flipVertical(Buffer.from(img.subarray ? img.subarray(0, w * h * 4) : img.slice(0, w * h * 4)), w, h);
-          resolve({ w, h, pixels, seq: res?.seq || 0, timestampUs: res?.timestampUs || 0 });
+          resolve(parseImageResponse(res));
         } catch (e) {
           reject(e);
         }
@@ -128,11 +117,36 @@ function getScreenshot(port, { width = STREAM_WIDTH, timeoutMs = 10000 } = {}) {
   });
 }
 
+function parseImageResponse(res) {
+  const fmt = res?.format || {};
+  const w = fmt.width || res?.width || 0;
+  const h = fmt.height || res?.height || 0;
+  const img = res?.image;
+  if (!w || !h || w > 4096 || h > 4096) {
+    throw new Error(`empty/invalid gRPC frame (${w}x${h}) — display off?`);
+  }
+  if (!img || img.length < w * h * 4) {
+    throw new Error(`short gRPC frame (${img?.length || 0} < ${w * h * 4})`);
+  }
+  const pixels = flipVertical(Buffer.from(img.subarray ? img.subarray(0, w * h * 4) : img.slice(0, w * h * 4)), w, h);
+  return { w, h, pixels, seq: res?.seq || 0, timestampUs: res?.timestampUs || 0 };
+}
+
+// Streaming screenshot call. Returns a stream object that emits "data", "error", "end".
+function streamScreenshot(port, { width = STREAM_WIDTH } = {}) {
+  const client = getClient(port);
+  const req = { format: 1, width, height: 0, display: 0 };
+  const call = client.streamScreenshot(req);
+  return call;
+}
+
 module.exports = {
   STREAM_WIDTH,
   getClient,
   closeClient,
   getScreenshot,
+  streamScreenshot,
+  parseImageResponse,
   isAuthError,
   flipVertical,
   grpcAvailable: () => !!(grpc && protoLoader),
