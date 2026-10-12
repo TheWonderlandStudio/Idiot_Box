@@ -227,21 +227,31 @@ const AndroidEmulatorPanel = () => {
     const serial = view?.serial;
     if (!serial) return () => {};
     let dead = false;
-    let timer = null;
+    let animId = null;
+    let cachedImgData = null;
+
     const draw = (w, h, pixels) => {
       const canvas = canvasRef.current;
       if (!canvas) return false;
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
         canvas.height = h;
+        cachedImgData = null;
         setDevSize({ w, h });
       }
       try {
         const ctx = canvas.getContext("2d");
-        ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), w, h), 0, 0);
+        const len = w * h * 4;
+        const src = pixels instanceof Uint8Array || pixels instanceof Uint8ClampedArray ? pixels : new Uint8Array(pixels);
+        if (!cachedImgData || cachedImgData.width !== w || cachedImgData.height !== h) {
+          cachedImgData = ctx.createImageData(w, h);
+        }
+        cachedImgData.data.set(src.subarray ? src.subarray(0, len) : src.slice(0, len));
+        ctx.putImageData(cachedImgData, 0, 0);
         return true;
       } catch { return false; }
     };
+
     const tick = async () => {
       if (dead) return;
       if (!document.hidden && !frameBusyRef.current) {
@@ -265,13 +275,14 @@ const AndroidEmulatorPanel = () => {
           return;
         }
       }
-      if (!dead) timer = setTimeout(tick, 16);
+      if (!dead) animId = requestAnimationFrame(tick);
     };
-    tick();
+
+    animId = requestAnimationFrame(tick);
     return () => {
       dead = true;
-      if (timer) clearTimeout(timer);
-      // release the persistent shell session for this serial
+      if (animId) cancelAnimationFrame(animId);
+      // release the persistent shell session / grpc stream for this serial
       try { window.electronAPI?.androidFrameStop?.(serial); } catch {}
     };
   }, [view?.serial, view?.avd, showToast, closeViewer]);
