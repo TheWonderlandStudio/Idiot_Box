@@ -110,6 +110,23 @@ const BLANK_JSON = {
   },
 };
 
+// Temp single-file layout (OS "Open With" → temp project): SIRF ek editor
+// panel — poora IDE layout nahi. Tabs (multi-file) isi ek tabset me khulte
+// hain. Transient hai, persist kabhi nahi hota.
+const SINGLE_FILE_JSON = {
+  global: { ...DEFAULT_JSON.global },
+  layout: {
+    type: "row",
+    weight: 100,
+    children: [
+      {
+        type: "tabset",
+        weight: 100,
+        children: [{ type: "tab", name: "Editor", component: "editor" }],
+      },
+    ],
+  },
+};
 // Panel content by tab-JSON — factory (tab node ke JSON attributes) isse
 // render karta hai: component + config + nodeId ek jagah se.
 const renderPanelContent = (json) => {
@@ -2198,6 +2215,38 @@ const App = () => {
     };
 
     const openInMediaViewer = (filePath) => {
+      // Single-editor temp layout me Media Viewer tab ho na ho — nahi hai to
+      // banao, mount hone ke baad file bhejo (nahi to event kahin nahi jata).
+      let hasViewer = false;
+      try {
+        const m = modelRef.current;
+        if (m) {
+          const findMedia = (node) => {
+            if (node.getType?.() === "tab" && node.getComponent?.() === "mediaViewer") return node;
+            const ch = node.getChildren?.();
+            if (ch) for (const c of ch) { const r = findMedia(c); if (r) return r; }
+            return null;
+          };
+          hasViewer = !!findMedia(m.getRoot());
+        }
+      } catch {}
+      if (!hasViewer) {
+        try {
+          const m = modelRef.current;
+          if (m) {
+            const ts = m.getActiveTabset?.() || m.getFirstTabSet?.();
+            const parentId = ts ? ts.getId() : m.getRoot().getId();
+            m.doAction(Actions.addNode({
+              type: "tab", component: "mediaViewer", name: "Media Viewer", enableClose: true,
+            }, parentId, DockLocation.CENTER, -1, true));
+            forceLayoutRedraw(m);
+          }
+        } catch {}
+        setTimeout(() => {
+          try { window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } })); } catch {}
+        }, 150);
+        return;
+      }
       focusMediaViewerTab();
       window.dispatchEvent(new CustomEvent("media-viewer:open", { detail: { path: filePath } }));
     };
@@ -2244,7 +2293,7 @@ const App = () => {
         try { window.__ibxTransientProject = true; } catch {}
         projectLayoutRef.current = null;
         try {
-          modelRef.current = Model.fromJson(JSON.parse(JSON.stringify(DEFAULT_JSON)));
+          modelRef.current = Model.fromJson(JSON.parse(JSON.stringify(SINGLE_FILE_JSON)));
         } catch {}
         setHasProject(true);
         try { window.dispatchEvent(new CustomEvent("project:opened", { detail: { path: dir, transient: true } })); } catch {}
