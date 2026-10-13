@@ -4,12 +4,12 @@
 }
 
 :root{
-  /* UI ko CRT tube ke andar rakhne wala safe inset — width aur height dono ke saath scale
-     (sirf 3.9vw se landscape/short screens me inset bahut bada ho jata tha) */
+  /* Safe inset keeping the UI inside the CRT tube — scales with both width and height
+     (3.9vw alone made the inset too large on landscape/short screens) */
   --tube-inset: clamp(22px, min(3.9vw, 7vh), 96px);
 }
 
-/* har jagah se underline hata do — prose links alag se underline karte hain */
+/* remove underlines everywhere — prose links underline separately */
 a{
   text-decoration: none;
   text-underline-offset: 0;
@@ -27,7 +27,7 @@ body{
 .background{
   width: 96%;
   height: 95%;
-  /* CRT tube jaisa frame — rounded corners + kaala bezel */
+  /* CRT-tube-like frame — rounded corners + black bezel */
   border-radius: clamp(24px, 3.6vw, 56px);
   background: black;
   animation: backgroundAnimation 2s;
@@ -49,7 +49,7 @@ body{
   }
 }
 
-/* screen vignette — corners andar ki taraf dhundhlate hain (image wala CRT look) */
+/* screen vignette — corners fade inward (image-like CRT look) */
 .background::after{
   content: '';
   position: absolute;
@@ -74,14 +74,14 @@ body{
 }
 
 
-/* background video — saari animations ke baad fade-in hoga */
+/* background video — fades in after all animations */
 .bg-video-wrap{
   position: absolute;
   inset: 0;
   overflow: hidden;
   border-radius: inherit;
   pointer-events: none;
-  /* tube ka shape — sides curved (SVG clipPath), baaki jagah kaala bezel */
+  /* tube shape — sides curved (SVG clipPath), black bezel elsewhere */
   background: white;
   clip-path: url(#crt-frame);
 }
@@ -99,18 +99,18 @@ body{
   opacity: 1;
 }
 
-/* center title — video ke upar bada IDIOT BOX */
+/* center title — large IDIOT BOX over the video */
 .center-title{
   position: absolute;
   left: 50%;
-  /* 46% par hero isse dhak leta tha (bade desktop screens) */
+  /* hero used to cover it at 46% (large desktop screens) */
   top: 38%;
   translate: -50% -50%;
   z-index: 1;
   margin: 0;
   font-family: Arial Black;
-  /* vh cap — ultrawide (2560x1080 jaisi) me title hero se takra na jaye;
-     16:9 par 11vw hi govern karta hai, look same rehta hai */
+  /* vh cap — keeps the title clear of the hero on ultrawide (e.g. 2560x1080);
+     on 16:9, 11vw still governs, look unchanged */
   font-size: min(clamp(56px, 11vw, 260px), 19.5vh);
   line-height: 1;
   text-transform: uppercase;
@@ -156,7 +156,7 @@ body{
   translate: 0 0;
 }
 
-/* right side nav — compact link row, koi underline nahi (saari animations ke baad aayega) */
+/* right side nav — compact link row, no underlines (appears after all animations) */
 .nav-card{
   font-family: 'Inter', sans-serif;
   font-size: clamp(11px, 1.05vw, 20px);
@@ -175,7 +175,7 @@ body{
   align-items: center;
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-  /* hidden stage — upar */
+  /* hidden stage — above */
   opacity: 0;
   transform: translateY(-180%);
   transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease;
@@ -183,7 +183,7 @@ body{
   z-index: 5;
 }
 
-/* show stage — JS .nav-in lagane par neeche slide */
+/* show stage — slides down when JS adds .nav-in */
 .background.nav-in .nav-card{
   opacity: 1;
   transform: translateY(0);
@@ -214,7 +214,7 @@ body{
   color: white;
 }
 
-/* download — hamesha white pill, baaki links se alag dikhe */
+/* download — always a white pill, distinct from other links */
 .nav-card a[data-download-latest]{
   background: white;
   color: black;
@@ -225,10 +225,10 @@ body{
   color: black;
 }
 
-/* right side center — vertical Features tab, hero ke sath aayega */
+/* right side center — vertical Features tab, arrives with the hero */
 .side-tab{
   position: absolute;
-  /* frame se bilkul chipka hua — koi gap nahi */
+  /* flush against the frame — no gap */
   right: 0;
   top: 50%;
   transform: translateY(-50%) translateX(30px);
@@ -254,7 +254,7 @@ body{
   pointer-events: auto;
 }
 
-/* desktop — links seedha flex me, hamburger/panel chhupa */
+/* desktop — links directly in flex, hamburger/panel hidden */
 .nav-links{
   display: contents;
 }
@@ -283,7 +283,7 @@ body{
   display: none;
 }
 
-/* base link style — media query ke bahar bhi underline kabhi na aaye */
+/* base link style — never underline, even outside media queries */
 .menu-panel a{
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -311,21 +311,20 @@ body{
   color: black;
 }
 
-/* hero — bottom-left taaki video ka center content clear rahe */
+/* hero — bottom-left so the video's center content stays clear */
 .hero{
   position: absolute;
   left: var(--tube-inset);
   bottom: var(--tube-inset);
   z-index: 2;
-  /* hamesha tube ke andar fit + bade screens par 660px se zyada na phaile */
+  /* always fits inside the tube + never wider than 660px on large screens */
   max-width: min(clamp(420px, 48vw, 660px), calc(100% - 2 * var(--tube-inset)));
   background: black;
   color: white;
   border-radius: 4px;
-  /* vh term: 16:9 par vw hi govern karta hai (look same), par short/wide
-     windows me hero center-title ko dhakne se bachta hai */
+  /* vh term: on 16:9 vw still governs (same look), but keeps the hero from covering the center title on short/wide windows */
   padding: clamp(20px, min(2vw, 3.6vh), 44px);
-  /* hidden stage — video ke baad upar slide hoga */
+  /* hidden stage — slides up after the video */
   opacity: 0;
   transform: translateY(40px);
   transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.7s ease;
@@ -348,7 +347,7 @@ body{
   margin-bottom: 10px;
 }
 
-/* naya release aane par dikhne wala badge */
+/* badge shown when a new release arrives */
 .new-pill{
   display: inline-block;
   background: white;
@@ -468,7 +467,7 @@ body{
     transform: scaleX(1);
   }
 }
-/* SVG clipPath defs — layout me na aaye */
+/* SVG clipPath defs — excluded from layout */
 .crt-defs{
   position: absolute;
   width: 0;
@@ -485,13 +484,13 @@ body{
   z-index: 50;
   opacity: 0.07;
   image-rendering: pixelated;
-  /* noise sirf tube ke andar — frame/bezel par nahi */
+  /* noise only inside the tube — not on the frame/bezel */
   clip-path: url(#crt-frame);
 }
 
 /* ---------- responsive ---------- */
-/* hamburger mode — desktop nav-card (666px) top-left card se takrata hai,
-   isliye 768 se pehle hi switch karna padta hai */
+/* hamburger mode — desktop nav-card (666px) collides with the top-left card,
+   so switch before 768px */
 @media (max-width: 1120px){
   .nav-links{
     display: none;
@@ -507,7 +506,7 @@ body{
     padding: 5px;
   }
 
-  /* panel nav-card ke andar hai — hamesha hamburger ke theek neeche */
+  /* panel sits inside nav-card — always right below the hamburger */
   .menu-panel{
     display: flex;
     flex-direction: column;
@@ -540,7 +539,7 @@ body{
     padding: 10px 12px;
   }
 
-  /* hamburger se X */
+  /* hamburger to X */
   .background.menu-open .hamburger span:nth-child(1){
     transform: translateY(7px) rotate(45deg);
   }
@@ -576,7 +575,7 @@ body{
     padding: 9px 12px;
   }
 
-  /* vertical Features tab hero ke upar chala jata hai — menu me shift */
+  /* vertical Features tab overlaps the hero — moved into the menu */
   .side-tab{
     display: none;
   }
@@ -651,10 +650,10 @@ body{
   }
 }
 
-/* ---------- choti height screens (landscape phone, chota laptop window) ---------- */
+/* ---------- short-height screens (landscape phones, small laptop windows) ---------- */
 @media (max-height: 1060px){
-  /* hero itna lamba hota hai ki center-title ke neeche ka hissa dhak deta hai —
-     title upar shift + height ke hisaab se cap */
+  /* hero grows tall enough to cover the lower part of the center title —
+     shift the title up + cap by height */
   .center-title{
     top: 30%;
     font-size: min(11vw, 16vh);
@@ -662,12 +661,12 @@ body{
 }
 
 @media (max-height: 640px){
-  /* center-title ko hero ke upar jagah chahiye — chhoti height me chhota title */
+  /* center title needs room above the hero — smaller title on short heights */
   .center-title{
     font-size: min(11vw, 15vh);
   }
 
-  /* hero compact — poori screen na le le */
+  /* hero compact — avoid taking the whole screen */
   .hero{
     padding: 16px 18px;
   }
@@ -704,9 +703,8 @@ body{
   }
 }
 
-/* ---------- bahut chhoti height (landscape phone, chota window) ----------
-   hero ko center-title/card ke saath collision na ho, isliye secondary
-   content trim + title thoda aur chhota */
+/* ---------- very short heights (landscape phones, small windows) ----------
+   trim secondary content + shrink the title further so the hero never collides with the center title/card */
 @media (max-height: 500px){
   .hero-kicker{
     display: none;
@@ -720,8 +718,8 @@ body{
   }
 }
 
-/* chhote phone (jaise 320x568) — kicker ke 2 lines ki jagah hero ko upar shift karna
-   zyada zaroori hai, version badge nav me bhi maujood hai */
+/* small phones (e.g. 320x568) — shifting the hero up matters more than the kicker's 2 lines;
+   the version badge is also in the nav */
 @media (max-width: 480px) and (max-height: 620px){
   .hero-kicker{
     display: none;

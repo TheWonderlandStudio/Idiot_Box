@@ -391,8 +391,8 @@ export const getSnippetCompletionSource = (languageId) => {
       });
     }),
   }));
-  // String/Comment ke bahar hi suggestions — ifIn(nodes, source) sirf do
-  // leta hai (teesra argument ignore ho jata tha, list khali reh jati thi).
+  // Suggest only outside String/Comment — ifIn(nodes, source) takes just two
+  // args (a third argument was ignored and left the list empty).
   return ifNotIn(
     ["Comment", "String", "TemplateString"],
     completeFromList(items),

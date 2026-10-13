@@ -126,6 +126,7 @@
       var STATS = window.IBXStats;
       var RELEASES = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
       var IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+      var IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
 
       if (STATS) STATS.initStats(document.getElementById('stats-strip'));
 
@@ -134,12 +135,17 @@
 
       function assetKind(name) {
         var n = String(name || '').toLowerCase();
-        if (/\.exe$/.test(n)) return { label: 'Windows', cls: 'kind-win' };
+        if (/\.exe$/.test(n)) return { label: 'Windows exe', cls: 'kind-win' };
+        if (/\.msix$/.test(n)) return { label: 'Windows msix', cls: 'kind-win' };
+        if (/\.msi$/.test(n)) return { label: 'Windows msi', cls: 'kind-win' };
         if (/\.appimage$/.test(n)) return { label: 'Linux AppImage', cls: 'kind-linux' };
         if (/\.deb$/.test(n)) return { label: 'Linux deb', cls: 'kind-linux' };
-        if (/\.blockmap$/.test(n)) return { label: 'Update data', cls: 'kind-upd' };
+        if (/\.rpm$/.test(n)) return { label: 'Linux rpm', cls: 'kind-linux' };
+        if (/pacman$/.test(n)) return { label: 'Linux pacman', cls: 'kind-linux' };
+        if (/\.dmg$/.test(n)) return { label: 'macOS dmg', cls: 'kind-mac' };
+        if (/\.zip$/.test(n)) return { label: 'macOS zip', cls: 'kind-mac' };
+        if (/blockmap$/.test(n)) return { label: 'Update data', cls: 'kind-upd' };
         if (/\.ya?ml$/.test(n)) return { label: 'Update manifest', cls: 'kind-upd' };
-        if (/\.exe\.blockmap$/.test(n)) return { label: 'Update data', cls: 'kind-upd' };
         return { label: 'File', cls: 'kind-other' };
       }
 
@@ -153,6 +159,10 @@
 
       function primaryAsset(assets) {
         var list = assets || [];
+        if (IS_MAC) {
+          return list.find(function (a) { return /\.dmg$/i.test(a.name); }) ||
+                 list.find(function (a) { return /mac.*\.zip$/i.test(a.name); });
+        }
         if (IS_LINUX) {
           return list.find(function (a) { return /\.AppImage$/i.test(a.name); }) ||
                  list.find(function (a) { return /\.deb$/i.test(a.name); });
@@ -187,7 +197,7 @@
         if (hero) {
           document.getElementById('dl-primary').href = hero.browser_download_url;
           document.getElementById('dl-primary').textContent =
-            (IS_LINUX ? 'Download for Linux — ' : 'Download for Windows — ') + hero.name;
+            (IS_MAC ? 'Download for macOS — ' : IS_LINUX ? 'Download for Linux — ' : 'Download for Windows — ') + hero.name;
         }
 
         // all formats of the latest release
@@ -198,7 +208,7 @@
           ? assets.map(function (a) { return assetCard(a); }).join('')
           : '<div class="dl-card">No files attached to this release.</div>';
 
-        // earlier releases — har release ke saare files + us release ka total
+        // earlier releases — all files of each release + that release's total
         var past = releases.slice(1);
         document.getElementById('dl-past').innerHTML = past.length
           ? past.map(function (r) {

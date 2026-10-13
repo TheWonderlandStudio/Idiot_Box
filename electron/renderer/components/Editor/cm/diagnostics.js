@@ -1,17 +1,17 @@
 // cm/diagnostics.js — Lezer syntax errors → Problems panel markers.
 //
-// Koi LSP ya lint package nahi: har language package me wese bhi Lezer
-// parser hota hai, jo galat code par ⚠ (isError) nodes banata hai. Wahi
-// nodes utha kar `codemirror:diagnostics` event par publish karte hain —
-// Problems panel isi contract par sunta hai:
+// No LSP or lint package: every language package already ships a Lezer
+// parser, which produces ⚠ (isError) nodes on invalid code. We pick up
+// those nodes and publish them on the `codemirror:diagnostics` event —
+// the Problems panel listens on this contract:
 //   { path, markers: [{ path, message, severity:8, startLineNumber, startColumn, source }] }
-// Empty markers = us file ki entry clear. Koi naya npm dep nahi chahiye:
-// syntaxTree @codemirror/language se, iterate Tree ka apna method hai.
+// Empty markers = clear that file's entry. No new npm dep needed:
+// syntaxTree comes from @codemirror/language, and iteration is Tree's own method.
 
 import { syntaxTree } from "@codemirror/language";
 
 const MAX_MARKERS = 50;
-const MAX_DOC = 600000; // isse badi file → lint skip (perf)
+const MAX_DOC = 600000; // larger files → skip lint (perf)
 
 export const collectSyntaxDiagnostics = (view) => {
   const markers = [];
@@ -35,7 +35,7 @@ export const collectSyntaxDiagnostics = (view) => {
       });
     } catch { return markers; }
     if (!errs.length) return markers;
-    // Nested error nodes me sirf outermost rakho (aadhi-likhi line par spam kam).
+    // Keep only the outermost nested error nodes (less spam on half-typed lines).
     const outer = errs.filter(
       (e, i) => !errs.some((o, j) => j !== i && o.from <= e.from && o.to >= e.to && (o.from < e.from || o.to > e.to)),
     );
@@ -58,7 +58,7 @@ export const collectSyntaxDiagnostics = (view) => {
   return markers;
 };
 
-// Problems panel ko bhejo (path marker me bhi — panel dono dekhta hai).
+// Send to the Problems panel (path is also on the marker — the panel reads both).
 export const publishDiagnostics = (path, markers) => {
   try {
     if (!path) return;

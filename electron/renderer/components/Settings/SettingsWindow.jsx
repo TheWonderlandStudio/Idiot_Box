@@ -28,8 +28,8 @@ const INITIAL_FOCUS = (() => {
   return f ? { label: f, page: INITIAL_PAGE } : null;
 })();
 
-// Pages ka plain root div unwrap karta hai, taaki har sw-frame
-// (.sw-section-title card header + rows) body ke direct child banein.
+// Unwrap a page's plain root div so each sw-frame
+// (.sw-section-title card header + rows) becomes a direct child of the body.
 const UnwrapRoot = ({ children }) => {
   let count = 0;
   let single = null;
@@ -74,7 +74,7 @@ const SettingsWindow = () => {
     const q = String(gq || "").trim().toLowerCase();
     if (!q) return [];
     const out = [];
-    // Specific rows pehle, page entries baad me
+    // Specific rows first, page entries later
     for (const pass of ["row", "page"]) {
       for (const e of SETTINGS_INDEX) {
         if (e.kind !== pass) continue;
@@ -105,7 +105,7 @@ const SettingsWindow = () => {
     return out;
   }, [gsResults]);
 
-  // Panel search field ke neeche anchor karo (fixed positioning)
+  // Anchor below the panel search field (fixed positioning)
   useEffect(() => {
     if (!gsOpen) { setGsPos(null); return; }
     const update = () => {
@@ -122,7 +122,7 @@ const SettingsWindow = () => {
     return () => window.removeEventListener("resize", update);
   }, [gsOpen]);
 
-  // Bahar click karne par search results band
+  // Close search results on outside click
   useEffect(() => {
     if (!gsOpen) return;
     const onDown = (e) => {
@@ -134,7 +134,7 @@ const SettingsWindow = () => {
     return () => document.removeEventListener("mousedown", onDown, true);
   }, [gsOpen]);
 
-  // Ctrl+K / Ctrl+F se global search focus (IPC path main-process se bhi aata hai)
+  // Focus the global search with Ctrl+K / Ctrl+F (also arrives via IPC from the main process)
   useEffect(() => {
     const focusSearch = () => {
       const el = inputRef.current;
@@ -160,7 +160,7 @@ const SettingsWindow = () => {
     };
   }, []);
 
-  // Main window se navigate request (e.g. Browser → Manage extensions, ya palette se row-jump)
+  // Navigate request from the main window (e.g. Browser → Manage extensions, or a palette row-jump)
   useEffect(() => {
     const unsub = window.electronAPI?.onSettingsNavigate?.((page, focus) => {
       if (page && NAV.some((n) => n.id === page)) setActivePage(page);
@@ -169,7 +169,7 @@ const SettingsWindow = () => {
     return () => { try { unsub?.(); } catch {} };
   }, []);
 
-  // Focus request: page render hone par target row ko scroll + flash karo
+  // Focus request: once the page renders, scroll to the target row + flash it
   useEffect(() => {
     if (!focusReq || loading) return;
     let tries = 0;

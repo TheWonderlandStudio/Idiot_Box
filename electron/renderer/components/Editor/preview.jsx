@@ -1,7 +1,7 @@
-// Editor ke liye side preview panes — Markdown render, MDX preview + SQLite file inspect.
-// Markdown: Notebook ka zero-dep renderMarkdown reuse (styles .nb-md-view).
+// Side preview panes for the editor — Markdown render, MDX preview + SQLite file inspect.
+// Markdown: reuses Notebook's zero-dep renderMarkdown (styles .nb-md-view).
 // MDX: Frontmatter + JSX components + GFM tables/code preview.
-// DB: main process ka node:sqlite handler (db:inspect) → tables/rows grid.
+// DB: main-process node:sqlite handler (db:inspect) → tables/rows grid.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -16,7 +16,7 @@ import { renderMarkdown } from "../Notebook/index.jsx";
 // Configure marked defaults once
 marked.setOptions({ gfm: true, breaks: false });
 
-// ── Header bar dono panes me common (close: corner toggle button se) ──
+// ── Header bar shared by both panes (close via the corner toggle button) ──
 const PrevHead = ({ title, extra }) => (
   <div className="ed-prev__head">
     <span className="ed-prev__title">{title}</span>
@@ -24,7 +24,7 @@ const PrevHead = ({ title, extra }) => (
   </div>
 );
 
-// ── Markdown live preview (doc har keystroke par re-render hota hai) ────────
+// ── Markdown live preview (the doc re-renders on every keystroke) ────────
 export const MarkdownPreview = ({ doc }) => {
   const html = useMemo(() => renderMarkdown(doc), [doc]);
   return (

@@ -13,7 +13,7 @@ const CanvasPage = ({ settings, onSave }) => {
   };
   const theme = pick("theme", "canvasTheme", "auto"); // auto | dark | light
   const autosave = pick("autosave", "canvasAutosave", true) !== false; // default true
-  // Background: black | white | grid (purana gridMode toggle migrate: true -> grid).
+  // Background: black | white | grid (old gridMode toggle migrates: true -> grid).
   let bgMode = pick("bgMode", "canvasBgMode", null);
   if (!["black", "white", "grid"].includes(bgMode)) {
     bgMode = pick("gridMode", "canvasGridMode", false) === true ? "grid" : "white";

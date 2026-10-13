@@ -1,11 +1,11 @@
 // shared/previewCss.js — project CSS discovery for live previews.
 //
-// ComponentPreview (iframe) aur Canvas embeds (shadow DOM) dono ko component
-// ke BAHAR wali global stylesheets chahiye hoti hain jo bundler tak nahi
-// pahunchti (bundler `res.css` me sirf import-chain resolve karta hai).
-// Ye module sirf CANDIDATE PATHS nikalta hai (ordered, deduped) + @import
-// inlining karta hai — DOM inject caller karta hai (iframe head vs shadow).
-// Pure functions (fs access inject hota hai) taaki node me unit-test ho sake.
+// ComponentPreview (iframe) and Canvas embeds (shadow DOM) both need the
+// global stylesheets OUTSIDE the component that never reach the bundler
+// (the bundler only resolves the import chain into `res.css`).
+// This module only derives CANDIDATE PATHS (ordered, deduped) + inlines
+// @import — the caller injects into the DOM (iframe head vs shadow).
+// Pure functions (fs access is injected) so this can be unit-tested in node.
 
 export const toPosix = (p) => String(p || "").replace(/\\/g, "/");
 
@@ -68,8 +68,8 @@ const resolveImport = (rootPosix, absPosix, imp) => {
   return posixNorm(`${rootPosix}/node_modules/${clean}`); // bare package css
 };
 
-// Ordered, deduped candidate ABS posix paths. Sirf .css (scss/less yahan
-// nahi — unhe koi compile nahi karta; bundler bhi empty karta hai).
+// Ordered, deduped candidate ABS posix paths. Only .css (no scss/less here
+// — nothing compiles them; the bundler also leaves them empty).
 // opts: { includeSibling: true } — sibling same-name (.css/.module.css).
 export async function findGlobalCssFiles({ targetAbsPath, projectRoot, readTextFile, readDirAll, extraExts = null } = {}) {
   const ordered = [];
@@ -111,7 +111,7 @@ export async function findGlobalCssFiles({ targetAbsPath, projectRoot, readTextF
   // 3. root conventions
   for (const rel of ROOT_CONVENTIONS) mark(`${rootPosix}/${rel}`);
 
-  // 4. entry files ke css imports (read zaroori — chhoti files hain)
+  // 4. css imports from entry files (reading is required — these files are small)
   if (typeof readTextFile === "function") {
     for (const rel of ENTRY_FILES) {
       const abs = `${rootPosix}/${rel}`;
@@ -143,7 +143,7 @@ export async function findGlobalCssFiles({ targetAbsPath, projectRoot, readTextF
       }
     }
 
-    // 6. framework dist css (package.json deps dekh kar)
+    // 6. framework dist css (based on package.json deps)
     try {
       const raw = await readTextFile(`${rootPosix}/package.json`);
       const pkg = raw ? JSON.parse(raw) : null;
@@ -156,8 +156,8 @@ export async function findGlobalCssFiles({ targetAbsPath, projectRoot, readTextF
     } catch {}
   }
 
-  // 7. build output css (vite/cra dist — compiled tailwind/utilities yahin
-  // milte hain). Sirf jab readDirAll mile (caller deta hai).
+  // 7. build output css (vite/cra dist — compiled tailwind/utilities are
+  // found here). Only when readDirAll is available (the caller provides it).
   if (typeof readDirAll === "function") {
     for (const drel of ["dist", "build"]) {
       try {
@@ -185,19 +185,19 @@ export async function findGlobalCssFiles({ targetAbsPath, projectRoot, readTextF
   return ordered;
 }
 
-// ── ibx-file URLs (local assets iframe/srcDoc me load karne ke liye) ────
-// Browser panel wali exact construction (main decodeIbxFileUrl se match).
+// ── ibx-file URLs (for loading local assets in iframe/srcDoc) ────
+// Same construction as the Browser panel (matches main decodeIbxFileUrl).
 export function ibxFileUrlFor(absPosixPath) {
   const p = String(absPosixPath || "").replace(/\\/g, "/");
   if (!p) return "";
   return "ibx-file://file/" + encodeURI(p).replace(/#/g, "%23");
 }
 
-// ── Standalone HTML docs (.html preview/canvas-embed ke liye) ───────────
-// srcDoc documents ka koi base URL nahi hota — relative <link>/img/script
-// toot jate hain. <base href="ibx-file://...dir/"> inject karo taaki sab
-// relative assets file ke folder se resolve hon. Pehle se <base> ho to
-// author ki marzi (haath nahi lagate).
+// ── Standalone HTML docs (for .html preview/canvas-embed) ───────────
+// srcDoc documents have no base URL — relative <link>/img/script URLs
+// break. Inject <base href="ibx-file://...dir/"> so all
+// relative assets resolve from the file's folder. If a <base> already exists,
+// leave the author's choice alone (do not touch it).
 // Returns { html, hadBase }.
 export function prepareHtmlDocument(htmlText, fileAbsPath) {
   const src = typeof htmlText === "string" ? htmlText : "";
@@ -216,33 +216,33 @@ export function prepareHtmlDocument(htmlText, fileAbsPath) {
 }
 
 // ── Shadow-DOM scoping ─────────────────────────────────────────────────
-// Shadow tree me html/body nodes hote hi nahi, isliye `body{...}`, `html{...}`,
-// `:root{...}` (Vite template!) aur `#root{...}` rules dead rehte hain —
-// variables (var(--brand)) samet. Inhe `:host` par map karo (custom properties
-// :host se inherit hoti hain, to var() zinda ho jata hai).
-// Strings/comments/urls ke andar haath nahi lagana — pehle mask karo.
+// Shadow trees have no html/body nodes, so `body{...}`, `html{...}`,
+// `:root{...}` (Vite template!) and `#root{...}` rules stay dead —
+// including variables (var(--brand)). Map them onto `:host` (custom properties
+// inherit from :host, so var() comes alive again).
+// Do not touch anything inside strings/comments/urls — mask them first.
 export function scopeCssForShadow(css) {
   if (!css || typeof css !== "string") return css;
   if (css.indexOf("body") === -1 && css.indexOf("html") === -1 && css.indexOf(":root") === -1 && css.indexOf("#root") === -1) {
-    return css; // fast path — kuch karne layak nahi
+    return css; // fast path — nothing worth doing
   }
-  // 1) comments / strings / url(...) ko placeholders me badlo
+  // 1) move comments / strings / url(...) into placeholders
   const stash = [];
   const masked = String(css).replace(/\/\*[\s\S]*?\*\/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|url\(\s*[^)]*\)/gi, (m) => {
     stash.push(m);
     return `\u0000${stash.length - 1}\u0000`;
   });
-  // 2) selectors transform karo
+  // 2) transform selectors
   const out = masked
     .replace(/:root(?![\w-])/g, ":host")
     .replace(/#root(?![\w-])/g, ":host")
     .replace(/(^|[\s,{}>+~])(html|body)(?=[\s,{:>+~.\[#]|$)/gi, "$1:host");
-  // 3) placeholders wapas
+  // 3) restore placeholders
   return out.replace(/\u0000(\d+)\u0000/g, (m, i) => stash[Number(i)] ?? m);
 }
 
-// Global CSS ke relative @import "..." ko inline resolve karo (depth cap,
-// cycle guard). http/data/tailwind bare imports chhodo.
+// Inline relative @import "..." from global CSS (depth cap,
+// cycle guard). Skip http/data/tailwind bare imports.
 export async function inlineCssImports(css, baseDirPosix, readTextFile, seen = new Set(), depth = 0) {
   if (!css || depth > 4 || typeof readTextFile !== "function") return css;
   const re = /@import\s+(?:url\(\s*["']?([^"')]+)["']?\s*\)|["']([^"']+)["'])\s*[^;]*;/g;

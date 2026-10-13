@@ -1,8 +1,8 @@
-// Extension host ke renderer-side endpoints: status-bar items + notification
-// toasts. Dono main process ke ext:changed / ext:notify events se live rehte hain.
+// Renderer-side endpoints for the extension host: status-bar items + notification
+// toasts. Both stay live via the main process ext:changed / ext:notify events.
 import React, { useEffect, useState, useCallback } from "react";
 
-// ── Status bar items (extension ne jo banaye) ──────────────────────────────
+// ── Status bar items (created by extensions) ──────────────────────────────
 export const ExtStatusItems = () => {
   const [items, setItems] = useState([]);
 

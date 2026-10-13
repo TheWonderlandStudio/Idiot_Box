@@ -1,19 +1,19 @@
 // editHelper.js — Live Edit guest script (runs INSIDE the webview page).
 //
-// Browser/index.jsx isko string ki tarah inject karta hai (executeJavaScript).
-// Isliye ye file plain script hai: koi import/export-value nahi, sirf
-// EDIT_HELPER_SOURCE string export hota hai. Andar backticks escaped (\`) rehte
-// hain kyunki outer literal backtick-delimited hai — haath se edit karte waqt
-// naya backtick hamesha escape karna (\`).
-// BACKSLASH RULE: regex/string me single \s \d \n \. mat likho — outer literal
-// parse hote hi backslash gir jata hai (guest ko toota regex milta hai).
-// Hamesha DOUBLE backslash likho (\\s \\d \\n \\. \\\\ backslash ke liye).
+// Browser/index.jsx injects this as a string (executeJavaScript).
+// So this file is a plain script: no import/export values, only the
+// EDIT_HELPER_SOURCE string is exported. Backticks inside stay escaped (\`)
+// because the outer literal is backtick-delimited — when editing by hand,
+// always escape a new backtick (\`).
+// BACKSLASH RULE: never write single \s \d \n \. in regex/string — the backslash
+// is dropped as soon as the outer literal is parsed (the guest gets a broken regex).
+// Always write DOUBLE backslashes (\\s \\d \\n \\. \\\\ for a backslash).
 //
-// NOTE: ye CSS/DOM *bahar ki website* me chalta hai — app ke var(--tokens)
-// resolve NAHI hote, isliye sab literals rakho.
+// NOTE: this CSS/DOM runs inside the *outer website* — the app's var(--tokens)
+// do NOT resolve there, so keep everything as literals.
 //
-// Test: node se import karke source lo, headless page me evaluate karo
-// (window globals eval-context me share nahi hote — DOM-bridge se assert karo).
+// Test: import the source from node, evaluate it in a headless page
+// (window globals are not shared in the eval context — assert via the DOM bridge).
 export const EDIT_HELPER_SOURCE = `(() => {
       try {
         if (window.__ibxEditHelpersInstalled) return true;
@@ -31,7 +31,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         let locateTimer = null;
         let locateSeq = 0;
         let lastLocateEl = null;
-        // v4: Ctrl+E fallback ke liye last mouse point
+        // v4: last mouse point for the Ctrl+E fallback
         let lastPt = null;
         // v3: delete/duplicate/wrap-link, inspector, style-bar extras
         let inspectPopup = null;
@@ -39,26 +39,26 @@ export const EDIT_HELPER_SOURCE = `(() => {
         let lastCommitEl = null;
         // v4: raw HTML editor popup
         let htmlPopup = null;
-        // v5: sidebar-style ka pending (debounced) commit target
+        // v5: sidebar-style pending (debounced) commit target
         let styleCommitEl = null;
         // v7: DOM tree panel (sidebar) — tree selection + highlight + id map
         let treeSelEl = null;
         let treeHiEl = null;
-        // Mutation ke dauran real mouse re-hover hover-class wapas na laga de
-        // (warna anchor snapshot me artifact aake file-match toot jata hai).
+        // During a mutation, a real mouse re-hover must not re-apply the hover class
+        // (otherwise an artifact lands in the anchor snapshot and file matching breaks).
         let busy = 0;
-        // classList.remove ke baad class="" bach jata hai (element pehle
-        // classless tha) — ye attribute file me NAHI hota, ancestor commit ke
-        // oldHtml ko kharab karta hai. Khaali ho to attribute hi hatao.
+        // classList.remove leaves behind class="" (when the element was previously
+        // classless) — that attribute is NOT in the file and corrupts the ancestor commit's
+        // oldHtml. Remove the attribute entirely when empty.
         function stripEmptyClass(el){
           try{
             if(el && el.removeAttribute && String(el.className||'').trim()==='') el.removeAttribute('class');
           }catch{}
         }
-        // Edit-mode ke transient classes/attrs file-needle me NAHI aane chahiye.
-        // __ibxTreeHover / mouse-hover target pe __ibx-edit-hover chhod jata hai
-        // — snapshot/commit ke waqt outerHTML me shamil ho jati thi to host ko
-        // "Element not found in project" mila aur pura change revert ho jata tha.
+        // Edit-mode transient classes/attrs must NOT end up in the file needle.
+        // __ibxTreeHover / mouse hover leaves __ibx-edit-hover on the target
+        // — it was included in outerHTML at snapshot/commit time, so the host got
+        // "Element not found in project" and the whole change was reverted.
         function stripEditArtifacts(root){
           if(!root) return;
           try{
@@ -80,8 +80,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             }
           }catch{}
         }
-        // Edit sidebar ke peeche popup na chhupo — host viewport me se sidebar
-        // ki width ghata kar deta hai (window.__ibxSidebarW, px).
+        // Don't hide the popup behind the edit sidebar — the host subtracts the sidebar
+        // width from the viewport (window.__ibxSidebarW, px).
         function vw(){
           let w=window.innerWidth||800;
           try{ const s=Number(window.__ibxSidebarW)||0; if(s>0) w=Math.max(240, w-s); }catch{}
@@ -91,10 +91,10 @@ export const EDIT_HELPER_SOURCE = `(() => {
           if (styleEl) return;
           styleEl = document.createElement('style');
           styleEl.id = '__ibx-edit-style';
-          // NOTE: ye CSS *bahar ki website* me inject hota hai — wahan app ke
-          // var(--tokens) resolve NAHI hote, isliye literals rakhe hain.
-          // Values CENTRAL sheet ke barabar hain: --teal (#4ec9b0),
-          // --teal-a08, --teal-a14. Token badle to yahan bhi badlo.
+          // NOTE: this CSS is injected into the *outer website* — the app's
+          // var(--tokens) do NOT resolve there, so literals are used.
+          // Values match the CENTRAL sheet: --teal (#4ec9b0),
+          // --teal-a08, --teal-a14. If tokens change, update them here too.
           styleEl.textContent = \`
             .__ibx-edit-hover { outline: 2px dashed #4ec9b0 !important; outline-offset: 2px !important; cursor: text !important; background: rgba(78,201,176,0.08) !important; }
             .__ibx-edit-active { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; background: rgba(78,201,176,0.14) !important; }
@@ -166,13 +166,13 @@ export const EDIT_HELPER_SOURCE = `(() => {
           if(!window.__ibxEditEnabled || activeEl || busy) return;
           if(isUiNode(e.target)) return;
           try{ lastPt={ x:e.clientX, y:e.clientY }; }catch{}
-          // Drag mode me hover outline nahi — ghost/drop-line hi feedback hai.
+          // No hover outline in drag mode — the ghost/drop-line is the only feedback.
           if(dragMode) return;
           let t=null; try{ t=findEditableTarget(e.target); }catch{}
           if(t===hoverEl) return;
           clearHover();
-          // Page par naya element point kiya → purani tree selection hatao
-          // (warna sidebar tools stale tree target par chalte rahenge).
+          // Pointed at a new element on the page → clear the old tree selection
+          // (otherwise sidebar tools keep running on the stale tree target).
           try{ if(t && treeSelEl && t!==treeSelEl) treeSelEl=null; }catch{}
           if(t){ hoverEl=t; try{ hoverEl.classList.add('__ibx-edit-hover'); }catch{} queueLocate(t); }
         }
@@ -182,21 +182,21 @@ export const EDIT_HELPER_SOURCE = `(() => {
           clearHover();
         }
         function snapshot(el){
-          // HAMESHA refresh: har save ke baad file DOM barabar ho jati hai
-          // (fail par host revert karta hai), isliye "pehle wala orig"
-          // stale ho jata tha — agla commit us purane needle se fail hota tha.
+          // ALWAYS refresh: the file matches the DOM after every save
+          // (the host reverts on failure), so the "earlier orig"
+          // went stale — the next commit failed on that old needle.
           try{
-            // Clone se serialize: live DOM pe se class/attr hatana highlight
-            // ko todta hai — clone silent hai, dono taraf artifacts safe.
+            // Serialize from a clone: removing classes/attrs on the live DOM would break
+            // highlighting — a clone is silent, keeping artifacts safe on both sides.
             let h='';
             try{
               const c=el.cloneNode(true);
               stripEditArtifacts(c);
               h=String(c.outerHTML||'');
             }catch{ h=String(el.outerHTML||''); }
-            // spellcheck=false sirf edit-time lagta hai; purane cycle se node
-            // par chipak jaye to orig/file-needle me NA aaye — warna html save
-            // "Element not found in project" se fail hoke revert hota tha.
+            // spellcheck=false is only applied at edit time; if it sticks to the node from
+            // an older cycle it must NOT enter the orig/file-needle — otherwise the html save
+            // fails with "Element not found in project" and reverts.
             try{
               const frag=' spellcheck="false"';
               let i=h.indexOf(frag);
@@ -207,11 +207,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             el.__ibxDirtyHTML=false;
           }catch{}
         }
-        // pre/code: innerText whitespace collapse karta hai — textContent lo.
-        // contenteditable consecutive spaces ko nbsp char banata hai — use
-        // regular space me badlo (source file me nbsp nahi chahiye).
-        // NOTE: fromCharCode use kiya hai taaki regex/backslash-escapes se
-        // bacha ja sake (outer template literal backslash kha jata hai).
+        // pre/code: innerText collapses whitespace — use textContent.
+        // contenteditable turns consecutive spaces into nbsp chars — convert them
+        // back to regular spaces (the source file should not contain nbsp).
+        // NOTE: fromCharCode is used to avoid regex/backslash escapes
+        // (the outer template literal eats backslashes).
         const NBSP=String.fromCharCode(160);
         function readElText(el){
           try{
@@ -220,8 +220,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{ return ''; }
         }
         // document.title STRIPS + COLLAPSES whitespace (spec: strip-and-collapse),
-        // isliye payload base64 me jata hai — warna "a  b"/tabs/newlines mangal
-        // ho jate hain. Host __IBX_EDIT__B64__ / __IBX_LOCATE64__ samajhta hai.
+        // so the payload goes as base64 — otherwise "a  b"/tabs/newlines get mangled.
+        // The host understands __IBX_EDIT__B64__ / __IBX_LOCATE64__.
         function b64encode(s){
           try{
             const bytes=new TextEncoder().encode(String(s==null?'':s));
@@ -254,9 +254,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           hideStyleBar();
           let cur='';
           try{ cur=String(el.outerHTML||''); }catch{}
-          // Selection persist: commit ke baad activeEl null hota hai — tab tak
-          // mouse sidebar par hota hai (hoverEl/lastPt galat element point kar
-          // sakte the). treeSelEl = agle button clicks ka stable target.
+          // Persist the selection: activeEl is null after commit — by then the
+          // mouse is over the sidebar (hoverEl/lastPt could point at the wrong
+          // element). treeSelEl = stable target for the next button clicks.
           try{ if(document.contains(el)) treeSelEl=el; }catch{}
           activeEl=null; committing=false;
           if(!oldHtml.trim()||!cur.trim()||oldHtml===cur){
@@ -308,7 +308,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           if(!activeEl || committing) return;
           committing=true;
           const el=activeEl;
-          // Styles/attrs badle hon to poora element-block bhejo (html mode).
+          // If styles/attrs changed, send the whole element block (html mode).
           if(el.__ibxDirtyHTML){
             commitHtml(el);
             return;
@@ -349,7 +349,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         }
         window.__ibxCommitPendingEdit = function(){
           try{
-            // Sidebar-style ka pending commit abhi chala do (Done = sab save).
+            // Fire the pending sidebar-style commit now (Done = save everything).
             const pel=styleCommitEl;
             if(pel && pel.__ibxStyleTimer && !activeEl){
               clearTimeout(pel.__ibxStyleTimer); pel.__ibxStyleTimer=null; styleCommitEl=null;
@@ -360,9 +360,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
         };
         window.__ibxRevertActive = function(){
           try{
-            // activeEl ke alawa last bheja gaya commit bhi revert karo —
-            // html commits activeEl null karke bhejte hain, warna host ka
-            // revert khaali jaata tha (failed save par DOM reformed rehta tha).
+            // Also revert the last sent commit besides activeEl —
+            // html commits are sent with activeEl nulled, otherwise the host's
+            // revert missed (the DOM stayed edited after a failed save).
             let el=activeEl || lastCommitEl;
             lastCommitEl=null;
             if(!el) return true;
@@ -383,11 +383,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
         };
         window.__ibxIsEditing = function(){ try{ return !!activeEl; }catch{ return false; } };
         // Tab while editing: commit + jump to next/prev editable (Shift+Tab).
-        // Blur-commit bhi hota hai, par Tab par focus browser ki marzi se kahin
-        // bhi jata — isliye khud commit karke agla activate karo.
+        // Blur also commits, but on Tab the browser moves focus wherever it wants
+        // — so commit explicitly and activate the next one.
         function commitAndJump(dir){
-          // NOTE: activeEl khud contenteditable hone se collectEditables se
-          // BAHAR rehta hai (isSkippedTag) — position document-order me nikalo.
+          // NOTE: activeEl itself is contenteditable so it stays OUT of collectEditables
+          // (isSkippedTag) — derive the position in document order.
           let list=[], idx=-1;
           try{
             list=collectEditables();
@@ -457,7 +457,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         }
         function onDocKey(e){
           if(!window.__ibxEditEnabled) return;
-          // Drag in progress ho to sirf Esc cancel karo (baaki keys ruk jayen)
+          // While a drag is in progress, only Esc cancels (other keys stay blocked)
           if(dragSrc || dragActive){
             if(e.key==='Escape'){
               e.preventDefault(); e.stopPropagation();
@@ -466,17 +466,17 @@ export const EDIT_HELPER_SOURCE = `(() => {
             }
             if(dragActive || dragSrc) return;
           }
-          if(activeEl) return; // text edit me native keys rehne do
+          if(activeEl) return; // let native keys work during text editing
           try{ if(e.target && e.target.closest && e.target.closest('[data-ibx-ui]')) return; }catch{}
           try{
             const t=e.target;
-            // Detached node (hataya gaya popup input) guard me na atke —
-            // document me nahi hai to form-field samjho hi mat.
+            // Don't get stuck in the guard on a detached node (a removed popup input) —
+            // if it is not in the document, don't treat it as a form field at all.
             if(t && document.contains(t) && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return;
           }catch{}
           const mod=(e.ctrlKey||e.metaKey);
           if(e.key!=='Tab'){
-            // ── v4 shortcuts (hovered element par; hover outline = target) ──
+            // ── v4 shortcuts (on the hovered element; hover outline = target) ──
             if(mod && !e.shiftKey && (e.key==='e'||e.key==='E')){
               e.preventDefault(); e.stopPropagation();
               try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
@@ -498,7 +498,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               moveHovered(e.key==='ArrowUp' ? -1 : 1);
               return;
             }
-            // ── v3 shortcuts (hovered element par; hover outline = target) ──
+            // ── v3 shortcuts (on the hovered element; hover outline = target) ──
             if(e.key==='Delete' && !mod && hoverEl){
               e.preventDefault(); e.stopPropagation();
               try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
@@ -536,17 +536,17 @@ export const EDIT_HELPER_SOURCE = `(() => {
         }
         function onClick(e){
           if(!window.__ibxEditEnabled) return;
-          // Drag-drop ke baad ka click (ya drag-mode ka simple press) — edit
-          // activate na ho. 350ms suppress window.
+          // Click right after drag-drop (or a simple press in drag mode) — don't
+          // activate editing. 350ms suppress window.
           if(Date.now()<suppressClickUntil){
             try{ e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
             return;
           }
           try{ if(e.target && e.target.closest && e.target.closest('[data-ibx-ui]')) return; }catch{}
-          // Drag mode: click par text-edit activate NAHI — grab-cursor hai,
-          // click = drag intent. Warna activeEl set hokar drag block hota.
+          // Drag mode: a click must NOT activate text editing — grab cursor here,
+          // click = drag intent. Otherwise activeEl would be set and block the drag.
           if(dragMode) return;
-          // Alt+click = attributes (img src, link href, ...). Text edit nahi.
+          // Alt+click = attributes (img src, link href, ...). No text editing.
           if(e.altKey){
             e.preventDefault(); e.stopPropagation();
             try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
@@ -571,7 +571,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(it) openInspector(it, e.clientX, e.clientY);
             return;
           }
-          // Ctrl/Cmd+click on a link = follow it (navigate), edit mat karo.
+          // Ctrl/Cmd+click on a link = follow it (navigate), don't edit.
           if(e.ctrlKey||e.metaKey){
             try{
               const a=e.target && e.target.closest ? e.target.closest('a[href]') : null;
@@ -615,9 +615,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
         function escAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
         function closeAttrPopup(){
           try{
-            // Popup ke andar focus reh gaya to hatao — warna detached input par
-            // focus atak jata hai aur baad me Tab-guard (form-field check) Tab
-            // kha jata hai.
+            // Remove focus left inside the popup — otherwise focus sticks to the detached input
+            // and the later Tab guard (form-field check) swallows Tab.
             if(attrPopup && attrPopup.box){
               try{ if(attrPopup.box.contains(document.activeElement)) document.activeElement.blur(); }catch{}
               attrPopup.box.remove();
@@ -697,7 +696,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(first){ first.focus(); first.select(); }
           }catch{}
         }
-        // ── Quick styles toolbar (active text element par) ─────────────
+        // ── Quick styles toolbar (on the active text element) ─────────────
         function toggleDeco(el, word){
           try{
             const cur=String(el.style.textDecorationLine||'');
@@ -712,16 +711,16 @@ export const EDIT_HELPER_SOURCE = `(() => {
             el.__ibxDirtyHTML=true;
           }catch{}
         }
-        // computed textAlign 'start'/'end' de sakta hai — cycle/display me
-        // logical keywords ko physical me badlo warna cycle atak jati hai.
+        // computed textAlign can return 'start'/'end' — map logical keywords to
+        // physical ones in the cycle/display, otherwise the cycle gets stuck.
         function normAlign(v){
           const s=String(v||'left');
           if(s==='start' || s==='match-parent') return 'left';
           if(s==='end') return 'right';
           return s;
         }
-        // Sidebar se apply kiya gaya style (jab target edit-me NA ho) ek baar
-        // debounced commit hota hai — color-drag par har tick ka file-save nahi.
+        // A style applied from the sidebar (while the target is NOT being edited) commits
+        // once, debounced — no file save on every color-drag tick.
         function clearPendingStyle(revert){
           try{
             const el=styleCommitEl;
@@ -743,7 +742,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
                 el.__ibxStyleTimer=null;
                 if(styleCommitEl===el) styleCommitEl=null;
                 if(!document.contains(el)) return;
-                // Doosra element edit ho raha hai — thodi der baad phir koshish.
+                // Another element is being edited — retry after a short delay.
                 if(activeEl && activeEl!==el && (tries||0)<6){ scheduleStyleCommit(el, (tries||0)+1); return; }
                 if(activeEl) return;
                 hideStyleBar();
@@ -780,20 +779,20 @@ export const EDIT_HELPER_SOURCE = `(() => {
           const bar=document.createElement('div');
           bar.setAttribute('data-ibx-ui','1');
           bar.className='__ibx-stylebar';
-          // CRITICAL: mousedown par focus contenteditable me hi rakho.
-          // Bina iske button/color click focus chura leta hai -> blur ->
-          // onEditBlur 80ms me commitEdit chala deta hai (text premature save
-          // ya no-change restore jo style wipe kar deta hai). Color picker to
-          // modal hai — commit beech me chal jata aur style detached node par
-          // lagta (invisible). mousedown preventDefault se focus hilta hi nahi;
-          // click phir bhi fire hota hai. (Attr popup par ye mat lagana —
-          // uske text inputs ko focus chahiye hota hai.)
+          // CRITICAL: keep focus inside the contenteditable on mousedown.
+          // Without this, a button/color click steals focus -> blur ->
+          // onEditBlur fires commitEdit within 80ms (a premature text save
+          // or a no-change restore that wipes the style). The color picker is
+          // modal — the commit would run in between and the style would land on
+          // a detached node (invisible). mousedown preventDefault keeps focus put;
+          // click still fires. (Don't apply this to the attr popup —
+          // its text inputs need focus.)
           try{
             bar.addEventListener('mousedown', function(e){ try{ e.preventDefault(); }catch{} }, true);
           }catch{}
           styleBtn(bar, 'B', 'Bold', function(){ el.style.fontWeight=(el.style.fontWeight==='bold'?'':'bold'); el.__ibxDirtyHTML=true; });
           styleBtn(bar, 'I', 'Italic', function(){ el.style.fontStyle=(el.style.fontStyle==='italic'?'':'italic'); el.__ibxDirtyHTML=true; });
-          // v4: underline / strikethrough toggles (sidebar STYLE section bhi yahi use karti hai)
+          // v4: underline / strikethrough toggles (the sidebar STYLE section uses these too)
           styleBtn(bar, 'U', 'Underline', function(){ toggleDeco(el, 'underline'); });
           styleBtn(bar, 'S', 'Strikethrough', function(){ toggleDeco(el, 'line-through'); });
           styleBtn(bar, 'A+', 'Font bigger', function(){
@@ -891,8 +890,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
         }
         function rgbToHex(c){
           try{
-            // NOTE: ye template-literal ke andar hai — regex backslash DOUBLE likho
-            // (single \s outer literal parse hote hi 's' ban jata hai).
+            // NOTE: this is inside a template literal — write regex backslashes DOUBLE
+            // (a single \s becomes 's' as soon as the outer literal is parsed).
             const m=String(c||'').match(/rgba?\\s*\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)/i);
             if(!m) return '#000000';
             const h=function(n){ n=Math.max(0, Math.min(255, parseInt(n,10)||0)); const s=n.toString(16); return s.length===1?'0'+s:s; };
@@ -900,17 +899,17 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{ return '#000000'; }
         }
         // ── v3: delete / duplicate / wrap-link + inspector ──────────────
-        // Delete/duplicate/wrap me element khud mutate hota hai — persist
-        // closest PARENT ke outerHTML old→new commit se hota hai (chhota
-        // ancestor dhoondho jiska outerHTML size cap ke andar ho).
+        // Delete/duplicate/wrap mutates the element itself — persistence happens
+        // via an old→new commit of the closest PARENT outerHTML (find a small
+        // ancestor whose outerHTML fits within the size cap).
         function pickCommitAnchor(el, estRatio){
           let p=el ? el.parentElement : null;
           let g=0;
           while(p && g++<8){
             try{
-              // HTML/HEAD kabhi mat lo — head me edit-sheet/title payload hote
-              // hain jo file me nahi, aur body ke andar bhi data-ibx-ui popups
-              // aa sakte hain (detachUi unhe hatata hai, body allowed hai).
+              // Never take HTML/HEAD — head holds the edit-sheet/title payloads that
+              // are not in the file, and data-ibx-ui popups can appear inside body
+              // (detachUi removes them; body is allowed).
               if(p.nodeType===1 && p.tagName && p.tagName!=='HEAD' && p.tagName!=='HTML'){
                 const len=String(p.outerHTML||'').length;
                 const est=Math.ceil(len*estRatio);
@@ -921,9 +920,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }
           return null;
         }
-        // Body-anchor commit me popups/stylebar/hint (data-ibx-ui) snapshot me
-        // aa jate the — file ke saath needle match nahi hota tha. Serialize ke
-        // waqt hatao, baad me wapas lagao.
+        // In body-anchor commits, popups/stylebar/hint (data-ibx-ui) ended up in the
+        // snapshot — the needle no longer matched the file. Remove them while
+        // serializing, then re-attach afterwards.
         function detachUi(root){
           const removed=[];
           try{
@@ -945,8 +944,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }
         }
         function ensureUiAttached(removed){
-          // restoreOriginal ne outerHTML replace kar diya — koi ui node bacha
-          // ho to body me wapas daal do (fixed positioning hai, safe).
+          // restoreOriginal replaced outerHTML — put any leftover ui node back
+          // into body (fixed positioning, safe).
           try{
             for(let i=0;i<removed.length;i++){
               const n=removed[i].n;
@@ -986,11 +985,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
           if(!el || !document.contains(el) || activeEl) return;
           busy++;
           try{
-            // Pehle hover-class hatao — warna anchor (parent) ka outerHTML
-            // file me maujood HTML se alag ho jata hai (save fail + revert).
+            // Remove the hover class first — otherwise the anchor (parent) outerHTML
+            // differs from the HTML in the file (save fails + reverts).
             clearHover();
             const ok=commitViaAnchor(el, function(){ try{ el.remove(); }catch{} }, 1.0);
-            // Anchor nahi mila (bohot bada page) to visual-only delete.
+            // No anchor found (page too large), so delete visually only.
             if(!ok && document.contains(el)){
               try{ el.remove(); }catch{}
             }
@@ -1054,12 +1053,12 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{}
           inspectPopup=null;
         }
-        // TODO(React props panel — phase 2): inspector ke saath hi "Props"
-        // section hoga. Guest: target ka outerHTML + tag/class fingerprint
-        // bhejo; host: liveEditLocate se source file nikal kar JSX/TSX me
-        // component ke props/defaults parse karo, sidebar me variant list
-        // dikhao (enum/bool/number), edit par file write → preview reload.
-        // DOM→component mapping approximate (tagName+className+text) chalegi.
+        // TODO(React props panel — phase 2): a "Props" section will sit with the inspector.
+        // Guest: send the target's outerHTML + tag/class fingerprint;
+        // host: resolve the source file via liveEditLocate, parse the component's
+        // props/defaults in JSX/TSX, show the variant list in the sidebar
+        // (enum/bool/number); on edit, write the file → reload the preview.
+        // DOM→component mapping via approximation (tagName+className+text) is fine.
         function openInspector(el, x, y){
           try{
             if(!el || el.nodeType!==1 || !el.tagName) return;
@@ -1302,8 +1301,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             }
           }catch{}
         }
-        // Pending text/style edit ho to pehle save karo (DOM file ke barabar ho
-        // jaye) — warna HTML editor ka parent-needle save fail hoke revert karta.
+        // If a text/style edit is pending, save it first (so the DOM matches the file)
+        // — otherwise the HTML editor's parent-needle save fails and reverts.
         function openHtmlEditor(target){
           try{
             if(!target || !document.contains(target)) return;
@@ -1351,9 +1350,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           } finally { busy--; }
           clearHover();
         }
-        // ── v4: Ctrl+Z → host se last save revert + DOM wapas ────────────
-        // NOTE: payload me nonce (n) zaroori — host 5s me same title string
-        // dedupe karta hai, warna dobara Ctrl+Z dabane par undo swallow ho jata.
+        // ── v4: Ctrl+Z → revert last save via host + restore DOM ────────────
+        // NOTE: a nonce (n) in the payload is required — the host dedupes the same
+        // title string within 5s, otherwise pressing Ctrl+Z again swallows the undo.
         let undoSeq=0;
         function requestUndo(){
           try{
@@ -1362,7 +1361,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return true;
           }catch{ return false; }
         }
-        // Host ne file revert kar di — DOM ka last commit bhi wapas lao.
+        // The host reverted the file — also restore the DOM's last commit.
         window.__ibxUndoLastVisual=function(){
           try{
             if(activeEl) return false;
@@ -1374,11 +1373,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return true;
           }catch{ return false; }
         };
-        // ── v5: sidebar APIs (host sidebar ke buttons yahan se chalte hain) ──
+        // ── v5: sidebar APIs (host sidebar buttons run from here) ──
         function sendNotice(msg){
           try{ sendPayload({ mode:'notice', msg:String(msg||''), at: Date.now() }); }catch{}
         }
-        // Sidebar par mouse page me nahi hota — last pointed element = target.
+        // The mouse is not over the page when on the sidebar — last pointed element = target.
         function resolveTarget(needText){
           try{
             if(activeEl && document.contains(activeEl)) return activeEl;
@@ -1401,9 +1400,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{}
           return null;
         }
-        // Style controls ka target: text-edit na bhi ho, page ka element
-        // styled ho sakta hai (card par padding/radius wagarah). body/html/
-        // hamare apne UI nodes ko chhod kar wahi resolution jo tools karte hain.
+        // Style controls target: even without a text edit, a page element can be
+        // styled (padding/radius on a card, etc.). Same resolution as the tools,
+        // excluding body/html and our own UI nodes.
         function resolveStyleTarget(){
           try{
             if(activeEl && document.contains(activeEl)) return activeEl;
@@ -1419,8 +1418,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return hit;
           }catch{ return null; }
         }
-        // Pending text/style edit ho to pehle save karo, phir tool chalao
-        // (HTML tool ka openHtmlEditor bhi yahi karta hai).
+        // If a text/style edit is pending, save it first, then run the tool
+        // (the HTML tool's openHtmlEditor does the same).
         function runTool(fn){
           try{
             if(activeEl){
@@ -1443,7 +1442,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{
             if(!window.__ibxEditEnabled) return false;
             if(name==='cancel'){ try{ window.__ibxCancelEdit && window.__ibxCancelEdit(); }catch{} return true; }
-            // Drag toggle ko target ki zaroorat nahi — mode sirf on/off hai.
+            // The drag toggle needs no target — the mode is just on/off.
             if(name==='dragToggle'){ try{ window.__ibxSetDragMode(!dragMode); }catch{} return true; }
             const needText=(name==='edit'||name==='html');
             const t=resolveTarget(needText);
@@ -1495,10 +1494,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{ return false; }
         };
         // ── v6: drag-and-drop rearrange (sidebar "Drag" toggle) ────────────────
-        // Drag mode ON: element ko grab karke kisi bhi doosre element ke
-        // upar/neeche (parent ke axis ke hisaab se) chhodo — order/parent
-        // badalta hai aur (anchor ancestor ke) html commit se file me save
-        // hota hai. Ghost chip + teal drop-line indicator.
+        // Drag mode ON: grab an element and drop it above/below any other element
+        // (depending on the parent axis) — the order/parent changes and saves to
+        // the file via the (anchor ancestor) html commit. Ghost chip + teal drop-line indicator.
         let dragMode=false, dragSrc=null, dragActive=false, dragStart=null,
             dragGhost=null, dragLine=null, dragStyleEl=null,
             dragParent=null, dragRef=null, suppressClickUntil=0;
@@ -1552,9 +1550,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{ return true; }
           return false;
         }
-        // Drop point ka target/axis nirdharit karo + drop-line dikhao.
-        // Axis: parent block/grid → vertical (upar/neeche), flex-row/inline →
-        // horizontal (pehle/baad me). Sibling insert = Cursor jaisa reorder.
+        // Determine the drop point's target/axis + show the drop line.
+        // Axis: parent block/grid → vertical (above/below), flex-row/inline →
+        // horizontal (before/after). Sibling insert = Cursor-like reorder.
         function dragUpdate(x, y){
           try{
             let T=null;
@@ -1592,9 +1590,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
             }catch{}
           }catch{}
         }
-        // Move commit: anchor aisa hona chahiye jo purani DONO jagah (old parent
-        // aur naya parent) contain kare — warna cross-parent drop me file me
-        // sirf purani jagah se hat-ta aur nayi jagah add hi na hota.
+        // Move commit: the anchor must contain BOTH the old and new locations (old parent
+        // and new parent) — otherwise a cross-parent drop only removes the old spot
+        // from the file and never adds the new one.
         function dragCommitMove(src, P, ref){
           try{
             if(!src || !document.contains(src) || !P || !document.contains(P)) return false;
@@ -1641,8 +1639,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(!dragMode || !window.__ibxEditEnabled || e.button!==0) return;
             if(e.ctrlKey||e.metaKey||e.altKey) return;
             if(isUiNode(e.target)) return;
-            // Text-edit active hai to pehle use khatam karo — warna poora
-            // drag session isi check par ruk jata tha (drag "dead" lagta tha).
+            // If a text edit is active, finish it first — otherwise the whole
+            // drag session stalled on this check (drag felt "dead").
             if(activeEl){ try{ commitEdit(); }catch{} }
             if(activeEl){ try{ cleanupActive(false); }catch{} }
             if(activeEl) return;
@@ -1693,7 +1691,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             dragSrc=null; dragActive=false; dragStart=null; dragParent=null; dragRef=null;
             suppressClickUntil=Date.now()+350;
             dragEndVisual();
-            if(!was) return; // drag nahi hua (simple press-release) — click bhi suppress
+            if(!was) return; // no drag happened (simple press-release) — suppress the click too
             if(!P || !document.contains(src)) return;
             busy++;
             try{ dragCommitMove(src, P, ref); }
@@ -1712,8 +1710,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{
             dragMode=!!on;
             if(dragMode){
-              // Active text-edit block karta tha (onDragDown activeEl par
-              // ruk jata tha) — drag ON karte hi pending edit commit kar do.
+              // An active text edit used to block (onDragDown stopped on activeEl)
+              // — commit any pending edit as soon as drag is turned ON.
               try{ if(activeEl) commitEdit(); }catch{}
               try{ if(activeEl) cleanupActive(false); }catch{}
               setDragCursor(true);
@@ -1722,7 +1720,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{}
           return dragMode;
         };
-        // STYLE section: name se inline style apply (sidebar + state dono) ──
+        // STYLE section: apply inline style by name (sidebar + state both) ──
         function applyStyle(el, name, val){
           try{
             if(name==='bold'){ el.style.fontWeight=(el.style.fontWeight==='bold'?'':'bold'); return true; }
@@ -1754,7 +1752,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               el.style.textTransform=tts[(i+1)%tts.length];
               return true;
             }
-            // ── Visual controls (sliders/layout — host sidebar se) ──
+            // ── Visual controls (sliders/layout — from the host sidebar) ──
             const num=function(dflt,min,max){
               const v=parseFloat(val);
               if(!isFinite(v)) return dflt;
@@ -1803,7 +1801,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               const prop=(name==='gcols') ? 'grid-template-columns' : 'grid-template-rows';
               const s=String(val==null?'':val).trim();
               if(!s){ try{ el.style.removeProperty(prop); }catch{} return true; }
-              // Number likha ho to repeat(n, 1fr) — baaki user ka raw value
+              // A bare number becomes repeat(n, 1fr) — otherwise the user's raw value
               let v=s;
               if(/^[0-9]+$/.test(s)) v='repeat('+s+', 1fr)';
               try{ el.style.setProperty(prop, v); }catch{ return false; }
@@ -1826,8 +1824,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(!el || !document.contains(el)){
               el=resolveStyleTarget();
               if(!el){ sendNotice('Point at an element in the page first'); return false; }
-              // Pending style-session chal raha ho to snapshot mat taazo —
-              // warna needle (orig) har tick ke saath drift kar save fail karega.
+              // Don't refresh the snapshot while a style session is pending —
+              // otherwise the needle (orig) drifts with every tick and the save fails.
               if(!el.__ibxStyleTimer) snapshot(el);
               own=true;
             }
@@ -1840,11 +1838,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return true;
           }catch{ return false; }
         };
-        // Sidebar ka STYLE panel isi se highlight/state padhta hai (host poll).
+        // The host sidebar STYLE panel reads highlight/state from here (host poll).
         window.__ibxStyleState=function(){
           try{
             // Target chain: active text edit → tree selection → hover →
-            // last pointed element (sidebar poll tab bhi live rahe).
+            // last pointed element (keeps the sidebar poll live too).
             let el=activeEl;
             if(!el || !document.contains(el)) el=treeSelEl;
             if(!el || !document.contains(el)) el=hoverEl;
@@ -1955,8 +1953,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
           }catch{ return false; }
         };
         // ── v7: DOM tree panel (sidebar) + properties panel ──────────────────
-        // Tree ids: WeakMap se stable (page lifetime), Map sirf latest
-        // snapshot ke elements rakhta hai (stale id → miss → host refresh).
+        // Tree ids: stable via WeakMap (page lifetime); the Map only holds the latest
+        // snapshot's elements (stale id → miss → host refreshes).
         let treeSeq=0;
         const treeWeak=(typeof WeakMap!=='undefined') ? new WeakMap() : null;
         let treeMap=new Map();
@@ -1987,7 +1985,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return true;
           }catch{ return true; }
         }
-        // Target path (root→target) taaki host tree me us row ko expand kar sake
+        // Target path (root→target) so the host can expand that row in the tree
         function treePathOf(el){
           const out=[];
           try{
@@ -2007,8 +2005,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(el && document.contains(el)){ treeHiEl=el; el.classList.add('__ibx-edit-hover'); }
           }catch{}
         }
-        // Host poll: poora (depth-limited) tree JSON — caps taaki huge
-        // pages par bhi sidebar responsive rahe.
+        // Host poll: full (depth-limited) tree JSON — caps keep the sidebar responsive
+        // even on huge pages.
         window.__ibxTreeState=function(){
           try{
             if(!window.__ibxEditEnabled) return { on:false, nodes:[] };
@@ -2052,7 +2050,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               return node;
             }
             const root=walk(document.body||document.documentElement, 0);
-            // Current target (page click / tree select / hover) + uska path
+            // Current target (page click / tree select / hover) + its path
             let tgt=null;
             try{
               if(activeEl && document.contains(activeEl)) tgt=activeEl;
@@ -2088,8 +2086,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{ treeSelEl=null; setTreeHi(null); }catch{}
           return true;
         };
-        // Tree se drag karke reorder — wahi anchor-based HTML commit jo
-        // in-page drag (dragCommitMove) use karta hai.
+        // Reorder by dragging from the tree — the same anchor-based HTML commit that
+        // in-page drag (dragCommitMove) uses.
         window.__ibxTreeMove=function(srcId, refId, pos){
           try{
             if(!window.__ibxEditEnabled) return false;
@@ -2192,8 +2190,8 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ document.addEventListener('mousedown', onDragDown, true); }catch{}
             try{ document.addEventListener('mousemove', onDragMove, true); }catch{}
             try{ document.addEventListener('mouseup', onDragUp, true); }catch{}
-            // NOTE: cursor inline style ME mat lagao — body.outerHTML file se
-            // match karna chahiye (body anchor commits). CSS sheet me hai.
+            // NOTE: don't set the cursor inline style here — body.outerHTML should
+            // match the file (body anchor commits). It lives in the CSS sheet.
             try{ window.addEventListener('pagehide', onPageHide); }catch{}
             try{ capturePrevTitle(); }catch{}
           } else {

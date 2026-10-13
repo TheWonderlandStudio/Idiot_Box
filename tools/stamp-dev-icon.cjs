@@ -1,20 +1,20 @@
 /**
  * tools/stamp-dev-icon.cjs
- * Dev-only: node_modules/electron/dist/electron.exe me app ka icon embed karta hai,
- * taaki dev run (`electron .`) me Windows taskbar par Electron ke default logo ki
- * jagah app ka logo dikhe.
+ * Dev-only: embeds the app icon into node_modules/electron/dist/electron.exe,
+ * so a dev run (`electron .`) shows the app logo on the Windows taskbar instead
+ * of Electron's default logo.
  *
- * Kyun zaroori hai: Windows taskbar button live window icon se NAHI, process exe
- * ki identity (embedded icon + AUMID) se icon uthata hai. Dev me exe electron.exe
- * hai jiska icon Electron ka hai — BrowserWindow `icon` option chahe kuch bhi ho,
- * taskbar wahi dikhayegi. Exe stamp karna hi deterministic fix hai.
+ * Why needed: the Windows taskbar button takes its icon NOT from the live window icon,
+ * but from the process exe identity (embedded icon + AUMID). In dev the exe is electron.exe
+ * with Electron's icon — regardless of the BrowserWindow `icon` option,
+ * the taskbar shows that. Stamping the exe is the deterministic fix.
  *
- * - `postinstall` se auto-chalta hai (electron binary fresh download ke baad bhi)
- * - Dobara stamp sirf tab jab icon.ico ya electron.exe stamp ke baad change hua ho
- * - Kabhi throw nahi karta: stamp fail ho to warning dekar aage badhta hai
- *   (jaise dev app chal rahi ho to exe locked hoga — app band karke
- *   `npm run dev:icon` dobara chalao)
- * - Revert: `npm rebuild electron` ya electron reinstall karne par wapas default
+ * - Runs automatically via `postinstall` (even after a fresh electron binary download)
+ * - Re-stamps only when icon.ico or electron.exe changed after the last stamp
+ * - Never throws: on stamp failure it warns and continues
+ *   (e.g. if the dev app is running the exe will be locked — close the app and
+ *   `npm run dev:icon` again)
+ * - Revert: back to default on `npm rebuild electron` or electron reinstall
  */
 "use strict";
 
@@ -26,8 +26,8 @@ async function main() {
   const root = path.resolve(__dirname, "..");
   const exe = path.join(root, "node_modules", "electron", "dist", "electron.exe");
   const ico = path.join(root, "build", "icons", "icon.ico");
-  if (!fs.existsSync(exe)) { console.log("[dev-icon] electron.exe nahi mila, skip"); return; }
-  if (!fs.existsSync(ico)) { console.log("[dev-icon] build/icons/icon.ico nahi mila, skip (pehle `npm run build:icons`)"); return; }
+  if (!fs.existsSync(exe)) { console.log("[dev-icon] electron.exe not found, skip"); return; }
+  if (!fs.existsSync(ico)) { console.log("[dev-icon] build/icons/icon.ico not found, skip (run `npm run build:icons` first)"); return; }
 
   const marker = path.join(root, "node_modules", ".cache", "idiot-box-dev-icon");
   try {
@@ -35,21 +35,21 @@ async function main() {
     const icoStat = fs.statSync(ico);
     const markerStat = fs.statSync(marker);
     const stampedIcoTime = Number(fs.readFileSync(marker, "utf8")) || 0;
-    // Stamp tab invalid jab: icon stamp ke baad regenerate hua, ya exe reinstall hua
+    // Stamp is invalid when: icon was regenerated after the stamp, or exe was reinstalled
     if (stampedIcoTime >= icoStat.mtimeMs && markerStat.mtimeMs >= exeStat.mtimeMs) {
-      console.log("[dev-icon] electron.exe pehle se stamped hai, skip");
+      console.log("[dev-icon] electron.exe already stamped, skip");
       return;
     }
-  } catch { /* marker missing/corrupt -> stamp karo */ }
+  } catch { /* marker missing/corrupt -> stamp again */ }
 
   const { rcedit } = require("rcedit");
   await rcedit(exe, { icon: ico });
   fs.mkdirSync(path.dirname(marker), { recursive: true });
   fs.writeFileSync(marker, String(fs.statSync(ico).mtimeMs));
-  console.log("[dev-icon] electron.exe me app logo stamp ho gaya");
+  console.log("[dev-icon] app logo stamped into electron.exe");
 }
 
 main().catch((e) => {
-  console.warn("[dev-icon] stamp nahi ho paya (app phir bhi normal chalegi): " + (e && e.message));
-  console.warn("[dev-icon] dev app band karke dobara chalao: npm run dev:icon");
+  console.warn("[dev-icon] stamp failed (app will still run normally): " + (e && e.message));
+  console.warn("[dev-icon] close the dev app and run again: npm run dev:icon");
 });

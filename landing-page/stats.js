@@ -115,8 +115,8 @@
   }
 
   // ── online users — retained MQTT heartbeat from the running app ───────────
-  // retained messages = page kholte hi sabhi currently-online apps turant
-  // mil jaate hain, chahe unka heartbeat page load se pehle aaya ho.
+  // retained messages = all currently-online apps arrive immediately on page open,
+  // even if their heartbeat arrived before page load.
   function watchOnline(onUpdate) {
     var lib = window.mqtt;
     if (!lib || typeof lib.connect !== 'function') { onUpdate(null); return function () {}; }

@@ -49,7 +49,7 @@
 <body class="is-entering" data-bgm="home">
   <svg class="crt-defs" width="0" height="0" aria-hidden="true" focusable="false">
     <defs>
-      <!-- CRT tube — beech se curved sides, corners andar ki taraf -->
+      <!-- CRT tube — curved sides from the middle, corners tucked inward -->
       <clipPath id="crt-frame" clipPathUnits="objectBoundingBox">
         <path d="M .06 .014 C .3 -.002 .7 -.002 .94 .014 C .982 .014 .99 .042 .99 .09 C 1 .2 1 .8 .99 .91 C .99 .958 .982 .986 .94 .986 C .7 1.002 .3 1.002 .06 .986 C .018 .986 .01 .958 .01 .91 C 0 .8 0 .2 .01 .09 C .01 .042 .018 .014 .06 .014 Z" />
       </clipPath>
@@ -121,34 +121,34 @@
         bg.classList.add('video-in');
         const v = document.querySelector('.bg-video');
         if (v) { v.play().catch(() => {}); }
-        // video fade (1.2s) ke baad hero neeche se upar aayega
+        // after the video fade (1.2s), bring the hero up from below
         setTimeout(showHero, 800);
       }
 
       function showNav() {
         if (bg.classList.contains('nav-in')) return;
         bg.classList.add('nav-in');
-        // nav ka 0.8s drop khatam hone ke baad video fade-in
+        // video fade-in after the nav's 0.8s drop finishes
         setTimeout(showVideo, 900);
       }
 
       function moveToCorner() {
         if (bg.classList.contains('moved')) return;
-        // animation ke sath move — direct jump nahi, CSS transition handle karega
+        // move with animation — no direct jump, CSS transition handles it
         bg.classList.add('moved');
-        // card ka 1s corner move khatam hone ke baad nav top se bottom aayega
+        // after the card's 1s corner move finishes, bring the nav from top to bottom
         setTimeout(showNav, 1100);
       }
 
-      // typing animation (last one, ends ~3.9s) ke end ka wait karo,
-      // phir thoda hold karke corner me le jao
+      // wait for the typing animation (last one, ends ~3.9s) to finish,
+      // then hold briefly and move it to the corner
       text.addEventListener('animationend', (e) => {
         if (e.animationName === 'typing') {
           setTimeout(moveToCorner, 400);
         }
       });
 
-      // fallback — agar animationend miss ho jaye to bhi sequence chale
+      // fallback — run the sequence even if animationend is missed
       setTimeout(moveToCorner, 5500);
       setTimeout(showNav, 7500);
       setTimeout(showVideo, 8600);
@@ -183,7 +183,7 @@
         });
       })();
 
-      // Release tracker — naya release aate hi UI + download auto-update
+      // Release tracker — auto-update UI + download when a new release arrives
       (function () {
         const API = 'https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest';
         const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
@@ -191,17 +191,23 @@
         let currentTag = null;
         let cachedUrl = null;
 
-        // OS-aware asset picker — Linux visitors get AppImage (else deb), others get the Windows exe
+        // OS-aware asset picker — macOS → dmg (else mac zip), Linux → AppImage (else deb), else Windows exe
         const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+        const IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
         function pickReleaseAsset(assets) {
           const list = assets || [];
+          if (IS_MAC) {
+            return list.find((a) => /\.dmg$/i.test(a.name)) || list.find((a) => /mac.*\.zip$/i.test(a.name));
+          }
           if (IS_LINUX) {
             return list.find((a) => /\.AppImage$/i.test(a.name)) || list.find((a) => /\.deb$/i.test(a.name));
           }
           return list.find((a) => /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name));
         }
-        // Linux visitors see a Linux download label (handler below preserves it via original text)
-        if (IS_LINUX) {
+        // macOS/Linux visitors see their own download label (handler below preserves it via original text)
+        if (IS_MAC) {
+          document.querySelectorAll('.btn-primary[data-download-latest]').forEach((b) => { b.textContent = 'Download for macOS'; });
+        } else if (IS_LINUX) {
           document.querySelectorAll('.btn-primary[data-download-latest]').forEach((b) => { b.textContent = 'Download for Linux'; });
         }
 
@@ -212,7 +218,7 @@
           const exe = pickReleaseAsset(data.assets);
           if (!exe) throw new Error('no installer found');
           if (currentTag && data.tag_name !== currentTag) {
-            // naya release mila — badge dikhao
+            // new release found — show the badge
             document.querySelectorAll('.new-pill').forEach((el) => { el.hidden = false; });
           }
           currentTag = data.tag_name;
@@ -228,7 +234,7 @@
           return checkRelease();
         }
 
-        // sirf direct-download buttons (github href) — nav Download = download.html
+        // only direct-download buttons (github href) — nav Download = download.html
         document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach((btn) => {
           btn.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -250,7 +256,7 @@
           });
         });
 
-        // load par prefetch, har 10 min me fresh check, tab wapas khulne par bhi
+        // prefetch on load, fresh check every 10 min, and when the tab regains focus
         checkRelease().catch(() => {});
         setInterval(() => checkRelease().catch(() => {}), POLL_MS);
         document.addEventListener('visibilitychange', () => {

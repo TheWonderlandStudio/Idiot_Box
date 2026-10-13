@@ -104,7 +104,7 @@
   <script src="page-transition.js"></script>
   <script>
     (function () {
-      // mp4 background — src tag me set hai, bas play karo
+      // mp4 background — src is set in the tag, just play it
       const video = document.getElementById('chatlog-bg');
       video.play().catch(function () {});
       video.addEventListener('canplay', function () { video.play().catch(function () {}); });
@@ -116,31 +116,55 @@
 
       // Release feed — live from GitHub (cached by IBXStats)
       const feed = document.getElementById('feed-list');
-      // OS-aware asset picker — Linux visitors get AppImage (else deb), others get the Windows exe
+      // OS-aware asset picker — macOS visitors get dmg (else mac zip),
+      // Linux visitors get AppImage (else deb), others get the Windows exe
       const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+      const IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
       function pickReleaseAsset(assets) {
         const list = assets || [];
+        if (IS_MAC) {
+          return list.find(function (a) { return /\.dmg$/i.test(a.name); }) || list.find(function (a) { return /mac.*\.zip$/i.test(a.name); });
+        }
         if (IS_LINUX) {
           return list.find(function (a) { return /\.AppImage$/i.test(a.name); }) || list.find(function (a) { return /\.deb$/i.test(a.name); });
         }
         return list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
       }
-      function assetLabel(url) {
-        if (/\.AppImage$/i.test(url || '')) return 'Download .AppImage (Linux)';
-        if (/\.deb$/i.test(url || '')) return 'Download .deb (Linux)';
-        return 'Download .exe (Windows)';
+      function assetLabel(name) {
+        const n = String(name || '');
+        if (/\.msix$/i.test(n)) return 'Download .msix (Windows)';
+        if (/\.msi$/i.test(n)) return 'Download .msi (Windows)';
+        if (/\.exe$/i.test(n)) return 'Download .exe (Windows)';
+        if (/\.AppImage$/i.test(n)) return 'Download .AppImage (Linux)';
+        if (/\.deb$/i.test(n)) return 'Download .deb (Linux)';
+        if (/\.rpm$/i.test(n)) return 'Download .rpm (Linux)';
+        if (/pacman$/i.test(n)) return 'Download pacman pkg (Linux)';
+        if (/\.dmg$/i.test(n)) return 'Download .dmg (macOS)';
+        if (/\.zip$/i.test(n)) return 'Download .zip (macOS)';
+        return 'Download';
       }
-      // All installer options for a release — Windows exe + Linux AppImage/deb side by side
+      // All installer formats for each release — Windows (exe/msi/msix) +
+      // Linux (AppImage/deb/rpm/pacman) + macOS (dmg/zip) side by side.
+      // Skip .blockmap/.yml updater files — they are for the auto-updater,
+      // not for manual download.
       function installerLinks(assets) {
-        const list = assets || [];
-        const exe = list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
-        const appImage = list.find(function (a) { return /\.AppImage$/i.test(a.name); });
-        const deb = list.find(function (a) { return /\.deb$/i.test(a.name); });
-        const out = [];
-        if (exe) out.push('<a class="log-dl" href="' + exe.browser_download_url + '">' + assetLabel(exe.browser_download_url) + '</a>');
-        if (appImage) out.push('<a class="log-dl" href="' + appImage.browser_download_url + '">' + assetLabel(appImage.browser_download_url) + '</a>');
-        if (deb && !appImage) out.push('<a class="log-dl" href="' + deb.browser_download_url + '">' + assetLabel(deb.browser_download_url) + '</a>');
-        return out.join(' ');
+        const list = (assets || []).filter(function (a) {
+          const n = String((a && a.name) || '');
+          if (/blockmap/i.test(n)) return false;
+          return /\.(exe|msi|msix|AppImage|deb|rpm|dmg|zip)$/i.test(n) || /pacman$/i.test(n);
+        });
+        const rank = ['.exe', '.msix', '.msi', '.appimage', '.deb', '.rpm', 'pacman', '.dmg', '.zip'];
+        function score(a) {
+          const n = String((a && a.name) || '').toLowerCase();
+          for (let i = 0; i < rank.length; i++) {
+            if (n.endsWith(rank[i])) return i;
+          }
+          return rank.length;
+        }
+        list.sort(function (a, b) { return score(a) - score(b); });
+        return list.map(function (a) {
+          return '<a class="log-dl" href="' + a.browser_download_url + '">' + assetLabel(a.name) + '</a>';
+        }).join('');
       }
       function esc(s) {
         return String(s == null ? '' : s)
@@ -164,12 +188,13 @@
             card.className = 'log-card';
             card.innerHTML =
               '<div class="log-meta"><span class="tag-pill">' + esc(r.tag_name) + '</span>' +
+              (r.prerelease ? '<span class="test-pill" title="Test / pre-release build — not a stable release">Test</span>' : '') +
               '<span class="log-date">' + esc((r.published_at || '').slice(0, 10)) + '</span>' +
               '<span class="dl-pill" title="Downloads of every file in this release">⬇ ' +
               esc(window.IBXStats ? window.IBXStats.formatNum(total) : String(total)) + ' downloads</span></div>' +
               '<h2 class="log-title">' + esc(r.name || r.tag_name) + '</h2>' +
               (r.body ? '<div class="log-body">' + renderBody(r.body) + '</div>' : '') +
-              (links ? links : '');
+              (links ? '<div class="log-dls">' + links + '</div>' : '');
             feed.appendChild(card);
           });
         })
@@ -178,7 +203,7 @@
             '<a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">Open releases on GitHub</a></div>';
         });
 
-      // Nav download — hamesha latest release ka installer (OS ke hisaab se)
+      // Nav download — always the latest release installer (per OS)
       const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
       let cachedUrl = null;
       function resolveExeUrl() {
@@ -192,8 +217,8 @@
             return cachedUrl;
           });
       }
-      // direct-download buttons (GitHub href wale) — nav ka "Download" link
-      // ab download.html par jaata hai, isliye sirf github href wale intercept
+      // direct-download buttons (with GitHub href) — the nav "Download" link
+      // now goes to download.html, so only intercept GitHub href ones
       document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
@@ -213,12 +238,12 @@
           });
         });
       });
-      // direct download ab download page se hota hai — yahan koi prefetch nahi
+      // direct download now happens from the download page — no prefetch here
 
-      // "Update my app" — installed Idiot Box app ka updater trigger karo
-      // via idiotbox://update deep link (app me protocol handler, v0.1.20+).
-      // App installed + handler wala hoga to OS app kholega/focus karega aur
-      // update check chalega. Nahi hoga to fallback message + download hint.
+      // "Update my app" — trigger the updater of the installed Idiot Box app
+      // via idiotbox://update deep link (protocol handler in the app, v0.1.20+).
+      // If the app is installed with the handler, the OS will open/focus the app and
+      // run the update check. Otherwise show a fallback message + download hint.
       (function () {
         var btn = document.getElementById('update-my-app');
         if (!btn) return;
@@ -250,7 +275,7 @@
         });
       })();
 
-      // Hamburger menu (mobile) — size card jitni
+      // Hamburger menu (mobile) — sized like the card
       (function () {
         const bg = document.querySelector('.background');
         const btn = document.querySelector('.hamburger');

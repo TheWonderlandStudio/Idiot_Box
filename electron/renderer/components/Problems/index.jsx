@@ -1,12 +1,12 @@
 // Problems Panel — editor lint + runtime errors.
 //
 // Sources:
-//  - Editor har lint run par `codemirror:diagnostics` bhejta hai
+//  - The editor sends `codemirror:diagnostics` on every lint run
 //    { path, markers } — Lezer syntax errors (cm/diagnostics.js).
-//  - Run panel fail run par { path, markers, origin: "runtime" } bhejta hai
-//    (Python traceback / Node stack se nikle markers, source Python/Node/Java).
-// Dono alag buckets me rehte hain taaki editor ka agla lint run runtime
-// errors na mitaye (aur vice versa). Empty markers = sirf apni bucket clear.
+//  - The Run panel sends { path, markers, origin: "runtime" } on a failed run
+//    (markers derived from a Python traceback / Node stack, source Python/Node/Java).
+// Both live in separate buckets so the editor's next lint run never clears
+// runtime errors (and vice versa). Empty markers = clear only your own bucket.
 // Severity: 8=Error, 4=Warning, 2=Info, 1=Hint.
 // Click -> open-file-in-editor + editor:revealLine.
 import React, { useEffect, useState } from "react";

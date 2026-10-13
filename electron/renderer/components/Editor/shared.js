@@ -2,8 +2,8 @@
 // Dirty flags, tab names and settings sync live here so the surrounding
 // Electron UI stays independent of the editor workbench.
 //
-// NOTE: is module me koi engine import nahi hai (koi local import bhi nahi),
-// isliye dono engine files yahan se import kar sakte hain bina cycle ke.
+// NOTE: this module imports no engine (not even a local import),
+// so both engine files can import from here without a cycle.
 import { Actions } from "flexlayout-react";
 
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };

@@ -1,10 +1,10 @@
 // ─── Anonymous usage tracking ────────────────────────────────────────────────
-// Do cheezein jaati hain (dono anonymous, opt-out):
-//  1. Total users — har install par ek +1 public counter (countapi).
-//  2. Online users — 30s ka retained MQTT heartbeat (random id + version +
-//     timestamp) public relay par. Site "Online now" + version chips isi se
-//     banata hai; app quit hone par retained message clear ho jaata hai.
-// Koi PII nahi, koi server nahi. Opt-out: Settings → General → Telemetry
+// Two things are sent (both anonymous, opt-out):
+//  1. Total users — a +1 public counter per install (countapi).
+//  2. Online users — a 30s retained MQTT heartbeat (random id + version +
+//     timestamp) on a public relay. The site builds "Online now" + version chips from it;
+//     quitting the app clears the retained message.
+// No PII, no first-party server. Opt-out: Settings → General → Telemetry
 // (settings.telemetryEnabled, default on).
 const path = require("path");
 const fs = require("fs");
@@ -59,7 +59,7 @@ function isEnabled() {
   } catch (e) { return true; }
 }
 
-// ── total users — one +1 per install (sirf ek baar, success par flagged) ────
+// ── total users — one +1 per install (only once, flagged on success) ────
 function countInstall() {
   const st = ensureState();
   if (!st || st.counted || typeof fetch !== "function") return;
@@ -70,10 +70,10 @@ function countInstall() {
       st.countedAt = new Date().toISOString();
       writeJson(stateFile, st);
     })
-    .catch(() => { /* offline — agli launch par retry */ });
+    .catch(() => { /* offline — retry on next launch */ });
 }
 
-// ── heartbeat — retained publish, page ko turant live milta hai ─────────────
+// ── heartbeat — retained publish, so the page sees it live immediately ─────────────
 function topic() {
   const st = ensureState();
   return TOPIC_PREFIX + (st ? st.id : "unknown");
@@ -116,7 +116,7 @@ function ensureConnected() {
   client.on("close", () => {});
   client.on("offline", () => {});
 
-  // wss block ho to plain TCP broker par fallback
+  // fall back to the plain TCP broker when wss is blocked
   if (usingWss) {
     fallbackTimer = setTimeout(() => {
       if (client && client.connected) return;
@@ -132,7 +132,7 @@ function disconnect(clear) {
   clearTimeout(fallbackTimer);
   fallbackTimer = null;
   if (!client) return;
-  if (clear) publish("", true); // retained hata do → user turant offline
+  if (clear) publish("", true); // clear retained → user goes offline immediately
   const c = client;
   client = null;
   setTimeout(() => { try { c.end(true); } catch (e) {} }, clear ? 400 : 0);

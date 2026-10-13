@@ -1,7 +1,7 @@
-// Unified palette — ek hi overlay for files + saare app commands.
-//   Ctrl+P          → files + commands (files pehle)
-//   Ctrl+Shift+P/F1 → commands only (query ">" se shuru, VS Code style)
-// QuickOpen isme merge hai — alag overlay nahi rakha jata.
+// Unified palette — a single overlay for files + all app commands.
+//   Ctrl+P          → files + commands (files first)
+//   Ctrl+Shift+P/F1 → commands only (query starts with ">", VS Code style)
+// QuickOpen is merged into this — no separate overlay is kept.
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { NAV } from "../Settings/nav.js";
@@ -61,7 +61,7 @@ const COMMANDS = [
   { id: "settings",        group: "App", title: "Settings",                 run: () => window.electronAPI.openSettingsWindow() },
 ];
 
-// Settings pages + individual settings rows — palette se directly open/jump.
+// Settings pages + individual settings rows — open/jump directly from the palette.
 const SETTINGS_CMDS = NAV.map((n) => ({
   id: "settings:" + n.id,
   group: "Settings",
@@ -101,7 +101,7 @@ const CommandPalette = () => {
   const listRef = useRef(null);
   const debounceRef = useRef(null);
 
-  // ── App extension commands (host se live) ──
+  // ── App extension commands (live from the host) ──
   const [extCmds, setExtCmds] = useState([]);
   useEffect(() => {
     let alive = true;
@@ -120,7 +120,7 @@ const CommandPalette = () => {
   const cmdOnly = raw.startsWith(">");
   const q = (cmdOnly ? raw.slice(1) : raw).trim().toLowerCase();
 
-  // ── Files (IPC fuzzy search; ">" mode me band) ──
+  // ── Files (IPC fuzzy search; off in ">" mode) ──
   useEffect(() => {
     if (!open) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -167,7 +167,7 @@ const CommandPalette = () => {
     return out;
   }, [q, extCmds]);
 
-  // ── Rows: Files section + grouped Commands (heads selectable nahi) ──
+  // ── Rows: Files section + grouped Commands (heads are not selectable) ──
   const rows = useMemo(() => {
     const out = [];
     if (files.length) {
@@ -229,7 +229,7 @@ const CommandPalette = () => {
     if (open) { setIdx(0); inputRef.current?.focus(); }
   }, [open]);
 
-  // Arrow key selection kabhi viewport se bahar na jaye
+  // Keep the arrow-key selection inside the viewport
   useEffect(() => {
     if (!open) return;
     try { listRef.current?.querySelector(`[data-ai="${Math.min(idx, Math.max(total - 1, 0))}"]`)?.scrollIntoView({ block: "nearest" }); } catch {}

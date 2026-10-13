@@ -1,11 +1,11 @@
-/* Credits — chatlog jesi style: same container, same nav, crawl appended */
+/* Credits — same style as chatlog: same container, same nav, crawl appended */
 *{
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* har jagah se underline hata do — prose links alag se style karte hain */
+/* remove underlines everywhere — prose links are styled separately */
 a{
   text-decoration: none;
 }
@@ -29,7 +29,7 @@ body{
   overflow: hidden;
 }
 
-/* HLS video — container ka background */
+/* HLS video — container background */
 .bg-video-wrap{
   position: absolute;
   inset: 0;
@@ -46,7 +46,7 @@ body{
   background: black;
 }
 
-/* top-left title card — index ke logo card jesa, click par wapas index */
+/* top-left title card — like the index logo card, links back to index on click */
 .card{
   font-family: Arial Black;
   font-size: 25px;
@@ -61,7 +61,7 @@ body{
   z-index: 2;
 }
 
-/* top-right nav — compact link row, koi underline nahi */
+/* top-right nav — compact link row, no underlines */
 .nav-card{
   font-family: 'Inter', sans-serif;
   font-size: 13px;
@@ -117,7 +117,7 @@ body{
   color: black;
 }
 
-/* desktop — links seedha flex me, hamburger/panel chhupa */
+/* desktop — links directly in flex, hamburger/panel hidden */
 .nav-links{
   display: contents;
 }
@@ -146,7 +146,7 @@ body{
   display: none;
 }
 
-/* base link style — media query ke bahar bhi underline kabhi na aaye */
+/* base link style — never underline, even outside media queries */
 .menu-panel a{
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -174,7 +174,7 @@ body{
   color: black;
 }
 
-/* feed — center me, top bar ke neeche scrollable, video background me */
+/* feed — centered, scrollable below the top bar, over the video background */
 .feed{
   position: absolute;
   left: 50%;
@@ -320,7 +320,7 @@ body{
 }
 
 /* "Update my app" — floating deep-link button (idiotbox://update).
-   Installed app ka updater trigger karta hai; style .log-dl jesa. */
+   Triggers the installed app's updater; styled like .log-dl. */
 .update-app-fab{
   position: absolute;
   right: 24px;
@@ -365,7 +365,7 @@ body{
 }
 
 /* ---------- responsive ---------- */
-/* hamburger mode — desktop nav 1120 se chhota ho to top-left card se takrata hai */
+/* hamburger mode — desktop nav collides with the top-left card below 1120px */
 @media (max-width: 1120px){
   .nav-links{
     display: none;
@@ -412,7 +412,7 @@ body{
     padding: 10px 12px;
   }
 
-  /* hamburger se X */
+  /* hamburger to X */
   .background.menu-open .hamburger span:nth-child(1){
     transform: translateY(7px) rotate(45deg);
   }
@@ -446,7 +446,7 @@ body{
     right: 16px;
   }
 
-  /* hamburger se X */
+  /* hamburger to X */
   .background.menu-open .hamburger span:nth-child(1){
     transform: translateY(7px) rotate(45deg);
   }
@@ -627,7 +627,7 @@ body{
   }
 }
 
-/* Pure black stage (bg video hata diya) */
+/* Pure black stage (bg video removed) */
 .background{
   background: black;
 }

@@ -234,11 +234,11 @@ export function ComponentEmbed({ element }) {
   const isHtml = /\.html?$/i.test(absPath || relPath || "");
 
   // ── Embed CSS (shadow DOM): globals + bundler css, equality-guarded ──
-  // Preview panel jaisa pipeline, shadow-host ke liye: bundler `res.css`
-  // (saare imports resolve) LAST me taaki jeete; usse pehle project globals
+  // Same pipeline as the preview panel, for the shadow host: bundler `res.css`
+  // (all imports resolved) LAST so it wins; project globals before it
   // (sibling same-name, walk-up, root conventions, entry imports, index.html
-  // links, framework dist). scss/less compile nahi hote — sirf .css.
-  const cssKeysRef = useRef([]); // is load me lage style keys (live-css match)
+  // links, framework dist). scss/less are not compiled — only .css.
+  const cssKeysRef = useRef([]); // style keys applied in this load (live-css match)
   const seqRef = useRef(0);
   const liveTimerRef = useRef(null);
   const injectEmbedCss = useCallback((key, css) => {
@@ -254,7 +254,7 @@ export function ComponentEmbed({ element }) {
         host.__stylesHost.appendChild(el);
       }
       const next = css || "";
-      if (el.textContent === next) return; // unchanged — DOM mat chhedo
+      if (el.textContent === next) return; // unchanged — do not touch the DOM
       el.textContent = next;
     } catch {}
   }, []);
@@ -268,8 +268,8 @@ export function ComponentEmbed({ element }) {
     cssKeysRef.current = [];
   }, []);
   const loadEmbedCss = useCallback(async (targetAbs, seq, bundleCss) => {
-    // Returns loaded keys (live-css match ke liye). Stale load beech me
-    // ruk jaye to [] (caller seq check karta hai).
+    // Returns loaded keys (for live-css match). If a stale load stops
+    // midway, returns [] (the caller checks the seq).
     const done = [];
     try {
       const keys = await findGlobalCssFiles({
@@ -279,9 +279,9 @@ export function ComponentEmbed({ element }) {
         readDirAll: (p) => window.electronAPI?.readDirAll(p),
       });
       let bytes = 0;
-      // Saare candidates try karo (missing files saste me skip hote hain) —
-      // sirf EXISTING files caps me gini jati hain, taaki aakhiri keys
-      // (dist output, framework dist) kabhi starve na hon.
+      // Try all candidates (missing files skip cheaply) —
+      // only EXISTING files count toward the caps, so the last keys
+      // (dist output, framework dist) never starve.
       for (const key of keys) {
         if (seq !== seqRef.current) return [];
         if (done.length >= 12 || bytes > 600 * 1024) break;
@@ -293,13 +293,13 @@ export function ComponentEmbed({ element }) {
         try {
           finalCss = await inlineCssImports(raw, posixDir(key), (p) => window.electronAPI?.readTextFile(p));
         } catch {}
-        // Shadow me body/html/:root/#root match nahi hote — :host par map karo.
+        // body/html/:root/#root never match in shadow — map them onto :host.
         try { finalCss = scopeCssForShadow(finalCss); } catch {}
         bytes += (finalCss || "").length;
         injectEmbedCss(key, finalCss);
         done.push(key);
       }
-      // Bundler css LAST (highest precedence — component ke apne imports).
+      // Bundler css LAST (highest precedence — the component's own imports).
       if (seq === seqRef.current && bundleCss) {
         injectEmbedCss("__bundle__", bundleCss);
         done.push("__bundle__");
@@ -332,10 +332,10 @@ export function ComponentEmbed({ element }) {
   }, []);
 
   // ── Load component: source + full CSS (globals, then bundler css LAST).
-  // CSS order: project globals pehle, bundler `res.css` (saare imports
-  // resolve — relative/package/@import/CSS-modules) LAST me taaki jeete.
-  // NOTE: purana regex-import reader hataya — wo scss/less RAW inject karta
-  // tha (broken CSS) aur package/import-chain resolve nahi karta tha.
+  // CSS order: project globals first, bundler `res.css` (all imports
+  // resolved — relative/package/@import/CSS-modules) LAST so it wins.
+  // NOTE: removed the old regex-import reader — it injected scss/less RAW
+  // (broken CSS) and never resolved the package/import chain.
   const loadEmbed = useCallback(async (targetAbs, sourceOverride, opts = {}) => {
     const mySeq = ++seqRef.current;
     const stillCurrent = () => mySeq === seqRef.current && !cancelledRef.current;
@@ -345,7 +345,7 @@ export function ComponentEmbed({ element }) {
       setError(`Cannot resolve path for ${relPath || "component"}`);
       return;
     }
-    // CSS-only refresh (css file save): rebundle nahi, sirf styles re-read.
+    // CSS-only refresh (css file save): no rebundle, just re-read styles.
     if (cssOnly) {
       try {
         await loadEmbedCss(targetAbs, mySeq, null);
@@ -368,8 +368,8 @@ export function ComponentEmbed({ element }) {
       return;
     }
     if (isHtml) {
-      // Standalone HTML: <base> inject karo taaki relative <link>/img/script
-      // file ke folder se resolve hon (srcDoc ka koi base URL nahi hota).
+      // Standalone HTML: inject <base> so relative <link>/img/script URLs
+      // resolve from the file's folder (srcDoc has no base URL).
       try {
         const { html } = prepareHtmlDocument(source, targetAbs);
         setHtml(html);
@@ -379,7 +379,7 @@ export function ComponentEmbed({ element }) {
       setStatus("ready");
       return;
     }
-    // Globals pehle (bundler css baad me LAST aayega).
+    // Globals first (bundler css comes LAST afterwards).
     let cssKeys = [];
     try {
       cssKeys = await loadEmbedCss(targetAbs, mySeq, null);
@@ -411,7 +411,7 @@ export function ComponentEmbed({ element }) {
       setError(res?.error || "Bundling failed");
       return;
     }
-    // Bundler css LAST (highest precedence — component ke apne imports).
+    // Bundler css LAST (highest precedence — the component's own imports).
     try {
       if (res.css) {
         let scoped = res.css;
@@ -445,9 +445,9 @@ export function ComponentEmbed({ element }) {
   }, [absPath, loadEmbed, reloadKey]);
 
   // ── Live sync: editor typing (no save) + css-file saves ──────────────
-  // Code path match -> in-memory source se rebundle (html: re-process);
-  // loaded css match -> sirf styles refresh (rebundle nahi).
-  // Debounced (multi-card overload nahi).
+  // Code path match -> rebundle from the in-memory source (html: re-process);
+  // loaded css match -> styles refresh only (no rebundle).
+  // Debounced (no multi-card overload).
   useEffect(() => {
     if (!absPath) return undefined;
     const norm = (p) => String(p || "").replace(/\\/g, "/").toLowerCase();
@@ -488,7 +488,7 @@ export function ComponentEmbed({ element }) {
         }, 500);
         return;
       }
-      // Loaded css files me se koi badla -> styles refresh only.
+      // If any loaded css file changed -> styles refresh only.
       try {
         const keys = cssKeysRef.current || [];
         const hit = keys.some((k) => k !== "__bundle__" && norm(k) === np);
@@ -547,7 +547,7 @@ export function ComponentEmbed({ element }) {
   // Full cleanup when the element is deleted from the scene.
   useEffect(() => () => {
     if (liveTimerRef.current) { clearTimeout(liveTimerRef.current); liveTimerRef.current = null; }
-    seqRef.current += 1; // pending loads stale ho jayen
+    seqRef.current += 1; // mark pending loads stale
     const host = hostRef.current;
     const root = host?.__root;
     if (host) host.__root = null;
@@ -591,8 +591,8 @@ const getCanvasSettings = (settings = {}) => {
     if (settings[flatKey] !== undefined) return settings[flatKey];
     return fallback;
   };
-  // Background: black | white | grid. Purana gridMode toggle migrate hota
-  // hai (true -> grid), taaki existing users ka look na badle (default white).
+  // Background: black | white | grid. The old gridMode toggle migrates
+  // (true -> grid) so existing users keep their look (default white).
   let bgMode = pick("bgMode", "canvasBgMode", null);
   if (!BG_MODES.includes(bgMode)) {
     bgMode = pick("gridMode", "canvasGridMode", false) === true ? "grid" : "white";
@@ -606,7 +606,7 @@ const getCanvasSettings = (settings = {}) => {
   };
 };
 
-// bgMode -> Excalidraw scene background. Grid ka bg paper (theme-aware).
+// bgMode -> Excalidraw scene background. Grid bg is paper (theme-aware).
 const bgForMode = (mode) => {
   if (mode === "black") return "#000000";
   if (mode === "grid") return cssVar("--paper", "#ffffff");
@@ -971,7 +971,7 @@ const CanvasPanel = ({ config }) => {
 
   const handleClear = useCallback(() => {
     try {
-      // Current background mode rakho (Excalidraw ko real color chahiye).
+      // Keep the current background mode (Excalidraw needs a real color).
       excalidrawAPI?.updateScene({ elements: [], appState: { viewBackgroundColor: bgForMode(opts.bgMode) } });
     } catch {}
     elementsRef.current = [];
@@ -981,10 +981,10 @@ const CanvasPanel = ({ config }) => {
   }, [excalidrawAPI, scheduleSave, opts.bgMode]);
 
   // ── Background mode (Black / White / Grid) ──────────────────────────
-  // Persist settings me (canvas.bgMode + flat canvasBgMode); scene bg
-  // updateScene se lagta hai (agla autosave use drawing me rakhta hai).
-  // Sirf tab update karo jab scene ka bg alag ho — warna har mount par
-  // spurious dirty+save hota.
+  // Persist in settings (canvas.bgMode + flat canvasBgMode); the scene bg
+  // is applied via updateScene (the next autosave keeps it in the drawing).
+  // Only update when the scene bg actually differs — otherwise every mount
+  // causes a spurious dirty+save.
   const setBgMode = useCallback(async (mode) => {
     if (!BG_MODES.includes(mode)) return;
     try {

@@ -34,7 +34,7 @@ const cloneCanvas = (src) => {
   c.getContext("2d").drawImage(src, 0, 0);
   return c;
 };
-// View rotation/flip ko bitmap me bake karo (edit space = display orientation)
+// Bake view rotation/flip into the bitmap (edit space = display orientation)
 const bakeView = (img, { rotation, flipH, flipV }) => {
   const rot = ((rotation % 360) + 360) % 360;
   const swap = rot === 90 || rot === 270;
@@ -46,7 +46,7 @@ const bakeView = (img, { rotation, flipH, flipV }) => {
   ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
   return c;
 };
-// Edge-seeded flood fill: border se jude tolerance-range pixels → transparent
+// Edge-seeded flood fill: tolerance-range pixels connected to the border → transparent
 const removeBackground = (srcCanvas, tolerance) => {
   const c = cloneCanvas(srcCanvas);
   const w = c.width, h = c.height;
@@ -90,7 +90,7 @@ const hexToRgb = (hex) => {
     return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
   } catch { return { r: 255, g: 255, b: 255 }; }
 };
-// Color-key: picked color se match karne wale SAARE pixels → transparent
+// Color-key: ALL pixels matching the picked color → transparent
 const removeColorKey = (srcCanvas, rgb, tolerance) => {
   const c = cloneCanvas(srcCanvas);
   const ctx = c.getContext("2d", { willReadFrequently: true });
@@ -105,9 +105,9 @@ const removeColorKey = (srcCanvas, rgb, tolerance) => {
   ctx.putImageData(img, 0, 0);
   return c;
 };
-// Magic brush: brush stamps (canvas-px seeds) se connected similar-color
-// region → transparent. Saare seeds ke colors sample karke EK BFS me match
-// (har seed par alag BFS = lambi stroke par freeze ho jata).
+// Magic brush: connected similar-color region from brush stamps (canvas-px seeds)
+// → transparent. Sample all seeds' colors and match in ONE BFS
+// (a separate BFS per seed would freeze on long strokes).
 const eraseSeeded = (srcCanvas, seeds, tolerance) => {
   const c = cloneCanvas(srcCanvas);
   const w = c.width, h = c.height;
@@ -115,7 +115,7 @@ const eraseSeeded = (srcCanvas, seeds, tolerance) => {
   const ctx = c.getContext("2d", { willReadFrequently: true });
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
-  // Target colors — zyada seeds par stride sample (speed ke liye cap)
+  // Target colors — stride-sample on many seeds (capped for speed)
   const stride = Math.max(1, Math.floor(seeds.length / 16));
   const targets = [];
   for (let k = 0; k < seeds.length; k += stride) {
@@ -157,7 +157,7 @@ const eraseSeeded = (srcCanvas, seeds, tolerance) => {
   ctx.putImageData(img, 0, 0);
   return c;
 };
-// Brightness/contrast/saturation + toggles (snapshot se re-render)
+// Brightness/contrast/saturation + toggles (re-render from snapshot)
 const applyFilters = (srcCanvas, f) => {
   const c = cloneCanvas(srcCanvas);
   const ctx = c.getContext("2d", { willReadFrequently: true });
@@ -311,7 +311,7 @@ const MediaViewer = () => {
       setContent(canvas.toDataURL(mime, 0.92));
     } catch {}
   }, [exportMime]);
-  // Slider drags ke liye rAF-throttled preview
+  // rAF-throttled preview for slider drags
   const previewSoon = useCallback((getCanvas) => {
     if (previewRafRef.current) return;
     previewRafRef.current = requestAnimationFrame(() => {
@@ -353,10 +353,10 @@ const MediaViewer = () => {
   const [videoMuted,   setVideoMuted]   = useState(false);
 
   const containerRef = useRef(null);
-  // Viewport = position:relative wala stage jiske andar crop overlay/selection
-  // render hote hain. Saari crop/resize math isi ke space me hoti hai —
-  // containerRef (root panel) use karne par header/editbar ki height ka offset
-  // aa jata tha aur selection box cursor se hatkar dikhta tha.
+  // Viewport = the position:relative stage hosting the crop overlay/selection.
+  // All crop/resize math happens in its space —
+  // using containerRef (root panel) added the header/editbar height as an offset
+  // and the selection box rendered away from the cursor.
   const viewportRef  = useRef(null);
   const videoRef     = useRef(null);
 
@@ -378,7 +378,7 @@ const MediaViewer = () => {
       const img = await loadBitmap(origRef.current || content);
       if (!origRef.current) origRef.current = content;
       let canvas = bakeView(img, { rotation, flipH, flipV });
-      // Huge images ko 16MP par cap karo taaki ops hang na karein
+      // Cap huge images at 16MP so ops don't hang
       const px = canvas.width * canvas.height;
       if (px > 16_000_000) {
         const k = Math.sqrt(16_000_000 / px);
@@ -434,14 +434,14 @@ const MediaViewer = () => {
     flashEditStatus("Edits reset");
   }, [flashEditStatus]);
 
-  // Tool kholo → live sliders ke liye snapshot lo
+  // Open a tool → take a snapshot for live sliders
   const openTool = useCallback((t) => {
-    // Bina-apply switch par preview wapas work state par lao
+    // On switch without Apply, restore the preview to the work state
     if (workRef.current && (editTool === "bg" || editTool === "filters" || editTool === "rotate")) {
       try { showCanvas(workRef.current); } catch {}
     }
     setCropRect(null);
-    // Brush stroke session hamesha tool switch par discard (stale seeds se bacho)
+    // Always discard the brush stroke session on tool switch (avoid stale seeds)
     brushSeedsRef.current = [];
     brushPaintingRef.current = false;
     brushLastRef.current = null;
@@ -493,8 +493,8 @@ const MediaViewer = () => {
     }, 30);
   }, [bgColor, tolerance, showCanvas, flashEditStatus]);
 
-  // BG remover — Magic brush: image par drag → connected similar area erase
-  // Client px → canvas px (displayed img rect se map; zoom/pan safe)
+  // BG remover — Magic brush: drag on the image → erase the connected similar area
+  // Client px → canvas px (mapped from the displayed img rect; zoom/pan safe)
   const toCanvasPt = useCallback((clientX, clientY) => {
     const img = imgRef.current, base = toolBaseRef.current;
     if (!img || !base) return null;
@@ -506,8 +506,8 @@ const MediaViewer = () => {
       scale: base.width / r.width,
     };
   }, []);
-  // rAF callback fire-time par seeds padhta hai — pending frame ke dauran aaye
-  // stamps bhi preview me aa jate hain (koi stroke drop nahi hota)
+  // The rAF callback reads seeds at fire time — stamps arriving during the pending
+  // frame still appear in the preview (no stroke is dropped)
   const previewBrush = useCallback((tolOverride) => {
     const base = toolBaseRef.current;
     if (!base || !brushSeedsRef.current.length) return;
@@ -518,7 +518,7 @@ const MediaViewer = () => {
       return out;
     });
   }, [previewSoon, tolerance]);
-  // Stroke ke beech gaps na rahein — last point se interpolate karke seeds dalo
+  // Keep the stroke gap-free — interpolate from the last point to add seeds
   const stampBrushSeed = useCallback((clientX, clientY) => {
     if (!toolBaseRef.current) return;
     const pt = toCanvasPt(clientX, clientY);
@@ -556,7 +556,7 @@ const MediaViewer = () => {
       } finally { setBusy(null); }
     }, 30);
   }, [tolerance, showCanvas, flashEditStatus]);
-  // Mode switch: stale seeds discard + preview wapas tool snapshot par
+  // Mode switch: discard stale seeds + restore the preview to the tool snapshot
   const switchBgMode = useCallback((m) => {
     if (m === bgMode) return;
     brushSeedsRef.current = [];
@@ -566,7 +566,7 @@ const MediaViewer = () => {
     if (toolBaseRef.current) { try { showCanvas(toolBaseRef.current); } catch {} }
     setBgMode(m);
   }, [bgMode, showCanvas]);
-  // Brush ring (cursor) — ref-driven, mousemove par re-render nahi hota
+  // Brush ring (cursor) — ref-driven, no re-render on mousemove
   const moveBrushRing = useCallback((e) => {
     const ring = brushRingRef.current;
     if (!ring) return;
@@ -635,7 +635,7 @@ const MediaViewer = () => {
     flashEditStatus(`Resized to ${workRef.current.width}×${workRef.current.height} — Save to keep`);
   }, [resizePct, showCanvas, flashEditStatus]);
 
-  // Rotate/flip bake — steps turant commit, fine slider live + Apply
+  // Rotate/flip bake — steps commit immediately, fine slider is live + Apply
   const bakeOp = useCallback((fn, msg) => {
     if (!workRef.current) return;
     setBusy("Working…");
@@ -670,8 +670,8 @@ const MediaViewer = () => {
     flashEditStatus("Rotation applied — Save to keep");
   }, [fineDeg, showCanvas, flashEditStatus]);
 
-  // Save (overwrite — same file). JPG me transparency nahi jati, isliye
-  // wahan white par flatten karke save hota hai (note ke saath).
+  // Save (overwrite — same file). JPG cannot store transparency, so it
+  // is flattened onto white before saving (with a note).
   const handleSave = useCallback(async () => {
     if (!workRef.current || !filePath) return;
     setBusy("Saving…");
@@ -932,7 +932,7 @@ const MediaViewer = () => {
     });
   }, [filePath, type]);
 
-  // ── Pan / Mouse Drag (crop tool me overlay sambhalta hai) ────────────────
+  // ── Pan / Mouse Drag (the overlay handles it in the crop tool) ────────────────
   const handleMouseDown = useCallback((e) => {
     if (e.button !== 0 || (type !== "image" && type !== "video")) return;
     if (editing && editTool === "crop") return;
@@ -955,8 +955,8 @@ const MediaViewer = () => {
   // ── Visual resizer: image corner handle drag → live preview ────────────
   const [rsGeom, setRsGeom] = useState(null); // img geom snapshot (stage px)
   const rsDragRef = useRef(null);
-  // NOTE: cropGeom yahin define hai — neeche useEffect dep-array me use hota hai.
-  // Pehle ye neeche declare tha → TDZ ReferenceError → "Error rendering component".
+  // NOTE: cropGeom is defined here — used in the useEffect dep-array below.
+  // It was declared below before → TDZ ReferenceError → "Error rendering component".
   const cropGeom = useCallback(() => {
     try {
       const img = imgRef.current;
@@ -1037,7 +1037,7 @@ const MediaViewer = () => {
     const stage = viewportRef.current?.getBoundingClientRect();
     if (!g || !stage || g.w < 4 || g.h < 4) return;
     const sx = e.clientX - stage.left, sy = e.clientY - stage.top;
-    // Existing rect ke andar click = MOVE, bahar = nayi selection
+    // Click inside the existing rect = MOVE, outside = new selection
     const cur = cropRectRef.current;
     if (cur && cur.w > 4 && cur.h > 4
         && sx >= cur.x && sx <= cur.x + cur.w && sy >= cur.y && sy <= cur.y + cur.h) {
@@ -1055,7 +1055,7 @@ const MediaViewer = () => {
     if (!stage) return;
     const sx = e.clientX - stage.left, sy = e.clientY - stage.top;
     if (d.mode === "move") {
-      // Poora rect uthao — img bounds me clamp
+      // Move the whole rect — clamp to img bounds
       const w = d.orig.w, h = d.orig.h;
       const x = Math.min(Math.max(sx - d.dx, d.g.x), d.g.x + d.g.w - w);
       const y = Math.min(Math.max(sy - d.dy, d.g.y), d.g.y + d.g.h - h);
@@ -1064,7 +1064,7 @@ const MediaViewer = () => {
       return;
     }
     if (d.mode === "nw" || d.mode === "ne" || d.mode === "sw" || d.mode === "se") {
-      // Opposite corner fixed, ye corner cursor ke saath
+      // Opposite corner fixed, this corner follows the cursor
       const fx = d.mode[1] === "w" ? d.orig.x + d.orig.w : d.orig.x;
       const fy = d.mode[0] === "n" ? d.orig.y + d.orig.h : d.orig.y;
       const r = constrainRatio(fx, fy, sx, sy);
@@ -1086,7 +1086,7 @@ const MediaViewer = () => {
     const d = cropDragRef.current;
     cropDragRef.current = null;
     if (!d) return;
-    // bahut chhota drag = cancel (sirf nayi selection par)
+    // very small drag = cancel (only for a new selection)
     if (d.mode === "new") {
       setCropRect((prev) => (prev && prev.w > 6 && prev.h > 6 ? prev : null));
     }
@@ -1140,8 +1140,8 @@ const MediaViewer = () => {
     }
   }, [filePath, type, handleZoomIn, handleZoomOut, handleResetZoom, handleFitScreen, handleRotateRight, handleRotateLeft, handleFlipH, handleFlipV, handleClose]);
 
-  // NOTE: keyboard shortcuts intentionally nahi hain — sab kuch buttons +
-  // right-click menu se hota hai (keys dusre panels se takrati thin).
+  // NOTE: intentionally no keyboard shortcuts — everything runs via buttons +
+  // the right-click menu (keys clashed with other panels).
 
   // Transform CSS style calculation
   const mediaTransform = `translate(${pan.x}px, ${pan.y}px) rotate(${rotation}deg) scale(${flipH ? -1 : 1}, ${flipV ? -1 : 1}) scale(${zoom})`;
@@ -1712,7 +1712,7 @@ const MediaViewer = () => {
                   pointerEvents: "none",
                 }}
               >
-                {/* corner handles — inke upar alag layer me (pointer events on) */}
+                {/* corner handles — on a separate layer above (pointer events on) */}
               </div>
             )}
             {cropRect && cropRect.w > 2 && cropRect.h > 2 && ["nw", "ne", "sw", "se"].map((h) => {

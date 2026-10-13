@@ -1,9 +1,9 @@
-// cm/languages.js — extension/filename se language + CodeMirror support.
+// cm/languages.js — language + CodeMirror support from extension/filename.
 //
-// Plain mapping: file extension (ya well-known filename) -> canonical id ->
-// language extension. Koi content-sniffing, registry lookup ya snippet
-// merging nahi — jo language package deta hai (keywords, tags, local
-// completions) wahi milta hai.
+// Plain mapping: file extension (or well-known filename) -> canonical id ->
+// language extension. No content-sniffing, registry lookup, or snippet
+// merging — you get whatever the language package provides (keywords, tags, local
+// completions).
 
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
@@ -79,7 +79,7 @@ export const resolveCmLanguage = (filePath) => {
 
 export const displayNameFor = (cmId) => DISPLAY_NAMES[cmId] || cmId || "Plain Text";
 
-// Language package jo deta hai wahi — koi extra merging nahi.
+// You get whatever the language package provides — no extra merging.
 export const getLanguageSupport = (cmId) => {
   switch (cmId) {
     case "javascript": return [javascript({ jsx: false, typescript: false })];

@@ -1,6 +1,6 @@
-// Extension view panel — extension ka UI sandboxed iframe me render hota hai.
-// HTML main process se aata hai (bridge script injected), messages IPC se
-// extension tak: iframe → renderer → main → extension (aur ulta).
+// Extension view panel — an extension's UI renders in a sandboxed iframe.
+// HTML comes from the main process (bridge script injected); messages travel
+// via IPC to the extension: iframe → renderer → main → extension (and back).
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { RefreshCw, Puzzle } from "lucide-react";
 import { PREVIEW_IFRAME_CSP } from "../shared/previewCsp.js";
@@ -23,7 +23,7 @@ const ExtView = ({ config }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // Extension ne webview.html badla → reload
+  // The extension changed webview.html → reload
   useEffect(() => {
     const un = window.electronAPI?.onExtViewHtmlChanged?.((p) => {
       if (p?.extId === extId && p?.viewType === viewType) load();
@@ -31,7 +31,7 @@ const ExtView = ({ config }) => {
     return () => { try { un && un(); } catch {} };
   }, [extId, viewType, load]);
 
-  // Main → extension ke messages ko iframe me forward karo
+  // Forward main → extension messages into the iframe
   useEffect(() => {
     const un = window.electronAPI?.onExtViewPush?.((p) => {
       if (p?.extId !== extId || p?.viewType !== viewType) return;
@@ -40,7 +40,7 @@ const ExtView = ({ config }) => {
     return () => { try { un && un(); } catch {} };
   }, [extId, viewType]);
 
-  // Iframe → main (bridge script ke postMessage)
+  // Iframe → main (via the bridge script's postMessage)
   useEffect(() => {
     const onMsg = (e) => {
       const frame = frameRef.current;
@@ -71,8 +71,8 @@ const ExtView = ({ config }) => {
         <iframe
           ref={frameRef}
           title={`${extId} — ${viewType}`}
-          // allow-same-origin NAHI — extension page parent DOM tak na pahunche,
-          // sab kuch postMessage bridge se (preview se thoda strict).
+          // No allow-same-origin — the extension page must not reach the parent DOM;
+          // everything goes through the postMessage bridge (slightly stricter than preview).
           sandbox="allow-scripts allow-forms allow-popups"
           csp={PREVIEW_IFRAME_CSP}
           srcDoc={html}

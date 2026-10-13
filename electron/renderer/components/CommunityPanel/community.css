@@ -21,6 +21,9 @@
 }
 
 .cp-bar__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: var(--fw-semibold);
   color: var(--text-secondary);
@@ -33,6 +36,65 @@
   display: flex;
   gap: var(--space-4);
   flex-shrink: 0;
+}
+
+/* Discord invite card (above the widget) */
+.cp-discord-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-8);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-light);
+  background: linear-gradient(180deg, rgba(88, 101, 242, 0.14), transparent);
+}
+.cp-discord-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: #5865f2;
+  color: #fff;
+}
+.cp-discord-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.cp-discord-meta strong {
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-discord-meta small {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-join-btn {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  background: linear-gradient(180deg, #5865f2, #4752c4);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition: filter 140ms ease;
+}
+.cp-join-btn:hover {
+  filter: brightness(1.1);
 }
 
 .cp-btn {

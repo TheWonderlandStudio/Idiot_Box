@@ -16,7 +16,7 @@ const FALLBACK_APIS = [
 ];
 const FALLBACK_VARIANTS = [
   { id: "google_apis", label: "Google APIs", desc: "Google services — no Play Store" },
-  { id: "google_apis_playstore", label: "Google APIs + Play Store", desc: "Play Store app samet (user build, no root)" },
+  { id: "google_apis_playstore", label: "Google APIs + Play Store", desc: "Includes the Play Store app (user build, no root)" },
 ];
 const FALLBACK_DEVICES = [
   { id: "pixel_9", label: "Pixel 9" },

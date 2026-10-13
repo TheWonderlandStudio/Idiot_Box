@@ -1,8 +1,8 @@
 // cm/settings.js — editor settings (defaults + validation).
 //
-// Keys settings.json me rehte hain (existing IPC flow). Purani settings.json
-// files se aane wali extra/unknown keys tolerate hoti hain; galat types par
-// default lagta hai (fail-open). Purane Monaco-era values migrate hote hain:
+// Keys live in settings.json (existing IPC flow). Extra/unknown keys from old
+// settings.json files are tolerated; wrong types fall back to the
+// default (fail-open). Old Monaco-era values are migrated:
 // 10 theme values -> dark/light/oneDark, wordWrap <-> lineWrapping sync.
 
 export const DEFAULT_CM_SETTINGS = {
@@ -60,7 +60,7 @@ const BOOL_KEYS = [
 
 const THEME_VALUES = ["dark", "light", "oneDark"];
 
-// Purane 10 Monaco theme values -> naye 3 CodeMirror themes.
+// Old 10 Monaco theme values -> new 3 CodeMirror themes.
 export const migrateTheme = (v) => {
   if (THEME_VALUES.includes(v)) return v;
   const s = String(v || "").toLowerCase();
@@ -68,7 +68,7 @@ export const migrateTheme = (v) => {
   return "dark";
 };
 
-// Kisi bhi object ko validate + normalize karke settings do.
+// Validate + normalize any object into settings.
 // Unknown keys passthrough (compat: fontFamily, autoSave, formatOnSave, ...).
 export const validateCmSettings = (raw) => {
   const errors = [];
@@ -108,12 +108,12 @@ export const validateCmSettings = (raw) => {
     out.lineWrapping = raw.wordWrap !== false;
   }
   out.wordWrap = out.lineWrapping !== false;
-  // Passthrough compat keys (save pipeline / notebook inhe padhte hain)
+  // Passthrough compat keys (read by the save pipeline / notebook)
   for (const k of ["fontFamily", "autoSave", "formatOnSave", "minimap"]) {
     if (k in raw) out[k] = raw[k];
   }
   return { settings: out, errors };
 };
 
-// Poora settings.json blob -> normalized cm settings (editor consumption).
+// Whole settings.json blob -> normalized cm settings (for editor consumption).
 export const normalizeCmSettings = (all) => validateCmSettings(all || {}).settings;

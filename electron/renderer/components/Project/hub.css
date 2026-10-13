@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  /* toolbar (30px) jitna bottom gap — frame screen-bottom se upar khatm ho */
+  /* toolbar (30px) worth of bottom gap — frame ends above the screen bottom */
   height: calc(100% - 30px);
   background: var(--bg-workspace);
   font-family: var(--font-ui);
@@ -881,7 +881,7 @@
   background: var(--bg-hover);
   color: var(--text-hover);
 }
-/* Keyboard focus (Tab) — hover jaisa highlight + visible outline */
+/* Keyboard focus (Tab) — hover-style highlight + visible outline */
 .phub__panel-item:focus {
   outline: none;
 }
@@ -1017,7 +1017,7 @@
   background: var(--bg-subtle);
   color: var(--text-hover);
 }
-/* Hover-container ke bahar — hamesha visible (Open in Files) */
+/* Outside the hover container — always visible (Open in Files) */
 .phub__panel-action--always {
   opacity: 1;
 }
@@ -1785,7 +1785,7 @@
 }
 .phub__sidebar-brand svg { color: #ff9d4d; flex-shrink: 0; }
 
-/* Collapsed icon-rail — sidebar gayab nahi hota, sirf icons dikhte hain */
+/* Collapsed icon-rail — sidebar stays, only icons show */
 .phub__sidebar--collapsed {
   width: 52px;
   max-width: 52px;
@@ -1913,7 +1913,7 @@
   padding-left: var(--space-8);
   padding-right: var(--space-8);
 }
-/* Bottom user row — avatar + username (hairline divider upar) */
+/* Bottom user row — avatar + username (hairline divider above) */
 .phub__sidebar-user {
   margin-top: auto;
   margin-bottom: var(--space-6);
@@ -2396,7 +2396,7 @@
   }
 }
 
-/* ── Short screens: compact hub taaki buttons bahar na jayen ─────────── */
+/* ── Short screens: compact hub so buttons never overflow ─────────── */
 @media (max-height: 720px) {
   .phub__stack {
     padding: 16px 16px 16px 16px;
@@ -2426,14 +2426,14 @@
 .phub {
   position: relative;
 }
-/* double-class specificity — redesign .phub { background } shorthand
-   background-size/repeat ko auto/repeat pe reset na kare */
+/* double-class specificity — so the redesigned .phub { background } shorthand
+   doesn't reset background-size/repeat to auto/repeat */
 .phub.phub--wallpaper {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
-/* Wallpaper dikhe isliye center/stack transparent, panels frosted glass */
+/* Show the wallpaper: center/stack transparent, panels frosted glass */
 .phub--wallpaper .phub__center,
 .phub--wallpaper .phub__stack {
   background: transparent;
@@ -2445,7 +2445,7 @@
 .phub--wallpaper .phub__panel-footer {
   background: color-mix(in srgb, var(--wall-tint, transparent) 6%, color-mix(in srgb, var(--bg-surface) var(--wall-opacity, 94%), transparent));
 }
-/* Sidebar — wallpaper par dark glass (tint halka, blur ke saath) */
+/* Sidebar — dark glass over wallpaper (light tint, with blur) */
 .phub--wallpaper .phub__sidebar {
   background: color-mix(in srgb, var(--wall-tint, #0e0e12) 9%, rgba(14, 14, 17, 0.74));
   backdrop-filter: blur(18px) saturate(1.15);
@@ -2504,7 +2504,7 @@
   cursor: auto !important;
 }
 
-/* Create panel flat — apne boxes nahi, sirf page/UI background */
+/* Create panel flat — no boxes of its own, just page/UI background */
 .phub__panel--create,
 .phub__panel--create .phub__panel-header,
 .phub__panel--create .phub__panel-body,
@@ -2566,7 +2566,7 @@
   pointer-events: none;
 }
 
-/* Wallpaper popup menu (button ke upar) */
+/* Wallpaper popup menu (above the button) */
 .phub__wallmenu {
   position: absolute;
   right: 0;
@@ -2772,7 +2772,7 @@
   overflow-y: auto;
 }
 
-/* Black note panel → chat text box + send (button box ke andar, bottom-right) */
+/* Black note panel → chat text box + send (button inside the box, bottom-right) */
 .phub__chat {
   position: relative;
   flex: 1;
@@ -2790,8 +2790,8 @@
   font-family: inherit;
   font-size: var(--fs-small);
   line-height: 1.5;
-  /* text ke chaaro taraf margin — corner se chipka na ho;
-     send button ke liye right me jagah */
+  /* margin on all sides of the text — not stuck to the corner;
+     room on the right for the send button */
   padding: 12px 44px 12px 14px;
   outline: none;
 }
@@ -2831,7 +2831,7 @@
   opacity: 0.8;
 }
 
-/* Note panel + side view buttons (box ke bahar, right side) */
+/* Note panel + side view buttons (outside the box, right side) */
 
 
 
@@ -2839,7 +2839,7 @@
 
 
 
-/* Note side buttons: panel ke bahar right me float (panel width untouched) */
+/* Note side buttons: float right outside the panel (panel width untouched) */
 .phub__note-wrap {
   position: relative;
   display: flex;
@@ -2886,7 +2886,7 @@
   }
 }
 
-/* ── Full-screen AI chat (Hub send karte hi khulta hai) ──────────────────── */
+/* ── Full-screen AI chat (opens as soon as Hub sends) ──────────────────── */
 .phub__chatfs {
   position: fixed;
   left: 0;
@@ -2905,10 +2905,10 @@
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
-/* Chat on ho to sidebar + path bar wapas dikhe (chat sirf home area me) */
+/* When chat is on, sidebar + path bar show again (chat lives only in the home area) */
 .phub--chatfs-open .phub__wallwrap { visibility: hidden; }
-/* AI Elements chat body — shadow DOM host (styles andar ai-tw-css.js se).
-   Narrow centered column — peeche ka Hub UI overlay hi dhak deta hai. */
+/* AI Elements chat body — shadow DOM host (styles come from ai-tw-css.js).
+   Narrow centered column — the Hub UI behind is covered by the overlay itself. */
 .phub__chatfs-body {
   width: min(680px, 100%);
   flex: 1;
@@ -2924,13 +2924,13 @@
   border-radius: 14px;
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.38);
 }
-/* Chat overlay on hai to mini chat peeche confusion kare — band rakho */
+/* While the chat overlay is on, keep the mini chat hidden to avoid confusion */
 .phub--chatfs-open .phub__chat { visibility: hidden; }
 
 /* ══════════════════════════════════════════════════════════════════════
    ── Hub redesign — dark home: top project cards + bottom composer ──────
-   Reference: near-black bg + warm bottom glow, preview cards row upar,
-   floating chat composer niche. Sidebar gayab — actions +/grid/chevron me.
+   Reference: near-black bg + warm bottom glow, preview cards row on top,
+   floating chat composer below. No sidebar — actions live in +/grid/chevron.
    ════════════════════════════════════════════════════════════════════ */
 
 .phub {
@@ -2956,7 +2956,7 @@
 .phub--wallpaper .phub__glow {
   display: none;
 }
-/* Chat on ho to peeche ka orange glow smoothly fade ho jaye */
+/* When chat is on, fade the orange glow behind it out smoothly */
 .phub--chatfs-open .phub__glow {
   opacity: 0;
 }
@@ -3010,14 +3010,14 @@
   from { opacity: 0; transform: translateY(10px) scale(0.985); }
   to   { opacity: 1; transform: none; }
 }
-/* Create panel flat tha — modal me solid card chahiye */
+/* Create panel used to be flat — inside a modal it needs a solid card */
 .phub__center--modal .phub__panel--create,
 .phub__center--modal .phub__panel--create .phub__panel-header,
 .phub__center--modal .phub__panel--create .phub__panel-body,
 .phub__center--modal .phub__panel--create .phub__create-actions {
   background: var(--bg-surface);
 }
-/* Recents overlay — list poora card bhare */
+/* Recents overlay — list fills the whole card */
 .phub__center--modal .phub__panel--recents {
   flex: 1 1 auto;
   min-height: 0;
@@ -3039,7 +3039,7 @@
   height: 60vh;
   max-height: 520px;
 }
-/* Frameworks gallery — modal card ke andar scroll */
+/* Frameworks gallery — scroll inside the modal card */
 .phub__center--modal .phub__panel--frameworks {
   background: var(--bg-surface);
 }
@@ -3062,7 +3062,7 @@
   max-width: calc(100% - 52px);
 }
 
-/* ── Home — cards row upar, empty hint ──────────────────────────────────── */
+/* ── Home — cards row on top, empty hint ──────────────────────────────────── */
 .phub__home {
   position: absolute;
   inset: 0;
@@ -3362,7 +3362,7 @@
   color: #6a6a73;
   cursor: default;
 }
-/* Popup menus (composer + card kebab dono) */
+/* Popup menus (both composer + card kebab) */
 .phub__composer-menu {
   position: absolute;
   bottom: calc(100% + 10px);
@@ -3445,13 +3445,13 @@
   animation: phub-menu-in 0.14s ease both;
 }
 
-/* Chat on ho to composer wahi rahe — usi se chat chalti hai */
+/* While chat is on, the composer stays put — chat runs through it */
 .phub--sb-collapsed .phub__composer { left: calc(50% + 26px); }
 
-/* ── Chat in home — cards ki jagah message list (input = bottom composer) ── */
+/* ── Chat in home — message list instead of cards (input = bottom composer) ── */
 .phub__home-chat {
   position: relative;
-  /* width = composer (min 840px) ke barabar rahe */
+  /* width = composer (min 840px), keep them equal */
   width: min(840px, 100%);
   flex: 1 1 auto;
   min-height: 0;

@@ -1,6 +1,6 @@
-// ─── package.json `contributes` ka chhota summary ──────────────────────────
-// UI ko dikhane ke liye: extension ke commands/views/menus/keybindings
-// kahan-kahan lagte hain (Installed details + Community details dono me).
+// ─── Small summary of package.json `contributes` ──────────────────────────
+// For the UI: where an extension's commands/views/menus/keybindings appear
+// (in both Installed details and Community details).
 "use strict";
 
 function summarizeContributions(mf) {

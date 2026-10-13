@@ -161,9 +161,9 @@ ${linesHtml}
 const WEBVIEW_PRELOAD = typeof window !== "undefined" && window.electronAPI?.getWebviewPreload
   ? window.electronAPI.getWebviewPreload() : undefined;
 
-// Guest base64 payloads decode karo (document.title whitespace collapse karta
-// hai — plain JSON me double-space/tabs/newlines toot jate). TextDecoder path
-// taaki unicode bhi sahi aaye.
+// Decode guest base64 payloads (document.title collapses whitespace
+// — plain JSON loses double-space/tabs/newlines). TextDecoder path
+// so unicode also decodes correctly.
 const decodeB64 = (b) => {
   try {
     const bin = atob(String(b || ""));
@@ -175,14 +175,14 @@ const decodeB64 = (b) => {
   }
 };
 
-// Edit-mode shortcut hints (confirm bar + tooltip dono me)
+// Edit-mode shortcut hints (in both the confirm bar + tooltip)
 const EDIT_HINTS = "Click text · Enter saves · Esc cancels · Tab next · Ctrl+E edit HTML · Ctrl+Z undo last save · Alt+click attributes · Alt+↑/↓ move · Del remove · Ctrl+D duplicate · Ctrl+K wrap link · Shift+click inspect";
 
-// Sidebar style tiles ke chhote labels
+// Short labels for the sidebar style tiles
 const ALIGN_ABBR = { left: "L", center: "C", right: "R", justify: "J" };
 const TT_ABBR = { none: "TT", uppercase: "AA", lowercase: "aa", capitalize: "Aa" };
 
-// Visual controls ke options (Cursor-style property panel)
+// Options for the visual controls (Cursor-style property panel)
 const JC_OPTS = [
   ["", "auto"], ["flex-start", "start"], ["center", "center"],
   ["flex-end", "end"], ["space-between", "between"],
@@ -192,7 +192,7 @@ const AI_OPTS = [
   ["", "auto"], ["flex-start", "start"], ["center", "center"],
   ["flex-end", "end"], ["stretch", "stretch"], ["baseline", "baseline"],
 ];
-// Generic families pehle order me — computed fontFamily me yahi milte hain
+// Generic families first in order — these are what computed fontFamily reports
 const FF_OPTS = [
   ["system-ui", "System"], ["sans-serif", "Sans"], ["serif", "Serif"],
   ["monospace", "Mono"], ["cursive", "Cursive"],
@@ -203,7 +203,7 @@ const PALETTE = [
   "#22c55e", "#14b8a6", "#3b82f6", "#a855f7", "#6b7280",
 ];
 
-// Ek line ka slider row (label + range + live value)
+// Single-line slider row (label + range + live value)
 function EbSlider({ label, val, min, max, step, unit, display, disabled, onChange }) {
   return (
     <div className="eb-slider">
@@ -218,8 +218,8 @@ function EbSlider({ label, val, min, max, step, unit, display, disabled, onChang
   );
 }
 
-// Ek tree row (DOM node) — recursion se children render hote hain.
-// DnD: row drag → target row ke before/after/inside (Y-position se).
+// One tree row (DOM node) — children render via recursion.
+// DnD: row drag → before/after/inside the target row (from Y-position).
 function EbTreeRow({ node, depth, expanded, sel, row, onToggle, onSel, onHover, onDropRow, onDragStartRow, onDragEndRow, setRow }) {
   const kids = node.k || null;
   const hasKids = !!(kids && kids.length);
@@ -289,7 +289,7 @@ function EbTreeRow({ node, depth, expanded, sel, row, onToggle, onSel, onHover, 
   );
 }
 
-// Text input row — poll ke rerender par focus/value na hile, Enter/blur par commit.
+// Text input row — keeps focus/value stable across poll rerenders, commits on Enter/blur.
 function EbTextRow({ label, value, placeholder, onCommit }) {
   const [v, setV] = useState(value || "");
   const focusedRef = useRef(false);
@@ -330,7 +330,7 @@ const BrowserPanel = (props) => {
   const [moreOpen,     setMoreOpen]     = useState(false);
   const [popupStyle,   setPopupStyle]   = useState({});
   const [editMode,     setEditMode]     = useState(false);
-  // Edit sidebar — edit mode ke saare controls yahan hote hain
+  // Edit sidebar — all edit-mode controls live here
   const [editSidebarOpen, setEditSidebarOpen] = useState(true);
   const [editStyle,    setEditStyle]    = useState({ active: false });
   const [toast,        setToast]        = useState(null);
@@ -339,7 +339,7 @@ const BrowserPanel = (props) => {
   const [treeSel,      setTreeSel]      = useState(0);
   const [treeRow,      setTreeRow]      = useState(null); // drag indicator { id, pos }
   const [treeExpanded, setTreeExpanded] = useState({});
-  const treeDragRef    = useRef(0);   // drag session ka source id (poll skip ke liye bhi)
+  const treeDragRef    = useRef(0);   // source id of the drag session (also for skipping polls)
   // ── v7: properties panel (attrs + source locate) ──
   const [propState,    setPropState]    = useState({ active: false });
   const [propLoc,      setPropLoc]      = useState(null);
@@ -377,7 +377,7 @@ const BrowserPanel = (props) => {
   const editTitleRef = useRef({ t: "", at: 0 });
 
   // ── Page zoom (Ctrl+Scroll / Ctrl+Plus/Minus/0 — webview content zoom) ───
-  // Actual page content zoom hai (webview.setZoomFactor). 25%–300%, step 10%.
+  // Actual page-content zoom (webview.setZoomFactor). 25%–300%, step 10%.
   const [zoomFactor, setZoomFactor] = useState(1);
   const zoomRef = useRef(1);
   const bumpZoomRef = useRef(null);
@@ -431,7 +431,7 @@ const BrowserPanel = (props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runFind]);
 
-  // ── Shortcut actions (guest IPC + host keys dono yahin aate hain) ───
+  // ── Shortcut actions (both guest IPC + host keys arrive here) ───
   const runBrowserAction = useCallback((action) => {
     const wv = webviewRef.current;
     switch (action) {
@@ -468,9 +468,9 @@ const BrowserPanel = (props) => {
   useEffect(() => { editModeRef.current = editMode; }, [editMode]);
 
   // ── Host Ctrl+Wheel zoom (view-wrap fallback) ─────────────────────────────
-  // Page ke ANDAR ka Ctrl+Wheel guest script pakadta hai (INJECT_SCRIPT →
-  // "__IBX_ZOOM__" title marker). Ye host listener wrap par wheel ko pakadta
-  // hai. passive:false zaroori hai taaki preventDefault kaam kare.
+  // Ctrl+Wheel INSIDE the page is caught by the guest script (INJECT_SCRIPT →
+  // "__IBX_ZOOM__" title marker). This host listener catches wheel on the wrapper
+  // instead. passive:false is required so preventDefault works.
   useEffect(() => {
     const el = viewWrapRef.current;
     if (!el) return;
@@ -529,7 +529,7 @@ const BrowserPanel = (props) => {
   const guestStyle = useCallback((name, val) => {
     const arg = val == null ? "" : "," + JSON.stringify(String(val));
     runGuest(`window.__ibxStyleAction && window.__ibxStyleAction(${JSON.stringify(name)}${arg})`);
-    // Turant refresh + poll bhi chalega hi (naye apply ke baad highlight sahi aaye)
+    // Refresh immediately + polling keeps running anyway (so the highlight is correct after a fresh apply)
     setTimeout(refreshStyleState, 120);
   }, [runGuest, refreshStyleState]);
 
@@ -568,7 +568,7 @@ const BrowserPanel = (props) => {
     if (p && typeof p.then === "function") { try { await p; } catch {} }
     refreshTree(); refreshStyleState(); refreshProps();
   }, [runGuest, refreshTree, refreshStyleState, refreshProps]);
-  // HTML5 DnD drop → src (drag session se) + target row + position
+  // HTML5 DnD drop → src (from the drag session) + target row + position
   const dropTreeRow = useCallback((targetId, pos) => {
     const src = treeDragRef.current;
     treeDragRef.current = 0;
@@ -599,8 +599,8 @@ const BrowserPanel = (props) => {
   }, []);
   const addToken = useCallback(() => {
     const c = String(editStyle.color || "").toLowerCase();
-    if (!/^#[0-9a-f]{6}$/.test(c)) { showToast("Element select karke text color set karo pehle", "info"); return; }
-    if (tokens.indexOf(c) !== -1) { showToast(`${c} pehle se token me hai`, "info"); return; }
+    if (!/^#[0-9a-f]{6}$/.test(c)) { showToast("Select an element and set its text color first", "info"); return; }
+    if (tokens.indexOf(c) !== -1) { showToast(`${c} is already a token`, "info"); return; }
     saveTokens([...tokens, c]);
     showToast(`Token ${c} saved (project)`, "success");
   }, [editStyle.color, tokens, saveTokens, showToast]);
@@ -608,8 +608,8 @@ const BrowserPanel = (props) => {
     saveTokens(tokens.filter((x) => x !== c));
   }, [tokens, saveTokens]);
 
-  // ── Sidebar = docked panel → webview apne aap shrink hota hai, isliye
-  //    guest ko kabhi sidebar-width subtract nahi karni (vw() = innerWidth).
+  // ── Sidebar = docked panel → the webview shrinks on its own, so
+  //    the guest must never subtract the sidebar width (vw() = innerWidth).
   const editSidebarRef    = useRef(null);
   const syncSbWidthRef    = useRef(() => {});
   const syncSidebarWidth  = useCallback(() => {
@@ -625,7 +625,7 @@ const BrowserPanel = (props) => {
     } catch { return false; }
   }, []);
 
-  // ── Live-edit undo stack (is panel se applied edits; cap 20) ─────────
+  // ── Live-edit undo stack (edits applied from this panel; cap 20) ─────────
   const undoStackRef = useRef([]);
   const [undoCount, setUndoCount] = useState(0);
   const pushUndo = useCallback((entry) => {
@@ -635,8 +635,8 @@ const BrowserPanel = (props) => {
       setUndoCount(undoStackRef.current.length);
     } catch {}
   }, []);
-  // Edit mode ON = naya session — purana stack hatao, taaki Cancel sirf
-  // isi session ki changes revert kare (purani accepted changes safe rahein).
+  // Edit mode ON = new session — drop the old stack, so Cancel only
+  // reverts this session's changes (older accepted changes stay safe).
   useEffect(() => {
     if (editMode) { undoStackRef.current = []; setUndoCount(0); }
   }, [editMode]);
@@ -664,12 +664,12 @@ const BrowserPanel = (props) => {
   const handleLiveEdit = useCallback(async (data) => {
     const rawMode = String(data?.mode || "");
     const mode = rawMode === "html" || rawMode === "undo" || rawMode === "notice" ? rawMode : "text";
-    // ── Guest se chhoti notice (sidebar tool bina target ke, wagairah) ──
+    // ── Small notice from the guest (sidebar tool without a target, etc.) ──
     if (mode === "notice") {
       showToast(String(data?.msg || "Nothing selected").slice(0, 160), "info");
       return;
     }
-    // ── Ctrl+Z (guest): last saved edit revert karo — file + DOM dono ──
+    // ── Ctrl+Z (guest): revert the last saved edit — both file + DOM ──
     if (mode === "undo") {
       const ok = await undoLiveEdit();
       if (ok) {
@@ -721,7 +721,7 @@ const BrowserPanel = (props) => {
       if (res?.ok) {
         const rel = res.rel || res.filePath?.split(/[\\/]/).pop() || "file";
         showToast(`✓ Updated ${rel} (${res.ext||""})`, "success");
-        // Undo ke liye exact strings (main `replaced` bhejta hai — whitespace-safe).
+        // Exact strings for undo (main sends `replaced` — whitespace-safe).
         try {
           const applied = mode === "html" ? String(newHtml).trim() : newText;
           const original = (typeof res.replaced === "string" && res.replaced) ? res.replaced : (mode === "html" ? String(oldHtml).trim() : oldText);
@@ -730,10 +730,9 @@ const BrowserPanel = (props) => {
           }
         } catch {}
         try { window.dispatchEvent(new CustomEvent("liveEdit:applied", { detail: { filePath: res.filePath, oldText: mode === "html" ? oldHtml.slice(0, 120) : oldText, newText: mode === "html" ? newHtml.slice(0, 120) : newText, rel } })); } catch {}
-        // NOTE: webview reload NAHI — guest DOM pehle se updated hai (wahi
-        // mutation save hui hai). Reload karne se tree selection/highlight/
-        // drag state wipe ho jata tha aur har button click "selection lost"
-        // jaisa lagta tha.
+        // NOTE: no webview reload — the guest DOM is already updated (that
+        // mutation is what was saved). Reloading wiped tree selection/highlight/
+        // drag state and every button click felt like "selection lost".
         // also trigger fs watcher friendly toast for Monaco
         try { window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: res.filePath, code: await window.electronAPI.readTextFile(res.filePath) } })); } catch {}
       } else {
@@ -880,7 +879,7 @@ const BrowserPanel = (props) => {
 
     wv.addEventListener("did-fail-load", (e) => {
       setIsLoading(false);
-      // Sub-frame failure → page ka content quietly ignore
+      // Sub-frame failure → quietly ignore the page content
       if (!e.isMainFrame) return;
       // -3 = ERR_ABORTED (navigation cancelled / user stopped) — ignore silently
       if (e.errorCode === -3) return;
@@ -954,7 +953,7 @@ const BrowserPanel = (props) => {
     });
     wv.addEventListener("plugin-crashed", showCrash);
 
-    // Find matches → count badge (request se nahi, event se aata hai)
+    // Find matches → count badge (comes from the event, not the request)
     wv.addEventListener("found-in-page", (e) => {
       try {
         const r = e.result || {};
@@ -1027,10 +1026,10 @@ const BrowserPanel = (props) => {
     // ("__IBX_NAV__b"/"__IBX_NAV__f") caught below in page-title-updated.
     // HTML file drag-and-drop → "__IBX_DROP__<path>" marker → opened via ibx-file://
     // Ctrl+Wheel zoom → "__IBX_ZOOM__in/out:<ts>" marker → host bumpZoom().
-    // (webview wheel events host tak bubble NAHI hote, isliye guest me hi
-    //  pakadna padta hai. Marker me timestamp taaki har tick par
-    //  page-title-updated fire ho; turant prev title restore taaki page ka
-    //  asli title kharab na ho.)
+    // (webview wheel events do NOT bubble to the host, so they must be
+    //  caught in the guest. Timestamp in the marker so every tick fires
+    //  page-title-updated; restore the prev title immediately so the page's
+    //  real title is not corrupted.)
     const INJECT_SCRIPT = `(() => {
       try {
         var mark = function(b){ try{ document.title="__IBX_NAV__"+b; }catch(e){} };
@@ -1095,7 +1094,7 @@ const BrowserPanel = (props) => {
             else if (editModeRef.current) {
               setTimeout(()=> {
                 try{ wv.executeJavaScript('window.__ibxSetEditMode && window.__ibxSetEditMode(true)'); }catch{}
-                // Navigation = naya guest window → sidebar width var gayab
+                // Navigation = new guest window → sidebar width var is gone
                 try{ syncSbWidthRef.current && syncSbWidthRef.current(); }catch{}
               }, 120);
             }
@@ -1105,7 +1104,7 @@ const BrowserPanel = (props) => {
     };
     wv.addEventListener("dom-ready", () => {
       injectGuest(1); injectEditHelper(1);
-      // Zoom persist rakho — navigation par WebContents zoom na khoye.
+      // Keep zoom persistent — don't lose WebContents zoom on navigation.
       try { if (Number.isFinite(zoomRef.current) && zoomRef.current !== 1) wv.setZoomFactor(zoomRef.current); } catch {}
       try {
         const z = wv.getZoomFactor?.();
@@ -1115,9 +1114,9 @@ const BrowserPanel = (props) => {
 
     wv.addEventListener("page-title-updated", (e) => {
       const t = e.title || "";
-      // Guest payloads base64 me aate hain (document.title whitespace collapse
-      // karta hai — plain JSON me "a  b"/tabs/newlines toot jate). Legacy
-      // plain-JSON markers bhi padhe jate hain (purana injected script ho to).
+      // Guest payloads arrive as base64 (document.title collapses whitespace
+      // — plain JSON loses "a  b"/tabs/newlines). Legacy
+      // plain-JSON markers are also read (in case an old injected script is present).
       if (t.startsWith("__IBX_EDIT__B64__")) {
         try {
           const now = Date.now();
@@ -1136,7 +1135,7 @@ const BrowserPanel = (props) => {
         return;
       }
       // Hover locate ping: `__IBX_LOCATE64__<id> <b64>` → file guess badge.
-      // Host kabhi block nahi hota (async), stale replies guest khud ignore karta hai.
+      // The host never blocks (async); the guest ignores stale replies itself.
       const handleLocatePayload = (id, payload) => {
         if (!Number.isFinite(id) || !payload || !payload.t) return;
         (async () => {
@@ -1175,8 +1174,8 @@ const BrowserPanel = (props) => {
         } catch {}
         return;
       }
-      // Ctrl+Wheel page zoom (guest INJECT_SCRIPT se) — title restore guest
-      // khud karta hai, yahan sirf zoom step lagao, tab title mat badlo.
+      // Ctrl+Wheel page zoom (from guest INJECT_SCRIPT) — the guest restores
+      // the title itself; only apply the zoom step here, don't change the tab title.
       if (t.startsWith("__IBX_ZOOM__in")) {
         try { bumpZoomRef.current?.("in"); } catch {}
         return;
@@ -1444,15 +1443,15 @@ const BrowserPanel = (props) => {
   const webviewRefCb = useCallback((el) => {
     if (el) {
       webviewRef.current = el; attachListenersRef.current(el); syncActionTab();
-      // Mount par existing page zoom wapas lagao (remount edge-case)
+      // Mount: re-apply the existing page zoom (remount edge case)
       try { if (Number.isFinite(zoomRef.current) && zoomRef.current !== 1) el.setZoomFactor(zoomRef.current); } catch {}
     }
     else    { attachedRef.current = false; webviewRef.current = null; }
   }, [syncActionTab]);
 
   // ── Edit mode toggle → inject into webview ─────────────────────────────────
-  // Cancel apna "Cancelled — reverted" toast dikhata hai; generic
-  // "Edit mode OFF" usse overwrite na kare isliye flag.
+  // Cancel shows its own "Cancelled — reverted" toast; the generic
+  // "Edit mode OFF" must not overwrite it, hence the flag.
   const skipOffToastRef = useRef(false);
   useEffect(() => {
     const wv = webviewRef.current;
@@ -1467,7 +1466,7 @@ const BrowserPanel = (props) => {
     skipOffToastRef.current = false;
   }, [editMode, showToast]);
 
-  // Edit mode on → sidebar khul jaye; poll taaki style panel ka state sahi rahe
+  // Edit mode on → open the sidebar; poll so the style panel state stays correct
   useEffect(() => {
     if (editMode) setEditSidebarOpen(true);
   }, [editMode]);
@@ -1479,14 +1478,14 @@ const BrowserPanel = (props) => {
     const iv = setInterval(() => {
       refreshStyleState();
       refreshProps();
-      // Tree tabhi refresh karo jab DnD chal na raha ho (warna row hat
-      // jaati aur drop target stale ho jata)
+      // Refresh the tree only when DnD is not running (otherwise the row
+      // disappears and the drop target goes stale)
       if (!treeDragRef.current) refreshTree();
     }, 800);
     return () => clearInterval(iv);
   }, [editMode, editSidebarOpen, refreshStyleState, refreshTree, refreshProps]);
 
-  // Edit mode off → saara v7 panel state reset (guest khud clear karta hai)
+  // Edit mode off → reset all v7 panel state (the guest clears itself)
   useEffect(() => {
     if (editMode) return;
     setTreeData({ on: false, nodes: [] });
@@ -1498,11 +1497,11 @@ const BrowserPanel = (props) => {
     treeDragRef.current = 0;
   }, [editMode]);
 
-  // Edit mode on → project ke design tokens load
+  // Edit mode on → load the project's design tokens
   useEffect(() => { if (editMode) loadTokens(); }, [editMode, hasProject, loadTokens]);
 
-  // Tree auto-expand: top 2 levels hamesha + target path (page se click
-  // kiya ho to us row tak khul jaye)
+  // Tree auto-expand: top 2 levels always + target path (so a row clicked
+  // from the page opens up to it)
   useEffect(() => {
     if (!treeData || !treeData.on) return;
     setTreeExpanded((prev) => {
@@ -1525,8 +1524,8 @@ const BrowserPanel = (props) => {
     });
   }, [treeData]);
 
-  // Properties → source file guess (hover badge wali hi liveEditLocate call).
-  // Deps primitives hain — poll me same element par same values → no re-run.
+  // Properties → source file guess (same liveEditLocate call as the hover badge).
+  // Deps are primitives — same values on the same element across polls → no re-run.
   useEffect(() => {
     if (!propState.active || !propState.text) { setPropLoc(null); return; }
     let dead = false;
@@ -1610,7 +1609,7 @@ const BrowserPanel = (props) => {
         return;
       }
       // Ctrl+0 → reset zoom, Ctrl+Plus/Ctrl+Minus → zoom (webview)
-      // (Ctrl+Scroll zoom guest INJECT_SCRIPT + host wheel listener se hota hai)
+      // (Ctrl+Scroll zoom happens via guest INJECT_SCRIPT + host wheel listener)
       if ((e.ctrlKey || e.metaKey) && (e.key === "0")) {
         e.preventDefault();
         try { bumpZoomRef.current ? setZoomExact(1) : wv.setZoomFactor(1); } catch { try { wv.setZoomFactor(1); } catch {} }
@@ -1643,7 +1642,7 @@ const BrowserPanel = (props) => {
     }
   }, [lockOpen]);
 
-  // ── ⋮ More menu — outside click / Escape se band karo
+  // ── ⋮ More menu — close on outside click / Escape
   useEffect(() => {
     if (!moreOpen) return;
     const onDown = (e) => {
@@ -1660,7 +1659,7 @@ const BrowserPanel = (props) => {
     };
   }, [moreOpen]);
 
-  // Done: pending edit save karke edit mode band (Cancel ka opposite)
+  // Done: save the pending edit and exit edit mode (opposite of Cancel)
   const handleDoneEditMode = useCallback(async () => {
     try { await webviewRef.current?.executeJavaScript('window.__ibxCommitPendingEdit && window.__ibxCommitPendingEdit()'); } catch {}
     // Give page-title-updated a beat to deliver the payload before helpers detach
@@ -1676,12 +1675,12 @@ const BrowserPanel = (props) => {
     setMoreOpen(false);
   }, [editMode, handleDoneEditMode]);
 
-  // Cancel: is session ki SAARI saved changes file se revert karo + pending
-  // edit DOM se hatao, phir edit mode band. (Pehle sirf active element revert
-  // hota tha — pehle se save chuke changes file me reh jate the.)
+  // Cancel: revert ALL saved changes of this session from the file + drop the pending
+  // edit from the DOM, then exit edit mode. (Previously only the active element reverted
+  // — already-saved changes stayed in the file.)
   const handleCancelEditMode = useCallback(async () => {
     try { await webviewRef.current?.executeJavaScript('window.__ibxCancelEdit && window.__ibxCancelEdit()'); } catch {}
-    // In-flight commit ka push abhi aa sakta hai — stack khaali hone tak retry.
+    // An in-flight commit may still push — retry until the stack is empty.
     let reverted = 0;
     for (let pass = 0; pass < 5 && undoStackRef.current.length; pass++) {
       while (undoStackRef.current.length) {
@@ -1704,7 +1703,7 @@ const BrowserPanel = (props) => {
     }
     setUndoCount(undoStackRef.current.length);
     if (reverted) {
-      // File wapas original — DOM ko bhi file jaisa karne ke liye reload.
+      // File is back to original — reload so the DOM matches the file again.
       try { webviewRef.current?.reload(); } catch {}
       skipOffToastRef.current = true;
       showToast(`Cancelled — ${reverted} change${reverted === 1 ? "" : "s"} reverted`, "info");
@@ -1739,8 +1738,8 @@ const BrowserPanel = (props) => {
   }, []);
 
   // ── Guest shortcuts (main forwards webview keys via IPC) ─────────────
-  // wcId match → sirf usi tab me chalo (baki tabs ignore). Fallback:
-  // focused guest ka activeElement webview element hota hai.
+  // wcId match → run only in that tab (other tabs ignore). Fallback:
+  // the focused guest's activeElement is the webview element.
   useEffect(() => {
     const unsub = window.electronAPI?.onBrowserShortcut?.((payload) => {
       const { action, wcId } = payload || {};
@@ -1759,10 +1758,10 @@ const BrowserPanel = (props) => {
     return () => { try { unsub?.(); } catch {} };
   }, [runBrowserAction]);
 
-  // ── Host shortcuts (address bar / panel chrome me focus ho tab) ───────
-  // Guest page ke keys host tak aate hi nahi (wo IPC path se aate hain), aur
-  // dusre panels apne shortcuts khud handle karte hain — target check se clash nahi.
-  // Zoom keys yahan NAHI (View menu accelerators + page content-zoom se double-step).
+  // ── Host shortcuts (when focus is in the address bar / panel chrome) ───────
+  // Guest page keys never reach the host (they come via the IPC path), and
+  // other panels handle their own shortcuts — no clash via the target check.
+  // No zoom keys here (View menu accelerators + page content-zoom would double-step).
   useEffect(() => {
     const inPanel = (e) => {
       try {
@@ -1794,7 +1793,7 @@ const BrowserPanel = (props) => {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [runBrowserAction]);
 
-  // ── Unmount: pending find roko ──
+  // ── Unmount: stop the pending find ──
   useEffect(() => () => {
     clearTimeout(findDebounceRef.current);
     try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
@@ -1887,7 +1886,7 @@ const BrowserPanel = (props) => {
             />
           </div>
 
-          {/* ⋮ More options — zoom yahin hai (toolbar me nahi) */}
+          {/* ⋮ More options — zoom lives here (not in the toolbar) */}
           <div ref={moreWrapRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
             <button
               ref={moreBtnRef}
@@ -1958,7 +1957,7 @@ const BrowserPanel = (props) => {
             )}
           </div>
 
-          {/* Extension actions (browser-action-list) — alag rakha hai, ⋮ me nahi */}
+          {/* Extension actions (browser-action-list) — kept separate, not in ⋮ */}
           <browser-action-list
             ref={actionListRef}
             style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
@@ -2000,7 +1999,7 @@ const BrowserPanel = (props) => {
 
       {/* Row: webview (flex:1) + docked edit sidebar (fixed width) */}
       <div className="browser__main">
-      {/* Webview — hamesha SAME element (no remount, no reload) */}
+      {/* Webview — always the SAME element (no remount, no reload) */}
       <div
         ref={viewWrapRef}
         className="browser__view-wrap"
@@ -2130,7 +2129,7 @@ const BrowserPanel = (props) => {
         )}
       </div>{/* /.browser__view-wrap */}
 
-        {/* ── Edit sidebar — docked panel, edit mode ke saare controls ── */}
+        {/* ── Edit sidebar — docked panel, all edit-mode controls ── */}
         {editMode && editSidebarOpen && (
           <aside ref={editSidebarRef} className={`browser__edit-sidebar${isVisualOnlyUrl ? " browser__edit-sidebar--warn" : ""}`}>
             <div className="eb-head">
@@ -2172,7 +2171,7 @@ const BrowserPanel = (props) => {
                     </button>
                   </span>
                 </div>
-                <div className="eb-hint">Click = select · drag row = reorder · hover = page me highlight</div>
+                <div className="eb-hint">Click = select · drag row = reorder · hover = highlight in page</div>
                 <div className="eb-tree">
                   {treeData && treeData.on && treeData.nodes.length ? (
                     treeData.nodes.map((n) => (
@@ -2187,9 +2186,9 @@ const BrowserPanel = (props) => {
                       />
                     ))
                   ) : (
-                    <div className="eb-hint">Page load hone do…</div>
+                    <div className="eb-hint">Let the page load…</div>
                   )}
-                  {treeData && treeData.trunc && <div className="eb-hint">… truncated (bade page ka hissa)</div>}
+                  {treeData && treeData.trunc && <div className="eb-hint">… truncated (part of a large page)</div>}
                 </div>
               </div>
 
@@ -2254,7 +2253,7 @@ const BrowserPanel = (props) => {
                   <button
                     className={`eb-tbtn${editStyle.disp === "grid" ? " eb-tbtn--on" : ""}`}
                     disabled={!editStyle.active} onClick={() => guestStyle("grid")}
-                    title="display: grid (dobara click = remove)"
+                    title="display: grid (click again = remove)"
                   ><span>Grid</span></button>
                   <button
                     className={`eb-tbtn${editStyle.disp && editStyle.disp !== "flex" && editStyle.disp !== "grid" ? " eb-tbtn--on" : ""}`}
@@ -2264,7 +2263,7 @@ const BrowserPanel = (props) => {
                 </div>
                 {editStyle.disp === "grid" && (
                   <>
-                    <EbTextRow label="Cols" value={editStyle.gcols || ""} placeholder="3 ya repeat(3, 1fr)"
+                    <EbTextRow label="Cols" value={editStyle.gcols || ""} placeholder="3 or repeat(3, 1fr)"
                       onCommit={(v) => guestStyle("gcols", v)} />
                     <EbTextRow label="Rows" value={editStyle.grows || ""} placeholder="auto"
                       onCommit={(v) => guestStyle("grows", v)} />
@@ -2288,7 +2287,7 @@ const BrowserPanel = (props) => {
                   <span>Wrap</span>
                   <select className="eb-select" value={editStyle.wrap || ""} disabled={!editStyle.active}
                     onChange={(e) => guestStyle("wrap", e.target.value)}
-                    title="flex-wrap — items ko next line me wrap karo">
+                    title="flex-wrap — wrap items to the next line">
                     <option value="">auto</option>
                     <option value="nowrap">nowrap</option>
                     <option value="wrap">wrap</option>
@@ -2357,12 +2356,12 @@ const BrowserPanel = (props) => {
                       title={`Text color ${c} (Alt+click = background)`} />
                   ))}
                   <button className="eb-swatch eb-swatch--add" disabled={!editStyle.active} onClick={addToken}
-                    title="Current text color ko project token me save karo (+)">
+                    title="Save the current text color as a project token (+)">
                     +
                   </button>
                 </div>
                 {!tokens.length && (
-                  <div className="eb-hint">+ se color project me save hoga (right-click se remove)</div>
+                  <div className="eb-hint">+ saves the color to the project (right-click to remove)</div>
                 )}
               </div>
 
@@ -2372,7 +2371,7 @@ const BrowserPanel = (props) => {
                   Properties{propState.active && propState.tag ? ` · <${propState.tag}>` : ""}
                 </div>
                 {!propState.active && (
-                  <div className="eb-hint">Page ya tree me element select karo</div>
+                  <div className="eb-hint">Select an element in the page or tree</div>
                 )}
                 {propState.active && (
                   <>
@@ -2406,7 +2405,7 @@ const BrowserPanel = (props) => {
                       </div>
                     ) : (
                       <div className="eb-hint">
-                        {propState.text ? "Source file nahi mila" : "Text wale element par source match hota hai"}
+                        {propState.text ? "Source file not found" : "Source matches on elements with text"}
                       </div>
                     )}
                   </>

@@ -12,21 +12,21 @@ try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ip
 let mcpServer = null;
 try { mcpServer = require("./mcp-server"); } catch (e) { console.warn("[main] mcp-server not available:", e.message); }
 // Windows taskbar icon notes:
-// - Taskbar button ka icon live window se NAHI, process exe ki identity
-//   (embedded icon + AUMID shortcut-lookup) se aata hai.
-// - Packaged app me ye installer shortcut + exe icon se match hota hai — ye
-//   value package.json build.appId ke barabar honi chahiye.
-// - Dev (`electron .`) me exe node_modules ka electron.exe hai; usme app ka
-//   icon `tools/stamp-dev-icon.cjs` (postinstall + `npm run dev:icon`)
-//   embed karta hai. BrowserWindow `icon` option Alt-Tab/titlebar deta hai,
-//   taskbar button exe icon deta hai — dono lagane padte hain.
+// - The taskbar button icon comes NOT from the live window but from the process exe identity
+//   (embedded icon + AUMID shortcut lookup).
+// - In a packaged app it must match the installer shortcut + exe icon — this
+//   value must equal package.json build.appId.
+// - In dev (`electron .`) the exe is node_modules' electron.exe; the app icon is
+//   embedded by `tools/stamp-dev-icon.cjs` (postinstall + `npm run dev:icon`).
+//   The BrowserWindow `icon` option covers Alt-Tab/titlebar,
+//   the exe icon covers the taskbar button — both are needed.
 try { app.setAppUserModelId("com.thewonderlandstudio.idiotbox"); } catch (e) { console.warn("[main] setAppUserModelId:", e && e.message); }
 // Platform-aware app icon: .ico on Windows (taskbar + Alt-Tab), .png elsewhere.
-// Packaged app me build/icons/ asar ke andar nahi hota (files me sirf
-// electron/**/* hai), lekin extraResources se electron/renderer/assets/*
-// <resources>/assets/ me real disk path par hota hai. Windows shell (taskbar)
-// asar ke andar ki file se icon nahi utha pata — isliye packaged me pehle
-// process.resourcesPath dekho, phir dev paths (build/icons, renderer/assets).
+// In a packaged app build/icons/ is not inside the asar (files contains only
+// electron/**/*), but extraResources puts electron/renderer/assets/* at a
+// real disk path under <resources>/assets/. The Windows shell (taskbar)
+// cannot pick an icon from inside the asar — so in packaged builds check
+// process.resourcesPath first, then the dev paths (build/icons, renderer/assets).
 function getAppIcon() {
   let packagedAssets = null;
   try {
@@ -104,7 +104,7 @@ try { androidManager = require("./android"); } catch (e) { console.warn("[main] 
 // Settings → General → Telemetry. See electron/main/tracking.js.
 let tracking = null;
 try { tracking = require("./tracking"); } catch (e) { console.warn("[main] tracking not available:", e.message); }
-// Hub chat → Pollinations free AI (main process se fetch, renderer se nahi)
+// Hub chat → Pollinations free AI (fetched from the main process, not the renderer)
 try { require("./ai-chat").registerAiChat(); } catch (e) { console.warn("[main] ai-chat not available:", e.message); }
 try { require("./opencode-panel").registerOpenCodePanel(() => lastProjectPath); } catch (e) { console.warn("[main] OpenCode panel not available:", e.message); }
 // App extension host — local folder installs, vscode-shim activation.
@@ -154,9 +154,9 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // ─── Deep link: idiotbox:// protocol (website "Update my app" button) ──────
-// Landing page (chatlog) ka "Update my app" button `idiotbox://update` kholta
-// hai → OS installed app launch karta hai (ya running instance ko deta hai).
-// NSIS installer registry entry `protocols` (package.json) se banata hai.
+// The landing page (chatlog) "Update my app" button opens `idiotbox://update`
+// → the OS launches the installed app (or hands it to the running instance).
+// The NSIS installer creates the registry entry from `protocols` (package.json).
 // Flow: second-instance / open-url / cold-start argv → handleIbxProtocolUrl
 // → window focus + updater:manualCheck + checkForUpdatesProper (latest.yml).
 const IBX_PROTOCOL = "idiotbox";
@@ -199,25 +199,25 @@ async function handleIbxProtocolUrl(raw) {
   console.log("[protocol] idiotbox://update — triggering update check");
   try { logOutput("Updater", "Update requested from website (idiotbox://update)"); } catch {}
   const win = focusMainWindow();
-  // Store build me GitHub check banned — sirf window focus karo.
+  // Store builds must not check GitHub — only focus the window.
   if (isStoreBuild()) {
     console.log("[protocol] Store build — skipping update check (managed by Microsoft Store)");
     return true;
   }
-  // Renderer ko manual-check jaisa UX do (center modal/banner), phir feed check.
+  // Give the renderer manual-check-like UX (center modal/banner), then check the feed.
   try { if (win && !win.isDestroyed()) win.webContents.send("updater:manualCheck"); } catch {}
   try { await checkForUpdatesProper(win); } catch (e) { console.warn("[protocol] update check failed:", e?.message || e); }
   return true;
 }
 
 // ─── "Open With Idiot Box" — OS file opens ────────────────────────────────
-// Windows/Linux: files process.argv / second-instance argv me aate hain.
-// macOS: "open-file" event (app ready se pehle bhi aa sakta hai).
-// Renderer flex model ready hone se pehle aaye files pending queue me rehti
-// hain; renderer model banne ke baad "editor:rendererReady" bhejta hai →
-// main ping karta hai → renderer pending files pull karke tabs me kholta hai.
-// Har open pull-par-driven hai, isliye reload/delivery race me file kabhi
-// drop nahi hoti (queue tabhi clear hoti hai jab renderer le chuka ho).
+// Windows/Linux: files arrive via process.argv / second-instance argv.
+// macOS: "open-file" event (can arrive even before app ready).
+// Files arriving before the renderer flex model is ready stay in a pending queue;
+// once the renderer model exists it sends "editor:rendererReady" →
+// main pings → the renderer pulls the pending files and opens them in tabs.
+// Every open is pull-driven, so no file is ever dropped in a reload/delivery race
+// (the queue clears only after the renderer has taken it).
 const pendingOpenFiles = [];
 let osFilesRendererReady = false;
 
@@ -238,14 +238,14 @@ function extractOsOpenFiles(argv) {
   try {
     const list = Array.isArray(argv) ? argv : [];
     // Packaged: argv[0] = exe, file args argv[1..]. Dev (`electron .`):
-    // argv[1] = app dir/script — skip taaki wo file na ban jaye.
+    // argv[1] = app dir/script — skip so it never becomes a file.
     const start = app.isPackaged ? 1 : 2;
     const out = [];
     for (let i = start; i < list.length; i++) {
       const a = list[i];
       if (typeof a !== "string" || !a) continue;
       if (a.startsWith("-")) continue;                 // --switches
-      if (/^idiotbox:\/\//i.test(a)) continue;         // protocol URL (alag se handle hota)
+      if (/^idiotbox:\/\//i.test(a)) continue;         // protocol URL (handled separately)
       const p = normalizeOsFilePath(a);
       if (p) out.push(p);
     }
@@ -261,7 +261,7 @@ function queueOsFiles(paths) {
     for (const p of files) { if (!pendingOpenFiles.includes(p)) { pendingOpenFiles.push(p); added = true; } }
     if (!added) return;
     console.log(`[open-with] queued ${pendingOpenFiles.length} file(s)`);
-    if (!osFilesRendererReady) return;                 // renderer ready hone par khud pull karega
+    if (!osFilesRendererReady) return;                 // the renderer pulls them itself once ready
     let win = null;
     try { win = focusMainWindow(); } catch {}
     if (win && !win.isDestroyed()) win.webContents.send("editor:osFilesPending");
@@ -272,7 +272,7 @@ function takePendingOsFiles() {
   try { return pendingOpenFiles.splice(0); } catch { return []; }
 }
 
-// Renderer: flex model ready → pending files maang lo (ya live ping par pull).
+// Renderer: once the flex model is ready, request pending files (or pull on a live ping).
 ipcMain.handle("editor:rendererReady", (event) => {
   try {
     osFilesRendererReady = true;
@@ -291,7 +291,7 @@ ipcMain.handle("editor:takePendingFiles", () => {
 
 try {
   if (process.defaultApp) {
-    // Dev (`electron .`): explicit path ke saath register karo
+    // Dev (`electron .`): register with an explicit path
     if (process.argv.length >= 2) {
       try { app.setAsDefaultProtocolClient(IBX_PROTOCOL, process.execPath, [path.resolve(process.argv[1])]); } catch {}
     }
@@ -300,8 +300,8 @@ try {
   }
 } catch (e) { console.warn("[protocol] register failed:", e?.message || e); }
 
-// Single instance — doosri launch / protocol click hamesha pehle instance me aaye.
-// (Bina lock ke protocol click naya window khol dega aur update trigger nahi hoga.)
+// Single instance — a second launch / protocol click always lands in the first instance.
+// (Without the lock a protocol click would open a new window and never trigger the update.)
 const _ibxGotSingleLock = app.requestSingleInstanceLock();
 if (!_ibxGotSingleLock) {
   try { app.quit(); } catch {}
@@ -311,7 +311,7 @@ if (!_ibxGotSingleLock) {
       const url = findProtocolUrlInArgs(argv);
       if (url) { handleIbxProtocolUrl(url); return; }
     } catch {}
-    // "Open With Idiot Box" (running instance) → files existing window me kholo.
+    // "Open With Idiot Box" (running instance) → open files in the existing window.
     try {
       const files = extractOsOpenFiles(argv);
       if (files.length) { queueOsFiles(files); return; }
@@ -325,7 +325,7 @@ if (!_ibxGotSingleLock) {
       try { handleIbxProtocolUrl(url); } catch {}
     });
   } catch {}
-  // macOS: Finder se "Open With Idiot Box" (cold start me ready se pehle bhi aata hai)
+  // macOS: "Open With Idiot Box" from Finder (can arrive before ready on cold start)
   try {
     app.on("open-file", (event, filePath) => {
       try { event.preventDefault(); } catch {}
@@ -404,18 +404,18 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
           ".jsx": "jsx",
           ".ts": "tsx",
           ".tsx": "tsx",
-          // CSS imports bundle hokar ALAG css output me aate hain (renderer use
-          // iframe me inject karta hai) — "empty" karne par preview me koi
-          // stylesheet nahi lagti thi. scss/less compile nahi hote, empty hi.
+          // CSS imports are bundled into a SEPARATE css output (the renderer
+          // injects it into the iframe) — with "empty" no stylesheet applied
+          // in the preview. scss/less are not compiled, so they stay empty.
           ".css": "css", ".scss": "empty", ".less": "empty", ".pcss": "empty",
           ".png": "dataurl", ".jpg": "dataurl", ".jpeg": "dataurl", ".gif": "dataurl", ".webp": "dataurl", ".svg": "dataurl",
-          // CSS url() references (fonts) tootne na payen
+          // Keep CSS url() references (fonts) from breaking
           ".woff": "dataurl", ".woff2": "dataurl", ".ttf": "dataurl", ".eot": "dataurl", ".otf": "dataurl",
         },
         external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
         absWorkingDir: projectRoot || path.dirname(filePath),
-        // CSS bundle output ke liye outdir chahiye (write:false — disk par
-        // kuch nahi likhta, sirf outputFiles ke naam ke liye)
+        // An outdir is needed for the CSS bundle output (write:false — writes
+        // nothing to disk, only names the outputFiles)
         outdir: "ibx-preview-out",
         write: false,
         logLevel: "silent",
@@ -472,9 +472,9 @@ ipcMain.handle("component:bundle", async (_e, { source, filePath, projectRoot } 
         }
       }
       if (!result.outputFiles?.length) throw new Error("Empty bundle output");
-      // JS ke saath CSS bundle bhi nikalo (outputFiles me .css entry) — taaki
-      // component ke saare CSS imports (relative / package / @import chain /
-      // CSS modules) preview me lag saken. Koi CSS na ho to "".
+      // Also extract the CSS bundle alongside the JS (a .css entry in outputFiles) — so
+      // all of the component's CSS imports (relative / package / @import chain /
+      // CSS modules) apply in the preview. "" when there is no CSS.
       let jsText = "", cssText = "";
       try {
         for (const f of result.outputFiles || []) {
@@ -535,12 +535,12 @@ function safeRename(src, dest) {
 // ─── Project storage — app memory (userData) instead of polluting project ───
 // Human-readable layout (v2):
 //   <userData>/projects/
-//     README.txt                  ← ye folder kya hai (humans ke liye)
+//     README.txt                  ← what this folder is (for humans)
 //     index.json                  ← { version: 2, folders: { "<ProjectName>": { path, addedAt } } }
-//     <ProjectName>/              ← project ke naam par folder (same naam ho to " (2)", " (3)")
+//     <ProjectName>/              ← folder named after the project (same name → " (2)", " (3)")
 //       project.json              ← { projectPath, addedAt } (self-describing)
 //       tabs.json / pinconfig.json / canvas-layout.json / drawing.excalidraw / visual-tokens.json
-// Purane `<name>-<hash12>` folders pehli access par auto-migrate ho jate hain
+// Old `<name>-<hash12>` folders auto-migrate on first access
 // (rename only — data safe, project files untouched).
 const crypto = require("crypto");
 const STORE_INDEX_VERSION = 2;
@@ -554,8 +554,8 @@ const STORE_README =
   "- Deleting these files keeps PROJECT FILES safe — only app state (pins/tabs/canvas) resets.\r\n" +
   "- Open this same folder from the app via Storage menu -> \"Open Main Storage Folder\".\r\n";
 
-// Root + README.txt banao (idempotent) — "Open Main Storage" me yehi root khulta hai,
-// jisme saare project folders dikhte hain.
+// Create the root + README.txt (idempotent) — "Open Main Storage" opens this root,
+// which lists all project folders.
 function ensureStoreRoot() {
   try {
     const root = getProjectStoreRoot();
@@ -573,8 +573,8 @@ function sanitizeStoreName(name) {
   return s;
 }
 
-// index.json padho — purana format ({ "<absPath>": "<folder>", "_folder:<folder>": "<absPath>" })
-// ho to naye format me normalize karo. Returns { folderName: { path, addedAt } }.
+// Read index.json — normalize the old format ({ "<absPath>": "<folder>", "_folder:<folder>": "<absPath>" })
+// to the new format. Returns { folderName: { path, addedAt } }.
 function readStoreIndex() {
   const root = getProjectStoreRoot();
   const idxFile = path.join(root, "index.json");
@@ -621,7 +621,7 @@ function removeFromStoreIndex(resolvedPath) {
   } catch {}
 }
 
-// Purane hashed naam ko dobara banao (sirf migration ke liye)
+// Rebuild the old hashed name (for migration only)
 function legacyStoreDirName(resolved) {
   try {
     const hash = crypto.createHash("md5").update(resolved).digest("hex").slice(0, 12);
@@ -630,14 +630,14 @@ function legacyStoreDirName(resolved) {
   } catch { return null; }
 }
 
-// Human folder chuno — doosre project se takraye to " (2)", " (3)" lagao
+// Pick a human folder — on collision with another project append " (2)", " (3)"
 function pickStoreFolder(root, base, resolved, folders) {
   const taken = (name) => {
     if (folders[name] && folders[name].path !== resolved) return true;
     try {
       if (fs.existsSync(path.join(root, name))) {
-        // disk par hai par index me nahi (orphan) — andar project.json me
-        // hamara path ho to reuse karo, warna taken mano
+        // On disk but not in the index (orphan) — reuse it when project.json inside
+        // holds our path, otherwise treat it as taken
         try {
           const pj = JSON.parse(fs.readFileSync(path.join(root, name, "project.json"), "utf8"));
           if (pj?.projectPath === resolved) return false;
@@ -664,7 +664,7 @@ function writeProjectJson(dir, folder, resolved, addedAt) {
   } catch {}
 }
 
-// Purane `<name>-<12hex>` style naam ki pehchan (migration ke liye)
+// Recognize the old `<name>-<12hex>` style name (for migration)
 const LEGACY_SUFFIX_RE = /-[0-9a-f]{12}$/;
 
 function getProjectStoreDir(rootPath) {
@@ -674,10 +674,10 @@ function getProjectStoreDir(rootPath) {
     const resolved = path.resolve(rootPath);
     const folders = readStoreIndex();
 
-    // 1) index me pehle se mapped?
+    // 1) already mapped in the index?
     for (const [folder, entry] of Object.entries(folders)) {
       if (entry?.path === resolved) {
-        // purana hashed naam ho to human naam par migrate karo (rename, data safe)
+        // Migrate an old hashed name to a human name (rename, data safe)
         if (LEGACY_SUFFIX_RE.test(folder)) {
           const base = sanitizeStoreName(path.basename(resolved));
           const rest = { ...folders };
@@ -695,7 +695,7 @@ function getProjectStoreDir(rootPath) {
               writeProjectJson(newDir, target, resolved, folders[target].addedAt || new Date().toISOString());
               return newDir;
             } catch {
-              // fallback neeche: purana folder hi use karo
+              // fallback below: keep using the old folder
             }
           }
         }
@@ -710,7 +710,7 @@ function getProjectStoreDir(rootPath) {
       }
     }
 
-    // 2) purana hashed folder? → human naam par migrate (rename, data safe)
+    // 2) old hashed folder? → migrate to a human name (rename, data safe)
     const legacyName = legacyStoreDirName(resolved);
     if (legacyName && fs.existsSync(path.join(root, legacyName))) {
       const base = sanitizeStoreName(path.basename(resolved));
@@ -718,7 +718,7 @@ function getProjectStoreDir(rootPath) {
       try {
         fs.renameSync(path.join(root, legacyName), path.join(root, folder));
       } catch {
-        // rename fail (locked?) → purana folder hi use karo, map kar do
+        // rename failed (locked?) → keep using the old folder, just map it
         folders[legacyName] = { path: resolved };
         writeStoreIndex(folders);
         return path.join(root, legacyName);
@@ -730,7 +730,7 @@ function getProjectStoreDir(rootPath) {
       return path.join(root, folder);
     }
 
-    // 3) naya human-readable folder
+    // 3) new human-readable folder
     const base = sanitizeStoreName(path.basename(resolved));
     const folder = pickStoreFolder(root, base, resolved, folders);
     const dir = path.join(root, folder);
@@ -1458,15 +1458,15 @@ ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldTex
         if (!win.isDestroyed()) win.webContents.send("liveEdit:fileChanged", { filePath: targetPath, rel, oldText: oldUsed, newText: newTrim });
       }
     } catch {}
-    // replaced: exact slice jo file me tha (undo ke liye — whitespace-safe).
+    // replaced: the exact slice that was in the file (for undo — whitespace-safe).
     return { ok: true, filePath: targetPath, rel, ext: path.extname(targetPath).toLowerCase(), replaced: oldUsed };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }
 });
 
-// ── Live Edit: locate only (hover hint — koi write nahi) ────────────────
-// Returns { ok, filePath, rel, candidates } — best guess kahan patch hoga.
+// ── Live Edit: locate only (hover hint — no writes) ────────────────
+// Returns { ok, filePath, rel, candidates } — best guess for where the patch goes.
 ipcMain.handle("liveEdit:locate", async (_e, { projectRoot, url, oldText, outerSnippet, tagName } = {}) => {
   try {
     const needle = String(oldText || "").trim();
@@ -1476,7 +1476,7 @@ ipcMain.handle("liveEdit:locate", async (_e, { projectRoot, url, oldText, outerS
     let best = search.directPath || search.found[0].path;
     let bestScore = -1;
     if (!search.directPath && search.found.length > 1) {
-      // Cheap rank: pehli occurrence par context score (cap 10 files).
+      // Cheap rank: context score on the first occurrence (cap 10 files).
       for (const { path: fp, content } of search.found.slice(0, 10)) {
         const pos = content.indexOf(needle);
         if (pos === -1) continue;
@@ -1494,8 +1494,8 @@ ipcMain.handle("liveEdit:locate", async (_e, { projectRoot, url, oldText, outerS
 });
 
 // ── Live Edit: whole-element HTML replace (attributes / inline styles) ───
-// oldHtml: element ka ORIGINAL outerHTML; newHtml: edited outerHTML.
-// Whitespace-normalized matching (file formatting alag ho sakti hai).
+// oldHtml: the element's ORIGINAL outerHTML; newHtml: the edited outerHTML.
+// Whitespace-normalized matching (file formatting may differ).
 ipcMain.handle("liveEdit:applyHtmlChange", async (_e, { projectRoot, url, oldHtml, newHtml, tagName } = {}) => {
   try {
     const o = String(oldHtml || "");
@@ -1560,7 +1560,7 @@ ipcMain.handle("liveEdit:applyHtmlChange", async (_e, { projectRoot, url, oldHtm
   }
 });
 
-// ── Live Edit: undo (applied text abhi bhi ho to wapas original likho) ───
+// ── Live Edit: undo (if the applied text is still there, write back the original) ───
 ipcMain.handle("liveEdit:revert", async (_e, { filePath, appliedText, originalText } = {}) => {
   try {
     const a = String(appliedText ?? "");
@@ -1685,8 +1685,8 @@ ipcMain.handle("dialog:openFolder", async (event) => {
   const res = openProjectDirect(folderPath, event.sender);
   return res.ok ? folderPath : null;
 });
-// Drop-import + Open button shared path — dialog bilkul nahi, seedha open.
-// (dialog:openFolder dialog ke baad, drop seedha path ke saath — dono yahi.)
+// Drop-import + Open button shared path — no dialog, open directly.
+// (dialog:openFolder passes through a dialog first, drop passes the path directly — both end up here.)
 function openProjectDirect(folderPath, sender) {
   try {
     if (!folderPath || typeof folderPath !== "string") return { ok: false, error: "No path provided" };
@@ -1928,9 +1928,9 @@ function gitExec(args, cwd, timeout = 4000) {
     });
   });
 }
-// gitExec wrapper jo Output panel ke Git channel me command + outcome log karta
-// hai. Sirf mutating handlers (commit/push/pull/...) isko use karte hain —
-// polled reads (status/diff/log) silent rehte hain taaki spam na ho.
+// gitExec wrapper that logs the command + outcome to the Output panel's Git channel.
+// Only mutating handlers (commit/push/pull/...) use it —
+// polled reads (status/diff/log) stay silent to avoid spam.
 function gitRunLogged(rootPath, args, timeout = 6000) {
   const short = (s) => String(s || "").trim().split("\n").map((l) => l.trim()).filter(Boolean);
   const cmd = "$ git " + args.map((a) => (/[\s"]/.test(a) ? `"${a}"` : a)).join(" ");
@@ -2445,8 +2445,8 @@ ipcMain.handle("projectConfig:writeTabs", async (_e, rootPath, data) => {
 });
 
 // ─── Panel layout presets (titlebar Layouts dropdown) ────────────────────────
-// User apni panel arrangement naam ke saath save karta hai; kisi bhi project
-// me apply kar sakta hai. userData/layout-presets.json me rehte hain.
+// The user saves a panel arrangement under a name; it can be applied to any project.
+// They live in userData/layout-presets.json.
 const LAYOUT_PRESETS_FILE = path.join(app.getPath("userData"), "layout-presets.json");
 let layoutPresetsCache = null;
 function loadLayoutPresets() {
@@ -2627,8 +2627,8 @@ const scanCanvasDir = (rootAbs, rootRel) => {
   return root;
 };
 
-// Root-level + public/ HTML files (index.html, landing pages, docs) — ye
-// pages/components/... ke bahar rehte hain, isliye alag se scan hote hain.
+// Root-level + public/ HTML files (index.html, landing pages, docs) — these live
+// outside pages/components/..., so they are scanned separately.
 // Pure fs (testable): returns child entries [{ name, relPath, absPath, ext }].
 function scanRootHtmlFiles(rootPath) {
   const out = [];
@@ -2676,7 +2676,7 @@ ipcMain.handle("canvas:scan", async (_e, rootPath) => {
       const final = srcExists && !fs.existsSync(cand) ? path.join(rootPath, name) : cand;
       if (fs.existsSync(final)) roots.push(scanCanvasDir(final, path.relative(rootPath, final).replace(/\\/g, "/")));
     }
-    // Standalone HTML (root + public) — "html" group me taaki sidebar me dikhe.
+    // Standalone HTML (root + public) — under the "html" group so it shows in the sidebar.
     try {
       const htmlKids = scanRootHtmlFiles(rootPath);
       if (htmlKids.length) {
@@ -2826,9 +2826,9 @@ ipcMain.handle("fs:rename", async (_e, { oldPath, newName }) => {
   catch (err) { throw new Error(`Cannot rename "${path.basename(oldPath)}": ${err.code === "EBUSY" ? "file is in use by another process" : err.message}`); }
 });
 
-// ─── Delete helpers — Windows pe antivirus/indexer/terminal/Explorer sab kuch
-// kuch der ke liye file handle hold kar lete hain, isliye transient locks ko
-// retry + backoff se clear karte hain aur errors ko human-readable banate hain.
+// ─── Delete helpers — on Windows antivirus/indexer/terminal/Explorer can all
+// briefly hold a file handle, so transient locks are cleared with
+// retry + backoff and errors are made human-readable.
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 const existsItem = (p) => { try { fs.lstatSync(p); return true; } catch { return false; } };
 
@@ -2842,7 +2842,7 @@ const isRetryableFsError = (err) => {
          m.includes("locked") || m.includes("in use") || m.includes("try again");
 };
 
-// Renderer "Cannot delete:\n<msg>" dikhata hai — isliye sirf reason return karo.
+// The renderer shows "Cannot delete:\n<msg>" — so return only the reason.
 const friendlyDeleteReason = (itemPath, err) => {
   const code = err?.code || "";
   const m = String(err?.message || "");
@@ -2866,7 +2866,7 @@ ipcMain.handle("fs:delete", async (_e, { itemPath }) => {
       else fs.unlinkSync(lp);
       return true;
     } catch (err) {
-      // Pehle se delete ho chuka — error nahi, UI sirf refresh kare.
+      // Already deleted — not an error, the UI just refreshes.
       if (err.code === "ENOENT") return true;
       if (attempt < 3 && isRetryableFsError(err)) { await sleepMs(150 * (attempt + 1)); continue; }
       throw new Error(friendlyDeleteReason(itemPath, err));
@@ -2880,15 +2880,15 @@ ipcMain.handle("fs:delete", async (_e, { itemPath }) => {
 ipcMain.handle("fs:trashItem", async (_e, { itemPath }) => {
   if (!itemPath) throw new Error("no item given");
   const plain = String(itemPath).replace(/\//g, "\\");
-  // Electron ka shell.trashItem \\?\ extended prefix aur forward slash dono
-  // reject karta hai ("Failed to parse path") — isliye hamesha clean
-  // Windows path bhejo. Prefix sirf existence check ke liye use hota hai.
+  // Electron's shell.trashItem rejects both the \\?\ extended prefix and forward slashes
+  // ("Failed to parse path") — so always send a clean
+  // Windows path. The prefix is only used for the existence check.
   const unprefix = plain.startsWith("\\\\?\\UNC\\") ? "\\\\" + plain.slice(8)
                  : plain.startsWith("\\\\?\\")     ? plain.slice(4)
                  : null;
   const target  = unprefix || plain;
   const stillThere = () => existsItem(toLongPath(target));
-  // Pehle se gayab → error mat dikhao, renderer sirf refresh kar lega.
+  // Already gone → don't show an error, the renderer just refreshes.
   if (!stillThere()) return { movedToTrash: true, originalPath: itemPath, alreadyGone: true };
 
   let lastErr = null;
@@ -2899,11 +2899,11 @@ ipcMain.handle("fs:trashItem", async (_e, { itemPath }) => {
       return { movedToTrash: true, originalPath: itemPath };
     } catch (err) {
       lastErr = err;
-      // Transient lock hai to retry, warna band karo.
+      // Retry on a transient lock, otherwise stop.
       if (!isRetryableFsError(err)) break;
     }
   }
-  // Retry ke baad gayab mila → item delete ho chuka (stale tree row case).
+  // Gone after the retry → the item is already deleted (stale tree row case).
   if (!stillThere()) return { movedToTrash: true, originalPath: itemPath, alreadyGone: true };
   throw new Error(friendlyDeleteReason(itemPath, lastErr || new Error("operation failed by another program")));
 });
@@ -3183,15 +3183,15 @@ ipcMain.handle("projectStorage:listAll", async () => {
     const seen = new Set();
     const out = [];
     const exists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
-    // Bina mapping wale (orphan/legacy) folders ke liye — getProjectStoreDir
-    // mat chalao (warna junk folder ban jayega), seedha files check karo.
+    // For unmapped (orphan/legacy) folders — don't call getProjectStoreDir
+    // (it would create a junk folder), just check the files directly.
     const statFiles = (dir) => ({
       pinExists: exists(path.join(dir, "pinconfig.json")),
       tabsExists: exists(path.join(dir, "tabs.json")),
       canvasExists: exists(path.join(dir, "canvas-layout.json")),
     });
     const pushEntry = (folderName) => {
-      // canonical dir nikalo (legacy ho to yahin migrate ho jayega)
+      // Resolve the canonical dir (a legacy one migrates here)
       let canonicalDir = path.join(root, folderName);
       const mappedPath = folders[folderName]?.path || null;
       let info = null;
@@ -3228,7 +3228,7 @@ ipcMain.handle("projectStorage:listAll", async () => {
 });
 
 ipcMain.handle("projectStorage:revealAll", async () => {
-  // Main storage ROOT kholo — isme saare project folders dikhte hain
+  // Open the main storage ROOT — it lists all project folders
   const root = ensureStoreRoot();
   try {
     await shell.openPath(root);
@@ -3339,7 +3339,7 @@ ipcMain.handle("fs:readTextFile", async (_e, filePath) => {
   try { return fs.readFileSync(toLongPath(filePath), "utf8"); } catch { return null; }
 });
 
-// ── SQLite file inspect (node:sqlite — Electron me built-in, koi dep nahi) ──
+// ── SQLite file inspect (node:sqlite — built into Electron, no dependency) ──
 const DB_EXTS = [".db", ".db3", ".sqlite", ".sqlite3"];
 ipcMain.handle("db:inspect", async (_e, filePath) => {
   if (!DB_EXTS.includes(path.extname(filePath || "").toLowerCase())) return { error: "Not a database file" };
@@ -3425,7 +3425,7 @@ ipcMain.handle("fs:watch", (event, rootPath) => {
   });
 
   const notify = (changedPath) => {
-    // Race: file/folder event aate hi delete ho sakta hai — statSync throw na kare.
+    // Race: the file/folder may be deleted right as the event arrives — don't let statSync throw.
     let affectedDir = path.dirname(changedPath);
     try {
       if (fs.statSync(changedPath).isDirectory()) affectedDir = changedPath;
@@ -3730,7 +3730,7 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         { label: "Refresh",                 accelerator: "F5",           click: () => act("refresh") },
       ];
     } else if (type === "editor") {
-      // CodeMirror editor right-click — accelerators editor ke customKeys se match.
+      // CodeMirror editor right-click — accelerators must match the editor's customKeys.
       items = [
         { label: "Cut",                     accelerator: "Ctrl+X",       click: () => act("cut") },
         { label: "Copy",                    accelerator: "Ctrl+C",       click: () => act("copy") },
@@ -3943,8 +3943,8 @@ ipcMain.handle("terminal:close", async (event, { tabId }) => {
 });
 
 // ─── Run & Debug v1: Run engine (one-shot pty process per run) ─────────────
-// Terminal shells se alag: har run apna pty + runId pata hai. Output renderer
-// me Output panel ke "Run" channel me jata hai. Debug adapters (DAP) phase 2.
+// Unlike terminal shells: each run knows its own pty + runId. Output goes to the
+// renderer's Output panel "Run" channel. Debug adapters (DAP) are phase 2.
 const runProcesses = new Map(); // runId -> { pty, sender, startedAt, label }
 function runKey(sender, runId) { return `${sender.id}:${runId}`; }
 function cleanRunCwd(cwd) {
@@ -3953,12 +3953,12 @@ function cleanRunCwd(cwd) {
   } catch {}
   return process.cwd();
 }
-// node-pty (conpty) Windows par BARE binary names resolve nahi karta —
-// "py"/"python"/"node" par "File not found" aata hai jabki wahi binary
-// execFile aur terminal (absolute/.exe path) me chalta hai. Root cause:
-// is code-path me CreateProcess ko extension-less naam par PATH/PATHEXT
-// lookup nahi milta. Isliye spawn se pehle binary ko ABSOLUTE path me
-// resolve karo (where.exe jaisa: PATH dirs × PATHEXT exts). Verified:
+// node-pty (conpty) on Windows does not resolve BARE binary names —
+// "py"/"python"/"node" fail with "File not found" even though the same binary
+// runs via execFile and the terminal (absolute/.exe path). Root cause:
+// on this code path CreateProcess gets no PATH/PATHEXT
+// lookup for an extension-less name. So resolve the binary to an ABSOLUTE path
+// before spawning (like where.exe: PATH dirs × PATHEXT exts). Verified:
 // bare "py"/"python"/"node"/"cmd" → fail; absolute → ok.
 function resolveBinAbsolute(bin, cwd) {
   try {
@@ -3972,7 +3972,7 @@ function resolveBinAbsolute(bin, cwd) {
     const isFile = (p) => {
       try { return fs.existsSync(p) && fs.statSync(p).isFile(); } catch { return false; }
     };
-    // Relative path (./gradlew, tools/run.bat) → run cwd se jodo.
+    // Relative path (./gradlew, tools/run.bat) → join with the run cwd.
     if (hasSlash && !/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(b)) {
       try {
         const base = cleanRunCwd(cwd);
@@ -3987,7 +3987,7 @@ function resolveBinAbsolute(bin, cwd) {
         }
       }
     }
-    // Absolute path → wese hi lo (ext na ho to PATHEXT lagao).
+    // Absolute path → use as-is (append PATHEXT when it has no ext).
     if (/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(b) || hasSlash) {
       if (isFile(b)) return b;
       if (isWin && !hasExt) {
@@ -3997,9 +3997,9 @@ function resolveBinAbsolute(bin, cwd) {
       }
       if (/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(b)) return null;
     }
-    // Bare name → PATH search. Windows: pehle PATHEXT wale (npm → npm.cmd),
-    // BARE naam sabse aakhir me — warna extension-less text files (nodejs/npm
-    // shell script) galat match ho jate hain. Linux: bare hi ek roop hai.
+    // Bare name → PATH search. Windows: PATHEXT variants first (npm → npm.cmd),
+    // BARE name last — otherwise extension-less text files (nodejs/npm
+    // shell scripts) match incorrectly. Linux: the bare form is the only form.
     const names = [];
     if (isWin && !hasExt) for (const e of pathext()) names.push(b + e);
     names.push(b);
@@ -4034,7 +4034,7 @@ ipcMain.handle("run:start", async (event, { runId, cmd, args, cwd, label }) => {
     cwd: runCwd,
     env: { ...process.env },
   };
-  // Bare list: khud + python aliases (purane "py ..." saved configs bhi chalein).
+  // Bare list: itself + python aliases (so old "py ..." saved configs still run).
   const bareList = [bin];
   if (/^(py|python|python3)$/i.test(bin)) {
     const alts = process.platform === "win32" ? ["python", "py", "python3"] : ["python3", "python"];
@@ -4042,8 +4042,8 @@ ipcMain.handle("run:start", async (event, { runId, cmd, args, cwd, label }) => {
       if (a.toLowerCase() !== bin.toLowerCase() && !bareList.some((x) => x.toLowerCase() === a.toLowerCase())) bareList.push(a);
     }
   }
-  // Pehle ABSOLUTE resolved paths (node-pty/Win par yahi chalte hain),
-  // phir legacy bare names (Linux execvp PATH lookup + purana .cmd retry).
+  // ABSOLUTE resolved paths first (these are what run on node-pty/Win),
+  // then legacy bare names (Linux execvp PATH lookup + old .cmd retry).
   const candidates = [];
   const seen = new Set();
   const push = (c) => {
@@ -4105,7 +4105,7 @@ ipcMain.handle("run:stop", async (event, { runId, signal }) => {
 });
 ipcMain.handle("run:probes", async () => {
   // Best-effort runtime detection — node/python/php/go + compiled & scripting langs.
-  // Har key ke liye candidates: pehla jo version de, wahi wins (Win par py->python->python3 fallback).
+  // Per key, candidates: the first one that reports a version wins (on Win, py->python->python3 fallback).
   const isWin = process.platform === "win32";
   const CANDIDATES = {
     node: [["node", ["--version"]]],
@@ -4155,7 +4155,7 @@ ipcMain.handle("run:probes", async () => {
       if (v) { out[k] = v; break; }
     }
   })()));
-  // Renderer ke liye actual binary names (version string se alag).
+  // Actual binary names for the renderer (separate from the version string).
   try {
     if (out.python) {
       if (isWin) {
@@ -4942,12 +4942,12 @@ ipcMain.handle("liveServer:start", async (_e, { rootPath: lsRoot, filePath: lsFi
 // Cycle: idle → checking → available → downloading (progress: percent, transferred, total, bytesPerSecond, ETA) → downloaded → installing → idle
 //         ↘ not-available / error → idle
 // PRIMARY: latest.yml feed (GitHub Releases, app-update.yml provider) — version
-// faisla + differential download (.exe.blockmap — sirf badle blocks).
-// GitHub API sirf release notes/URL enrich + fallback jab feed unreachable ho.
+// decision + differential download (.exe.blockmap — only changed blocks).
+// GitHub API is only for release notes/URL enrichment + fallback when the feed is unreachable.
 // Manual check shows center modal; auto checks only banner when available. Periodic check every 6h + 2s launch.
-// NOTE (Microsoft Store): Store build (process.windowsStore === true) me
-// self-update BANNED hai (Store policy 10.1). Store khud update deta hai.
-// Isliye saare updater paths Store pe early-return karte hain.
+// NOTE (Microsoft Store): in a Store build (process.windowsStore === true)
+// self-update is BANNED (Store policy 10.1). The Store delivers updates itself.
+// So every updater path early-returns on Store builds.
 function isStoreBuild() {
   try { return !!process.windowsStore; } catch { return false; }
 }
@@ -4995,9 +4995,9 @@ function setUpdaterState(s, data) {
 }
 
 // ── GitHub release meta (fail-soft helper) ─────────────────────────────────
-// Sirf release notes + release URL ke liye. Version decision hamesha
-// latest.yml feed (electron-updater) se hoti hai jab app packaged hai.
-// null = network/API fail — caller latest.yml result par hi tikka rahe.
+// Only for release notes + release URL. The version decision always comes from
+// the latest.yml feed (electron-updater) when the app is packaged.
+// null = network/API failure — the caller stays with the latest.yml result.
 async function fetchGitHubReleaseMeta(timeoutMs = 10000) {
   try {
     const ctrl = new AbortController();
@@ -5024,7 +5024,7 @@ async function fetchGitHubReleaseMeta(timeoutMs = 10000) {
   } catch { return null; }
 }
 
-// electron-updater ka releaseNotes string | [{note}] | null ho sakta hai — plain string banao.
+// electron-updater's releaseNotes can be a string | [{note}] | null — make it a plain string.
 function normalizeReleaseNotes(n) {
   try {
     if (!n) return "";
@@ -5035,8 +5035,8 @@ function normalizeReleaseNotes(n) {
   } catch { return ""; }
 }
 
-// latest.yml UpdateInfo + GitHub notes milakar renderer-ready info banao.
-// files/path/sha512 (differential download ke liye) untouched rehte hain.
+// Combine latest.yml UpdateInfo + GitHub notes into renderer-ready info.
+// files/path/sha512 (for differential download) stay untouched.
 function enrichUpdateInfo(updateInfo, meta) {
   const version = String(updateInfo?.version || "").replace(/^v/, "").trim();
   const notes = (meta?.releaseNotes) || normalizeReleaseNotes(updateInfo?.releaseNotes) || "";
@@ -5053,13 +5053,13 @@ function enrichUpdateInfo(updateInfo, meta) {
 }
 
 // ─── Update check — PRIMARY: latest.yml feed, FALLBACK: GitHub API ──────────
-// Packaged app me electron-updater GitHub Releases se latest.yml padhta hai
-// (app-update.yml provider config se). Wahi version faisla karta hai, aur
-// downloadUpdate() usi feed ke .exe.blockmap se differential download karta
-// hai (sirf badle blocks) — poora exe sirf zaroorat par.
-// GitHub API sirf do kaam ke liye: (1) release notes/URL enrich, (2) fallback
-// jab latest.yml unreachable ho. Dev me (unpackaged) sirf GitHub API — wahan
-// download = releases page kholna (manual).
+// In a packaged app electron-updater reads latest.yml from GitHub Releases
+// (via the app-update.yml provider config). That feed decides the version, and
+// downloadUpdate() differentially downloads from the feed's .exe.blockmap
+// (only changed blocks) — the full exe only when needed.
+// The GitHub API serves only two purposes: (1) release notes/URL enrichment, (2) fallback
+// when latest.yml is unreachable. In dev (unpackaged) only the GitHub API is used — there
+// download means opening the releases page (manual).
 async function checkForUpdatesProper(win) {
   // Microsoft Store build: self-update banned — Store handles updates.
   if (isStoreBuild()) {
@@ -5079,7 +5079,7 @@ async function checkForUpdatesProper(win) {
 
   const useYmlFeed = !!(app.isPackaged && autoUpdater);
   if (useYmlFeed) {
-    // Notes ke liye GitHub meta parallel me — fail-soft, check is par nahi rukta.
+    // Fetch GitHub meta for notes in parallel — fail-soft, the check doesn't wait on it.
     const metaP = fetchGitHubReleaseMeta();
     let res = null, checkErr = null;
     try {
@@ -5125,7 +5125,7 @@ async function checkForUpdatesProper(win) {
     return null;
   }
 
-  // Dev / unpackaged — sirf GitHub API (download = releases page).
+  // Dev / unpackaged — GitHub API only (download = releases page).
   try {
     const meta = await fetchGitHubReleaseMeta(15000);
     if (!meta) throw new Error("GitHub API unreachable");
@@ -5153,7 +5153,7 @@ async function checkForUpdatesProper(win) {
   }
 }
 
-// Purana naam — menu handler ab bhi yahi pukarta hai.
+// Old name — the menu handler still calls this.
 async function checkForUpdatesViaGitHub(win) {
   return checkForUpdatesProper(win);
 }
@@ -5180,17 +5180,17 @@ function setupAutoUpdater(win) {
 
     autoUpdater.on("checking-for-update", () => {
       console.log("[updater] cycle: checking-for-update (autoUpdater)");
-      // Unified check pehle available/downloading/downloaded set kar chuka ho
-      // to use mat hatao — warna banner "Checking..." par atak jata hai (event race).
+      // The unified check may already have set available/downloading/downloaded —
+      // don't clear it here, or the banner gets stuck on "Checking..." (event race).
       if (_updaterState === "available" || _updaterState === "downloading" || _updaterState === "downloaded") return;
       setUpdaterState("checking");
       broadcastUpdater("updater:checking", { version: app.getVersion() });
     });
     autoUpdater.on("update-available", (info) => {
       console.log("[updater] cycle: update-available (autoUpdater)", info?.version);
-      // Raw feed info rakho — checkForUpdatesProper isko turant GitHub notes
-      // se enrich karke dobara broadcast karta hai. Pehle se enriched info ho
-      // (same version) to use mat bigado.
+      // Keep the raw feed info — checkForUpdatesProper immediately enriches it with GitHub notes
+      // and broadcasts it again. Don't clobber already-enriched info for
+      // the same version.
       try {
         if (_latestUpdateInfo?.via === "yml" && _latestUpdateInfo?.version === String(info?.version || "").replace(/^v/, "")) return;
       } catch {}
@@ -5207,8 +5207,8 @@ function setupAutoUpdater(win) {
     });
     autoUpdater.on("error", (err) => {
       console.error("[updater] cycle: error", err?.message || err);
-      // Available/download progress ko error se mat clobber karo (background
-      // feed events aksar race karte hain — checkForUpdatesProper state ka malik hai).
+      // Don't let an error clobber available/download progress (background
+      // feed events often race — checkForUpdatesProper owns the state).
       if (_updaterState === "available" || _updaterState === "downloading" || _updaterState === "downloaded") return;
       _isDownloading = false;
       _downloadProgress = null;
@@ -5230,7 +5230,7 @@ function setupAutoUpdater(win) {
       logOutput("Updater", `Downloaded v${info?.version || ""} — restart to install`);
       _isDownloading = false;
       _downloadProgress = null;
-      // Enriched fields (releaseNotes/releaseUrl) bachao — raw feed info me ye nahi hote.
+      // Preserve enriched fields (releaseNotes/releaseUrl) — raw feed info lacks them.
       try {
         const prev = _latestUpdateInfo || {};
         _latestUpdateInfo = {
@@ -5245,9 +5245,9 @@ function setupAutoUpdater(win) {
       broadcastUpdater("updater:downloaded", _latestUpdateInfo);
     });
 
-    // Run detection on launch — packaged me latest.yml feed, dev me GitHub API.
-    // checkForUpdatesProper ke andar hi autoUpdater.checkForUpdates() chalta
-    // hai, isliye yahan DOUBLE check mat chalao (race/balloon events se bacho).
+    // Run detection on launch — latest.yml feed when packaged, GitHub API in dev.
+    // autoUpdater.checkForUpdates() runs inside checkForUpdatesProper,
+    // so don't run a DOUBLE check here (avoids race/balloon events).
     const runUpdateCheck = () => { try { checkForUpdatesProper(win); } catch (e) { console.warn("[updater] check error", e.message); } };
     if (!app.isPackaged && !process.env.IBX_FORCE_UPDATE_CHECK) {
       console.log("[updater] Dev mode: running GitHub API check after 2.5s (autoUpdater periodic check skipped)");
@@ -5257,7 +5257,7 @@ function setupAutoUpdater(win) {
     }
 
     // Packaged: single unified check — latest.yml feed primary (blockmap diff),
-    // GitHub API sirf notes/fallback. Har 6h + launch ke 2s baad.
+    // GitHub API for notes/fallback only. Every 6h + 2s after launch.
     setTimeout(() => { try { console.log("[updater] initial check (latest.yml feed)..."); runUpdateCheck(); } catch {} }, 2000);
     setInterval(() => { try { console.log("[updater] periodic check..."); runUpdateCheck(); } catch {} }, 6 * 60 * 60 * 1000);
   } catch (e) { console.warn("[updater] setup failed", e.message); }
@@ -5267,7 +5267,7 @@ ipcMain.handle("updater:check", async (e) => {
   if (isStoreBuild()) return { ok: true, store: true, available: false, state: "idle", message: "Updates are managed by Microsoft Store" };
   const win = BrowserWindow.fromWebContents(e.sender) || _updaterWindow;
   try {
-    // Reset state to checking for proper cycle (checkForUpdatesProper bhi yahi karta hai)
+    // Reset state to checking for the proper cycle (checkForUpdatesProper does the same)
     setUpdaterState("checking");
     broadcastUpdater("updater:checking", { version: app.getVersion() });
     const info = await checkForUpdatesProper(win);
@@ -5289,8 +5289,8 @@ ipcMain.handle("updater:download", async (e) => {
   if (_isDownloading) return { ok: false, error: "Already downloading" };
   if (_updaterState === "downloaded" && _latestUpdateInfo) return { ok: true, alreadyDownloaded: true, info: _latestUpdateInfo };
   try {
-    // latest.yml feed ka asli UpdateInfo chahiye (files/sha512) — GitHub-API
-    // fallback shape me ye nahi hota, to feed se dobara resolve karo.
+    // The real latest.yml UpdateInfo is needed (files/sha512) — the GitHub-API
+    // fallback shape lacks it, so resolve it from the feed again.
     const hasFeedInfo = !!(_latestUpdateInfo && (_latestUpdateInfo.files || _latestUpdateInfo.path));
     if (!hasFeedInfo) {
       console.log("[updater] no feed info cached — resolving via latest.yml...");
@@ -5346,8 +5346,8 @@ ipcMain.handle("updater:isStore", async () => {
 });
 ipcMain.handle("updater:getState", async () => {
   const out = { state: _updaterState, info: _latestUpdateInfo, progress: _downloadProgress, version: app.getVersion() };
-  // Missed-broadcast safety: subscriber abhi juda hai — terminal state dobara
-  // bhejo taaki startup race me banner kabhi na chhoote.
+  // Missed-broadcast safety: the subscriber just attached — resend the terminal state
+  // so the banner is never missed in a startup race.
   try {
     if (_updaterState === "available" && _latestUpdateInfo) broadcastUpdater("updater:available", _latestUpdateInfo);
     else if (_updaterState === "downloaded") broadcastUpdater("updater:downloaded", _latestUpdateInfo);
@@ -5840,7 +5840,7 @@ ipcMain.handle("chrome:loadExtension", async () => {
 
 // ── CRX upload: .crx file → unzip to userData/extensions → load ─────────
 // CRX3: Cr24 | ver(3) | header_len | header | zip. CRX2: Cr24 | ver(2) |
-// pubkey_len | sig_len | pubkey | sig | zip. Zip part nikaal kar extract karo.
+// pubkey_len | sig_len | pubkey | sig | zip. Extract the zip part.
 function crxZipOffset(buf) {
   try {
     if (!buf || buf.length < 16) return -1;
@@ -6013,7 +6013,7 @@ function openSettingsWindow(initialPage, initialFocus) {
   settingsWin.loadFile(path.join(__dirname, "../renderer/settings.html"), Object.keys(query).length ? { query } : undefined);
   settingsWin.once("ready-to-show", () => settingsWin.show());
   settingsWin.on("closed", () => { settingsWin = null; });
-  // Ctrl+K / Ctrl+F menu accelerators settings window me global search ko focus karwayein
+  // Ctrl+K / Ctrl+F menu accelerators focus global search in the settings window
   try {
     settingsWin.webContents.on("before-input-event", (event, input) => {
       if (input.type !== "keyDown" || input.altKey) return;
@@ -6180,9 +6180,9 @@ function buildMenu() {
     {
       id: "menu-view", label: "View", submenu: [
         { label: "Command Palette…", accelerator: "CmdOrCtrl+Shift+P", click: () => sendToRenderer("menu:commandPalette", null) },
-        // NOTE: menu:quickOpen, NOT menu:commandPalette — Quick Open ka apna
-        // Ctrl+P handler bhi fire hota hai, isliye dono ek hi overlay kholte
-        // hain (pehle ye commandPalette bhejta tha → dono stacked ho jate the).
+        // NOTE: menu:quickOpen, NOT menu:commandPalette — Quick Open has its own
+        // Ctrl+P handler that also fires, so both open the same overlay
+        // (this used to send commandPalette → the two stacked on top of each other).
         { label: "Quick Open…", accelerator: "CmdOrCtrl+P", click: () => sendToRenderer("menu:quickOpen", null) },
         { type: "separator" },
         { label: "Toggle Full Screen", accelerator: "F11", click: () => sendToRenderer("menu:fullscreen", null) },
@@ -6267,7 +6267,7 @@ function buildMenu() {
     {
       id: "menu-storage", label: "Storage", submenu: [
         { label: "Open Main Storage Folder", click: async () => {
-          // Storage ROOT kholo — isme saare project folders dikhte hain
+          // Open the storage ROOT — it lists all project folders
           const root = ensureStoreRoot();
           try { await shell.openPath(root); } catch (e) { dialog.showErrorBox("Error", String(e)); }
         }},
@@ -6378,7 +6378,7 @@ function buildMenu() {
         { label: "Check for Updates…", click: async () => {
             const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
             if (!win) return;
-            // Store build: updates Microsoft Store se — GitHub check mat chalao.
+            // Store build: updates come from the Microsoft Store — don't run a GitHub check.
             if (isStoreBuild()) {
               try { dialog.showMessageBox(win, { type: "info", title: "Updates", message: "Updates are managed by Microsoft Store", detail: "Open Microsoft Store → Library → Get updates to update Idiot Box.", buttons: ["OK"] }); } catch {}
               return;
@@ -6396,10 +6396,10 @@ function buildMenu() {
         { label: "View Releases", click: () => shell.openExternal("https://github.com/TheWonderlandStudio/Idiot_Box/releases") },
         { label: "Privacy Policy", click: () => shell.openExternal("https://thewonderlandstudio.github.io/Idiot_Box/privacy.html") },
         { type: "separator" },
-        // Label aur action ab match karte hain — Settings ▸ Keybindings kholta
-        // hai. Pehle ye "CmdOrCtrl+K CmdOrCtrl+S" pe Command Palette kholta
-        // tha, jo (a) Electron 43 chords parse nahi karta (binding drop) aur
-        // (b) View ▸ Command Palette… ka duplicate tha.
+        // Label and action now match — opens Settings ▸ Keybindings.
+        // It used to open the Command Palette on "CmdOrCtrl+K CmdOrCtrl+S",
+        // which (a) Electron 43 chords cannot parse (binding drop) and
+        // (b) duplicated View ▸ Command Palette….
         { label: "Keyboard Shortcuts", click: () => openSettingsWindow("keybindings") },
         { label: "Toggle Developer Tools", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
         { type: "separator" },
@@ -6414,7 +6414,7 @@ function buildMenu() {
 
 // ─── Main window ──────────────────────────────────────────────────────────────
 function createWindow() {
-  // Naya window → renderer dobara ready hoga (pending OS files tab tak queue).
+  // A new window → the renderer becomes ready again (pending OS files stay queued until then).
   osFilesRendererReady = false;
   let winState = { width: 1280, height: 720 };
   let wasMaximized = false;
@@ -6563,12 +6563,12 @@ function createWindow() {
   };
   win.webContents.on("before-input-event", handleGlobalShortcuts);
 
-  // ── Browser guest shortcuts → owning tab ko forward ────────────────────
-  // Guest page ke keys host tak pahunchte hi nahi, isliye webview shortcuts
-  // yahin pakad kar host window ko bhejte hain. Renderer (BrowserPanel)
-  // wcId match karke sirf usi tab me chalata hai (baki tabs ignore).
-  // Zoom keys forward NAHI karte — View menu accelerators + guest content-zoom
-  // se double-step ho jayega (upar zoom note dekho).
+  // ── Browser guest shortcuts → forward to the owning tab ────────────────────
+  // Guest page keys never reach the host, so webview shortcuts are
+  // captured here and sent to the host window. The renderer (BrowserPanel)
+  // matches wcId and runs it only in that tab (other tabs ignore it).
+  // Zoom keys are NOT forwarded — View menu accelerators + guest content-zoom
+  // would double-step (see the zoom note above).
   const handleGuestBrowserShortcuts = (guestWc, hostWin) => (event, input) => {
     try {
       if (!input || input.type !== "keyDown") return;
@@ -6687,10 +6687,10 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // NOTE: yahan koi app.setIcon() call nahi hai — ye API Electron me exist
-  // hi nahi karti (typeof === "undefined"). Dev taskbar icon stamped
-  // electron.exe se aata hai (tools/stamp-dev-icon.cjs); packaged me exe icon
-  // + installer shortcut se. Window `icon` option Alt-Tab/titlebar ke liye hai.
+  // NOTE: there is no app.setIcon() call here — that API does not exist in Electron
+  // (typeof === "undefined"). The dev taskbar icon comes from the stamped
+  // electron.exe (tools/stamp-dev-icon.cjs); in packaged builds from the exe icon
+  // + installer shortcut. The window `icon` option is for Alt-Tab/titlebar.
   
   // ─── Popout windows use Electron's native frame; keep their content active
   // while the main IDE window is in the background.
@@ -6717,9 +6717,9 @@ app.whenReady().then(async () => {
   // content is intentionally excluded (see electron/main/csp.js).
   try { if (typeof setupCsp === "function") setupCsp(session.defaultSession); } catch (e) { console.warn("[csp] setup failed:", e?.message || e); }
   // ─── OpenPencil brand icon block ───────────────────────────────────────────
-  // Guest <webview> me /brand/app-icon.svg ka request cancel kar do, taaki wo
-  // kabhi load hi na ho. Visual hide OpenPencil panel insertCSS se karta hai
-  // (req cancel hone par broken img/alt bach sakta hai — dono chahiye).
+  // Cancel requests for /brand/app-icon.svg inside guest <webview>s so it
+  // never loads. Visual hiding is done by the OpenPencil panel via insertCSS
+  // (a broken img/alt can remain when the request is cancelled — both are needed).
   try {
     const webReq = session.defaultSession?.webRequest;
     if (webReq && typeof webReq.onBeforeRequest === "function") {
@@ -6737,16 +6737,16 @@ app.whenReady().then(async () => {
   if (ElectronChromeExtensions) {
     try { ElectronChromeExtensions.handleCRXProtocol(session.defaultSession); } catch (e) { console.warn("[electron-chrome-extensions] handleCRXProtocol failed:", e.message); }
   }
-  // NOTE: iconless extensions ke liye koi extra fallback register NAHI hota.
-  // Pehle yahan ek webRequest.onBeforeRequest({ urls: ["crx://extension-icon/*"] })
-  // tha jo har launch pe fail hota tha —
+  // NOTE: no extra fallback is registered for iconless extensions.
+  // There used to be a webRequest.onBeforeRequest({ urls: ["crx://extension-icon/*"] })
+  // here that failed on every launch —
   //   [main] ext icon fallback failed: Invalid url pattern crx://…: Wrong scheme type
-  // kyunki Electron ke webRequest URL filters custom schemes match hi nahi karte
-  // (sirf http/https/file/ftp/ws/wss/blob/data), to binding kabhi register hi
-  // nahi hui. Zaroorat bhi nahi: electron-chrome-extensions khud icon load fail
-  // hone par .action.no-icon + data-letter se styled letter-tile render karta
-  // hai (browser-action.js `img.onerror`), jo per-extension distinguish karta
-  // hai — app logo se behtar.
+  // because Electron's webRequest URL filters never match custom schemes
+  // (only http/https/file/ftp/ws/wss/blob/data), so the binding never
+  // registered. It is not needed either: on icon load failure electron-chrome-extensions
+  // renders a styled letter tile via .action.no-icon + data-letter
+  // (browser-action.js `img.onerror`), which distinguishes per extension
+  // better than the app logo.
   if (ElectronChromeExtensions) {
   chromeExt = new ElectronChromeExtensions({
     license: "GPL-3.0",
@@ -6906,14 +6906,14 @@ app.whenReady().then(async () => {
     }).catch((e) => console.warn("[mcp] start failed:", e && e.message));
   }
   // Cold start with files: `IdiotBox.exe file1.js file2.ts …` (Open With /
-  // CLI) — renderer ready hone par ye pending files khud pull kar lega.
-  // Lock loser instance ye skip kare (wo to waise bhi quit ho raha hai).
+  // CLI) — the renderer pulls these pending files itself once ready.
+  // A lock-loser instance skips this (it quits anyway).
   try { if (_ibxGotSingleLock) queueOsFiles(extractOsOpenFiles(process.argv)); } catch {}
-  // Anonymous stats — install counter + 30s heartbeat (telemetry toggle par depend)
+  // Anonymous stats — install counter + 30s heartbeat (depends on the telemetry toggle)
   try { if (tracking && typeof tracking.start === "function") tracking.start({ app, readSettings }); }
   catch (e) { console.warn("[tracking] start failed:", e.message); }
-  // Cold start via idiotbox://update (app band thi, website button se khuli) —
-  // window/updater settle hone ke baad protocol action chalao.
+  // Cold start via idiotbox://update (the app was closed, opened from the website button) —
+  // run the protocol action after the window/updater settles.
   try {
     const startUrl = findProtocolUrlInArgs(process.argv);
     if (startUrl) setTimeout(() => { try { handleIbxProtocolUrl(startUrl); } catch {} }, 1500);

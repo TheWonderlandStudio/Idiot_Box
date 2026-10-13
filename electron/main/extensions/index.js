@@ -1,11 +1,11 @@
 // ─── App extension host ──────────────────────────────────────────────────────
-// Installed (local unpacked) extensions ko load karke unhe Idiot Box-native
-// API surface deta hai. Sab kuch main process me chalta hai, renderer sirf
-// IPC bridge hai (commands → palette, views → iframe tabs, status items →
+// Installed (local unpacked) extensions are loaded here and given the Idiot Box-native
+// API surface. Everything runs in the main process; the renderer is only an
+// IPC bridge (commands → palette, views → iframe tabs, status items →
 // status bar, messages → toasts).
 //
 //   context.ibox       → Idiot Box API
-//   activate(context)  → extension entry (function export bhi chalega)
+//   activate(context)  → extension entry (a function export also works)
 "use strict";
 
 const { app, ipcMain, BrowserWindow, dialog, shell, clipboard } = require("electron");
@@ -67,7 +67,7 @@ let kvStore = loadJson(storeFile(), {});
 const persistState = () => saveJson(stateFile(), state);
 const persistStore = () => saveJson(storeFile(), kvStore);
 
-// ── Runtime registries (activation ke waqt bante hain) ──────────────────────
+// ── Runtime registries (built at activation time) ──────────────────────
 // extId → { disposables:[], commands:Map, views:Map, statusItems:Map, error }
 const runtime = new Map();
 const commandRegistry = new Map();   // commandId → { extId, title, category }
@@ -147,9 +147,9 @@ function broadcast(channel, payload) {
 const changed = () => broadcast("ext:changed", null);
 const notify = (type, message) => broadcast("ext:notify", { type, message: String(message || "") });
 
-// ── Per-extension Output channels (Output panel me har ext ka alag output) ──
-// Channel id: `ext:<extId>` (default) ya `ext:<extId>:<name>` (named).
-// Renderer Output panel inhe Extensions optgroup me dikhata hai.
+// ── Per-extension Output channels (each extension gets its own Output panel output) ──
+// Channel id: `ext:<extId>` (default) or `ext:<extId>:<name>` (named).
+// The renderer Output panel shows these under the Extensions optgroup.
 function extChannelId(extId, name) {
   const id = String(extId || "unknown");
   const nm = String(name || "").trim().slice(0, 40).replace(/[^a-zA-Z0-9_.\- :()]/g, "");
@@ -199,8 +199,8 @@ function extRevealChannel(extId, name) {
     });
   } catch {}
 }
-// Extension ke andar bare console.* bhi uske output channel me jaye —
-// activate / command / formatter ke dauran console temporarily wrap hota hai.
+// Bare console.* inside an extension also goes to its output channel —
+// console is temporarily wrapped during activate / command / formatter runs.
 const _origConsole = { log: console.log, info: console.info, warn: console.warn, error: console.error, debug: console.debug };
 async function withExtConsole(extId, fn) {
   const prefix = `[ext:${extId}]`;
@@ -238,7 +238,7 @@ class Emitter {
 }
 const Disposable = (fn) => ({ dispose: () => { try { fn(); } catch {} } });
 
-// ── Uri (file:// subset — sirf wahi jo extensions aam taur par use karti hain) ─
+// ── Uri (file:// subset — only what extensions commonly use) ─
 class Uri {
   constructor(scheme, authority, path_, query, fragment) {
     this.scheme = scheme; this.authority = authority || "";
@@ -263,7 +263,7 @@ class Uri {
   }
 }
 
-// ── Current project (main se getter milta hai registerExtensions ke time) ──
+// ── Current project (getter comes from main at registerExtensions time) ──
 let getProjectPath = () => null;
 
 // ── Per-extension pieces ────────────────────────────────────────────────────
@@ -456,8 +456,8 @@ function getViewHtml(extId, viewType) {
   return injectBridge(String(view._html || ""), extId, String(viewType));
 }
 
-// Iframe ke andar chhota native bridge: extension code `ibx.post()` / `window.__iboxBridge`
-// se main window ko message bhej sakta hai — reverse path bhi yahi se aata hai.
+// Small native bridge inside the iframe: extension code can message the main
+// window via `ibx.post()` / `window.__iboxBridge` — the reverse path comes back the same way.
 function injectBridge(html, extId, viewType) {
   const boot = `<script>(function(){
 var EXT=${JSON.stringify(String(extId)).replace(/<\//g, "<\\/")},VIEW=${JSON.stringify(String(viewType)).replace(/<\//g, "<\\/")},LISTENERS=[],BUSY=false;
@@ -532,7 +532,7 @@ function createApis(extRec) {
     return p ? [{ uri: Uri.file(p), name: path.basename(p), index: 0 }] : [];
   };
 
-  // Class-level helpers — vsCode literal se PEHLE define (self-reference TDZ error deta)
+  // Class-level helpers — define BEFORE the vsCode literal (self-reference would throw a TDZ error)
   class Pos {
     constructor(l, c) { this.line = l; this.character = c; }
     compareTo(o) { return this.line - o.line || this.character - o.character; }
@@ -644,8 +644,8 @@ function createApis(extRec) {
       showInformationMessage: (msg) => { notify("info", msg); try { extLog(extId, String(msg ?? ""), "info"); } catch {} return Promise.resolve(); },
       showWarningMessage: (msg) => { notify("warn", msg); try { extLog(extId, String(msg ?? ""), "warn"); } catch {} return Promise.resolve(); },
       showErrorMessage: (msg) => { notify("error", msg); try { extLog(extId, String(msg ?? ""), "error"); } catch {} return Promise.resolve(); },
-      // VS Code-style Output channel — Output panel me is extension ka alag section.
-      // name na do to default channel (`ext:<id>`), warna `ext:<id>:<name>`.
+      // VS Code-style Output channel — this extension's own section in the Output panel.
+      // Without a name it uses the default channel (`ext:<id>`), otherwise `ext:<id>:<name>`.
       createOutputChannel: (name) => {
         const chName = String(name || "").trim().slice(0, 40);
         const channel = extChannelId(extId, chName);
@@ -826,7 +826,7 @@ async function activate(extRec) {
   const storagePath = path.join(rootDir(), ".state", extRec.id);
   const logPath = path.join(storagePath, "logs");
   try { fs.mkdirSync(logPath, { recursive: true }); } catch {}
-  // Env-var collection ka minimal stub — extensions `persistent` set karti hain
+  // Minimal stub for the env-var collection — extensions set `persistent` on it
   const envCollection = () => ({
     persistent: true,
     description: "",
@@ -837,7 +837,7 @@ async function activate(extRec) {
   const context = {
     subscriptions: rt.disposables,
     extension: { id: extRec.id, extensionUri: extUri, extensionPath: extRec.dir, packageJSON: loadJson(path.join(extRec.dir, "package.json"), {}) },
-    // Purana (pre-1.7x) context fields
+    // Legacy (pre-1.7x) context fields
     extensionId: extRec.id,
     extensionUri: extUri,
     extensionPath: extRec.dir,
@@ -865,7 +865,7 @@ async function activate(extRec) {
     } catch (err) {
       const msg = String((err && err.message) || err);
       // ESM-only dist (require(esm) unavailable) → dynamic import fallback.
-      // Thoda ruk kar import taaki require(esm) ka in-flight graph settle ho.
+      // Wait briefly before importing so the in-flight require(esm) graph can settle.
       if (err && (err.code === "ERR_REQUIRE_ESM" || /Cannot use import statement|Unexpected token 'export'/.test(msg))) {
         await new Promise((r) => setTimeout(r, 50));
         mod = await import(pathToFileURL(mainPath).href);
@@ -1198,7 +1198,7 @@ async function formatDocument(filePath, text, languageId, formatOptions = {}) {
   };
 }
 
-// ── Details (README + features) — Installed tab ke details panel ke liye ────
+// ── Details (README + features) — for the Installed tab details panel ────
 function readReadme(dir) {
   for (const f of ["README.md", "readme.md", "README.markdown", "Readme.md"]) {
     const p = path.join(dir, f);
@@ -1252,7 +1252,7 @@ function extDetails(extId) {
   };
 }
 
-// ── Registration (index.js ise call karta hai) ──────────────────────────────
+// ── Registration (called from index.js) ──────────────────────────────
 function registerExtensions(deps = {}) {
   console.log("[ext] host registered");
   if (typeof deps.getProjectPath === "function") getProjectPath = deps.getProjectPath;
@@ -1306,7 +1306,7 @@ function registerExtensions(deps = {}) {
     }
     return { ok: true };
   });
-  // Renderer se extension channel me log (Extensions panel / webview bridge).
+  // Log from the renderer into an extension channel (Extensions panel / webview bridge).
   handle("ext:log", (_e, extId, message, level, opts) => {
     try { extLog(String(extId || ""), message, level || "info", opts || {}); } catch {}
     return { ok: true };

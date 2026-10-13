@@ -150,8 +150,8 @@ const ProjectWindow = () => {
   }, [sidebarWidth]);
 
   // ── Cache ────────────────────────────────────────────────────────────────
-  // Invalidations ke baad purana in-flight readDirAll dobara cache me na
-  // daal de — warna delete ho chuka item wapas tree me dikhne lagta hai.
+  // After invalidations, never put a stale in-flight readDirAll back into the
+  // cache — otherwise a deleted item reappears in the tree.
   const fsGenRef = useRef(0);
 
   const loadChildren = useCallback(async (folderPath) => {

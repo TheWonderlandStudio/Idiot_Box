@@ -2,7 +2,7 @@
 (function () {
   // entering page — covered black, lift curtain on load
   // if wipe has intro video (1st loading), hold curtain so video plays as starting animation
-  // bhaari media (bg video) load event ko der kar de — isliye max 3s ka fallback bhi hai
+  // heavy media (bg video) can delay the load event — so there is also a max 3s fallback
   let revealStarted = false;
   function reveal() {
     if (revealStarted) return;
@@ -45,7 +45,7 @@
     e.preventDefault();
     if (document.body.classList.contains('is-leaving')) return;
     document.body.classList.add('is-leaving');
-    // music duck + swoosh, phir smooth navigate
+    // music duck + swoosh, then smooth navigate
     try { if (window.__pageLeave) window.__pageLeave(); } catch (err) {}
     setTimeout(function () { location.href = a.href; }, 850);
   });

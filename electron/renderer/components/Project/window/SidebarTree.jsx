@@ -339,8 +339,8 @@ const SidebarTree = ({
   }, [rootPath]);
 
   // Shared: item → OS Recycle Bin + tree refresh.
-  // - pehle se delete item = silent refresh (stale row), error dialog nahi
-  // - failure par bhi cache invalidate karo taaki ghost row na bacha rahe
+  // - already-deleted item = silent refresh (stale row), no error dialog
+  // - invalidate the cache even on failure so no ghost row remains
   const trashAndRefresh = useCallback(async (targetPath, parentDir) => {
     let err = null;
     try {
@@ -985,9 +985,9 @@ const SidebarTree = ({
       if (ok) await trashAndRefresh(selectedPath, parentDir);
       return;
     }
-    // Ctrl+Alt+C → Copy Relative Path (native menu accelerator ke saath match
-    // karta hai). Pehle check karna zaroori: neeche wala Ctrl+C branch
-    // altKey ignore karta hai, isliye wahan se pehle ye match ho jayega.
+    // Ctrl+Alt+C → Copy Relative Path (matches the native menu accelerator
+    // behavior). This check must come first: the Ctrl+C branch below
+    // ignores altKey, so it would match before this one.
     if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "c") {
       e.preventDefault();
       const rel = rootPath && selectedPath.startsWith(rootPath) ? selectedPath.slice(rootPath.length + 1) : selectedPath;

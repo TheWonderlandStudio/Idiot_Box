@@ -1,11 +1,11 @@
-/* Features — bina cards ke: hairline sections, dim video bg, compact nav */
+/* Features — no cards: hairline sections, dim video bg, compact nav */
 *{
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* har jagah se underline hata do — prose links alag se style karte hain */
+/* remove underlines everywhere — prose links are styled separately */
 a{
   text-decoration: none;
 }
@@ -30,7 +30,7 @@ body{
   overflow: hidden;
 }
 
-/* mp4 video — texture ki tarah, text kabhi video par seedha nahi */
+/* mp4 video — used as texture, text never directly over video */
 .bg-video-wrap{
   position: absolute;
   inset: 0;
@@ -54,7 +54,7 @@ body{
   background: #050506;
 }
 
-/* top-left title card — click par wapas index */
+/* top-left title card — back to index on click */
 .card{
   font-family: Arial Black;
   font-size: 25px;
@@ -70,7 +70,7 @@ body{
   z-index: 2;
 }
 
-/* ---------- top-right nav (index jesa) ---------- */
+/* ---------- top-right nav (like index) ---------- */
 .nav-card{
   font-family: 'Inter', sans-serif;
   font-size: 13px;
@@ -126,7 +126,7 @@ body{
   color: black;
 }
 
-/* desktop — links seedha flex me, hamburger/panel chhupa */
+/* desktop — links directly in flex, hamburger/panel hidden */
 .nav-links{
   display: contents;
 }
@@ -155,7 +155,7 @@ body{
   display: none;
 }
 
-/* base link style — media query ke bahar bhi underline kabhi na aaye */
+/* base link style — never underline, even outside media queries */
 .menu-panel a{
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -183,7 +183,7 @@ body{
   color: black;
 }
 
-/* ---------- showcase: hero + sections, cards ke bina ---------- */
+/* ---------- showcase: hero + sections, without cards ---------- */
 .showcase{
   position: absolute;
   left: 50%;
@@ -315,7 +315,7 @@ body{
   background: rgba(255, 255, 255, 0.08);
 }
 
-/* section index — simple list, koi pill nahi */
+/* section index — simple list, no pills */
 .feat-index{
   display: flex;
   flex-wrap: wrap;
@@ -346,7 +346,7 @@ body{
   color: white;
 }
 
-/* sections — sirf hairline divider, koi card box nahi */
+/* sections — hairline dividers only, no card boxes */
 .feat{
   display: grid;
   grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.5fr);
@@ -713,7 +713,7 @@ body{
   border-color: rgba(255, 255, 255, 0.45);
 }
 
-/* end CTA — koi black box nahi */
+/* end CTA — no black box */
 .feat-end{
   padding: 56px 0 64px;
   text-align: center;
@@ -789,7 +789,7 @@ body{
     padding: 10px 12px;
   }
 
-  /* hamburger se X */
+  /* hamburger to X */
   .background.menu-open .hamburger span:nth-child(1){
     transform: translateY(7px) rotate(45deg);
   }

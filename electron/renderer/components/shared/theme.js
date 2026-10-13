@@ -4,10 +4,10 @@
 //
 // Canvas APIs (xterm.js, Excalidraw) need REAL color strings — "var(--x)" does
 // NOT resolve there. Use cssVar("--token", "<same-fallback>") so even those
-// APIs read from the central sheet. Fallback === current value, isliye UI
-// bilkul waisa hi dikhega chahe sheet load na hui ho.
-// NOTE: value creation-time par read hoti hai (terminal/excalidraw objects
-// bante waqt), isliye theme switch ke baad naya panel kholne par naya value milega.
+// APIs read from the central sheet. The fallback equals the current value, so the UI
+// looks exactly the same even if the sheet has not loaded.
+// NOTE: the value is read at creation time (when terminal/excalidraw objects
+// are created), so a new panel opened after a theme switch gets the new value.
 
 // Read one token from :root, else return the fallback literal.
 export const cssVar = (name, fallback) => {

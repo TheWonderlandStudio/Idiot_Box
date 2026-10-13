@@ -1,11 +1,11 @@
 // cm/extensions.js — plain CodeMirror extensions (@uiw basicSetup={false}).
 //
-// Fixed sensible set; sirf chand flags settings se aate hain (theme, font,
+// Fixed sensible set; only a few flags come from settings (theme, font,
 // tabSize, indentUnit, lineNumbers, lineWrapping, autocompletion,
-// tabAcceptsCompletion, vim, snippets). Koi LSP, lint, custom highlights,
-// ya whitespace-dots nahi — language package jo deta hai wahi milta hai.
-// Find = CodeMirror ka built-in search panel (openSearchPanel);
-// Tab = suggestion accept (khula ho to), warna indent.
+// tabAcceptsCompletion, vim, snippets). No LSP, lint, custom highlights,
+// or whitespace-dots — you get whatever the language package provides.
+// Find = CodeMirror's built-in search panel (openSearchPanel);
+// Tab = accept suggestion (when open), otherwise indent.
 
 import { EditorState, Prec } from "@codemirror/state";
 import {
@@ -91,7 +91,7 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
   // ── Language ──
   if (Array.isArray(languageSupport) && languageSupport.length) ext.push(...languageSupport);
 
-  // ── Gutter / view (lineNumbers + wrapping settings se, baaki fixed on) ──
+  // ── Gutter / view (lineNumbers + wrapping from settings, rest fixed on) ──
   if (s.lineNumbers !== false) ext.push(lineNumbers());
   ext.push(highlightActiveLineGutter());
   ext.push(highlightSpecialChars());
@@ -111,9 +111,9 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
   ext.push(foldGutter());
   if (s.autocompletion !== false) {
     ext.push(autocompletion());
-    // Snippets language package ke completions ke saath add hote hain —
-    // `override` mat lagao, wo languageData ke sources ko replace kar deta
-    // hai (console. / import completions tab gayab ho jati thin).
+    // Snippets are added alongside the language package's completions —
+    // do NOT use `override`; it replaces the languageData sources
+    // (console./import completions then disappeared).
     const snippetSource = s.snippets ? getSnippetCompletionSource(languageId) : null;
     if (snippetSource) ext.push(EditorState.languageData.of(() => [{ autocomplete: snippetSource }]));
   }
@@ -125,7 +125,7 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
   // ── Base search (built-in panel + F3 + gotoLine state) ──
   try { ext.push(search()); } catch {}
 
-  // ── Keymaps, ek me flat ──
+  // ── Keymaps, flattened into one ──
   ext.push(keymap.of([
     ...defaultKeymap,
     ...searchKeymap,
@@ -135,11 +135,11 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
     ...closeBracketsKeymap,
   ]));
 
-  // ── Tab: suggestion khula ho to accept, warna false return karke normal
-  // indent par fall through — dono kaam ek key par. Prec.high zaroori hai,
-  // warna default indent keymap jeet jata hai. (tabAcceptsCompletion flag se
-  // on/off. NOTE: seedha acceptCompletion — koi wrapper mat lagao; wrapper
-  // interaction-timestamp reset karke accept ko fail karta hai.)
+  // ── Tab: accept when a suggestion is open, else return false and fall through to
+  // normal indent — both jobs on one key. Prec.high is required,
+  // otherwise the default indent keymap wins. (Toggled via the tabAcceptsCompletion
+  // flag. NOTE: call acceptCompletion directly — do not add a wrapper; a wrapper
+  // resets the interaction timestamp and makes accept fail.)
   if (s.tabAcceptsCompletion !== false) {
     ext.push(Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])));
   }

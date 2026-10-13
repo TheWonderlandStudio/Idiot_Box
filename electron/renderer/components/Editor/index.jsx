@@ -92,7 +92,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   // ── Side preview (markdown / mdx render / sqlite inspect) ──
   const canPreview = !!filePath && !isIpynb && (isDbFile || isMdFile || isMdxFile || languageId === "markdown" || languageId === "mdx");
   const [previewOpen, setPreviewOpen] = useState(false);
-  // Naya file → db auto-open, baaki band.
+  // New file → auto-open for db, closed for the rest.
   useEffect(() => { setPreviewOpen(isDbFile); }, [filePath, isDbFile]);
 
   const viewRef = useRef(null);
@@ -114,8 +114,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   binaryRef.current = binaryFile;
 
   // ── Problems panel diagnostics (debounced Lezer syntax check) ──────────
-  // View purani file ka bhi ho sakta hai (tab switch) — isliye schedule time
-  // ka path capture karo, fire time par match karo; galat file par publish nahi.
+  // The view may belong to an older file (tab switch) — so capture the
+  // path at schedule time and match it at fire time; never publish for the wrong file.
   const diagTimer = useRef(null);
   const scheduleDiagnostics = useCallback((delay = 800) => {
     const p = pathRef.current;
@@ -130,7 +130,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       } catch {}
     }, delay);
   }, []);
-  // Tab band → uski Problems entry clear (warna mare hue file ke errors atke rehte).
+  // Tab closed → clear its Problems entry (otherwise a dead file's errors stay stuck).
   useEffect(() => () => {
     try { clearTimeout(diagTimer.current); } catch {}
     try {
@@ -175,8 +175,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     if (!filePath || isIpynb) return;
     loadedRef.current = false;
     setBinaryFile(false);
-    // DB file = binary — text mat padho (mojibake + badi file ka kharcha),
-    // preview pane hi iska view hai.
+    // DB file = binary — do not read it as text (mojibake + cost of a large file);
+    // the preview pane is its view.
     if (isDbFile) {
       setBinaryFile(true);
       setDoc("");
@@ -225,8 +225,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [cmSettings, languageId]);
 
-  // File load / language-mode change par lint (doc text same bhi ho to —
-  // tab switch me docChanged fire nahi hota, ye effect pakadta hai).
+  // Lint on file load / language-mode change (even when the doc text is unchanged —
+  // docChanged does not fire on tab switch; this effect catches it).
   useEffect(() => {
     if (!filePath || isIpynb) return;
     scheduleDiagnostics(600);
@@ -245,7 +245,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       const p = offsetToPos(view.state.doc, pos);
       setCursorPos({ line: p.lineNumber, col: p.column, totalLines: view.state.doc.lines });
     } catch {}
-    // Fresh view → pehla lint run (debounced, parse poora hone do).
+    // Fresh view → first lint run (debounced, let parsing finish).
     try { scheduleDiagnostics(500); } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -276,7 +276,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         const p = offsetToPos(viewUpdate.state.doc, head);
         setCursorPos({ line: p.lineNumber, col: p.column, totalLines: viewUpdate.state.doc.lines });
       }
-      // Har edit par dobara lint (debounced) — Problems panel live rehta hai.
+      // Re-lint on every edit (debounced) — keeps the Problems panel live.
       if (viewUpdate.docChanged) {
         try { scheduleDiagnostics(); } catch {}
       }
@@ -367,7 +367,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     }
   }, [cmSettings, isIpynb, formatBusy]);
 
-  // ── Editor command executor (is tab ke view par) ──
+  // ── Editor command executor (runs on this tab's view) ──
   const execCommand = useCallback(async (cmd) => {
     const view = viewRef.current;
     if (!view || isIpynb) return;
@@ -425,7 +425,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isIpynb, formatDocument]);
 
-  // ── File & Edit menu commands (sirf active tab react kare) ──
+  // ── File & Edit menu commands (only the active tab reacts) ──
   useEffect(() => {
     if (isIpynb) return;
     const onCmd = async (e) => {
@@ -498,7 +498,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     return () => window.removeEventListener("editor:revealLine", handler);
   }, [filePath]);
 
-  // ── Live reload: external edits -> auto-update (dirty nahi ho to) ──
+  // ── Live reload: external edits -> auto-update (when not dirty) ──
   useEffect(() => {
     if (!filePath || isIpynb) return;
     let timer = null;
@@ -629,7 +629,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                 <div className="ed-dbhint">
                   <span>SQLite database — {fileName(filePath)}</span>
                   <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)" }}>
-                    Binary file · preview me tables, columns & rows dekho
+                    Binary file · view tables, columns & rows in the preview
                   </span>
                   <button className="ed-dbhint__btn" onClick={() => setPreviewOpen(true)}>
                     Open DB Preview
@@ -813,7 +813,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   );
 };
 
-// Compat alias (koi purana import toota na ho).
+// Compat alias (so no old import breaks).
 export { CodeMirrorEditorPanel as MonacoEditorPanel };
 
 // Plain CodeMirror editor factory. Notebook tabs keep their cell UI.

@@ -4,7 +4,7 @@ import "./openpencil.css";
 
 const DEFAULT_URL = "https://app.openpencil.dev";
 
-// Brand logo ko guest page me load/mat dikhao (request main process me block hoti hai).
+// Hide the brand logo on the guest page (the request is blocked in the main process).
 const GUEST_ICON_CSS = 'img[data-test-id="app-logo"],img[src*="/brand/app-icon.svg"]{display:none!important}';
 
 const OpenPencilPanel = ({ config, nodeId }) => {
@@ -38,7 +38,7 @@ const OpenPencilPanel = ({ config, nodeId }) => {
     el.addEventListener("did-stop-loading", onStop);
     el.addEventListener("did-fail-load", onFail);
     el.addEventListener("render-process-gone", onGone);
-    // Har navigation ke baad CSS dobara lagani padti hai (naye document pe reset ho jata hai).
+    // The CSS must be re-applied after every navigation (a new document resets it).
     el.addEventListener("did-finish-load", injectCss);
     injectCss();
   }, []);

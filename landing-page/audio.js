@@ -41,7 +41,7 @@
     bgm.play().then(function () {
       fade(bgm, BGM_LEVEL, 1500).catch(function () {});
     }).catch(function () {
-      // autoplay blocked — pehle user gesture ka wait
+      // autoplay blocked — wait for the first user gesture
       pending = true;
     });
   }
@@ -60,17 +60,17 @@
     document.addEventListener(ev, unlock, { passive: true });
   });
 
-  // page ke hisaab se BGM — <body data-bgm="home|chatlog|features">
+  // per-page BGM — <body data-bgm="home|chatlog|features">
   const key = (document.body && document.body.dataset.bgm) || 'home';
   bgm.src = TRACKS[key] || TRACKS.home;
   fadeInBgm();
 
-  // page-transition isko call karta hai: music duck + swoosh, phir navigate
+  // page-transition calls this: duck music + swoosh, then navigate
   window.__pageLeave = function () {
     try {
       fade(bgm, 0, 600).catch(function () {});
       swoosh.currentTime = 0;
       swoosh.play().catch(function () {});
-    } catch (e) { /* silent — navigation phir bhi hoga */ }
+    } catch (e) { /* silent — navigation still proceeds */ }
   };
 })();

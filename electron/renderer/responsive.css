@@ -28,7 +28,7 @@
 
 /* 640px — new min: stack project body, make layout scrollable, wrap headers */
 @media (max-width: 640px) {
-  /* Edit sidebar chhoti window par patli rakho */
+  /* Keep the edit sidebar narrow on small windows */
   .browser { --edit-sb-w: 200px !important; }
   .eb-hint { display: none !important; }
   /* Top IDE bar: allow wrap */

@@ -59,8 +59,8 @@ function MessageSquareIconFallback(props) {
   return <Send {...props} />;
 }
 
-// Create Project → Layout options ke liye chhota SVG wireframe:
-// default = IDE jaisa ready layout, blank = ek khaali panel.
+// Create Project → small SVG wireframe for the layout options:
+// default = IDE-like ready layout, blank = one empty panel.
 function LayoutPreviewSvg({ kind }) {
   if (kind === "blank") {
     return (
@@ -84,9 +84,9 @@ function LayoutPreviewSvg({ kind }) {
 }
 const FRAMEWORK_CATEGORIES = ["All", "Frontend", "Backend", "Python", "Bots", "Mobile", "Others", "Tools"];
 
-// ─── AI setup: chat se aaye panel keys → flexlayout `panels` JSON ──────────
-// index.jsx doSaveProjectTabs/restore `panels` ko padhta hai; editor hamesha
-// shamil hota hai taaki project khulte hi likhne layak ho.
+// ─── AI setup: panel keys from chat → flexlayout `panels` JSON ──────────
+// index.jsx doSaveProjectTabs/restore reads `panels`; the editor is always
+// included so the project is ready to type in as soon as it opens.
 const PANEL_MAP = {
   editor: "editor", terminal: "terminal", git: "gitPanel", browser: "panel3",
   problems: "problems", output: "output", ports: "ports", runDebug: "runDebug",
@@ -153,7 +153,7 @@ const buildPanelsJson = (panelKeys) => {
   return { global: PANEL_GLOBAL, layout };
 };
 
-// AI reply me ```setup fence → proposal object (galat framework/panels par null)
+// ```setup fence in the AI reply → proposal object (null on wrong framework/panels)
 const SETUP_BLOCK_RE = /```setup\b([\s\S]*?)```/;
 const normalizeSetupProposal = (raw) => {
   const m = String(raw || "").match(SETUP_BLOCK_RE);
@@ -193,9 +193,9 @@ const buildFullPath = (name, loc) => {
 };
 
 // ─── Real setup commands — official CLIs run in the workspace terminal ───
-// steps → ek hi shell line jo Create ke baad workspace ke terminal me bheji
-// jaati hai. `;` separator Windows PowerShell 5.1 + bash dono me kaam karta
-// hai (`&&` PS 5.1 me tootta hai). cwd badalna ho to aage `cd` lagta hai.
+// steps → one shell line sent to the workspace terminal after Create.
+// The `;` separator works in both Windows PowerShell 5.1 + bash
+// (`&&` breaks in PS 5.1). To change cwd, a `cd` is prepended.
 const composeSetupLine = (steps, parentDir, projDir) => {
   const q = (s) => (/\s/.test(String(s)) ? `"${String(s)}"` : String(s));
   let cur = projDir;
@@ -686,7 +686,7 @@ const ProjectHub = () => {
   const compMenuRef = useRef(null);
   const composerRef = useRef(null);
 
-  // Menus bahar click / Escape → band
+  // Close menus on outside click / Escape
   useEffect(() => {
     if (!compMenu && !cardMenu) return;
     const onDoc = (e) => {
@@ -704,7 +704,7 @@ const ProjectHub = () => {
     };
   }, [compMenu, cardMenu]);
 
-  // filter menu bahar click → band
+  // Close the filter menu on outside click
   useEffect(() => {
     if (!recentFilterOpen) return;
     const onDoc = (e) => { try { if (recentFilterRef.current && !recentFilterRef.current.contains(e.target)) setRecentFilterOpen(false); } catch {} };
@@ -723,9 +723,9 @@ const ProjectHub = () => {
   const [frameworkLang, setFrameworkLang] = useState("TypeScript");
   const [showTemplateFiles, setShowTemplateFiles] = useState(false);
   // ── Create Project layout choice: default panels | blank workspace ───────
-  // "blank" → project sirf ek blank panel se khulta hai (panel picker),
-  // user apne hisaab se panels kholta hai. tabs.json me layout:"blank"
-  // persist hota hai, har open par index.jsx ise padhta hai.
+  // "blank" → the project opens with only one blank panel (panel picker);
+  // the user opens panels as needed. tabs.json persists layout:"blank",
+  // and index.jsx reads it on every open.
   const [createLayout, setCreateLayout] = useState("default");
   const createLayoutRef = useRef("default");
   useEffect(() => { createLayoutRef.current = createLayout; }, [createLayout]);
@@ -763,14 +763,14 @@ const ProjectHub = () => {
       const list = Array.isArray(data.contributions) ? data.contributions : [];
       if (!list.length) throw new Error("no data");
       const sorted = [...list].sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      // streak: aaj/pichhle se peeche tak lagatar count>0
+      // streak: consecutive count>0 going back from today/previous
       let streak = 0;
       for (let i = sorted.length - 1; i >= 0; i--) {
         if ((sorted[i].count || 0) > 0) streak++;
         else if (i < sorted.length - 1) break;
       }
       const total = sorted.reduce((s, d) => s + (d.count || 0), 0);
-      // poora saal — GitHub jaisa, Sunday-start columns
+      // whole year — GitHub-like, Sunday-start columns
       const pad = sorted.length ? new Date(sorted[0].date + "T00:00:00").getDay() : 0;
       const cells = [...Array(pad).fill(null), ...sorted];
       const weeks = [];
@@ -795,8 +795,8 @@ const ProjectHub = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // ── Hub view history (Back/Forward + mouse side buttons) ──
-  // Views: main | new | clone | fw — sidebar/dialogs inhe set karte hain,
-  // ye effect history banata hai; Back/Forward + mouse (btn 3/4) us par chalte hain.
+  // Views: main | new | clone | fw — the sidebar/dialogs set these,
+  // this effect builds the history; Back/Forward + mouse (btn 3/4) walk it.
   const backRef = useRef([]);
   const fwdRef = useRef([]);
   const currentViewRef = useRef("main");
@@ -809,7 +809,7 @@ const ProjectHub = () => {
     setShowCloneDialog(v === "clone");
     setShowFrameworks(v === "fw");
   }, []);
-  // Backdrop click → home (create/clone/fw + recents/heat overlay sab band)
+  // Backdrop click → home (closes create/clone/fw + recents/heat overlays)
   const closeCenterViews = useCallback(() => {
     setShowNewProjectDialog(false);
     setShowCloneDialog(false);
@@ -843,7 +843,7 @@ const ProjectHub = () => {
     applyHubView(next);
     bumpNav((x) => x + 1);
   }, [applyHubView]);
-  // Mouse side buttons: 3 = back, 4 = forward (browser jaisa)
+  // Mouse side buttons: 3 = back, 4 = forward (like a browser)
   useEffect(() => {
     const onMouse = (e) => {
       try {
@@ -887,7 +887,7 @@ const ProjectHub = () => {
     };
   }, [applyHubUiSettings]);
 
-  // ── Drag & drop badge message (wallpaper picker bhi use karta hai) ──
+  // ── Drag & drop badge message (also used by the wallpaper picker) ──
   const [dropMsg, setDropMsg] = useState(null);
   const dropMsgTimerRef = useRef(null);
   const flashDropMsg = useCallback((t) => {
@@ -897,8 +897,8 @@ const ProjectHub = () => {
   }, []);
 
   // ── Hub view switcher (checkbox rows → center view) ──
-  // views: projects (default stack) | gitgraph (repo graph). Drawing jaisa:
-  // sidebar me checkbox squares + label pills, ek time par ek view.
+  // views: projects (default stack) | gitgraph (repo graph). Drawing-like:
+  // checkbox squares + label pills in the sidebar, one view at a time.
   const [centerView, setCenterView] = useState("gitgraph");
   const [hubChatText, setHubChatText] = useState("");
   // Composer textarea auto-grow (1 line → max 132px)
@@ -908,11 +908,11 @@ const ProjectHub = () => {
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 132) + "px";
   }, [hubChatText]);
-  // ── Full-screen AI chat (Hub chat send karte hi Hub gayab → ye khulta hai) ─
+  // ── Full-screen AI chat (opens as soon as Hub chat is sent and Hub hides) ─
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMsgs, setChatMsgs] = useState([]);
   const [chatBusy, setChatBusy] = useState(false);
-  // AI proposal — ```setup block se bana, card me dikhata hai
+  // AI proposal — built from the ```setup block, shown in the card
   const [chatProposal, setChatProposal] = useState(null);
   const chatMsgsRef = useRef([]);
   const [copiedMsgIdx, setCopiedMsgIdx] = useState(null);
@@ -955,15 +955,15 @@ const ProjectHub = () => {
     chatMsgsRef.current = [...chatMsgsRef.current, msg];
     setChatMsgs(chatMsgsRef.current);
   };
-  // AI call — user message append → streaming reply LIVE dikhta hai (chunks
-  // aate jate hain); ```setup fence sirf final hone par proposal card me jaati.
+  // AI call — append the user message → the streaming reply shows LIVE (chunks
+  // keep arriving); the ```setup fence only goes to the proposal card when final.
   const askAiReply = async (text) => {
     pushChatMsg({ role: "user", content: text });
     setChatBusy(true);
     const id = "c" + Date.now() + Math.random().toString(36).slice(2, 6);
     let acc = "";
     let streamed = false;
-    // live view me setup fence kabhi na dikhe — sirf usse pehle ka text
+    // never show the setup fence in the live view — only the text before it
     const liveBody = (raw) => {
       const i = raw.indexOf("```setup");
       return i >= 0 ? raw.slice(0, i) : raw;
@@ -1001,7 +1001,7 @@ const ProjectHub = () => {
           if (proposal) setChatProposal(proposal);
           finish();
         } else if (type === "error") {
-          // Electron IPC prefix hata do — user ko sirf asli error dikhao
+          // Strip the Electron IPC prefix — show the user only the real error
           const msg = String(p.message || "AI request failed")
             .replace(/^Error invoking remote method ['"]ai:chat['"]:\s*/, "");
           const msgs = [...chatMsgsRef.current];
@@ -1014,8 +1014,8 @@ const ProjectHub = () => {
       window.electronAPI.aiChatStart(id, chatMsgsRef.current.slice(-10));
     });
   };
-  // ── Mic voice input: record (webm) → WAV 16k mono → main me Windows
-  // System.Speech (offline) → text composer me. Mic dobara click = stop. ──
+  // ── Mic voice input: record (webm) → WAV 16k mono → Windows
+  // System.Speech in main (offline) → text into the composer. Click the mic again = stop. ──
   const [voiceRec, setVoiceRec] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const voiceRef = useRef(null);
@@ -1087,7 +1087,7 @@ const ProjectHub = () => {
       flashDropMsg("Mic access not available");
     }
   };
-  // Hub ka composer → cards hide, wahi jagah chat on (input composer hi rahe)
+  // Hub composer → hide cards, show chat in the same place (the input composer stays)
   const sendHubMessage = async () => {
     const text = hubChatText.trim();
     if (!text || chatBusy) return;
@@ -1095,13 +1095,13 @@ const ProjectHub = () => {
     setChatOpen(true);
     await askAiReply(text);
   };
-  // Chat list — naye message aate hi niche scroll
+  // Chat list — scroll down as new messages arrive
   const chatScrollRef = useRef(null);
   useEffect(() => {
     const el = chatScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [chatMsgs, chatProposal]);
-  // Esc → chat band, recents wapas
+  // Esc → close chat, back to recents
   useEffect(() => {
     if (!chatOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setChatOpen(false); };
@@ -1167,11 +1167,11 @@ const ProjectHub = () => {
     } catch {}
   }, []);
 
-  // ── Hub wallpaper (user ki pasand — path persist, dataURL memory me) ──
+  // ── Hub wallpaper (user's choice — path persisted, dataURL in memory) ──
   const [wallpaper, setWallpaper] = useState(null); // dataURL
   const [wallpaperName, setWallpaperName] = useState("");
-  const [wallTint, setWallTint] = useState(""); // wallpaper ka average color
-  // Image ko 32px par downscale karke average RGB — sidebar/center tint ke liye
+  const [wallTint, setWallTint] = useState(""); // average color of the wallpaper
+  // Downscale the image to 32px for the average RGB — for the sidebar/center tint
   const tintFromDataUrl = useCallback((url) => {
     try {
       const img = new Image();
@@ -1201,7 +1201,7 @@ const ProjectHub = () => {
         let saved = [];
         try { saved = JSON.parse(localStorage.getItem("ibx:hubWallpapers") || "[]") || []; } catch {}
         if (!Array.isArray(saved)) saved = [];
-        // current sabse pehle, phir saved recents (dedupe, cap 6)
+        // current first, then saved recents (dedupe, cap 6)
         const ordered = [p, ...saved].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).slice(0, 6);
         const resolved = [];
         for (const rp of ordered) {
@@ -1232,7 +1232,7 @@ const ProjectHub = () => {
     })();
     return () => { dead = true; };
   }, []);
-  // Recents — paths persist hote hain (images nahi), dataURL memory me.
+  // Recents — paths are persisted (not images), dataURL stays in memory.
   const [recentWalls, setRecentWalls] = useState([]);
   const [wallMenuOpen, setWallMenuOpen] = useState(false);
   const persistRecentPaths = useCallback((list) => {
@@ -1241,14 +1241,14 @@ const ProjectHub = () => {
       localStorage.setItem("ibx:hubWallpapers", JSON.stringify(paths));
     } catch {}
   }, []);
-  // Custom right-click menu (native nahi) — cell options ke liye
+  // Custom right-click menu (not native) — for cell options
   const [wallCtx, setWallCtx] = useState(null); // { x, y, path }
   const applyWallpaper = useCallback((p, url) => {
     setWallpaper(url);
     setWallpaperName(String(p).split(/[\\/]/).pop() || "");
     tintFromDataUrl(url);
     try { localStorage.setItem("ibx:hubWallpaper", p); } catch {}
-    // recents me sabse upar (cap 6) + persist
+    // to the top of recents (cap 6) + persist
     setRecentWalls((prev) => {
       const rest = (prev || []).filter((w) => w && w.path !== p);
       const next = [{ path: p, url }, ...rest].slice(0, 6);
@@ -1286,30 +1286,30 @@ const ProjectHub = () => {
     try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
   }, []);
 
-  // ── Drag & drop: bahar se koi bhi folder Hub me khincho → import ──
+  // ── Drag & drop: drag any folder from outside into Hub → import ──
   const [dropActive, setDropActive] = useState(false);
   const dragDepthRef = useRef(0);
   const hasFiles = (e) => {
     try {
       const types = Array.from(e?.dataTransfer?.types || []);
       if (types.includes("Files")) return true;
-      // Electron/Windows: native OS drops sometimes types me "Files" nahi aata
-      // par items/file aate hain. Drop items check bhi karo.
+      // Electron/Windows: native OS drops sometimes omit "Files" from types,
+      // but items/files still arrive. Also check the drop items.
       try {
         const items = Array.from(e?.dataTransfer?.items || []);
         if (items.some((it) => it.kind === "file")) return true;
       } catch {}
-      // Agar types empty hai aur external drag hai (OS side se), consider karo
+      // If types is empty and this is an external drag (from the OS side), count it
       if (types.length === 0 || types.includes("application/x-moz-file")) return true;
     } catch {}
     return false;
   };
   const onHubDragEnter = useCallback((e) => {
-    // Hamesha preventDefault — bina iske drop event fire hi nahi hota.
-    // (Electron me OS drops par dataTransfer.types kabhi khaali milta hai.)
+    // Always preventDefault — without it the drop event never fires.
+    // (On Electron, dataTransfer.types is sometimes empty for OS drops.)
     e.preventDefault();
-    // Drag enter/drag leave par strict hasFiles mat lagao — Electron me native drops
-    // me types unreliable hote hain. Drop handler me proper validation hai.
+    // Do not require strict hasFiles on drag enter/leave — native drops have
+    // unreliable types in Electron. The drop handler validates properly.
     dragDepthRef.current += 1;
     setDropActive(true);
   }, []);
@@ -1323,7 +1323,7 @@ const ProjectHub = () => {
     if (dragDepthRef.current === 0) setDropActive(false);
   }, []);
   const onHubDrop = useCallback(async (e) => {
-    // Pehle preventDefault — taaki drop hamesha hum tak pahunche.
+    // preventDefault first — so the drop always reaches us.
     e.preventDefault();
     e.stopPropagation();
     dragDepthRef.current = 0;
@@ -1331,7 +1331,7 @@ const ProjectHub = () => {
     try {
       let files = Array.from(e?.dataTransfer?.files || []);
       if (!files.length) {
-        // fallback: items se File nikalo (kuch drops me files khaali milta hai)
+        // fallback: extract Files from items (files is empty in some drops)
         try {
           const items = Array.from(e?.dataTransfer?.items || []);
           files = items.map((it) => { try { return it.getAsFile(); } catch { return null; } }).filter(Boolean);
@@ -1341,8 +1341,8 @@ const ProjectHub = () => {
         flashDropMsg("Nothing dropped — try again");
         return;
       }
-      // Paths nikalne ke liye pehle Electron ka getPathForFile use karo
-      // (File.path deprecated/unreliable hai newer Electron me)
+      // To get paths, prefer Electron's getPathForFile first
+      // (File.path is deprecated/unreliable in newer Electron)
       const paths = [];
       for (const f of files) {
         try {
@@ -1352,7 +1352,7 @@ const ProjectHub = () => {
           if (p && !paths.includes(p)) paths.push(p);
         } catch {}
       }
-      // Fallback: webkitGetAsEntry se directory check
+      // Fallback: directory check via webkitGetAsEntry
       if (!paths.length) {
         try {
           const items = Array.from(e?.dataTransfer?.items || []);
@@ -1361,7 +1361,7 @@ const ProjectHub = () => {
               if (it.kind === "file" && typeof it.webkitGetAsEntry === "function") {
                 const entry = it.webkitGetAsEntry();
                 if (entry && entry.fullPath) {
-                  // entry.fullPath relative hota hai, lekin File object se path lelo
+                  // entry.fullPath is relative, but take the path from the File object
                   const file = it.getAsFile();
                   if (file) {
                     let p = null;
@@ -1387,7 +1387,7 @@ const ProjectHub = () => {
         } catch {}
       }
       if (!dirs.length) {
-        // DIAG: pehle path ka stat dikhao taaki exact wajah pata chale
+        // DIAG: show the first path's stat so the exact cause is visible
         let diag = "";
         try {
           if (paths.length) {
@@ -1401,12 +1401,12 @@ const ProjectHub = () => {
       for (const d of dirs) {
         try { window.electronAPI.projectAddRecent(d); } catch {}
       }
-      // Open button wala shared direct-open (dialog:openFolder ka same code
-      // path — dialog bilkul nahi, dropped path seedha khulta hai).
+      // Shared direct-open like the Open button (same code path as dialog:openFolder —
+      // no dialog at all; the dropped path opens directly).
       let opened = null;
       try { opened = await window.electronAPI.openDirect?.(dirs[0]); } catch (err) { opened = { ok: false, error: err?.message || String(err) }; }
       if (!opened) {
-        // purana preload (rebuild se pehle) — fallback purana raasta
+        // old preload (before a rebuild) — fall back to the old path
         try { opened = await window.electronAPI.menuOpenProject(dirs[0]); } catch (err) { opened = { ok: false, error: err?.message || String(err) }; }
       }
       if (opened && opened.ok === false) {
@@ -1449,7 +1449,7 @@ const ProjectHub = () => {
     }
   }, []);
 
-  // clone dialog khule + username ho → apni repos lao
+  // When the clone dialog opens + a username exists → fetch your repos
   useEffect(() => {
     if (!showCloneDialog) return;
     (async () => {
@@ -2132,7 +2132,7 @@ const ProjectHub = () => {
   }, []);
 
   // overrides (AI setup card): { fw, name, loc, lang, steps, projName, panels }
-  // — state ke bajaye inhi se create chalta hai; nahi diya to dialog wala flow.
+  // — creation runs from these instead of state; without them the dialog flow runs.
   const createNewProject = useCallback(async (overrides) => {
     const ov = overrides || {};
     const legacy = ov.legacy !== undefined ? String(ov.legacy || "").trim() : newProjectPath.trim();
@@ -2152,8 +2152,8 @@ const ProjectHub = () => {
     if (spec && !steps.length) spec = null;
     // parent-mode needs a real parent dir — else starter files
     if (spec && spec.mode === "parent" && !loc) spec = null;
-    // AI proposal ka panel layout — project open se pehle tabs.json me likh do
-    // (index.jsx handleOpen isi `panels` ko restore karta hai).
+    // AI proposal's panel layout — write it to tabs.json before the project opens
+    // (index.jsx handleOpen restores this same `panels`).
     const writePanels = async (dir) => {
       if (!ov.panels || !dir) return;
       try {
@@ -2183,7 +2183,7 @@ const ProjectHub = () => {
       }
       return;
     }
-    // ── Workspace pehle kholo — setup commands usi ke terminal me chalengi ──
+    // ── Open the workspace first — setup commands run in its terminal ──
     if (scaffoldingRef.current) return;
     const sep = loc.includes("\\") ? "\\" : "/";
     const parentDir = loc.replace(/[\\/]+$/, "") || target;
@@ -2191,14 +2191,14 @@ const ProjectHub = () => {
     await markBlankLayout(projDir);
     await writePanels(projDir);
     try {
-      // target mode: starter files pehle (fs:writeFile parents khud banata
-      // hai), file tree workspace khulte hi ready mile. write "after" specs
-      // (rust) bhi yahin likhte hain — cargo init maujood src files chhodta hai.
+      // target mode: starter files first (fs:writeFile creates parents itself,
+      // so the file tree is ready as soon as the workspace opens). "after" specs
+      // (rust) are also written here — cargo init leaves existing src files alone.
       if (spec.mode === "target" && spec.write !== false) {
         await writeTemplateFiles(fw.id, name, lang, projDir, spec.skipFiles || []);
       }
-      // workspace open — folder nahi hai to menuNewProject mkdir kar deta hai;
-      // chokidar watcher CLI ke naye files live tree me dikha dega.
+      // workspace open — if the folder is missing, menuNewProject creates it;
+      // the chokidar watcher shows the CLI's new files live in the tree.
       await window.electronAPI.menuNewProject(projDir);
       closeCreateDialog();
       const line = composeSetupLine(steps, parentDir, projDir);
@@ -2211,9 +2211,9 @@ const ProjectHub = () => {
     }
   }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, writeTemplateFiles, closeCreateDialog]);
 
-  // AI proposal card → "Create project": pehle user se puchho kahan save
-  // karna hai (folder picker) — cancel par create hi nahi hota. Uske baad
-  // workspace khulta hai aur setup commands usi ke terminal me chalte hain.
+  // AI proposal card → "Create project": first ask the user where to save
+  // (folder picker) — on cancel nothing is created. Then the
+  // workspace opens and the setup commands run in its terminal.
   const handleAiCreate = useCallback(async () => {
     const p = chatProposal;
     const fw = p && FRAMEWORKS.find((f) => f.id === p.frameworkId);
@@ -2356,7 +2356,7 @@ const ProjectHub = () => {
       onDragLeave={onHubDragLeave}
       onDrop={onHubDrop}
       onClick={(e) => {
-        // Sirf interactive cheezo par click sound (khali jagah par nahi)
+        // Click sound only on interactive things (not on empty space)
         try {
           if (e.target && e.target.closest && e.target.closest('button, a, input, select, [role="button"]')) playClick();
         } catch {}
@@ -2364,12 +2364,12 @@ const ProjectHub = () => {
     >
       {!nativeCursor && <CustomCursor />}
 
-      {/* Bottom glow — dark bg par warm radial light (wallpaper par hidden) */}
+      {/* Bottom glow — warm radial light on dark bg (hidden on wallpaper) */}
       <div className="phub__glow" aria-hidden="true" />
 
 
-      {/* AI chat — home ke andar cards ki jagah message list
-          (.phub__home-chat). Input wahi bottom composer. */}
+      {/* AI chat — message list instead of cards inside home
+          (.phub__home-chat). Input stays in the bottom composer. */}
 
       {projectPath && (
         <div className={`phub__path-bar${sidebarCollapsed ? " phub__path-bar--collapsed" : ""}`}>
@@ -3143,11 +3143,11 @@ const ProjectHub = () => {
                       onClick={() => openProject(path)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
-                          // Space scroll rok ke project kholo
+                          // Open the project without Space scrolling
                           e.preventDefault();
                           openProject(path);
                         } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                          // List me up/down se ghumo
+                          // Move up/down through the list
                           e.preventDefault();
                           try {
                             const items = Array.from(
@@ -3485,7 +3485,7 @@ const ProjectHub = () => {
         </div>
       )}
 
-      {/* Custom right-click menu (native nahi) */}
+      {/* Custom right-click menu (not native) */}
       {wallCtx && (
         <>
           <div
@@ -3531,7 +3531,7 @@ const ProjectHub = () => {
         </>
       )}
 
-      {/* Wallpaper — right side bottom, chhota button + popup menu */}
+      {/* Wallpaper — bottom-right, small button + popup menu */}
       <div className="phub__wallwrap">
         {wallMenuOpen && (
           <div className="phub__wallmenu" role="menu" aria-label="Wallpapers">

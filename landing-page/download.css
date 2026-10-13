@@ -1,4 +1,4 @@
-/* Download — chatlog jesi shell, dark theme, stats + saare formats */
+/* Download — chatlog-like shell, dark theme, stats + all formats */
 *{
   margin: 0;
   padding: 0;
@@ -166,7 +166,7 @@ body{
   color: black;
 }
 
-/* main column — center me, scrollable */
+/* main column — centered, scrollable */
 .dl-feed{
   position: absolute;
   left: 50%;
@@ -193,7 +193,7 @@ body{
   border-radius: 3px;
 }
 
-/* ---------- stats strip (chatlog se shared look) ---------- */
+/* ---------- stats strip (shared look with chatlog) ---------- */
 .stats-strip{
   display: flex;
   flex-wrap: wrap;
@@ -388,6 +388,7 @@ a.dl-card:hover{
 
 .kind-win{ background: white; color: black; }
 .kind-linux{ background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.4); }
+.kind-mac{ background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.4); }
 .kind-upd{ background: transparent; color: rgba(255, 255, 255, 0.7); border: 1px dashed rgba(255, 255, 255, 0.4); }
 .kind-other{ background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.8); }
 

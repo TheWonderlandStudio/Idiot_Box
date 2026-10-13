@@ -1,6 +1,6 @@
 // Run & Debug v1: Run panel — launch configs, runners, npm scripts, history.
-// Executes via main run engine (pty); console neeche REAL xterm hai (colors,
-// links, input) aur full log Output panel ke "Run" channel me jata hai.
+// Executes via the main run engine (pty); the console below is a REAL xterm (colors,
+// links, input) and the full log goes to the Output panel's "Run" channel.
 // Debug adapters (DAP, breakpoints, variables, watch) are phase 2.
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
@@ -9,7 +9,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { cssVar } from "../shared/theme.js";
 
-// Renderer me process.* nahi hota (context isolation) — platform UA se pakdo
+// No process.* in the renderer (context isolation) — detect the platform via UA
 const isWin = typeof navigator !== "undefined" && /win/i.test(`${navigator.platform || ""} ${navigator.userAgent || ""}`);
 const HIST_MAX = 10;
 
@@ -17,13 +17,13 @@ const stripAnsi = (s) =>
   String(s ?? "")
     .replace(/\x1b\][^\x07]*\x07/g, "")
     .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "");
-// NOTE: \r DELETE nahi karte — progress bars/spinners same-line overwrite
-// ke liye \r bhejte hain; Output panel usse handle karta hai.
+// NOTE: don't DELETE \r — progress bars/spinners send \r for same-line overwrites;
+// the Output panel handles it.
 
-// ── Shell helpers (compiled languages compile+run ek pty me) ──────────────
+// ── Shell helpers (compiled languages compile+run in one pty) ──────────────
 const SHELL_BIN = isWin ? "cmd.exe" : "sh";
 const SHELL_FLAG = isWin ? "/c" : "-c";
-// Path me space / shell chars ho to double-quote karo.
+// Double-quote when the path contains spaces / shell chars.
 const q = (s) => {
   const t = String(s ?? "");
   return /[\s"'&|<>^()!]/.test(t) ? `"${t.replace(/"/g, '\\"')}"` : t;
@@ -39,16 +39,16 @@ const exeOf = (f) => {
   const sep = String(f || "").includes("\\") ? "\\" : "/";
   return `${d ? `${d}${sep}` : ""}${clsOf(f)}${isWin ? ".exe" : ""}`;
 };
-// probe version-string vs actual binary: python/lua/npm ke binary alag field me.
-// Default "python" hai ("py" launcher kai machine par hota hi nahi — probes/
-// main-engine use milte hi sahi binary par switch kar lete hain).
+// probe version-string vs actual binary: python/lua/npm binaries live in a separate field.
+// Default is "python" ("py" launcher is missing on many machines — probes/
+// main-engine switch to the right binary as soon as it is found).
 const pyBin = (probes) => (probes?.pythonCmd) || "python";
 const npmBin = (probes) => (probes?.npmCmd) || "npm";
 const luaBin = (probes) => (probes?.luaCmd) || "lua";
 
 // extension -> builder(file, probes) => { cmd, args, cwd?, live? } | { missing: "tool" }
-// Single binary wali simple hain; compile wali (c/cpp/java/rust/kotlin) shell
-// string banati hain taaki `javac && java` ek run me ho jaye.
+// Single-binary ones are simple; compile ones (c/cpp/java/rust/kotlin) build a
+// shell string so `javac && java` happens in one run.
 const RUNNERS = {
   ".js":  { runtimes: ["node"], build: (f) => ({ cmd: "node", args: [f] }) },
   ".mjs": { runtimes: ["node"], build: (f) => ({ cmd: "node", args: [f] }) },
@@ -142,7 +142,7 @@ const RUNNERS = {
   ".html": { runtimes: [], build: (f) => ({ live: true, file: f }) },
   ".htm": { runtimes: [], build: (f) => ({ live: true, file: f }) },
 };
-// ── Auto-install helper — run button se pehle missing deps install karo ────
+// ── Auto-install helper — install missing deps before the run button ────
 const getInstallCommand = async (root, probes) => {
   if (!root) return null;
   const api = window.electronAPI;
@@ -175,7 +175,7 @@ const getInstallCommand = async (root, probes) => {
   return null;
 };
 
-// Kisi file ke liye fresh runner banao (probes ke hisab se binary/missing decide).
+// Build a fresh runner for a file (decide binary/missing from probes).
 const buildRunnerForFile = (file, probes) => {
   if (!file) return null;
   const dot = (() => { const b = baseName(file); const i = b.lastIndexOf("."); return i >= 0 ? b.slice(i).toLowerCase() : ""; })();
@@ -190,13 +190,13 @@ const buildRunnerForFile = (file, probes) => {
     if (spec.live) return { ok: true, live: true, file: spec.file };
     const ok = probes
       ? (def.runtimes?.length ? def.runtimes.some((k) => !!probes[k]) : true)
-      : true; // probes abhi unknown → allow (error spawn par dikhega)
+      : true; // probes still unknown → allow (error shows up at spawn)
     return { ok, cmd: spec.cmd, args: spec.args || [], hint: `${spec.cmd} ${baseName(file)}` };
   } catch { return null; }
 };
-// Command field me poori line likh di ho ("py main.py") to quote-aware split
-// karke binary + args alag karo. Quoted path ("C:\Program Files\...") ek
-// token rehta hai. Built-in runners par no-op (unke cmd me space hoti nahi).
+// If the command field holds a full line ("py main.py"), split it quote-aware
+// into binary + args. A quoted path ("C:\Program Files\...") stays one
+// token. No-op for built-in runners (their cmd never contains spaces).
 const splitCmdLine = (cmd, extraArgs) => {
   const c = String(cmd || "").trim();
   const rest = Array.isArray(extraArgs) ? extraArgs : [];
@@ -206,8 +206,8 @@ const splitCmdLine = (cmd, extraArgs) => {
   if (!clean.length) return { cmd: c, args: rest };
   return { cmd: clean[0], args: [...clean.slice(1), ...rest] };
 };
-// probe key -> actual command to spawn (legacy; python/lua/npm probes se resolve hota hai.
-// python default "python" — "py" sirf tab jab probes.pythonCmd wahi bataye.)
+// probe key -> actual command to spawn (legacy; python/lua/npm resolve from probes.
+// python default "python" — "py" only when probes.pythonCmd says so.)
 const RUNTIME_CMD = { node: "node", python: "python", php: "php", go: "go", npm: isWin ? "npm.cmd" : "npm" };
 // Spawn binary (basename, lowercase, no ext) -> mise tool id. Only tools
 // mise can actually provide — system toolchains (gcc, kotlinc…) stay on the
@@ -230,9 +230,9 @@ const miseToolFor = (cmd) => {
     return MISE_TOOL[base] || null;
   } catch { return null; }
 };
-// Spawn se pehle alias resolve: py/python/python3, npm, lua variants → probes wala binary.
-// probes abhi unknown ho to "py" ko "python" par lao (launcher aksar missing hota hai;
-// main-engine bhi py→python→python3 retry karta hai, ye sirf display/hint sahi rakhta hai).
+// Resolve aliases before spawn: py/python/python3, npm, lua variants → probes binary.
+// When probes are still unknown, map "py" to "python" (the launcher is often missing;
+// main-engine also retries py→python→python3; this only keeps display/hint correct).
 const resolveCmd = (cmd, probes) => {
   const c = String(cmd || "");
   if (/^(py|python|python3)(\.exe|\.cmd)?$/i.test(c)) {
@@ -261,11 +261,11 @@ const saveJson = (k, v) => {
 
 const baseName = (p) => String(p || "").replace(/.*[\\/]/, "") || String(p || "");
 const stripSlash = (p) => String(p || "").replace(/[\\/]+$/, "");
-// ── Project auto-detect: project type se MULTIPLE default run configs ─────
-// Priority: npm scripts (ALL, dev>start>serve>watch priority wale pehle) >
+// ── Project auto-detect: MULTIPLE default run configs from the project type ─────
+// Priority: npm scripts (ALL, dev>start>serve>watch priority ones first) >
 // Makefile > docker-compose > Taskfile > dotnet > cargo > go >
 // python entries > ruby > php server > dart > java (gradle/maven) >
-// static index.html (Live Server). Empty array = kuch samajh nahi aaya.
+// static index.html (Live Server). Empty array = nothing recognized.
 export async function detectAutoConfig(root) {
   const configs = [];
   try {
@@ -286,7 +286,7 @@ export async function detectAutoConfig(root) {
         const pkg = JSON.parse((await api.readTextFile(join("package.json"))) || "{}");
         const scripts = pkg?.scripts && typeof pkg.scripts === "object" ? Object.keys(pkg.scripts) : [];
         const pkgName = pkg?.name && typeof pkg.name === "string" ? String(pkg.name) : null;
-        // Framework detection — badge/label ke liye
+        // Framework detection — for badge/label
         const allDeps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
         const deps = Object.keys(allDeps);
         const framework =
@@ -311,7 +311,7 @@ export async function detectAutoConfig(root) {
           deps.includes("nest") || deps.includes("@nestjs/core") ? "NestJS" :
           deps.includes("ts-node") || deps.includes("tsx") ? "TypeScript" :
           null;
-        // Script priority order: jis order me list dikhna hai
+        // Script priority order: the order the list should show
         const order = [
           "dev", "develop", "start", "serve", "preview",
           "watch", "hot", "build:watch",
@@ -351,7 +351,7 @@ export async function detectAutoConfig(root) {
             badge: framework || "npm",
           });
         }
-        // bin: package.json me direct binary entry (custom servers)
+        // bin: direct binary entry in package.json (custom servers)
         if (pkg?.bin && typeof pkg.bin === "string" && pkgName) {
           configs.push({
             kind: "run", category: "npm", priority: 1,
@@ -563,7 +563,7 @@ export async function detectAutoConfig(root) {
           cmd: py, args: ["-m", "pip", "install", "-e", "."], cwd: root, badge: "pip",
         });
       }
-      // Baaki .py files (top 5)
+      // Remaining .py files (top 5)
       let extra = 0;
       for (const f of pyFiles) {
         if (seen.has(f)) continue;
@@ -757,7 +757,7 @@ export async function detectAutoConfig(root) {
         });
       }
     }
-    // ── 13. ESLint / Prettier / TS — standalone (agar config files hain) ──
+    // ── 13. ESLint / Prettier / TS — standalone (if config files exist) ──
     if (has(".eslintrc.js") || has(".eslintrc.cjs") || has(".eslintrc.json") || has("eslint.config.js") || has("eslint.config.mjs")) {
       configs.push({
         kind: "run", category: "tools", priority: 200,
@@ -772,7 +772,7 @@ export async function detectAutoConfig(root) {
         cmd: "npx", args: ["prettier", "--write", "."], cwd: root, badge: "Prettier",
       });
     }
-    // ── 14. Static Live Server — last (agar koi bhi nahi mila) ──
+    // ── 14. Static Live Server — last (if nothing else matched) ──
     if (has("index.html")) {
       configs.push({
         kind: "live", category: "static", priority: 500,
@@ -788,7 +788,7 @@ export async function detectAutoConfig(root) {
         file: join(real(h)), cwd: root, badge: "HTML",
       });
     }
-    // Sort by priority, dedupe by shortName (same command repeat mat karo)
+    // Sort by priority, dedupe by shortName (don't repeat the same command)
     const seenShort = new Set();
     const out = [];
     for (const c of configs.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))) {
@@ -811,10 +811,10 @@ const extOf = (p) => {
   return i >= 0 ? b.slice(i).toLowerCase() : "";
 };
 // ── Runtime errors → Problems panel ───────────────────────────────────────
-// Fail run ke tail se Python traceback / Node stack / Java frame nikalo aur
-// `codemirror:diagnostics` (origin:"runtime") par bhejo. Problems panel inhe
-// editor-lint se alag bucket me rakhta hai. runFile = chalai gayi file
-// (current-file runs) — Java ke bare filename isi se resolve hote hain.
+// Extract a Python traceback / Node stack / Java frame from the tail of a failed
+// run and send it to `codemirror:diagnostics` (origin:"runtime"). The Problems panel keeps
+// these in a separate bucket from editor lint. runFile = the file that ran
+// (current-file runs) — bare Java filenames resolve against it.
 const parseRuntimeDiagnostics = (text, runFile) => {
   const found = [];
   try {
@@ -863,7 +863,7 @@ const parseRuntimeDiagnostics = (text, runFile) => {
         return found;
       }
     }
-    // — Java: at com.Foo.main(Foo.java:12) — bare filename runFile se jodo —
+    // — Java: at com.Foo.main(Foo.java:12) — join the bare filename to runFile —
     if (runFile) {
       const jm = t.match(/at\s+[\w.$]+\(([\w-]+\.java):(\d+)\)/);
       const base = baseName(runFile);
@@ -895,19 +895,19 @@ const RunPanel = () => {
   const [npmScripts, setNpmScripts] = useState([]);
   const [customs, setCustoms] = useState(() => loadJson(lsKey(null), []));
   const [selected, setSelected] = useState("__current__");
-  // MULTIPLE AUTO configs — detectAutoConfig ab array return karta hai
+  // MULTIPLE AUTO configs — detectAutoConfig now returns an array
   const [autos, setAutos] = useState([]); // [{ id, name, kind, cmd, args, cwd, badge, category }, ...]
   const autosRef = useRef([]);
   autosRef.current = autos;
-  // MULTIPLE RUNS — Map-like plain object taaki React re-render ho jab update karo
+  // MULTIPLE RUNS — Map-like plain object so React re-renders on update
   const [runs, setRuns] = useState({}); // { [runId]: { runId, label, startedAt, cwd, file, exitCode?, ms?, endedAt? } }
-  const [activeRunId, setActiveRunId] = useState(null); // konsa run console me dikh raha hai
+  const [activeRunId, setActiveRunId] = useState(null); // which run is shown in the console
   const runsRef = useRef({});
   runsRef.current = runs;
   const activeRunIdRef = useRef(null);
   activeRunIdRef.current = activeRunId;
-  // Per-run terminal buffer: har run ka output string buffer me save karke rakho;
-  // tab switch karne par buffer se xterm refill karo.
+  // Per-run terminal buffer: keep each run's output string in a buffer;
+  // on tab switch, refill xterm from the buffer.
   const runBuffersRef = useRef({}); // { [runId]: string }
   // Last seen runId for per-run state (browser open, etc.)
   const runBrowserRef = useRef({}); // { [runId]: true }
@@ -919,7 +919,7 @@ const RunPanel = () => {
   const [form, setForm] = useState({ name: "", cmd: "", args: "", cwd: "" });
   const rootRef = useRef(projectRoot);
   rootRef.current = projectRoot;
-  // doRun callback ke andar fresh values (stale closure se bachne ke liye)
+  // Fresh values inside the doRun callback (to avoid stale closures)
   const probesRef = useRef(null);
   probesRef.current = probes;
   const activeFileRef = useRef(activeFile);
@@ -982,9 +982,9 @@ const RunPanel = () => {
   useEffect(() => { refreshProbes(); }, [refreshProbes]);
 
   // ── mise fallback refs/helpers ──────────────────────────────────────
-  // Missing runtime → `mise install <tool>` (xterm me progress, stoppable)
-  // → retry wrapped as `mise x -- <cmd>`. Success path mise ko chhoota
-  // bhi nahi — sirf failure par kaam aata hai.
+  // Missing runtime → `mise install <tool>` (progress in xterm, stoppable)
+  // → retry wrapped as `mise x -- <cmd>`. The success path never touches
+  // mise — it only helps on failure.
   const pendingExitRef = useRef(null); // { runId, resolve } — chained setup steps
   const refreshProbesRef = useRef(null);
   const spawnRunRef = useRef(null);
@@ -1001,9 +1001,9 @@ const RunPanel = () => {
     const id = String(info.runId);
     setRuns((prev) => ({ ...prev, [id]: { ...info, runId: id } }));
     runBuffersRef.current[id] = "";
-    // Clear browser-open flag for new run (URL in output → browser tab ek baar kholo)
+    // Clear the browser-open flag for a new run (open a browser tab once on the first URL in output)
     runBrowserRef.current[id] = false;
-    setActiveRunId((cur) => cur || id); // naya run aaya → agar koi active nahi to isko set karo
+    setActiveRunId((cur) => cur || id); // a new run arrived → set it if none is active
   };
   const updateRun = (id, patch) => {
     id = String(id);
@@ -1038,10 +1038,10 @@ const RunPanel = () => {
   };
   const writeTermForRun = (runId, data) => {
     const str = typeof data === "string" ? data : String(data ?? "");
-    // Save to buffer FIRST (agar write fail ho bhi jaye, bacha hua buffer me ho)
+    // Save to the buffer FIRST (so the remainder survives in the buffer even if the write fails)
     try {
       const prev = runBuffersRef.current[runId] || "";
-      // Cap buffer 4MB per run (memory bloat se bachao)
+      // Cap the buffer at 4MB per run (avoid memory bloat)
       const next = prev.length > 4 * 1024 * 1024
         ? prev.slice(-3 * 1024 * 1024) + str
         : prev + str;
@@ -1081,7 +1081,7 @@ const RunPanel = () => {
         return false;
       }
       const code = await waitRunExit(runId);
-      // Beech me project switch ho gaya to purane project me respawn mat karo
+      // Don't respawn in the old project if the project switched in between
       try {
         if ((projectRootRef.current || null) !== rootBefore) return false;
       } catch {}
@@ -1108,8 +1108,8 @@ const RunPanel = () => {
     }
   }, [out, waitRunExit]);
 
-  // Missing-runtime file (current-file flow) → patched probes se runner
-  // banao (cmd/args nikalo), phir mise chain. Tool unknown → false (purana error).
+  // Missing-runtime file (current-file flow) → build a runner from patched probes
+  // (extract cmd/args), then the mise chain. Unknown tool → false (old error).
   const tryMiseForFile = useCallback(async (file, miss) => {
     try {
       const clean = String(miss || "").toLowerCase().replace(/\.(exe|cmd|bat)$/, "");
@@ -1124,7 +1124,7 @@ const RunPanel = () => {
       const cwd = (typeof dirName === "function" ? dirName(file) : null) || projectRootRef.current;
       const label = `Current File — ${baseName(file)}`;
       await miseInstallAndRespawn({ tool, cmd, args, cwd, label, file });
-      return true; // took over (error bhi khud set kiya agar fail hua)
+      return true; // took over (also set the error itself on failure)
     } catch { return false; }
   }, [out, miseInstallAndRespawn]);
 
@@ -1132,29 +1132,29 @@ const RunPanel = () => {
     const allowMise = !opts || opts.allowMise !== false;
     setErr(null);
     try {
-      // IMPORTANT: Purane run ko AUTO-KILL NAHI karte — multiple runs allow hain!
-      // (User manually tab pe Stop dabaye ga.)
+      // IMPORTANT: NEVER auto-kill the old run — multiple runs are allowed!
+      // (The user stops it manually via Stop on the tab.)
       const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const cmdLine = `\x1b[90m$ ${cmd} ${(args || []).join(" ")}\x1b[0m\r\n`;
       writeTermForRun(runId, cmdLine);
       runLastCwdRef.current[runId] = cwd || null;
-      // file bhi rakho taaki exit par runtime-errors Problems me file se jud sakein.
+      // Keep the file too so runtime errors link to the file on exit in Problems.
       addRun({ runId, label, startedAt: Date.now(), cwd: cwd || null, file: file || null });
-      // Output panel kholo + uska channel "Run" par lao (warna logs App me chhupe rehte hain).
+      // Open the Output panel + bring its channel to "Run" (otherwise logs stay hidden in App).
       try { window.dispatchEvent(new CustomEvent("add-output-panel", { detail: { channel: "Run" } })); } catch {}
       try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: "Run" } })); } catch {}
       out(`—— ${label} ——`);
       const res = await window.electronAPI?.runStart?.({ runId, cmd, args: args || [], cwd, label });
       if (!res?.ok) {
-        // Spawn fail + binary mise se mil sakta hai → install karke retry.
+        // Spawn failed + the binary may come from mise → install and retry.
         const tool = allowMise ? miseToolFor(cmd) : null;
         if (tool) {
-          // NOTE: spawn fail — is naye runId ko hatao taaki mise wali naya bana sake
+          // NOTE: spawn failed — drop this new runId so the mise one can create fresh
           removeRun(runId);
           return await miseInstallAndRespawn({ tool, cmd, args: args || [], cwd, label, file });
         }
         updateRun(runId, { endedAt: Date.now(), exitCode: -1 });
-        // Detected runtimes bhi batao taaki "py vs python" confusion turant clear ho.
+        // Also report detected runtimes so the "py vs python" confusion clears immediately.
         let det = "";
         try {
           const p = probesRef.current;
@@ -1197,7 +1197,7 @@ const RunPanel = () => {
       } catch { if (!dead) setNpmScripts([]); }
       try {
         const arr = await detectAutoConfig(projectRoot);
-        // Har auto config ko unique id de do taaki dropdown/react select kaam kare
+        // Give every auto config a unique id so the dropdown/react select works
         const withIds = Array.isArray(arr) ? arr.map((a, i) => ({
           ...a,
           id: `auto:${a.category || "x"}:${(a.shortName || a.name || i).replace(/[^A-Za-z0-9_-]/g, "_")}:${i}`,
@@ -1211,11 +1211,11 @@ const RunPanel = () => {
   useEffect(() => { saveJson(lsKey(projectRoot), customs); }, [customs, projectRoot]);
   useEffect(() => { saveJson(histKey(projectRoot), history); }, [history, projectRoot]);
 
-  // Default select: sabse pehla AUTO-command (priority sorted) ko select karo.
-  // User ki explicit choice (npm/custom/previous select) ko nahi chhedo.
+  // Default selection: select the first AUTO command (priority sorted).
+  // Never disturb the user's explicit choice (npm/custom/previous selection).
   useEffect(() => {
     setSelected((s) => {
-      // Agar user ne already explicitly koi specific auto/npm/custom choose kiya → wohi rakhne do
+      // If the user already explicitly picked a specific auto/npm/custom → keep it
       if (s && s !== "__current__" && !s.startsWith("__auto_")) return s;
       if (autos && autos.length) return autos[0].id;
       return "__current__";
@@ -1223,16 +1223,16 @@ const RunPanel = () => {
   }, [autos]);
 
   // ── Engine events → buffer + active xterm + Output panel ────────────────
-  // Per-run routing: har run ka data buffer me store + active tab ho to xterm me.
+  // Per-run routing: store each run's data in its buffer + show in xterm if it is the active tab.
   useEffect(() => {
     const onData = ({ runId, data }) => {
       try {
         const id = String(runId);
-        // Don't filter by runningRef anymore — ALL runs ke data save karo,
-        // buffer bade ho jaye to truncate.
+        // Don't filter by runningRef anymore — save ALL runs' data,
+        // truncate if the buffer grows too large.
         writeTermForRun(id, data);
         const clean = stripAnsi(data);
-        // URL detect: har run ke liye alag flag (pehli baar URL aaye → browser open)
+        // URL detect: separate flag per run (open the browser on the first URL)
         if (!runBrowserRef.current[id]) {
           const browserUrl = clean.match(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s\u001b]*)?/i)?.[0];
           if (browserUrl) {
@@ -1240,7 +1240,7 @@ const RunPanel = () => {
             window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url: browserUrl } }));
           }
         }
-        // lines ko output me bhejo — channel:"Run" (per-channel history hai)
+        // send lines to output — channel:"Run" (per-channel history)
         const lines = clean.split(/\r\n|\n/).map((l) => l.replace(/[ \t]+$/, "")).filter((l) => l.length > 0).slice(0, 200);
         for (const l of lines) out(l);
       } catch {}
@@ -1248,8 +1248,8 @@ const RunPanel = () => {
     const onExit = ({ runId, code, ms }) => {
       try {
         const id = String(runId);
-        // Chained setup step (mise install) → waiter ko resolve, normal
-        // history/diagnostics handling skip (yeh setup tha, run nahi).
+        // Chained setup step (mise install) → resolve the waiter, skip the normal
+        // history/diagnostics handling (this was setup, not a run).
         const pend = pendingExitRef.current;
         if (pend && String(id) === String(pend.runId)) {
           pendingExitRef.current = null;
@@ -1268,8 +1268,8 @@ const RunPanel = () => {
         writeTermForRun(id, tail);
         setHistory((prev) => [{ label, code: Number(code), ms: Number(ms) || 0, at: Date.now() }, ...prev].slice(0, HIST_MAX));
         // ── Problems panel sync ──────────────────────────────────────
-        // Pass → us file ke purane runtime-errors clear; fail → tail se
-        // traceback/stack nikalo aur Problems me dikhao (click → editor).
+        // Pass → clear that file's old runtime errors; fail → extract the
+        // traceback/stack from the tail and show in Problems (click → editor).
         try {
           if (Number(code) === 0) {
             if (runFile) {
@@ -1293,7 +1293,7 @@ const RunPanel = () => {
     return () => { try { u1?.(); } catch {} try { u2?.(); } catch {} };
   }, [out]);
 
-  // ── xterm console lifecycle (Terminal wala pattern) ───────────────────────
+  // ── xterm console lifecycle (Terminal pattern) ───────────────────────
   useEffect(() => {
     let term = null, fit = null, ro = null, raf = 0, fitIv = null, disposed = false;
     let raf2 = 0;
@@ -1308,7 +1308,7 @@ const RunPanel = () => {
         const line = parseInt(m[2] || "1", 10) || 1;
         const col = parseInt(m[3] || "1", 10) || 1;
         if (!p) return;
-        // relative → ACTIVE run ke cwd se jodo (multi-run ke liye)
+        // join relative paths to the ACTIVE run's cwd (for multi-run)
         const activeId = activeRunIdRef.current;
         const lastCwd = activeId ? runLastCwdRef.current[activeId] : null;
         if (!/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(p) && lastCwd) {
@@ -1358,7 +1358,7 @@ const RunPanel = () => {
     } catch { return undefined; }
     fit = new FitAddon();
     try { term.loadAddon(fit); } catch {}
-    // URLs clickable — localhost/Browser me, baaki OS browser me (Terminal jaisa)
+    // URLs clickable — localhost in Browser, rest in the OS browser (like Terminal)
     try {
       term.loadAddon(new WebLinksAddon((event, uri) => {
         try {
@@ -1372,7 +1372,7 @@ const RunPanel = () => {
         }
       }));
     } catch {}
-    // file[:line[:col]] links clickable — editor me kholo
+    // file[:line[:col]] links clickable — open in the editor
     try {
       term.registerLinkProvider({
         provideLinks(y, cb) {
@@ -1385,7 +1385,7 @@ const RunPanel = () => {
             while ((m = re.exec(line)) && guard++ < 20) {
               const text = m[1];
               const start = m.index;
-              if (/^https?:\/\//i.test(text)) continue; // WebLinksAddon sambhalega
+              if (/^https?:\/\//i.test(text)) continue; // handled by WebLinksAddon
               out.push({
                 range: { start: { x: start + 1, y }, end: { x: start + text.length + 1, y } },
                 text,
@@ -1408,7 +1408,7 @@ const RunPanel = () => {
       term.writeln("\x1b[90mRun console — output here, full log in Output › Run. Type to send input to a running process.\x1b[0m");
     } catch {}
 
-    // Typing → ACTIVE run ko stdin bhejo (idle ho to ignore)
+    // Typing → send stdin to the ACTIVE run (ignore when idle)
     try {
       term.onData((data) => {
         try {
@@ -1416,7 +1416,7 @@ const RunPanel = () => {
           if (!activeId) return;
           const runInfo = runsRef.current?.[activeId];
           if (!runInfo) return;
-          // exited/ended ho chuka to ignore (user ko pata lagna chahiye)
+          // ignore once exited/ended (the user should know)
           if (typeof runInfo.exitCode === "number") return;
           window.electronAPI?.runWrite?.(activeId, data)?.catch?.(() => {});
         } catch {}
@@ -1430,10 +1430,10 @@ const RunPanel = () => {
         fit.fit();
       } catch {}
     };
-    // Tab hidden mount ho to pehle fit fail hoga — dikhte hi fit karo
+    // First fit fails when mounted in a hidden tab — fit once visible
     fitIv = setInterval(safeFit, 800);
     const stopFit = () => { try { clearInterval(fitIv); } catch {} fitIv = null; };
-    // Pehle successful fit ke 3s baad interval band (resize RO sambhalta hai)
+    // Stop the interval 3s after the first successful fit (resize is handled by RO)
     raf = requestAnimationFrame(function tick() {
       if (disposed) return;
       try {
@@ -1462,8 +1462,8 @@ const RunPanel = () => {
   }, []);
 
   // ── Config list ─────────────────────────────────────────────────────────
-  // currentRunner har render par fresh banta hai taaki probes update hote hi
-  // gets the right binary / missing-hint (incl. py -> python fallback).
+  // currentRunner is rebuilt fresh on every render so probes updates pick
+  // up the right binary / missing-hint (incl. py -> python fallback).
   const currentRunner = (() => {
     if (!activeFile) return null;
     const built = buildRunnerForFile(activeFile, probes);
@@ -1494,7 +1494,7 @@ const RunPanel = () => {
   };
 
   const configs = [
-    // ALL auto-detected configs (array me, priority sorted — detectAutoConfig returns sorted)
+    // ALL auto-detected configs (in an array, priority sorted — detectAutoConfig returns sorted)
     ...autos.map((a) => ({
       id: a.id,
       name: a.name,
@@ -1510,7 +1510,7 @@ const RunPanel = () => {
       name: activeFile ? `Current File — ${baseName(activeFile)}` : "Current File — (none open)",
       disabled: !currentRunner || (probes ? !currentRunner.ok && !currentRunner.live : false),
       hint: !activeFile
-        ? "koi file kholo"
+        ? "Open a file"
         : !currentRunner
           ? `no runner for ${extOf(activeFile) || "this type"}`
           : (currentRunner.live ? currentRunner.hint
@@ -1541,10 +1541,10 @@ const RunPanel = () => {
   const active = configs.find((c) => c.id === selected) || configs[0];
 
   // ── Top ▾ dropdown bridge ─────────────────────────────────────────────
-  // configs har render fresh hain — poll/dropdown ke liye ref me rakho.
+  // configs are fresh every render — keep in a ref for poll/dropdown.
   const configsRef = useRef([]);
   configsRef.current = configs;
-  // Options badle tabhi broadcast (har render par storm nahi).
+  // Broadcast only when options change (no storm on every render).
   const optionsKey = `${selected}~${configs.map((c) => `${c.id}|${c.disabled ? 1 : 0}|${c.name}`).join("~")}`;
   const lastOptionsKeyRef = useRef("");
   useEffect(() => {
@@ -1560,7 +1560,7 @@ const RunPanel = () => {
     } catch {}
   });
 
-  // Static projects: Live Server kholo (browser tab me)
+  // Static projects: open Live Server (in a browser tab)
   const runLive = useCallback(async (a) => {
     setErr(null);
     const label = a?.name || "Live Server";
@@ -1580,7 +1580,7 @@ const RunPanel = () => {
     }
   }, [projectRoot, out]);
 
-  // Helper: given a config id/auto entry, doRun me current-file fallback bhi karo
+  // Helper: given a config id/auto entry, also fall back to the current file in doRun
   const resolveCfgToRun = useCallback(async (cfg) => {
     let c = cfg || active;
     if (!c) return { err: "Nothing selected" };
@@ -1595,8 +1595,8 @@ const RunPanel = () => {
       }
       return { err: c.hint || "option disabled" };
     }
-    // AUTO entry — array wale entries ke liye seedha run use karo.
-    // "__auto__" purana sentinel agar kahi aa jaye → first auto ya current file.
+    // AUTO entry — run array entries directly.
+    // "__auto__" is the old sentinel if seen anywhere → first auto or current file.
     if (c.id === "__auto__") {
       const list = autosRef.current;
       const first = list?.[0];
@@ -1623,7 +1623,7 @@ const RunPanel = () => {
         }
       }
     }
-    // Current-file config: runner dobara build karo
+    // Current-file config: rebuild the runner
     if (c.id === "__current__") {
       const f = c.file || activeFileRef.current;
       const fb = buildRunnerForFile(f, probesRef.current);
@@ -1653,7 +1653,7 @@ const RunPanel = () => {
     if (r?.err) { setErr(r.err); out(r.err, "warn"); return; }
     if (!r?.run) return;
     const { run, cwd, args, label, runFile } = r;
-    // Live: runLive ne khud sambhal liya hoga
+    // Live: runLive already handled it
     if (run.live) {
       const liveCfg = r.cfg?.autoCfg || (r.cfg?.run?.live ? r.cfg?.run : null);
       if (liveCfg) { await runLive({ name: label, file: liveCfg.file || liveCfg.cwd, cwd: liveCfg.cwd || cwd }); return; }
@@ -1690,7 +1690,7 @@ const RunPanel = () => {
       }
       const rootBeforeInstall = projectRootRef.current || null;
       const icode = await waitRunExit(insId);
-      if ((projectRootRef.current || null) !== rootBeforeInstall) return; // switch ho gaya — purane me aage mat badho
+      if ((projectRootRef.current || null) !== rootBeforeInstall) return; // switched — don't continue in the old one
       if (Number(icode) !== 0) {
         const msg = `${autoInstall.label} failed (exit ${icode}) — fix errors above, then Run again`;
         setErr(msg);
@@ -1702,7 +1702,7 @@ const RunPanel = () => {
     return spawnRun({ cmd: run.cmd, args, cwd, label, file: runFile });
   }, [resolveCfgToRun, runLive, spawnRun, waitRunExit, out]);
 
-  // Stop SPECIFIC run ya active run
+  // Stop a SPECIFIC run or the active run
   const stopRun = useCallback(async (runId) => {
     try {
       const id = runId || activeRunIdRef.current;
@@ -1714,7 +1714,7 @@ const RunPanel = () => {
     await stopRun();
   }, [stopRun]);
 
-  // Specific run ko restart (pehle roko, thoda wait, phir config dhundh ke dobara chalao — best-effort)
+  // Restart a specific run (stop first, wait briefly, then relaunch from the matching config — best-effort)
   const restartRun = useCallback(async (runId) => {
     try {
       const id = runId || activeRunIdRef.current;
@@ -1722,7 +1722,7 @@ const RunPanel = () => {
       const info = runsRef.current?.[id];
       if (!info) return;
       try { await window.electronAPI?.runStop?.(id); } catch {}
-      // Label se matching config dhundho; agar mille to usse launch karo
+      // Find the matching config by label; launch from it if found
       if (info.label) {
         setTimeout(() => {
           try {
@@ -1735,7 +1735,7 @@ const RunPanel = () => {
     } catch {}
   }, [doRun, stopRun]);
 
-  // Stop ALL (header ke right side ke liye helper — expose via window)
+  // Stop ALL (helper for the header's right side — exposed via window)
   const stopAllRuns = useCallback(async () => {
     try {
       const all = Object.keys(runsRef.current || {});
@@ -1749,15 +1749,15 @@ const RunPanel = () => {
   }, []);
 
   // ── Status-bar button bridge ────────────────────────────────────────────
-  // window.__pendingAutoRun = { auto:true } → sabse pehla auto option ya current file.
-  // "run:stopCurrent" event → active run roko.
-  // Har runs/activeRunId change par "run:status" broadcast (status button sunta hai).
+  // window.__pendingAutoRun = { auto:true } → first auto option or current file.
+  // "run:stopCurrent" event → stop the active run.
+  // Broadcast "run:status" on every runs/activeRunId change (the status button listens).
   const doRunRef = useRef(null);
   doRunRef.current = doRun;
   useEffect(() => {
     const onRunRequest = () => {
       window.__pendingAutoRun = null;
-      // Auto entries agar hain → sabse pehla auto (Vite/Next etc.), warna current-file fallback
+      // If auto entries exist → first auto (Vite/Next etc.), else current-file fallback
       const first = autosRef.current?.[0];
       if (first) {
         try { doRunRef.current?.({ id: first.id, name: first.name, auto: true, autoCfg: first, run: first.kind === "live" ? { live: true, file: first.file, cwd: first.cwd } : { cmd: first.cmd, args: first.args, cwd: first.cwd } }); } catch {}
@@ -1798,7 +1798,7 @@ const RunPanel = () => {
       window.removeEventListener("run:stopCurrent", onStopReq);
     };
   }, [out, doStop, autosRef]);
-  // Status broadcast: multiple runs ka count + active label
+  // Status broadcast: multiple-run count + active label
   useEffect(() => {
     try {
       const runningIds = Object.values(runs || {}).filter((r) => typeof r.exitCode !== "number");
@@ -1852,7 +1852,7 @@ const RunPanel = () => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-surface)", color: "var(--text-bright)", fontFamily: "sans-serif", overflow: "hidden" }}>
-      {/* xterm measuring guards (Terminal panel ke bina bhi monospace grid sahi rahe) */}
+      {/* xterm measuring guards (keep the monospace grid correct even without the Terminal panel) */}
       <style>{`.run-console .xterm, .run-console .xterm * { font-kerning: none; }
 .run-console .xterm-rows span, .run-console .xterm-char-measure-element { font-family: inherit; }
 .run-console .xterm { height: 100%; padding: 0 !important; background: var(--bg-vscode) !important; }
@@ -1962,7 +1962,7 @@ const RunPanel = () => {
               </option>
             ))}
           </select>
-          {/* Badges row — selected ke badges dikhao taaki category pata chale */}
+          {/* Badges row — show the selected item's badges so the category is visible */}
           <div style={{ marginTop: "var(--space-4)", display: "flex", alignItems: "center", gap: "var(--space-6)", flexWrap: "wrap" }}>
             {active?.badge && (
               <span

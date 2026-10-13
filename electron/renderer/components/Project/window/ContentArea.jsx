@@ -363,7 +363,7 @@ const ContentArea = ({
           } catch (err) { failed.push(`${p.split(/[\\/]/).pop()}: ${err.message}`); }
         }
         if (failed.length) await alertErr("Delete failed for", new Error(failed.join(", ")));
-        // Refresh hamesha — chahe kuch fail hue ho ya item pehle se gayab ho
+        // Always refresh — even if some failed or the item was already gone
         onSetSelectedItems(new Set());
         invalidateCache(dir);
         await loadEntries();
@@ -512,9 +512,9 @@ const ContentArea = ({
       if (paths.length) execAction("delete", paths, cp);
       return;
     }
-    // Ctrl+Alt+C → Copy Relative Path (native menu accelerator ke saath match
-    // karta hai). Pehle check karna zaroori: neeche wala Ctrl+C branch
-    // altKey ignore karta hai, isliye wahan se pehle ye match ho jayega.
+    // Ctrl+Alt+C → Copy Relative Path (matches the native menu accelerator
+    // behavior). This check must come first: the Ctrl+C branch below
+    // ignores altKey, so it would match before this one.
     if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "c") {
       e.preventDefault();
       execAction("copyRelativePath", paths, cp);

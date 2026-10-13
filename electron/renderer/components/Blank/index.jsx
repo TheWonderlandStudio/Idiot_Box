@@ -4,8 +4,8 @@ import { Search, X } from "lucide-react";
 import { OutputIcon } from "../Output/index.jsx";
 import "./blank.css";
 
-// ── Panel icons (line-art: currentColor se panel accent milta hai;
-// fixer brand fills (project/ports) literals rakhe hain — artwork hai) ──────
+// ── Panel icons (line-art: the panel accent comes from currentColor;
+// fixed brand fills (project/ports) are literals — artwork) ──────
 const I = {
   canvas: (
     <svg width="24" height="24" viewBox="0 0 48 48" fill="none" strokeWidth="2" aria-hidden="true">
@@ -277,7 +277,7 @@ const PANEL_TYPES = [
   },
 ];
 
-// ── Panel usage tracking: picker me most-used panels pehle, least-used aakhir ──
+// ── Panel usage tracking: most-used panels first, least-used last in the picker ──
 const USAGE_KEY = "ibx:panelUsage";
 
 const readUsage = () => {
@@ -299,7 +299,7 @@ const BlankPanel = ({ nodeId, config }) => {
   const [usage] = useState(readUsage);
   const searchRef = useRef(null);
 
-  // Extension views — host se live list, picker me "Extension" group ke roop me
+  // Extension views — live list from the host, shown as an "Extension" group in the picker
   const [extViews, setExtViews] = useState([]);
   useEffect(() => {
     let alive = true;
@@ -336,7 +336,7 @@ const BlankPanel = ({ nodeId, config }) => {
           p.description.toLowerCase().includes(q) ||
           p.id.toLowerCase().includes(q)
         );
-    // Usage ke hisaab se sort — zyada use wale pehle, ties me original order
+    // Sort by usage — most-used first, original order breaks ties
     return [...list].sort(
       (a, b) => (usage[b.component] || 0) - (usage[a.component] || 0)
     );

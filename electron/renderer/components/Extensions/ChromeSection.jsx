@@ -1,5 +1,5 @@
-// Browser Extensions — Chrome extensions jo Browser panel ke webviews me load hoti hain.
-// Extensions panel ka "Browser" tab: list / enable / remove / install (.crx + unpacked).
+// Browser Extensions — Chrome extensions that load into the Browser panel's webviews.
+// The Extensions panel's "Browser" tab: list / enable / remove / install (.crx + unpacked).
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Search, RefreshCw, Plus, Package, Power, Trash2, X, ExternalLink } from "lucide-react";
 

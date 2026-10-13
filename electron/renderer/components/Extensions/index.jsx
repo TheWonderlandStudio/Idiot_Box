@@ -1,13 +1,13 @@
-// Extensions Panel — app extensions + Browser (Chrome) ke liye
-// teen tabs: Installed · Community · Browser.
-// App extensions main process host me activate hote hain (vscode-shim).
+// Extensions Panel — for app extensions + Browser (Chrome) extensions
+// three tabs: Installed · Community · Browser.
+// App extensions activate in the main-process host (vscode-shim).
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { RefreshCw, Trash2, FolderOpen, Puzzle, ExternalLink, Download, Info, Play, ArrowLeft, Plus } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import ChromeSection from "./ChromeSection.jsx";
 
-// README (remote/community content) — marked se HTML, DOMPurify se sanitize.
+// README (remote/community content) — HTML via marked, sanitized via DOMPurify.
 marked.setOptions({ gfm: true, breaks: false });
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   if (node.tagName === "A") {
@@ -58,7 +58,7 @@ const openView = (extId, viewType, title) => {
   window.dispatchEvent(new CustomEvent("add-ext-view-panel", { detail: { extId, viewType, title } }));
 };
 
-// Har extension ka apna Output channel (`ext:<id>`) — Output panel me kholo.
+// Each extension gets its own Output channel (`ext:<id>`) — open it in the Output panel.
 const openExtOutput = (extId) => {
   try {
     const ch = `ext:${extId}`;
@@ -67,7 +67,7 @@ const openExtOutput = (extId) => {
   } catch {}
 };
 
-// ── Details panel ke chhote tukde ───────────────────────────────────────────
+// ── Small pieces of the details panel ───────────────────────────────────────────
 const Section = ({ title, children }) => (
   <div style={{ padding: "var(--space-10) var(--space-10)", borderBottom: "var(--space-1) solid var(--border-row)" }}>
     <div style={{ fontSize: "var(--fs-tiny)", fontWeight: "var(--fw-bold)", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--text-soft)", marginBottom: "var(--space-8)" }}>{title}</div>
@@ -85,8 +85,8 @@ const FeatureRow = ({ main, sub, action }) => (
   </div>
 );
 
-// Features: runtime ke commands/views/status + package.json contributes se
-// pata chalta hai ki extension kis panel/menu me kaam karta hai.
+// Features: runtime commands/views/status + package.json contributes show
+// which panel/menu an extension works in.
 const FeaturesBlock = ({ commands = [], formatterCount = 0, views = [], statusItems = [], contributes = {}, onRun, running, onOpenView }) => {
   const c = contributes || {};
   const has =
@@ -97,7 +97,7 @@ const FeaturesBlock = ({ commands = [], formatterCount = 0, views = [], statusIt
     return (
       <Section title="Features">
         <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-small)" }}>
-          Is extension ne koi command/panel register nahi kiya — README dekh kar use karein.
+          This extension did not register any commands or panels — see the README to use it.
         </div>
       </Section>
     );
@@ -149,7 +149,7 @@ const FeaturesBlock = ({ commands = [], formatterCount = 0, views = [], statusIt
         </Section>
       )}
       {((c.menus && c.menus.length) || (c.viewContainers && c.viewContainers.length) || (c.keybindings && c.keybindings.length) || (c.views && c.views.length)) ? (
-        <Section title="Yeh kahan dikhta hai">
+        <Section title="Where this appears">
           {(c.viewContainers || []).map((vc) => (
             <FeatureRow key={`vc-${vc.id}`} main={vc.title} sub={`sidebar container: ${vc.id}`} />
           ))}
@@ -163,7 +163,7 @@ const FeaturesBlock = ({ commands = [], formatterCount = 0, views = [], statusIt
             <FeatureRow key={`k-${i}`} main={k.command} sub={`shortcut: ${k.key || "—"}`} />
           ))}
           {(c.configuration || 0) > 0 && (
-            <FeatureRow main="Settings" sub={`${c.configuration} configuration section${c.configuration > 1 ? "s" : ""} — Settings me search karein`} />
+            <FeatureRow main="Settings" sub={`${c.configuration} configuration section${c.configuration > 1 ? "s" : ""} — search in Settings`} />
           )}
         </Section>
       ) : null}
@@ -223,7 +223,7 @@ const ExtDetails = ({ extId, onBack }) => {
           {info && info.error ? <div style={{ ...s.meta, color: "var(--danger)" }}>activation error: {info.error}</div> : null}
         </div>
         <div style={{ flexShrink: 0 }}>
-          <button onClick={() => openExtOutput(extId)} title="Is extension ka output dekho (Output panel)" style={s.btn}>
+          <button onClick={() => openExtOutput(extId)} title="View this extension's output (Output panel)" style={s.btn}>
             Output
           </button>
         </div>
@@ -241,7 +241,7 @@ const ExtDetails = ({ extId, onBack }) => {
             {d.readme
               ? <div className="nb-md-view" style={{ overflowX: "auto" }} dangerouslySetInnerHTML={{ __html: html }} />
               : <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-small)", lineHeight: 1.6 }}>
-                  Is extension ka README nahi mila. Upar listed commands/panels se features chala sakte hain — Run button commands ko invoke karta hai.
+                  No README found for this extension. You can run its features from the commands/panels listed above — the Run button invokes commands.
                 </div>}
           </Section>
         </>
@@ -301,7 +301,7 @@ const CommunityDetails = ({ item, repo, installed, installing, onBack, onInstall
           ? <div className="nb-md-view" style={{ overflowX: "auto" }} dangerouslySetInnerHTML={{ __html: html }} />
           : !error && (
             <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-small)", lineHeight: 1.6 }}>
-              README nahi mila. Install karne ke baad iske commands/panels Installed tab ke details me dikhenge.
+              No README found. After installing, its commands/panels will appear in the Installed tab details.
             </div>
           )}
       </Section>
@@ -417,7 +417,7 @@ const InstalledTab = ({ onChanged }) => {
             )}
             <button onClick={() => window.electronAPI?.extOpenDir?.(ext.id)} title="Open extension folder" style={s.iconBtn}><FolderOpen size={12} /></button>
             <button onClick={() => setSelected(ext.id)} title="Details, features & README" style={s.iconBtn}><Info size={12} /></button>
-            <button onClick={() => openExtOutput(ext.id)} title="Is extension ka output dekho (Output panel)" style={{ ...s.btn, padding: "var(--space-3) var(--space-8)" }}>Output</button>
+            <button onClick={() => openExtOutput(ext.id)} title="View this extension's output (Output panel)" style={{ ...s.btn, padding: "var(--space-3) var(--space-8)" }}>Output</button>
             {!ext.builtIn && <button onClick={() => remove(ext)} disabled={busyId === ext.id} title="Uninstall" style={s.btnDanger}><Trash2 size={12} /></button>}
           </div>
         </div>
@@ -428,8 +428,8 @@ const InstalledTab = ({ onChanged }) => {
   );
 };
 
-// ── Community tab — GitHub repo ke extensions ka list + Install ─────────────
-// Repo me `extensions/<publisher>.<name>/` folder structure hona chahiye.
+// ── Community tab — list + install extensions from a GitHub repo ─────────────
+// The repo must use the `extensions/<publisher>.<name>/` folder structure.
 const CommunityTab = ({ onInstalled }) => {
   const [repo, setRepo] = useState(() => {
     try { return localStorage.getItem("ibx:communityRepo") || ""; } catch { return ""; }
@@ -456,7 +456,7 @@ const CommunityTab = ({ onInstalled }) => {
     const api = window.electronAPI;
     const url = repo.trim();
     if (!api?.extCommunityList) { setError("Extension host not available"); return; }
-    if (!url) { setError("Enter a GitHub repo — jaise `owner/repo`"); setItems([]); setMeta(null); return; }
+    if (!url) { setError("Enter a GitHub repo — e.g. `owner/repo`"); setItems([]); setMeta(null); return; }
     setLoading(true);
     try {
       const res = await api.extCommunityList(url);
@@ -497,7 +497,7 @@ const CommunityTab = ({ onInstalled }) => {
           <input
             value={repo} onChange={(e) => setRepo(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") load(); }}
-            placeholder="GitHub repo — owner/repo (extensions/ folder ke saath)"
+            placeholder="GitHub repo — owner/repo (with an extensions/ folder)"
             style={{ ...s.input, paddingLeft: "var(--space-8)" }} spellCheck={false}
           />
         </div>
@@ -514,14 +514,14 @@ const CommunityTab = ({ onInstalled }) => {
             <Download size={22} style={{ marginBottom: "var(--space-8)", opacity: 0.6 }} />
             <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-secondary)", marginBottom: "var(--space-6)" }}>Community extensions</div>
             <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-small)", lineHeight: 1.6, maxWidth: 480, margin: "0 auto" }}>
-              Apna GitHub repo daalo jisme <b>extensions/</b> folder ho — app uske sare extensions load karega.
-              Har extension ka apna <b>package.json</b> + entry file honi chahiye.
+              Enter a GitHub repo containing an <b>extensions/</b> folder — the app will load all its extensions.
+              Each extension needs its own <b>package.json</b> + entry file.
             </div>
           </div>
         )}
         {meta && !loading && items.length === 0 && !error && (
           <div style={{ padding: "var(--space-20)", color: "var(--text-muted)", fontSize: "var(--fs-body)", textAlign: "center" }}>
-            {meta.repo}/{meta.subfolder}/ me koi extension nahi mili.
+            No extensions found in {meta.repo}/{meta.subfolder}/.
           </div>
         )}
         {meta && items.length > 0 && (

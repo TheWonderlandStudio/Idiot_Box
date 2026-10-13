@@ -1,15 +1,14 @@
 /**
  * build/generate-file-icons.cjs
  * Per-file-type icons for OS file associations (Windows DefaultIcon / macOS
- * CFBundleTypeIconFile) — SAME vscode-icons SVGs jo project panel dikhata hai
+ * CFBundleTypeIconFile) — SAME vscode-icons SVGs shown by the project panel
  * (electron/main `fs:getVscodeIcon` + vscode-icons-js mapping).
  *
- * Flow per class: vscode-icons-js se SVG naam → raw.githubusercontent se
- * download → Edge headless screenshot (256x256, transparent) → ICO + ICNS.
+ * Flow per class: SVG name from vscode-icons-js → download from raw.githubusercontent → Edge headless screenshot (256x256, transparent) → ICO + ICNS.
  *
- * Uses ONLY Node.js built-ins + installed Edge (koi npm install nahi).
- * Output: build/file-icons/<key>.ico + <key>.icns (repo me commit hote hain
- * taaki installer build ko internet/Edge ki zarurat na pade).
+ * Uses ONLY Node.js built-ins + installed Edge (no npm install needed).
+ * Output: build/file-icons/<key>.ico + <key>.icns (committed to the repo
+ * so installer builds do not need internet/Edge).
  *
  * Run: node build/generate-file-icons.cjs
  */
@@ -30,8 +29,8 @@ const EDGE_CANDIDATES = [
   "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
 ];
 
-// key -> { sample, exts, desc } — sample se vscode-icons-js SVG nikalta hai
-// (panel ke `getIconForFile` jaisa exact match).
+// key -> { sample, exts, desc } — SVG resolved from vscode-icons-js via sample
+// (exact match like the panel's `getIconForFile`).
 const CLASSES = {
   js:        { sample: "app.js",      exts: ["js", "mjs", "cjs"],       desc: "JavaScript source file" },
   react:     { sample: "app.jsx",     exts: ["jsx"],                    desc: "JSX component" },
@@ -64,7 +63,7 @@ const CLASSES = {
   log:       { sample: "app.log",     exts: ["log"],                    desc: "Log file" },
 };
 
-// ─── PNG helpers (generate-icons.cjs se, decode + resize + encode) ──────────
+// ─── PNG helpers (from generate-icons.cjs: decode + resize + encode) ──────────
 function decodePng(buf) {
   const SIG = [137, 80, 78, 71, 13, 10, 26, 10];
   for (let i = 0; i < 8; i++) if (buf[i] !== SIG[i]) throw new Error("Not a PNG");
@@ -247,7 +246,7 @@ function rasterizeSvg(edge, svgText, outPng) {
 async function main() {
   const vsicons = require(path.join(ROOT, "node_modules", "vscode-icons-js"));
   const edge = findEdge();
-  if (!edge) throw new Error("Edge not found — SVG rasterize ke liye Edge chahiye");
+  if (!edge) throw new Error("Edge not found — Edge is required to rasterize SVGs");
   if (!fs.existsSync(DEST)) fs.mkdirSync(DEST, { recursive: true });
   const tmpPng = path.join(os.tmpdir(), "ibx-icon-tmp.png");
 

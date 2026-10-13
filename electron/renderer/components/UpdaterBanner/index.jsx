@@ -88,8 +88,8 @@ export default function UpdaterBanner() {
       if (s.progress) setProgress(s.progress);
       if (s.state === "error" && s.error) setError(s.error);
     }));
-    // Restore AFTER subscribing — beech me aaya event miss na ho (startup race).
-    // (e.g., download chal raha tha, ya check pehle complete ho chuka tha)
+    // Restore AFTER subscribing — so no event arriving in between is missed (startup race).
+    // (e.g., a download was running, or the check had already completed)
     window.electronAPI?.updaterGetVersion?.().then((r) => {
       if (r?.version) setCurrentVersion(r.version);
     }).catch(() => {});
@@ -205,8 +205,8 @@ export default function UpdaterBanner() {
   ) : null;
 
   // ── Downloading modal overlay (polished, centered, with progress bar) ──
-  // Background dabane par sirf modal hide hota hai — download main process me
-  // chalta rehta hai, top banner + nav button progress dikhate rehte hain.
+  // Pressing the background only hides the modal — the download keeps running in the main process;
+  // the top banner + nav button keep showing progress.
   const downloadingModalEl = state === "downloading" && !dlMinimized ? (
     <div style={{ position:"fixed", inset:0, background:"var(--overlay-a58)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:"var(--z-updater-top)", animation:"fadeIn 0.2s ease" }}>
       <div style={{ background:"var(--grad-modal)", border:"1px solid var(--updater-modal-border)", borderRadius:"var(--radius-3xl)", padding:"var(--space-20) 22px var(--space-18)", width:440, maxWidth:"92vw", boxShadow:"0 var(--space-20) 60px var(--overlay-dark), 0 var(--space-1) 0 var(--white-a08) inset", display:"flex", flexDirection:"column", gap:"var(--space-14)" }}>

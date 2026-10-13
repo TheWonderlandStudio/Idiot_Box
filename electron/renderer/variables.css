@@ -1,23 +1,23 @@
 /* ═══════════════════════════════════════════════════════════════════════════
  * Idiot Box — CENTRAL UI TOKEN SHEET (single source of truth)
  * ───────────────────────────────────────────────────────────────────────────
- * Yehi ek file puri app ka look define karti hai. Koi bhi color / font /
- * spacing / radius / shadow / size hardcode mat karo — hamesha var() use karo:
+ * This single file defines the whole app's look. Never hardcode a color /
+ * font / spacing / radius / shadow / size — always use var():
  *
  *   background: var(--bg-surface);   color: var(--text-primary);
  *   border: 1px solid var(--border);  font-family: var(--font-ui);
  *
  * RULES
- *  1. Naya rang chahiye? Pehle yahan token banao, phir var() se use karo.
- *  2. Values abhi EXACT wahi hain jo pehle hardcoded the — isliye UI bilkul
- *     waisa hi dikhega, koi visual change nahi.
- *  3. Dark default hai. Light theme ke liye neeche :root[data-theme="light"]
- *     me har surface/text/border token ka override hai. Semantic (teal / blue /
- *     git / danger / warning) jaan-bujh kar dono themes me SAME rakhe hain,
- *     kyunki pehle ye hardcoded same rehte the.
- *  4. Entry points: electron/renderer/index.jsx aur SettingsWindow.jsx dono
- *     sabse pehle isi file ko import karte hain, isliye ye tokens main window
- *     + settings window + saare panels me available hain.
+ *  1. Need a new color? Create the token here first, then use it via var().
+ *  2. Values are currently EXACTLY what was hardcoded before — so the UI
+ *     looks identical, zero visual change.
+ *  3. Dark is the default. For the light theme, :root[data-theme="light"]
+ *     below overrides every surface/text/border token. Semantic hues (teal /
+ *     blue / git / danger / warning) are deliberately kept SAME in both
+ *     themes, because they used to be hardcoded identically.
+ *  4. Entry points: electron/renderer/index.jsx and SettingsWindow.jsx both
+ *     import this file first, so these tokens are available in the main
+ *     window + settings window + all panels.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -230,7 +230,7 @@
   --offline-a15:     rgba(197,134,192,0.15);
   --error-border-short: #a33;   /* shorthand error border (ex-#a33) */
 
-  /* ── §12b Terminal theme (xterm palette — hamesha dark rehta hai) ─────── */
+  /* ── §12b Terminal theme (xterm palette — always stays dark) ─────── */
   --term-selection:  #2c4f6e;
   --term-bright-black: #767676;
   --term-green-a14:  rgba(143,191,143,0.14);
@@ -398,8 +398,8 @@
 
 /* ── Light theme overrides ─────────────────────────────────────────────── */
 /* Surfaces / text / borders follow the light theme. Accent + semantic hues
-   stay identical (wahi values jo dark me hardcoded the) taaki koi visual
-   surprise na ho; sirf chrome light hota hai. */
+   stay identical (the same values that were hardcoded in dark) so there is
+   no visual surprise; only the chrome turns light. */
 :root[data-theme="light"] {
   --bg-app:          #ffffff;
   --bg-panel:        #f3f3f3;
@@ -458,8 +458,8 @@
   --icon-faint:      #999;
 
   /* Hardcoded-dark content surfaces (notebook cells, terminal, canvas stage)
-     pehle light mode me bhi dark hi rehte the — wahi behavior rakha hai taaki
-     "jaisa hai waisa hi dikhe". Inhe light karna ho to sirf yahin badlo. */
+     used to stay dark even in light mode — kept that behavior for a
+     "what you see is what you get" look. To lighten them, change only here. */
 }
 
 /* Light theme component overrides (hard-coded backgrounds in settings.css etc.) */

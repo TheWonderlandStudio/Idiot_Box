@@ -9,7 +9,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Explicit content sources (node_modules is gitignored => skipped by default).
-   Hub se setup-chat ke custom JSX me bhi tailwind classes hain — wo scan ho. */
+   The setup-chat's custom JSX in the Hub also uses Tailwind classes — scan them. */
 @source "./";
 @source "../Project";
 
@@ -108,7 +108,7 @@
   color: var(--popover-foreground);
 }
 
-/* ── Idiot Box setup-chat extras (sirf ishi shadow DOM me) ───────────────── */
+/* ── Idiot Box setup-chat extras (only in this shadow DOM) ───────────────── */
 .ss-root {
   height: 100%;
   display: flex;
@@ -122,8 +122,8 @@
   padding: 12px;
   background: transparent;
 }
-/* Input pill (textarea wala box) — transparent bhi nahi, solid bhi nahi:
-   halka translucent fill taaki box dikhe, wallpaper andar se halka aata rahe. */
+/* Input pill (textarea box) — neither transparent nor solid:
+   a light translucent fill so the box stays visible and the wallpaper faintly shows through. */
 .ss-composer [class*="group/input-group"] {
   background: rgba(10, 10, 12, 0.55);
 }

@@ -1,7 +1,7 @@
-// ─── Community extensions — GitHub repo se list + install ───────────────────
-// Repo me `extensions/<publisher>.<name>/` structure hota hai. List ke liye
-// GitHub contents API + raw package.json; install ke liye repo zipball
-// download karke sirf wo extension folder extract/copy karte hain.
+// ─── Community extensions — list + install from a GitHub repo ───────────────────
+// The repo uses an `extensions/<publisher>.<name>/` layout. Listing uses the
+// GitHub contents API + raw package.json; installing downloads the repo zipball
+// and extracts/copies only that extension folder.
 "use strict";
 
 const fs = require("fs");
@@ -18,7 +18,7 @@ async function gh(url, timeoutMs = 30000) {
     headers: { accept: "application/vnd.github+json", "user-agent": UA },
     signal: typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined,
   });
-  if (res.status === 403 || res.status === 429) throw new Error("GitHub rate limit exceeded — ek minute baad try karo");
+  if (res.status === 403 || res.status === 429) throw new Error("GitHub rate limit exceeded — try again in a minute");
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`GitHub ${res.status} ${res.statusText}${body ? ` — ${String(body).slice(0, 200)}` : ""}`);
@@ -51,7 +51,7 @@ function parseRepo(input) {
 
 async function resolveRepo(input) {
   const parsed = parseRepo(input);
-  if (!parsed) throw new Error("Invalid repo — expected `owner/repo` ya GitHub URL");
+  if (!parsed) throw new Error("Invalid repo — expected `owner/repo` or a GitHub URL");
   let branch = parsed.branch;
   if (!branch) {
     const info = await ghJson(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`);
@@ -63,7 +63,7 @@ async function resolveRepo(input) {
 const rawUrl = (r, relPath) =>
   `https://raw.githubusercontent.com/${r.owner}/${r.repo}/${r.branch}/${relPath.split("/").map(encodeURIComponent).join("/")}`;
 
-// ── List: repo ke subfolder ke har extension ki basic info ──────────────────
+// ── List: basic info for every extension in the repo subfolder ──────────────────
 async function listExtensions(input) {
   const r = await resolveRepo(input);
   const url = `https://api.github.com/repos/${r.owner}/${r.repo}/contents/${r.subfolder}?ref=${encodeURIComponent(r.branch)}`;
@@ -98,7 +98,7 @@ async function listExtensions(input) {
   return { repo: `${r.owner}/${r.repo}`, branch: r.branch, subfolder: r.subfolder, items: items.filter(Boolean) };
 }
 
-// ── README: extension folder ka README.md (details panel ke liye) ───────────
+// ── README: the extension folder's README.md (for the details panel) ───────────
 async function readme(input, folderName) {
   const r = await resolveRepo(input);
   const name = String(folderName || "").trim();
@@ -131,7 +131,7 @@ function extractZip(zipPath, destDir) {
   });
 }
 
-// Zipball ke andar repo-root ka naam alag hota hai (repo-branch) — suffix se dhoond.
+// The repo-root name inside the zipball differs (repo-branch) — find it by suffix.
 function findDirBySuffix(root, relSuffix) {
   const want = (process.platform === "win32" ? relSuffix.toLowerCase() : relSuffix);
   const stack = [root];
@@ -150,8 +150,8 @@ function findDirBySuffix(root, relSuffix) {
   return null;
 }
 
-// ── Download: repo zipball → sirf `<subfolder>/<folderName>` ka source dir ──
-// Caller `src` ko install karke `tmp` cleanup kare.
+// ── Download: repo zipball → only the `<subfolder>/<folderName>` source dir ──
+// The caller installs `src`, then cleans up `tmp`.
 async function downloadExtension(input, folderName) {
   const r = await resolveRepo(input);
   const name = String(folderName || "").trim();

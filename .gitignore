@@ -28,6 +28,8 @@ electron/renderer/worker/extensionHost.worker.js
 *.exe
 *.msi
 *.msix
+*.msixupload
+*.msixbundle
 *.dmg
 *.AppImage
 *.snap

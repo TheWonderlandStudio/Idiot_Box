@@ -52,8 +52,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("editor:openFile", handler);
   },
   // ── OS "Open With Idiot Box" (argv / second-instance / open-file) ─────────
-  // Main sirf ping karta hai; renderer pending files khud pull karta hai —
-  // isliye reload/delivery race me koi file drop nahi hoti.
+  // Main only pings; the renderer pulls pending files itself —
+  // so no file is dropped in a reload/delivery race.
   onOsFilesPending: (callback) => {
     const handler = () => callback();
     ipcRenderer.on("editor:osFilesPending", handler);
@@ -126,7 +126,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showTabContextMenu: (details)          => ipcRenderer.invoke("tab:contextMenu", details),
   openExternal: (url)                    => ipcRenderer.invoke("open:url", url),
   // ── Browser guest shortcuts (main forwards webview keys here) ─────────
-  // payload: { action, wcId }. Panel wcId match karke apne tab me chalata hai.
+  // payload: { action, wcId }. The panel matches wcId and runs it in its own tab.
   onBrowserShortcut: (callback) => {
     const handler = (_e, payload) => callback(payload);
     ipcRenderer.on("browser:shortcut", handler);
@@ -324,9 +324,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Hub chat → Pollinations free AI (no key) ──────────────────────────────
   aiChat: (messages) => ipcRenderer.invoke("ai:chat", { messages }),
-  // Mic voice input — WAV (base64) → Windows speech engine se text
+  // Mic voice input — WAV (base64) → text via the Windows speech engine
   aiTranscribe: (wav) => ipcRenderer.invoke("ai:transcribe", { wav }),
-  // Streaming mode — chunks live aate hain (cb: "chunk"|"done"|"error", payload)
+  // Streaming mode — chunks arrive live (cb: "chunk"|"done"|"error", payload)
   aiChatStart: (id, messages) => ipcRenderer.send("ai:chat:start", { id, messages }),
   onAiChatEvent: (cb) => {
     const h1 = (_e, p) => cb("chunk", p);

@@ -1,9 +1,9 @@
 // Output Panel — VS Code-style log sink with channels (App / Git / Updater /
-// Live Server / Run + har extension ka apna channel `ext:<extId>`).
+// Live Server / Run + each extension's own channel `ext:<extId>`).
 // Any renderer code can log via window.__outputLog(channel, message, level).
 // Main-process logs arrive via preload onOutputLog bridge.
 // Lines are buffered in-memory (cap per channel) so early logs survive.
-// Extension API (main): context.ibox.log(...) → apne ext channel me,
+// Extension API (main): context.ibox.log(...) → its own ext channel,
 // context.ibox.window.createOutputChannel(name) → named sub-channel.
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
@@ -29,7 +29,7 @@ export const OutputIcon = ({ size = 14, style } = {}) => (
 );
 
 export const BASE_OUTPUT_CHANNELS = ["App", "Git", "Updater", "Live Server", "Run"];
-// Backward-compat: purana import (OUTPUT_CHANNELS) ab base list deta hai.
+// Backward-compat: the old import (OUTPUT_CHANNELS) now returns the base list.
 export const OUTPUT_CHANNELS = BASE_OUTPUT_CHANNELS;
 export const isExtChannel = (ch) => typeof ch === "string" && ch.startsWith("ext:");
 export const extIdOfChannel = (ch) => {
@@ -58,20 +58,20 @@ const normalizeChannel = (channel) => {
     if (!raw) return "App";
     if (BASE_OUTPUT_CHANNELS.includes(raw)) return raw;
     if (raw.startsWith("ext:")) {
-      // ext:<extId> ya ext:<extId>:<sub> — extId me alnum . _ - allowed
+      // ext:<extId> or ext:<extId>:<sub> — alnum . _ - allowed in extId
       const rest = raw.slice(4);
       if (!rest || rest.length > 120) return "App";
       if (/[^a-zA-Z0-9_.\-: ]/.test(rest)) return "App";
       return raw;
     }
-    // Custom channel (future-proof) — chhota, safe charset
+    // Custom channel (future-proof) — short, safe charset
     if (raw.length > 80) return "App";
     if (/[^a-zA-Z0-9_.\- :()]/.test(raw)) return "App";
     return raw;
   } catch { return "App"; }
 };
 
-// Channel id → friendly label (ext:* ke liye ext display name).
+// Channel id → friendly label (ext display name for ext:*).
 const getChannelLabel = (ch) => {
   try {
     if (BASE_OUTPUT_CHANNELS.includes(ch)) return ch;
@@ -99,13 +99,13 @@ if (typeof window !== "undefined" && !window.__outputLog) {
     try {
       const o = opts && typeof opts === "object" ? opts : {};
       const ch = normalizeChannel(channel);
-      // clear request (extension createOutputChannel().clear() → main se aata hai)
+      // clear request (extension createOutputChannel().clear() → arrives from main)
       if (o.clear) {
         if (window.__outputBuffer) window.__outputBuffer[ch] = [];
         window.dispatchEvent(new CustomEvent("output:log", { detail: { channel: ch, cleared: true } }));
         return;
       }
-      // friendly label yaad rakho (main extName bhejta hai)
+      // remember the friendly label (main sends extName)
       const label = o.label || o.extName || o.channelName || "";
       if (label && !BASE_OUTPUT_CHANNELS.includes(ch)) {
         try {
@@ -122,7 +122,7 @@ if (typeof window !== "undefined" && !window.__outputLog) {
         } catch {}
       }
       if (!window.__outputChannelOrder.includes(ch)) window.__outputChannelOrder.push(ch);
-      // ensureOnly (show() ne sirf channel khola, koi line nahi) → khaali entry mat banao.
+      // ensureOnly (show() only opened the channel, no line) → do not create an empty entry.
       const ensureOnly = !!o.ensureOnly && (message === "" || typeof message === "undefined");
       if (!ensureOnly) {
         const buf = window.__outputBuffer;
@@ -138,7 +138,7 @@ if (typeof window !== "undefined" && !window.__outputLog) {
         window.__outputBuffer[ch] = [];
       }
       window.dispatchEvent(new CustomEvent("output:log", { detail: { channel: ch, reveal: !!o.reveal } }));
-      // reveal (extension show() ne manga) → panel kholo + channel select
+      // reveal (requested by extension show()) → open the panel + select the channel
       if (o.reveal) {
         try { window.__outputWantChannel = ch; } catch {}
         try { window.dispatchEvent(new CustomEvent("output:switchChannel", { detail: { channel: ch } })); } catch {}
@@ -183,13 +183,13 @@ const fmtTime = (ts) => {
   } catch { return ""; }
 };
 
-// ── xterm theme (Terminal panel wali palette — cssVar runtime resolve) ──
+// ── xterm theme (Terminal panel palette — resolved at runtime via cssVar) ──
 const makeXtermTheme = () => {
   const bg = cssVar("--bg-surface", "#1e1e1e");
   return {
     background: bg,
     foreground: cssVar("--text-bright", "#cccccc"),
-    cursor: bg, // log view me cursor invisible
+    cursor: bg, // invisible cursor in the log view
     cursorAccent: bg,
     selectionBackground: cssVar("--term-selection", "#2c4f6e"),
     selectionInactiveBackground: cssVar("--selection", "#264f78"),
@@ -212,15 +212,15 @@ const makeXtermTheme = () => {
   };
 };
 
-// ANSI hata kar visible length (same-line overwrite ki padding ke liye)
+// Visible length without ANSI (for same-line-overwrite padding)
 const visibleLen = (s) => {
   try {
     return String(s).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\x1b\][^\x07]*\x07/g, "").length;
   } catch { return String(s).length; }
 };
-// Trailing-\r pieces (progress bars, spinners — same line overwrite) newline
-// ke BINA likhe jate hain taaki agli write usi line par overwrite kare.
-// Har row: { text, newline }.
+// Trailing-\r pieces (progress bars, spinners — same-line overwrite) are written
+// WITHOUT a newline so the next write overwrites the same line.
+// Each row: { text, newline }.
 const formatLine = (l) => {
   const ts = fmtTime(l.ts);
   const lvl = l.level === "error" ? "\x1b[31merror\x1b[0m"
@@ -228,9 +228,9 @@ const formatLine = (l) => {
     : "\x1b[90minfo\x1b[0m";
   const head = `\x1b[90m${ts}\x1b[0m ${lvl} `;
   const body = l.level === "error" ? `\x1b[31m${l.msg}\x1b[0m` : String(l.msg ?? "");
-  // multi-line message → alag-alag rows (staircase se bachne ke liye)
+  // multi-line message → separate rows (to avoid the staircase effect)
   const rows = String(head + body).split(/\r?\n/);
-  // final "\n" se bana khaali tail hatado (warna har message ke baad blank line)
+  // drop the empty tail from a final "\n" (otherwise every message leaves a blank line)
   if (rows.length > 1 && rows[rows.length - 1] === "") rows.pop();
   return rows.map((row) => {
     const cr = /\r$/.test(row);
@@ -272,7 +272,7 @@ const OutputPanel = () => {
     try { setLines([...(window.__outputBuffer?.[ch] || [])]); } catch { setLines([]); }
   }, []);
 
-  // Saare channels: base + buffer me dikhe + installed extensions (khaali bhi).
+  // All channels: base + seen in buffer + installed extensions (even empty ones).
   const refreshChannels = useCallback(() => {
     try {
       const buf = window.__outputBuffer || {};
@@ -281,7 +281,7 @@ const OutputPanel = () => {
       const push = (k) => { if (k && !merged.includes(k)) merged.push(k); };
       for (const k of ordered) push(k);
       for (const k of Object.keys(buf)) push(k);
-      // Installed extensions — har extension ka apna channel, log ho ya na ho.
+      // Installed extensions — each extension gets its own channel, with or without logs.
       try {
         const labels = window.__outputChannelLabels || {};
         for (const e of extListRef.current || []) {
@@ -304,8 +304,8 @@ const OutputPanel = () => {
         return fn ? fn(w) : (BASE_OUTPUT_CHANNELS.includes(w) ? w : "App");
       } catch { return null; }
     };
-    // Run panel / Extensions panel jaise openers channel maangte hain
-    // (add-output-panel detail / output:switchChannel) — mount par pending wish poori karo.
+    // Openers like the Run / Extensions panel request a channel
+    // (add-output-panel detail / output:switchChannel) — fulfill the pending request on mount.
     try {
       const want = normWant(window.__outputWantChannel);
       if (want && channelRef.current !== want) {
@@ -316,7 +316,7 @@ const OutputPanel = () => {
       } else {
         pullChannel(channelRef.current);
       }
-      // Mount ne wish poori kar li — clear taaki agli manual open App par rahe.
+      // The mount fulfilled the request — clear it so the next manual open stays on App.
       try { window.__outputWantChannel = null; } catch {}
     } catch { pullChannel(channelRef.current); }
     const onSwitch = (e) => {
@@ -332,8 +332,8 @@ const OutputPanel = () => {
         }
       } catch {}
     };
-    // add-output-panel seedha bhi aa sakta hai (index.jsx hamesha forward karta hai,
-    // par belt-and-suspenders: detail.channel yahan bhi suno).
+    // add-output-panel can also arrive directly (index.jsx always forwards it,
+    // but belt-and-suspenders: also listen for detail.channel here).
     const onAdd = (e) => {
       try {
         const want = normWant(e?.detail?.channel);
@@ -342,12 +342,12 @@ const OutputPanel = () => {
     };
     const refresh = (e) => {
       try {
-        // clear hua ho to rendered cursor reset (neeche sync effect sambhalta hai)
+        // reset the rendered cursor if cleared (handled by the sync effect below)
         setLines([...(window.__outputBuffer?.[channelRef.current] || [])]);
       } catch {}
       refreshChannels();
     };
-    // Installed extensions ki list — dropdown me har ext ka channel dikhe.
+    // List of installed extensions — show each ext's channel in the dropdown.
     const loadExts = async () => {
       try {
         const list = await window.electronAPI?.extList?.();
@@ -374,7 +374,7 @@ const OutputPanel = () => {
       unsub = window.electronAPI?.onOutputLog?.((entry) => {
         try {
           if (!entry || !entry.channel) return;
-          // clear request (main se createOutputChannel().clear())
+          // clear request (createOutputChannel().clear() from main)
           if (entry.clear) {
             try { window.__outputLog(entry.channel, "", "info", { clear: true }); } catch {}
             if (entry.channel === channelRef.current) {
@@ -406,7 +406,7 @@ const OutputPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── xterm lifecycle (read-only log view — koi input nahi) ──
+  // ── xterm lifecycle (read-only log view — no input) ──
   useEffect(() => {
     let term = null;
     let fit = null;
@@ -448,7 +448,7 @@ const OutputPanel = () => {
     } catch { try { term.dispose(); } catch {} return undefined; }
     termRef.current = term;
     fitRef.current = fit;
-    // user ne upar scroll kiya → follow todo (neeche aaya → follow wapas)
+    // user scrolled up → stop following (back at the bottom → follow again)
     try {
       term.onScroll(() => {
         try {
@@ -461,7 +461,7 @@ const OutputPanel = () => {
         } catch {}
       });
     } catch {}
-    // select-to-copy (log view me copy hi main interaction hai)
+    // select-to-copy (copy is the main interaction in the log view)
     try {
       term.onSelectionChange(() => {
         try {
@@ -488,7 +488,7 @@ const OutputPanel = () => {
       setTimeout(safeFit, 100);
       setTimeout(safeFit, 300);
     });
-    // app theme badla → xterm palette refresh
+    // app theme changed → refresh the xterm palette
     let bc = null;
     let unsubSettings = null;
     const refreshTheme = () => {
@@ -535,8 +535,8 @@ const OutputPanel = () => {
               term.writeln(row.text);
               r.crLen = 0;
             } else {
-              // same-line update: pichli \r-write se chhota ho to tail
-              // spaces se dhako, phir cursor wapas line-start par.
+              // same-line update: if shorter than the previous \r-write, cover the tail
+              // with spaces, then return the cursor to the line start.
               const pad = Math.max(0, (r.crLen || 0) - visibleLen(row.text));
               term.write(row.text + (pad ? " ".repeat(pad) : "") + "\r");
               r.crLen = visibleLen(row.text);
@@ -559,7 +559,7 @@ const OutputPanel = () => {
       setChannel(norm);
       setStick(true);
       try { setLines([...(window.__outputBuffer?.[norm] || [])]); } catch { setLines([]); }
-      // Naya ext channel pehli baar khula ho to dropdown me turant dikhe.
+      // Show a newly opened ext channel in the dropdown immediately.
       try {
         const order = window.__outputChannelOrder || [];
         if (!order.includes(norm)) order.push(norm);
@@ -596,7 +596,7 @@ const OutputPanel = () => {
           className="output-panel-select"
           value={channel}
           onChange={(e) => switchChannel(e.target.value)}
-          title="Channel — har extension ka apna output"
+          title="Channel — each extension has its own output"
           style={{
             background: "var(--bg-surface)", color: "var(--text-bright)",
             border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)",
@@ -661,7 +661,7 @@ const OutputPanel = () => {
             <div>
               No output yet — {(() => { try { return window.__outputChannelLabel ? window.__outputChannelLabel(channel) : channel; } catch { return channel; } })()}
               <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>
-                Core + har extension ka alag channel — dropdown se extension chuno. Extension se log: ibox.log() / createOutputChannel()
+                Core + a separate channel per extension — pick an extension from the dropdown. Log from an extension: ibox.log() / createOutputChannel()
               </div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 /* ── Blank / New Panel launcher ─────────────────────────────────────────── */
-/* Values wahi hain jo pehle inline styles me the — sirf classes me shift hue
-   hain taaki responsive overrides lag sakein. Sab tokens CENTRAL sheet se. */
+/* Values are the same as the former inline styles — only moved into classes
+   so responsive overrides can apply. All tokens come from the CENTRAL sheet. */
 
 .bp-root {
   display: flex;
@@ -171,7 +171,7 @@
   line-height: var(--lh-md);
 }
 
-/* ── Responsive: chhote panels / windows ────────────────────────────────── */
+/* ── Responsive: small panels / windows ────────────────────────────────── */
 @media (max-width: 700px) {
   .bp-root { padding: var(--space-16); }
   .bp-search { max-width: 100%; margin-bottom: var(--space-12); }
@@ -191,7 +191,7 @@
   .bp-name { font-size: var(--fs-body); margin-bottom: 0; }
 }
 
-/* ── Electron fallback classes (window width se lagte hain — index.jsx) ─── */
+/* ── Electron fallback classes (applied from window width — index.jsx) ─── */
 .is-narrow .bp-root { padding: var(--space-16); }
 .is-narrow .bp-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-8); }
 .is-narrow .bp-card { padding: var(--space-12) var(--space-8); }

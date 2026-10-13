@@ -1,9 +1,9 @@
 // ─── Titlebar menu keyboard access (Alt-toggled menu mode) ───────────────
-// Default: Tab sirf app me ghumta hai, toolbar skip hota hai.
-// Alt akele dabao (ya titlebar par Alt+click) → menu mode ON: menubar
-// buttons Tab se reachable + pehle button par focus. Dobara Alt / Escape →
-// mode OFF, Tab wapas sirf app me. (node_modules patch kiye bina —
-// MutationObserver rebuilds par bhi nazar rakhta hai.)
+// Default: Tab only moves inside the app; the toolbar is skipped.
+// Press Alt alone (or Alt+click on the titlebar) → menu mode ON: the menubar
+// buttons become reachable via Tab + focus the first button. Press Alt / Escape again →
+// mode OFF, Tab only moves inside the app again. (Without patching node_modules —
+// the MutationObserver also watches rebuilds.)
 const BTN_SEL = ".cet-menubar-menu-button";
 
 let menuMode = false;
@@ -18,7 +18,7 @@ function menubarButtons() {
   }
 }
 
-// Menu mode ON/OFF — buttons ko Tab order me dalo/nikalo.
+// Menu mode ON/OFF — add/remove the buttons from the Tab order.
 export function setTitlebarMenuMode(on) {
   menuMode = !!on;
   try {
@@ -41,7 +41,7 @@ export function isTitlebarMenuMode() {
 function armButton(el) {
   if (!el || el.__ibxA11yArmed) return;
   el.__ibxA11yArmed = true;
-  // Default app-mode: Tab toolbar skip kare (menu mode me "0")
+  // Default app mode: skip the toolbar via Tab (becomes "0" in menu mode)
   try {
     el.setAttribute("tabindex", menuMode ? "0" : "-1");
   } catch {}
@@ -60,15 +60,15 @@ function armButton(el) {
           if (n) n.focus();
         }
       } else if (e.key === "Enter" || e.key === " ") {
-        // Menu mode me Enter/Space se menu kholo (click → CET khud open
-        // karke apni arrow/Esc navigation sambhalta hai).
+        // In menu mode, open the menu with Enter/Space (click → CET itself opens
+        // and handles its own arrow/Esc navigation).
         if (!menuMode) return;
         e.preventDefault();
         e.stopPropagation();
         el.click();
       } else if (e.key === "ArrowDown") {
         if (!menuMode) return;
-        if (el.classList.contains("open")) return; // khula ho to CET sambhale
+        if (el.classList.contains("open")) return; // CET handles it when open
         e.preventDefault();
         e.stopPropagation();
         el.click();
@@ -97,7 +97,7 @@ export function setupTitlebarA11y() {
     const mo = new MutationObserver(() => armAll());
     mo.observe(document.documentElement, { childList: true, subtree: true });
   } catch {}
-  // CET thoda late attach hota hai — shuru me kuch baar retry karo
+  // CET attaches a bit late — retry a few times at startup
   let tries = 0;
   const timer = setInterval(() => {
     armAll();
@@ -107,9 +107,9 @@ export function setupTitlebarA11y() {
       } catch {}
     }
   }, 500);
-  // ── Alt mnemonic (Windows jaisa): akele Alt dabao → menu mode toggle.
-  // Alt+combo (Alt+Left wagera) me toggle NA ho — isliye keyup par, aur
-  // beech me koi aur key dab gayi to cancel.
+  // ── Alt mnemonic (like Windows): press Alt alone → toggle menu mode.
+  // Do NOT toggle on Alt+combo (Alt+Left etc.) — hence on keyup, and
+  // cancel if any other key was pressed in between.
   let altAlone = false;
   try {
     window.addEventListener(
@@ -139,7 +139,7 @@ export function setupTitlebarA11y() {
       },
       true
     );
-    // Titlebar par Alt+click → menu mode ON (mouse users ke liye)
+    // Alt+click on the titlebar → menu mode ON (for mouse users)
     document.addEventListener("click", (e) => {
       try {
         if (e.altKey && e.target instanceof Node && e.target.closest?.(".cet-titlebar")) {
@@ -147,7 +147,7 @@ export function setupTitlebarA11y() {
         }
       } catch {}
     });
-    // App me kahin click → menu mode OFF (Tab wapas sirf app me)
+    // Click anywhere in the app → menu mode OFF (Tab only moves inside the app again)
     document.addEventListener("mousedown", (e) => {
       try {
         if (!menuMode) return;

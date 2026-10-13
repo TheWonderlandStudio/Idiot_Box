@@ -93,8 +93,8 @@ const DEFAULT_JSON = {
   },
 };
 
-// Blank workspace layout (Create Project → "Blank workspace"): sirf ek blank
-// panel — user khud panels kholta hai. tabs.json ka `layout: "blank"` isko trigger karta hai.
+// Blank workspace layout (Create Project → "Blank workspace"): just one blank
+// panel — the user opens panels manually. tabs.json `layout: "blank"` triggers it.
 const BLANK_JSON = {
   global: { ...DEFAULT_JSON.global },
   layout: {
@@ -110,9 +110,9 @@ const BLANK_JSON = {
   },
 };
 
-// Temp single-file layout (OS "Open With" → temp project): SIRF ek editor
-// panel — poora IDE layout nahi. Tabs (multi-file) isi ek tabset me khulte
-// hain. Transient hai, persist kabhi nahi hota.
+// Temp single-file layout (OS "Open With" → temp project): only one editor
+// panel — not the full IDE layout. Tabs (multi-file) open in this same tabset.
+// It is transient and never persisted.
 const SINGLE_FILE_JSON = {
   global: { ...DEFAULT_JSON.global },
   layout: {
@@ -127,8 +127,8 @@ const SINGLE_FILE_JSON = {
     ],
   },
 };
-// Panel content by tab-JSON — factory (tab node ke JSON attributes) isse
-// render karta hai: component + config + nodeId ek jagah se.
+// Panel content by tab-JSON — the factory renders it from the tab node's
+// JSON attributes: component + config + nodeId in one place.
 const renderPanelContent = (json) => {
   const config = json?.config || {};
   const nodeId = json?.id;
@@ -175,9 +175,9 @@ const factory = (node) => {
   }
 };
 
-// ── Crash-safe wrapper: har tab ka root iske andar chalta hai.
-// Popout / normal cases me kisi bhi panel ke throw hone se
-// poore FlexLayout tree ko crash hone se bachata hai.
+// ── Crash-safe wrapper: every tab root runs inside it.
+// If any panel throws in popout / normal cases, this keeps
+// the whole FlexLayout tree from crashing.
 class CrashSafeWrapper extends React.Component {
   constructor(props) { super(props); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
@@ -233,7 +233,7 @@ const UpdaterNavButton = () => {
 // ── Run status-bar button — visual replacement for the menu-bar Run menu ──
 // Main click → project auto-command first (npm run dev / ...), else open file.
 // Dropdown caret → ALL run options (Auto, Current File, npm scripts, customs)
-// Run panel se `run:options` par aate hain; click → panel kholo + chalao.
+// Arrives from the Run panel via `run:options`; click → open the panel + run.
 const RunStatusButton = () => {
   const [open, setOpen] = React.useState(false);
   const [running, setRunning] = React.useState(false);
@@ -276,8 +276,8 @@ const RunStatusButton = () => {
     };
   }, [open]);
 
-  // Koi option chuni → panel kholo (mount) + poll ke liye pending rakho.
-  // Run panel 700ms poll me use utha kar chalata hai (mount-race safe).
+  // When an option is picked → open the panel (mount) + keep it pending for polling.
+  // The Run panel picks it up on its 700ms poll (mount-race safe).
   const runOption = (id) => {
     setOpen(false);
     try {
@@ -412,8 +412,8 @@ const RunStatusButton = () => {
 };
 
 // ── Title bar right: Layouts box — saved panel layouts dropdown ────────────
-// (Pehle ye box sirf hub par wapas bhejta tha — ab uska link dropdown ke
-// footer me hai; primary kaam = current layout save/apply karna.)
+// (Previously this box only sent the user back to the Hub — its link is now in the
+// dropdown footer; its primary job is saving/applying the current layout.)
 const layoutWhen = (ts) => {
   try {
     const diff = Date.now() - Number(ts || 0);
@@ -424,8 +424,8 @@ const layoutWhen = (ts) => {
   } catch { return ""; }
 };
 
-// Built-in defaults — dropdown me hamesha top par 2 rows: Normal (default)
-// aur Blank. Ye saved presets nahi hain, isliye delete option nahi hota.
+// Built-in defaults — always 2 rows at the top of the dropdown: Normal (default)
+// and Blank. These are not saved presets, so they have no delete option.
 const BUILTIN_LAYOUTS = [
   { id: "__builtin_default", name: "Default layout", panels: DEFAULT_JSON, layout: "normal" },
   { id: "__builtin_blank", name: "Blank layout", panels: BLANK_JSON, layout: "blank" },
@@ -560,7 +560,7 @@ const LayoutsMenu = ({ hasProject, getSnapshot, onApply }) => {
   );
 };
 
-// ── Recents normalize (Hub wala shape: {path, lastOpened}) ─────────────────
+// ── Recents normalize (Hub-style shape: {path, lastOpened}) ─────────────────
 const normalizeRecentList = (list) => {
   if (!Array.isArray(list)) return [];
   return list.map((e) => {
@@ -579,8 +579,8 @@ const recentParentDir = (p) => {
 };
 
 // ── Title bar left: logo dropdown — Back to Hub, Recents, quick actions ────
-// Trigger koi naya button nahi: CET ka existing `.cet-icon` (favicon image,
-// titlebar me File menu se pehle) yahan clickable banaya jata hai.
+// No new trigger button: CET's existing `.cet-icon` (favicon image,
+// before the File menu in the titlebar) is made clickable here.
 const TitlebarLogoMenu = ({ hasProject }) => {
   const [open, setOpen] = useState(false);
   const [recent, setRecent] = useState([]);
@@ -588,7 +588,7 @@ const TitlebarLogoMenu = ({ hasProject }) => {
   const iconRef = useRef(null);
   const menuRef = useRef(null);
 
-  // Existing CET logo dhoondho (titlebar DOM banne me time leta hai)
+  // Find the existing CET logo (the titlebar DOM takes time to build)
   useEffect(() => {
     let attempts = 0;
     let timer = null;
@@ -601,7 +601,7 @@ const TitlebarLogoMenu = ({ hasProject }) => {
     return () => { if (timer) clearTimeout(timer); };
   }, []);
 
-  // Logo → trigger bana do (click / Enter / Space toggle, dblclick ignore)
+  // Turn the logo into a trigger (click / Enter / Space toggle, ignore dblclick)
   useEffect(() => {
     if (!iconEl) return;
     iconRef.current = iconEl;
@@ -687,7 +687,7 @@ const TitlebarLogoMenu = ({ hasProject }) => {
   };
 
   // Recent click → current project save+close, clicked project open.
-  // Confirm tab hi hamesha (jaisa user ne chaha); hub par seedha open.
+  // Always show the confirm tab (as the user requested); open directly on the Hub.
   const openRecent = async (p) => {
     if (p.path === window.__currentProjectPath) { closeMenu(); return; }
     if (hasProject) {
@@ -826,8 +826,8 @@ const findEditorTabset = (node) => {
   return null;
 };
 
-// Blank layout me editor tabset nahi hota — files kholne ke liye
-// kisi bhi tabset (blank panel wala) ko target banate hain.
+// Blank layouts have no editor tabset — target any tabset (the blank-panel one)
+// to open files.
 const findAnyTabset = (node) => {
   if (node.getType?.() === "tabset") return node;
   const children = node.getChildren?.();
@@ -836,8 +836,8 @@ const findAnyTabset = (node) => {
 };
 
 // ── Per-project panel layout sanitize (tabs.json → panels) ─────────────────
-// Saved layout kisi aur version me bana ho to unknown components blank me
-// badal do — factory me nahi to empty/crash tab milega.
+// If a saved layout was made in another version, map unknown components to blank —
+// otherwise the factory would produce an empty/crashing tab.
 const PROJECT_PANEL_COMPONENTS = new Set([
   "mediaViewer", "panel3", "projectPanel", "editor", "notebook", "terminal",
   "blank", "componentPreview", "community", "canvas", "problems", "output",
@@ -849,7 +849,7 @@ const sanitizeProjectPanels = (json) => {
     const walk = (node) => {
       if (!node || typeof node !== "object") return;
       if (node.type === "tab") {
-        // .ipynb ab editor tabs me render hote hain (session migration jaisa)
+        // .ipynb files now render in editor tabs (like a session migration)
         if (node.component === "notebook") node.component = "editor";
         if (!PROJECT_PANEL_COMPONENTS.has(node.component)) {
           node.component = "blank";
@@ -861,8 +861,8 @@ const sanitizeProjectPanels = (json) => {
     };
     if (json?.layout) walk(json.layout);
     if (Array.isArray(json?.borders)) json.borders.forEach(walk);
-    // Popout windows (FlexLayout multi-window) bhi sanitise karo - unke
-    // andar ke tabs bhi isi model JSON me save hote hain.
+    // Also sanitize popout windows (FlexLayout multi-window) — their
+    // inner tabs are saved in the same model JSON.
     if (json?.popouts && typeof json.popouts === "object") {
       Object.values(json.popouts).forEach((p) => walk(p?.layout));
     }
@@ -870,8 +870,8 @@ const sanitizeProjectPanels = (json) => {
   return json;
 };
 
-// Purane saved sessions me tabEnablePopout false saved hota hai - popout
-// feature on karne ke liye hamesha force-enable karo (default + saved dono).
+// Old saved sessions may have tabEnablePopout saved as false — always
+// force-enable the popout feature (both default + saved).
 const enablePopouts = (json) => {
   try {
     if (!json.global || typeof json.global !== "object") json.global = {};
@@ -894,19 +894,19 @@ const App = () => {
   const saveTabsTimer     = useRef(null);
   const lastBrowserTabsetRef = useRef(null);
   const [hasProject, setHasProject] = useState(false);
-  // Current project ka layout mode — "blank" (Create Project ke 2 buttons me se)
+  // Current project's layout mode — "blank" (one of Create Project's 2 buttons)
   const projectLayoutRef = useRef(null);
   // Temp project (OS "Open With" file → parent folder as workspace): layout/tabs
-  // persist NAHI hote — sirf file content edit + save hota hai.
+  // are NOT persisted — only file content is edited + saved.
   const transientProjectRef = useRef(false);
   const [tick, setTick] = useState(0);
   const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
   const [titlebarHost, setTitlebarHost] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // ── Onboarding check — sirf first launch (ya data remove hone par) ──────
-  // Poora page hai (components/Onboarding), modal nahi. Save/Skip wahi
-  // handle karta hai; yahan sirf show/hide + username cache.
+  // ── Onboarding check — only on first launch (or after data is cleared) ──────
+  // It is a full page (components/Onboarding), not a modal. Save/Skip is handled
+  // there; here only show/hide + username cache.
   useEffect(() => {
     (async () => {
       try {
@@ -1007,8 +1007,8 @@ const App = () => {
   }, []);
 
   // ── Save current open editor tabs per project ──────────────────────────
-  // Har project ki apni tabs.json (uske store folder me) — koi shared config nahi.
-  // Sirf us project ke ANDAR ki files save hoti hain (doosre project ki leak nahi).
+  // Each project has its own tabs.json (in its store folder) — no shared config.
+  // Only files INSIDE that project are saved (no leakage from other projects).
   const pathInsideRoot = (filePath, rootPath) => {
     try {
       const r = String(rootPath || "").replace(/[\\/]+$/, "");
@@ -1020,33 +1020,33 @@ const App = () => {
     } catch { return false; }
   };
   const doSaveProjectTabs = () => {
-    // Temp project: layout/tabs kuch bhi persist nahi karna.
+    // Temp project: do not persist layout/tabs at all.
     if (transientProjectRef.current) return;
     const rootPath = currentProjectRef.current;
     if (!rootPath) return;
     const m = modelRef.current;
     if (!m) return;
     const tabs = collectEditorTabs(m.getRoot()).filter((t) => pathInsideRoot(t, rootPath));
-    // layout mode ("blank") preserve — warna har save par preference udd jati
+    // Preserve the layout mode ("blank") — otherwise the preference is lost on every save
     const payload = { tabs };
     if (projectLayoutRef.current === "blank") payload.layout = "blank";
-    // Poora panel layout (kaunse panels khule the, unki arrangement) — project
-    // dobara khulte par waisa hi restore ho.
+    // Full panel layout (which panels were open, their arrangement) — restored
+    // as-is when the project reopens.
     try { payload.panels = m.toJson(); } catch {}
     window.electronAPI.writeProjectTabs(rootPath, payload).catch(() => {});
   };
 
-  // ── Per-project isolation: purane project ke processes/activity roko ───
-  // Layout khud save/load hota hai (doSaveProjectTabs/loadProjectLayout) —
-  // isliye tabs delete NAHI karte, sirf: terminal PTY kill, chalti run stop,
-  // output reset. Git/Output/Problems/Ports panels REHTE hain — wo current
-  // project se khud rebind hote hain.
+  // ── Per-project isolation: stop the old project's processes/activity ───
+  // The layout itself is saved/loaded (doSaveProjectTabs/loadProjectLayout) —
+  // so do NOT delete tabs, only: kill terminal PTYs, stop the running run,
+  // reset output. Git/Output/Problems/Ports panels STAY — they rebind to the
+  // current project on their own.
   const closeProjectTabs = useCallback((oldRoot) => {
-    // Terminal PTYs: sirf purane root wale kill (emulator mirror bachte hain)
+    // Terminal PTYs: kill only the old root's (emulator mirrors are spared)
     try { window.dispatchEvent(new CustomEvent("terminals:killAll", { detail: { root: oldRoot || null } })); } catch {}
-    // Chalti run roko (RunPanel sunta hai)
+    // Stop the running run (RunPanel listens for this)
     try { window.dispatchEvent(new CustomEvent("run:stopCurrent")); } catch {}
-    // Output reset — saare channels khaali
+    // Output reset — clear all channels
     try {
       if (window.__outputBuffer) {
         for (const k of Object.keys(window.__outputBuffer)) window.__outputBuffer[k] = [];
@@ -1061,8 +1061,8 @@ const App = () => {
     saveTabsTimer.current = setTimeout(doSaveProjectTabs, 600);
   };
 
-  // Window band hone par current project ka layout/tab data turant save
-  // (debounce 600ms ka best-effort backup).
+  // Save the current project's layout/tab data immediately when the window closes
+  // (the 600ms debounce is a best-effort backup).
   useEffect(() => {
     const save = () => { try { doSaveProjectTabs(); } catch {} };
     window.addEventListener("beforeunload", save);
@@ -1083,7 +1083,7 @@ const App = () => {
     } catch {}
     let data = null;
     try { data = await window.electronAPI.readProjectTabs(rootPath); } catch {}
-    // Sirf is project ke andar ki files (purani mixed entries bahar)
+    // Only files inside this project (exclude stale mixed entries)
     const tabs = (Array.isArray(data?.tabs) ? data.tabs.filter(Boolean) : [])
       .filter((t) => pathInsideRoot(t, rootPath));
     if (!tabs.length) return;
@@ -1285,13 +1285,13 @@ const App = () => {
           cleanEmpty2(json.layout);
         } catch {}
       })();
-      // NOTE: AI panel removed — purane saved sessions me agar aiPanel tab hai to blank render hoga.
+      // NOTE: AI panel removed — old saved sessions with an aiPanel tab will render blank.
       modelRef.current = Model.fromJson(json);
       readyRef.current = true;
       setTick((t) => t + 1);
-      // OS "Open With Idiot Box" (argv / second-instance / open-file): model
-      // ready hai → main ko batao; wo pending files ka ping bhejega aur
-      // onOsFilesPending listener unhe tabs me khol dega.
+      // OS "Open With Idiot Box" (argv / second-instance / open-file): the model
+      // is ready → notify main; it will ping for pending files and the
+      // onOsFilesPending listener will open them in tabs.
       try { window.electronAPI.notifyEditorReady?.().catch(() => {}); } catch {}
     })();
   }, []);
@@ -1301,19 +1301,19 @@ const App = () => {
     const handleOpen = async (folderPath) => {
       // Save tabs for whatever project was open before switching
       doSaveProjectTabs();
-      // Purane project ke panels/process/output yahin khatm — naya project clean slate
+      // End the old project's panels/process/output here — new project starts clean
       closeProjectTabs(currentProjectRef.current);
       currentProjectRef.current = folderPath;
       window.__currentProjectPath = folderPath;
       // Real project — temp mode off
       transientProjectRef.current = false;
       try { window.__ibxTransientProject = false; } catch {}
-      // Project data padho: layout mode ("blank") + saved panel layout
+      // Read project data: layout mode ("blank") + saved panel layout
       let saved = null;
       try { saved = await window.electronAPI.readProjectTabs(folderPath); } catch {}
       projectLayoutRef.current = saved?.layout === "blank" ? "blank" : null;
-      // Saved panels (jaise user ne chhoda tha) — sirf jab tak session
-      // restore ON hai (General → Restore Previous Session).
+      // Saved panels (as the user left them) — only while session
+      // restore is ON (General → Restore Previous Session).
       let savedPanels = saved?.panels && typeof saved.panels === "object" && saved.panels.layout ? saved.panels : null;
       if (savedPanels) {
         try {
@@ -1324,7 +1324,7 @@ const App = () => {
       setHasProject(true);
       // Notify editor panels
       window.dispatchEvent(new CustomEvent("project:opened", { detail: { path: folderPath } }));
-      // Saved panel layout → waisa hi restore; nahi to default/blank layout.
+      // Saved panel layout → restore as-is; otherwise the default/blank layout.
       let restored = false;
       if (savedPanels) {
         try {
@@ -1342,7 +1342,7 @@ const App = () => {
         setTick((t) => t + 1);
         try { forceLayoutRedraw(modelRef.current); } catch {}
       } catch {}
-      // Panels restore ho chuke hain to editor tabs usi me maujood hain
+      // If panels are already restored, the editor tabs are already in them
       if (!restored) await restoreProjectTabs(folderPath);
     };
 
@@ -1365,9 +1365,9 @@ const App = () => {
     const u4 = window.electronAPI.onMenuEvent("menu:loadExtension", () => {
       window.electronAPI.loadChromeExtension();
     });
-    // Title bar ka Workspaces box isse hub par wapas bhejta hai
+    // The title bar's Workspaces box uses this to send the user back to the Hub
     window.__ibxCloseProject = handleClose;
-    // ── Unified palette (`CommandPalette`) ke commands → yahan handle hote hain ──
+    // ── Unified palette (`CommandPalette`) commands are handled here ──
     const onPaletteAction = async (e) => {
       const c = e?.detail?.cmd;
       try {
@@ -1657,8 +1657,8 @@ const App = () => {
     };
     const onOutput = (e) => {
       const m = modelRef.current;
-      // Jisne panel khola usne channel manga ho (Run panel → "Run") to use
-      // Output panel me select karwao — chahe panel pehle se khula ho ya ab bane.
+      // If the opener requested a channel (Run panel → "Run"), select it
+      // in the Output panel — whether it is already open or just created.
       const want = e?.detail?.channel;
       if (want) {
         try { window.__outputWantChannel = want; } catch {}
@@ -1786,8 +1786,8 @@ const App = () => {
       }
       addPanel("extensions", "Extensions", {});
     };
-    // Extension views: har (extId, viewType) ke liye ek hi tab — dobara
-    // open request par bas usi tab ko select kar do.
+    // Extension views: one tab per (extId, viewType) — on a repeat
+    // open request just select that tab.
     const onExtView = (e) => {
       const d = e?.detail || {};
       const extId = d.extId, viewType = d.viewType;
@@ -1899,7 +1899,7 @@ const App = () => {
     return () => window.removeEventListener("close-flex-tab", handler);
   }, []);
 
-  // Reset panels to default layout (blank project par bhi blank layout)
+  // Reset panels to the default layout (blank layout for blank projects too)
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:resetLayout", () => {
       modelRef.current = Model.fromJson(projectLayoutRef.current === "blank" ? BLANK_JSON : DEFAULT_JSON);
@@ -1925,7 +1925,7 @@ const App = () => {
     });
     return unsub;
   }, []);
-  // ── Native Run menu (title bar ke neeche) → Run panel actions ───────────
+  // ── Native Run menu (below the title bar) → Run panel actions ───────────
   useEffect(() => {
     const unsubs = [];
     unsubs.push(window.electronAPI.onMenuEvent("menu:runAuto", () => {
@@ -1968,7 +1968,7 @@ const App = () => {
       }, parentId, DockLocation.RIGHT, -1, true));
     };
     const unsub = window.electronAPI.onMenuEvent("menu:splitEditorRight", onSplitRight);
-    // Palette command "Split Editor Right" isi callback ko trigger karta hai
+    // The palette command "Split Editor Right" triggers this same callback
     window.addEventListener("editor:splitRight", onSplitRight);
     return () => { unsub(); window.removeEventListener("editor:splitRight", onSplitRight); };
   }, []);
@@ -2073,8 +2073,8 @@ const App = () => {
     window.open = function(url, target, features) {
       if (url) {
         const str = String(url);
-        // FlexLayout popout window - browser panel me mat bhejo, native
-        // window.open hi chahiye (main process allow karta hai).
+        // FlexLayout popout window — do not send to the Browser panel, keep
+        // native window.open (allowed by the main process).
         if (str.includes("popout.html")) {
           return origOpen ? origOpen.call(window, url, target, features) : null;
         }
@@ -2255,8 +2255,8 @@ const App = () => {
     };
 
     const openInMediaViewer = (filePath) => {
-      // Single-editor temp layout me Media Viewer tab ho na ho — nahi hai to
-      // banao, mount hone ke baad file bhejo (nahi to event kahin nahi jata).
+      // In the single-editor temp layout the Media Viewer tab may or may not exist — if
+      // missing, create it, then send the file after mount (otherwise the event goes nowhere).
       let hasViewer = false;
       try {
         const m = modelRef.current;
@@ -2319,9 +2319,9 @@ const App = () => {
       window.dispatchEvent(new CustomEvent("add-canvas-panel", { detail: { filePath } }));
     };
 
-    // Temp project: koi project open nahi aur bahar se file aayi (Open With /
-    // double-click / IPC) → file ke parent folder ko workspace banao.
-    // Layout/tabs persist NAHI hote (transient) — file content edit + save hota hai.
+    // Temp project: no project open and a file arrived from outside (Open With /
+    // double-click / IPC) → use the file's parent folder as the workspace.
+    // Layout/tabs are NOT persisted (transient) — file content is edited + saved.
     const ensureTransientProjectForFile = (filePath) => {
       try {
         if (currentProjectRef.current || !filePath || typeof filePath !== "string") return;
@@ -2432,20 +2432,20 @@ const App = () => {
     };
 
     // ── OS "Open With Idiot Box" (argv / second-instance / open-file) ───────
-    // Har file ko alag tab me kholta hai (multi-select → multiple tabs).
-    // Khali editor tab ho to reuse (VS Code jaisa), warna naya tab — kabhi
-    // existing tab overwrite nahi (unsaved edits safe rehte hain).
+    // Opens each file in its own tab (multi-select → multiple tabs).
+    // Reuses an empty editor tab if there is one (VS Code style), otherwise a new tab — never
+    // overwrites an existing tab (unsaved edits stay safe).
     const openFilesFromOs = (paths) => {
       const list = (Array.isArray(paths) ? paths : []).filter((p) => typeof p === "string" && p);
       if (!list.length) return;
-      // Koi project open nahi → pehli file ke folder me temp project banao.
+      // No project open → create a temp project in the first file's folder.
       if (!currentProjectRef.current) ensureTransientProjectForFile(list[0]);
       const m = modelRef.current;
       if (!m) return;
       let lastTabId = null;
       for (const filePath of list) {
-        // Media / Excalidraw files → unke dedicated panels me hi khulte hain
-        // (project panel click ke jaisa routing).
+        // Media / Excalidraw files → always open in their dedicated panels
+        // (same routing as a Project panel click).
         if (isMediaFile(filePath) && mediaSettingsRef.autoOpen !== false) {
           openInMediaViewer(filePath);
           continue;
@@ -2478,7 +2478,7 @@ const App = () => {
       scheduleSaveProjectTabs();
     };
 
-    // Main ping karta hai → pending OS files pull karke khol do.
+    // Main pings → pull pending OS files and open them.
     const onOsFilesPending = window.electronAPI.onOsFilesPending?.(() => {
       try {
         window.electronAPI.takePendingOsFiles?.().then((paths) => {
@@ -2536,12 +2536,12 @@ const App = () => {
     return () => unsubs.forEach((u) => u());
   }, []);
 
-  // ── Guard: agar 0 panel open hain to seedha "New Panel" picker khol do ────
-  // Aakhri panel close karne par FlexLayout ek khaali tabset chhod jata hai
-  // (content area blank, sirf "+" header). Yahan tab count karke 0 ho to
-  // wahi blank picker tab addNode kar dete hain — jo "+" button bhi kholta hai.
-  // Model swap (project open / reset / preset) change-listener nahi chalata,
-  // isliye tick/hasProject effect uska safety-net hai.
+  // ── Guard: if 0 panels are open, open the "New Panel" picker directly ────
+  // Closing the last panel leaves FlexLayout with an empty tabset
+  // (blank content area, only a "+" header). If the tab count is 0 here,
+  // add the same blank picker tab that the "+" button opens.
+  // Model swaps (project open / reset / preset) don't fire the change listener,
+  // so the tick/hasProject effect is its safety net.
   const ensureNewPanelIfEmpty = () => {
     try {
       const m = modelRef.current;
@@ -2554,12 +2554,12 @@ const App = () => {
       m.doAction(Actions.addNode({
         type: "tab", component: "blank", name: "New Panel", enableClose: true,
       }, ts.getId(), DockLocation.CENTER, -1, true));
-      scheduleSaveProjectTabs(); // model.doAction onAction bypass karta hai — save yahan khud
-    } catch { /* best-effort — layout ko kabhi break mat karo */ }
+      scheduleSaveProjectTabs(); // model.doAction bypasses onAction — save explicitly here
+    } catch { /* best-effort — never break the layout */ }
   };
   useEffect(() => { ensureNewPanelIfEmpty(); }, [tick, hasProject, showOnboarding]);
 
-  // Onboarding poora page hai — hub/layout ki jagah render hota hai
+  // Onboarding is a full page — it renders in place of the hub/layout
   if (showOnboarding) {
     return <OnboardingPage onDone={() => setShowOnboarding(false)} />;
   }
@@ -2620,15 +2620,15 @@ const App = () => {
         }
       }
     } catch {}
-    // Panel close/add/move/split — koi bhi layout change save karo (debounced).
-    // Tab select jaise non-layout actions chhod dete hain.
+    // Panel close/add/move/split — save any layout change (debounced).
+    // Skip non-layout actions like tab selection.
     try {
       if (!action || action.type !== Actions.SELECT_TAB) scheduleSaveProjectTabs();
     } catch {}
     return action;
   };
 
-  // Layouts dropdown: current panel arrangement ka deep-copy snapshot.
+  // Layouts dropdown: deep-copy snapshot of the current panel arrangement.
   const getLayoutSnapshot = () => {
     try {
       const m = modelRef.current;
@@ -2637,8 +2637,8 @@ const App = () => {
     } catch { return null; }
   };
 
-  // Saved layout apply: naya model + project tabs.json me persist (merge —
-  // writeTabs poora file replace karta hai, isliye cur tabs wapas jodte hain).
+  // Saved layout apply: new model + persist to project tabs.json (merge —
+  // writeTabs replaces the whole file, so re-attach the current tabs).
   const applyLayoutPreset = (preset) => {
     try {
       if (!preset || !preset.panels || !preset.panels.layout || !currentProjectRef.current) return false;
@@ -2648,7 +2648,7 @@ const App = () => {
       setTick((t) => t + 1);
       try { forceLayoutRedraw(modelRef.current); } catch {}
       const root = currentProjectRef.current;
-      // Temp project: layout visually apply ho sakta hai, par persist kabhi nahi.
+      // Temp project: layout may apply visually, but is never persisted.
       if (transientProjectRef.current) return true;
       (async () => {
         try {
@@ -2692,8 +2692,8 @@ const App = () => {
       factory={factory}
       onAction={handleLayoutAction}
       onModelChange={(m, action) => {
-        // Post-mutation hook — yahan tab count sahi hota hai (onAction se
-        // pehle wala count stale hota hai). SELECT_TAB me count ki zarurat nahi.
+        // Post-mutation hook — the tab count is correct here (the pre-onAction
+        // count is stale). No count needed for SELECT_TAB.
         try {
           if (!action || action.type === Actions.SELECT_TAB) return;
           ensureNewPanelIfEmpty();

@@ -19,9 +19,9 @@
 ; ---------------------------------------------------------------------------
 ; Variables (top-level so they exist before any page/function uses them)
 ; ---------------------------------------------------------------------------
-; Vars + page functions sirf installer me (uninstaller me unreferenced
-; warning 6001/6010 → error). customInit/customInstall macros sirf installer
-; context me expand hote hain, isliye ye guard safe hai.
+; Vars + page functions are installer-only (in the uninstaller, unreferenced
+; warnings 6001/6010 become errors). customInit/customInstall macros expand
+; only in the installer context, so this guard is safe.
 !ifndef BUILD_UNINSTALLER
 Var IB_RegisterAsEditor
 Var IB_RegisterDialog
@@ -156,9 +156,9 @@ Var IB_RegisterCheckbox
 ; functions inside a macro that customPageAfterChangeDir inserts (in
 ; assistedInstaller.nsh — after addplugindir) avoids that.
 ; ---------------------------------------------------------------------------
-; NOTE: ye page + functions sirf installer me chahiye. Uninstaller pass
-; (BUILD_UNINSTALLER) me inka koi Page reference nahi hota → makensis
-; warning 6010 (error) aata hai. Isliye guard me rakha hai (Vars upar guarded).
+; NOTE: this page + functions are installer-only. In the uninstaller pass
+; (BUILD_UNINSTALLER) they have no Page reference → makensis
+; warning 6010 (error). Kept under a guard for that reason (Vars guarded above).
 !macro IB_RegisterPageFunctions
 !ifndef BUILD_UNINSTALLER
 Function IB_RegisterShow

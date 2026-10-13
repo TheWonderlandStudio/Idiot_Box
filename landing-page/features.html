@@ -225,18 +225,24 @@ buildSomething('your idea');</pre></div>
       video.play().catch(function () {});
       video.addEventListener('canplay', function () { video.play().catch(function () {}); });
 
-      // Nav download — hamesha latest release ka installer (OS ke hisaab se: Linux → AppImage/deb, else Windows exe)
+      // Nav download — always the latest release installer (per OS: macOS → dmg, Linux → AppImage/deb, else Windows exe)
       const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
       let cachedUrl = null;
       const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+      const IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
       function pickReleaseAsset(assets) {
         const list = assets || [];
+        if (IS_MAC) {
+          return list.find(function (a) { return /\.dmg$/i.test(a.name); }) || list.find(function (a) { return /mac.*\.zip$/i.test(a.name); });
+        }
         if (IS_LINUX) {
           return list.find(function (a) { return /\.AppImage$/i.test(a.name); }) || list.find(function (a) { return /\.deb$/i.test(a.name); });
         }
         return list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
       }
-      if (IS_LINUX) {
+      if (IS_MAC) {
+        document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download .dmg'; });
+      } else if (IS_LINUX) {
         document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download .AppImage'; });
       }
       function resolveExeUrl() {
@@ -424,7 +430,7 @@ buildSomething('your idea');</pre></div>
         }
       }
 
-      // heavy libs load hote hi jab demo dikhne lage
+      // load heavy libs as soon as the demo becomes visible
       (function () {
         let editorRequested = false, termRequested = false;
         function watch(id, load, init) {
@@ -470,7 +476,7 @@ buildSomething('your idea');</pre></div>
         });
       })();
 
-      // Hamburger menu (mobile) — size card jitni
+      // Hamburger menu (mobile) — sized like the card
       (function () {
         const bg = document.querySelector('.background');
         const btn = document.querySelector('.hamburger');
@@ -500,7 +506,7 @@ buildSomething('your idea');</pre></div>
         });
       })();
 
-      // scroll reveal — section viewport me aane par hi dikhe
+      // scroll reveal — show sections only when they enter the viewport
       (function () {
         var showcase = document.querySelector('.showcase');
         var items = document.querySelectorAll('.feat-hero, .feat, .feat-end');
@@ -521,7 +527,7 @@ buildSomething('your idea');</pre></div>
         items.forEach(function (el) { io.observe(el); });
       })();
 
-      // Monaco body par 'underline-links' class chhod jata hai — site ke links underlined na hon
+      // Monaco leaves an 'underline-links' class on body — keep site links non-underlined
       if (window.MutationObserver) {
         new MutationObserver(function () {
           if (document.body.classList.contains('underline-links')) {

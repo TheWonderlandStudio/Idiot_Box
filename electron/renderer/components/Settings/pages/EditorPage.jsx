@@ -1,8 +1,8 @@
 import React from "react";
 
 // ─── EditorPage (plain CodeMirror) ──────────────────────────────────────────
-// Sirf zaroori settings: theme, font, tab, line numbers, word wrap,
-// autocompletion, auto save. Editor fixed sensible setup par chalta hai.
+// Only the essential settings: theme, font, tab, line numbers, word wrap,
+// autocompletion, auto save. The editor runs on a fixed sensible setup.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const FONT_OPTIONS = [
@@ -54,7 +54,7 @@ const EditorPage = ({ settings, onSave }) => {
 
   const save = async (patch) => {
     const full = { ...patch };
-    // Compat mirrors (notebook / purane readers ke liye)
+    // Compat mirrors (for notebook / old readers)
     if ("lineWrapping" in full) full.wordWrap = full.lineWrapping !== false;
     if ("theme" in full) full.editorTheme = full.theme;
     if ("vim" in full) full.vim = !full.vim; // normalize: store as boolean

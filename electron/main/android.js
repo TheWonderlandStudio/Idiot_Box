@@ -180,12 +180,12 @@ const progress = (op, phase, message, percent = null, extra = null) =>
   broadcast({ op, phase, message, percent, ...(extra || {}), at: Date.now() });
 
 // ─── Catalogs (UI create form) ──────────────────────────────────────────────
-// Har API ke do image flavors: google_apis (Google services, no Store) aur
-// google_apis_playstore (Play Store app samet — release-keys user build).
-// `image` hamesha default (google_apis) hota hai taaki purane callers na tootein.
+// Each API level has two image flavors: google_apis (Google services, no Store) and
+// google_apis_playstore (with the Play Store app — release-keys user build).
+// `image` is always the default (google_apis) so older callers keep working.
 const IMAGE_VARIANTS = [
   { id: "google_apis", label: "Google APIs", desc: "Google services — no Play Store" },
-  { id: "google_apis_playstore", label: "Google APIs + Play Store", desc: "Play Store app samet (user build, no root)" },
+  { id: "google_apis_playstore", label: "Google APIs + Play Store", desc: "With Play Store app (user build, no root)" },
 ];
 const API_LEVELS = [
   { api: 36, android: "Android 16", image: "system-images;android-36;google_apis;x86_64", images: { google_apis: "system-images;android-36;google_apis;x86_64", google_apis_playstore: "system-images;android-36;google_apis_playstore;x86_64" }, platform: "platforms;android-36" },
@@ -197,7 +197,7 @@ const API_LEVELS = [
   { api: 30, android: "Android 11", image: "system-images;android-30;google_apis;x86_64", images: { google_apis: "system-images;android-30;google_apis;x86_64", google_apis_playstore: "system-images;android-30;google_apis_playstore;x86_64" }, platform: "platforms;android-30" },
 ];
 // (api, variant) → exact sdkmanager image string. Unknown api → newest level,
-// unknown variant → google_apis. Kabhi throw nahi karta (caller fallback rakhe).
+// unknown variant → google_apis. Never throws (the caller keeps a fallback).
 function resolveImage(api, variant) {
   const lvl = API_LEVELS.find((l) => l.api === parseInt(api, 10)) || API_LEVELS[0];
   const v = (variant && lvl.images && lvl.images[variant]) ? variant : "google_apis";
@@ -1233,8 +1233,8 @@ async function createAvdInternal({ name, device, image, api, variant, op = "crea
   if (!/^[A-Za-z0-9_.\-]+$/.test(avdName)) throw new Error("AVD name may only contain letters, numbers, _, - and .");
   ensureDirs();
   if (!fs.existsSync(avdManagerBin())) throw new Error("sdkmanager/avdmanager not installed — run Setup SDK first.");
-  // Image resolution: explicit string wins (purane callers); warna (api, variant)
-  // se catalog lookup; kuch na mile to DEFAULT_IMAGE (purana behavior).
+  // Image resolution: an explicit string wins (older callers); otherwise an (api, variant)
+  // catalog lookup; if nothing matches, DEFAULT_IMAGE (legacy behavior).
   let sysImage = image;
   let lvl = sysImage ? findLevelForImage(sysImage) : null;
   if (!sysImage && api) {
@@ -1492,7 +1492,7 @@ function setupAndroidIpc() {
     try {
       if (setupRunning) return { ok: false, error: "SDK Setup is still running — wait for it to finish, then create the emulator." };
       const { name, device, api, image, variant } = payload;
-      // Explicit image string wins; warna createAvdInternal (api, variant) se resolve karta hai.
+      // An explicit image string wins; otherwise createAvdInternal resolves from (api, variant).
       return await createAvdInternal({ name, device, api, image, variant, op: "create" });
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
   });

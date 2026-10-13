@@ -16,7 +16,7 @@ const HubPage = ({ settings, onSave }) => {
   const [busy, setBusy] = useState(null);
   const [msg, setMsg] = useState(null);
 
-  // settings load hone ke baad input sync (pehle render me {} hota hai)
+  // Sync the input after settings load (the first render has {})
   useEffect(() => {
     if (settings.githubUsername !== undefined) setUsername(settings.githubUsername || "");
   }, [settings.githubUsername]);
@@ -56,7 +56,7 @@ const HubPage = ({ settings, onSave }) => {
   };
 
   const resetOnboarding = async () => {
-    // keys null → Hub dobara onboarding dikhayega (falsy check)
+    // Null keys → the Hub shows onboarding again (falsy check)
     await update({ githubUsername: null, githubOnboardingDismissed: null });
     try { window.__githubUsername = null; } catch {}
     setUsername("");

@@ -19,7 +19,7 @@ import { Suggestions, Suggestion } from "../ai-elements/suggestion";
 import { Shimmer } from "../ai-elements/shimmer";
 import { Layers, Sparkles, FolderPlus } from "lucide-react";
 
-// Quick starters — pehla message yahin se bhej do, AI setup convo khud chalata hai.
+// Quick starters — send the first message from here; the AI setup conversation runs on its own.
 const STARTERS = [
   { label: "Build a Telegram bot", text: "I want to build a Telegram bot — what setup do I need?" },
   { label: "React dashboard", text: "I want to build a React dashboard web app, tell me the right setup." },
@@ -27,7 +27,7 @@ const STARTERS = [
   { label: "CLI tool", text: "I want to build my first CLI tool — how do I start?" },
 ];
 
-// ── AI setup proposal card (AI Elements ke neeche, same shadow styles) ─────
+// ── AI setup proposal card (below AI Elements, same shadow styles) ─────
 function ProposalCard({ proposal, onCreate, onDismiss, busy }) {
   if (!proposal) return null;
   return (
@@ -65,7 +65,7 @@ function ProposalCard({ proposal, onCreate, onDismiss, busy }) {
   );
 }
 
-// ── Chat body (AI Elements) — shadow root ke andar render hota hai ─────────
+// ── Chat body (AI Elements) — renders inside the shadow root ─────────
 function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
   const send = (text) => {
     const t = String(text || "").trim();
@@ -73,8 +73,8 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
     onSend(t);
   };
   const empty = messages.length === 0 && !busy;
-  // Streaming: pehla chunk aate hi shimmer band (last assistant message live
-  // update ho rahi hai) — wait time par hi "Soch raha hoon…" dikhe.
+  // Streaming: stop the shimmer on the first chunk (last assistant message updates
+  // live) — show "Thinking…" only while waiting.
   const lastMsg = messages[messages.length - 1];
   const streamingLive = !!(busy && lastMsg && lastMsg.role === "assistant" && String(lastMsg.content || "").trim());
   return (
@@ -139,7 +139,7 @@ function ChatBody({ messages, busy, onSend, proposal, onCreate, onDismiss }) {
   );
 }
 
-// ── Shadow DOM host — Tailwind/shadcn styles sirf chat ke andar, app safe ──
+// ── Shadow DOM host — Tailwind/shadcn styles only inside the chat, app stays safe ──
 export default function AiSetupChat(props) {
   const hostRef = useRef(null);
   const [mount, setMount] = useState(null);

@@ -1,10 +1,10 @@
 // ─── Smart Custom Cursor (shared: hub + onboarding) ──────────────────────────
-// User-provided vanilla cursor system ka React port: velocity-based rotation,
+// User-provided vanilla cursor system as a React port: velocity-based rotation,
 // fast-move shrink, click shrink, dark/light auto color, clickable straighten.
-// `scope` batata hai cursor kin areas me active rahe (selector list, default
-// ".phub"). Scope se bahar mouse jane par custom cursor hide ho jata hai taaki
-// double cursor na dikhe. Native cursor hide karne wali CSS scope wali jagah
-// par lagao (hub: hub.css, onboarding: ONBOARD_CSS).
+// `scope` declares in which areas the cursor stays active (selector list, default
+// ".phub"). When the mouse leaves the scope, the custom cursor hides so no
+// double cursor appears. Apply the CSS that hides the native cursor only inside
+// the scope (hub: hub.css, onboarding: ONBOARD_CSS).
 import React, { useEffect, useRef } from "react";
 
 const CURSOR_PATH_D =
@@ -35,8 +35,8 @@ const CustomCursor = ({ scope = ".phub" }) => {
 
     // ── Scale ──
     const NORMAL_SCALE = 1;
-    const FAST_SCALE = 0.72; // fast movement par 72% size
-    const CLICK_SCALE = 0.78; // click par kitna chhota
+    const FAST_SCALE = 0.72; // 72% size while moving fast
+    const CLICK_SCALE = 0.78; // how small on click
     let currentScale = NORMAL_SCALE;
     let targetScale = NORMAL_SCALE;
 
@@ -48,7 +48,7 @@ const CustomCursor = ({ scope = ".phub" }) => {
 
     // ── Tuning ──
     const FAST_THRESHOLD = 10;
-    const DIRECTION_THRESHOLD = 2; // chhoti movement ignore (no jitter)
+    const DIRECTION_THRESHOLD = 2; // ignore tiny movement (no jitter)
     const POSITION_SMOOTHING = 0.22;
     const ROTATION_SMOOTHING = 0.08;
     const CLICKABLE_ROTATION_SMOOTHING = 0.14;
@@ -62,7 +62,7 @@ const CustomCursor = ({ scope = ".phub" }) => {
 
     const lerp = (current, target, amount) => current + (target - current) * amount;
 
-    // 359 -> 1 ko 358 deg ke bajay 2 deg rotate karega
+    // 359 -> 1 rotates by 2 deg instead of 358 deg
     const angleLerp = (current, target, amount) => {
       let difference = target - current;
       while (difference > 180) difference -= 360;
@@ -141,7 +141,7 @@ const CustomCursor = ({ scope = ".phub" }) => {
       while (element) {
         if (element.closest && element.closest(clickableSelector)) return true;
         const root = element.getRootNode ? element.getRootNode() : null;
-        element = root && root.host ? root.host : null; // shadow boundary par light-DOM ancestors bhi check
+        element = root && root.host ? root.host : null; // also check light-DOM ancestors across the shadow boundary
       }
       return false;
     };
@@ -150,12 +150,12 @@ const CustomCursor = ({ scope = ".phub" }) => {
       const speed = Math.hypot(velocityX, velocityY);
       if (speed < DIRECTION_THRESHOLD) return; // tiny movements ignore
       const angle = (Math.atan2(velocityY, velocityX) * 180) / Math.PI;
-      targetAngle = angle + 90; // +90 SVG shape ki natural orientation ki wajah se
+      targetAngle = angle + 90; // +90 for the SVG shape's natural orientation
     };
 
     const onMouseMove = (event) => {
-      // Top section (.cet-titlebar / menu bar: File, Edit, View, Git, etc.) par
-      // custom cursor hide rahega — native cursor wapas dikhega
+      // Over the top section (.cet-titlebar / menu bar: File, Edit, View, Git, etc.)
+      // keep the custom cursor hidden — the native cursor shows again
       const overTitlebar =
         event.clientY < 32 ||
         Boolean(event.target && event.target.closest && event.target.closest(".cet-titlebar"));
@@ -193,11 +193,11 @@ const CustomCursor = ({ scope = ".phub" }) => {
       if (clickable) {
         if (!isClickable) {
           isClickable = true;
-          targetAngle = 0; // clickable par cursor straight
+          targetAngle = 0; // keep the cursor straight on clickables
         }
       } else if (isClickable) {
         isClickable = false;
-        velocityX = 0; velocityY = 0; // sudden rotation avoid
+        velocityX = 0; velocityY = 0; // avoid a sudden rotation
         lastMouseX = mouseX; lastMouseY = mouseY;
       }
     };
@@ -209,7 +209,7 @@ const CustomCursor = ({ scope = ".phub" }) => {
     const onMouseUp = () => {
       mouseDown = false;
     };
-    // Window se bahar jane par hide
+    // Hide when leaving the window
     const onMouseOut = (event) => {
       if (!event.relatedTarget) {
         cursor.style.opacity = "0";

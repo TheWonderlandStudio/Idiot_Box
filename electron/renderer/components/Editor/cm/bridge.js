@@ -1,17 +1,16 @@
 // cm/bridge.js — Monaco-compat shim over a CodeMirror EditorView.
 //
 // Editor <-> CodeMirror bridge (SearchPanel, diagnostics, cursor sync).
-// (editor:revealLine) aur Notebook (focus) Monaco-style API bolte hain:
+// (editor:revealLine) and Notebook (focus) speak a Monaco-style API:
 //   getValue() / getModel() -> { getValue(), getValueInRange(range),
 //     getLineCount() } / getSelection() -> { startLineNumber, startColumn,
 //     endLineNumber, endColumn, isEmpty() } / getPosition() /
 //     executeEdits(source, [{ range, text }]) / focus() /
 //     revealLineInCenter(line) / setPosition({ lineNumber, column })
 //
-// Ye shim wahi shape CodeMirror view ke upar deta hai — consumers ko badalne
-// ki zaroorat nahi.
+// This shim provides that same shape over a CodeMirror view — no consumer changes needed.
 
-// CodeMirror offset -> { lineNumber, column } (1-based, monaco jaisa)
+// CodeMirror offset -> { lineNumber, column } (1-based, like Monaco)
 export const offsetToPos = (doc, offset) => {
   try {
     const o = Math.min(Math.max(0, offset || 0), doc.length);
@@ -83,7 +82,7 @@ export const createCmBridge = (getView) => {
         const sel = view.state.selection.main;
         const a = offsetToPos(view.state.doc, sel.from);
         const b = offsetToPos(view.state.doc, sel.to);
-        // Anchor/head order bachao (monaco start<=end rakhta hai).
+        // Preserve anchor/head order (Monaco keeps start<=end).
         const empty = sel.from === sel.to;
         const fwd = sel.anchor <= sel.head;
         const start = fwd ? a : b;
@@ -118,7 +117,7 @@ export const createCmBridge = (getView) => {
         const ln = Math.min(Math.max(1, line || 1), view.state.doc.lines);
         const off = view.state.doc.line(ln).from;
         view.dispatch({ effects: [] });
-        // Center: scrollDOM math ke bina — pehle line par jao, phir center.
+        // Center: no scrollDOM math — go to the line first, then center.
         try {
           view.dispatch({ selection: { anchor: off }, scrollIntoView: true });
           const lineBlock = view.lineBlockAt(off);

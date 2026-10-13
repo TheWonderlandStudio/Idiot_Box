@@ -1,6 +1,6 @@
 // ─── UI click sound (WebAudio synth — no audio files, works offline) ─────
-// Shared: Hub (aur chaaho to kahin bhi) me halki click. AudioContext pehle
-// user gesture par banta/resume hota hai (autoplay policy safe).
+// Shared: a soft click in Hub (or anywhere). The AudioContext is created/resumed
+// on the first user gesture (autoplay-policy safe).
 let ctx = null;
 let enabled = true;
 
@@ -30,7 +30,7 @@ export function playClick() {
     const t = ac.currentTime;
     const osc = ac.createOscillator();
     const gain = ac.createGain();
-    // Normal "tik": tez high-pitch tick, bahut chhota decay.
+    // Normal "tick": a fast high-pitch tick with a very short decay.
     osc.type = "sine";
     osc.frequency.setValueAtTime(2900, t);
     osc.frequency.exponentialRampToValueAtTime(1900, t + 0.015);

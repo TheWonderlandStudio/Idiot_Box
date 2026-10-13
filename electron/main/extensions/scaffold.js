@@ -82,7 +82,7 @@ function write(dir, opts) {
     "- `context.ibox.window.createPanel({ id, title, html })` — new editor tab",
     "- `context.ibox.menus.register({ menu, command, title, when })`",
     "- `context.ibox.window.createStatusBarItem({ text, command })`",
-    "- `context.ibox.log(...args)` — Output panel me is extension ke channel me",
+    "- `context.ibox.log(...args)` — logs to this extension's channel in the Output panel",
     "- `context.ibox.window.createOutputChannel(name?)` — `.append/.appendLine/.clear/.show()`",
     "",
     "Context menus: `explorer/context`, `editor/context`, `ibox.file`, `ibox.folder`, `ibox.tab`.",

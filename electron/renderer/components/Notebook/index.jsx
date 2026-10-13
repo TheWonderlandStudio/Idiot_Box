@@ -160,9 +160,9 @@ window.__ibxIsNotebookDirty = (p) => { try { return !!window.__ibxNotebookDirty.
 window.__ibxForgetNotebookDirty = (p) => { try { window.__ibxNotebookDirty.delete(p); } catch {} };
 
 // ── Per-cell CodeMirror (python) ─────────────────────────────────────────
-// CodeMirror ko koi async init / worker / extension-host nahi chahiye —
-// cells turant render hote hain. Render crash ho to plain textarea fallback
-// (neeche cmFailed state) notebook ko usable rakhta hai.
+// CodeMirror needs no async init / worker / extension-host —
+// cells render immediately. If rendering crashes, the plain textarea fallback
+// (the cmFailed state below) keeps the notebook usable.
 const nbWithMonoFallback = (f) => {
   const s = String(f || "").trim();
   if (!s) return s;
@@ -170,10 +170,10 @@ const nbWithMonoFallback = (f) => {
 };
 
 // Mirror of the main Editor's font + theme settings (live-synced).
-// NOTE: ye values CodeMirror cell editors me jati hain (JS API — var()
-// resolve NAHI hota). Isliye literals rakhe hain jo CENTRAL tokens ke
-// barabar hain: fontSize 13 == --fs-title, font stack == --font-code.
-// Token badle to yahan bhi badlo.
+// NOTE: these values go into the CodeMirror cell editors (JS API — var()
+// does NOT resolve there). So they are literals matching the CENTRAL tokens:
+// fontSize 13 == --fs-title, font stack == --font-code.
+// If a token changes, change it here too.
 const nbMigrateTheme = (v) => {
   const s = String(v || "").toLowerCase();
   if (s.includes("light")) return "light";
@@ -326,8 +326,8 @@ const OutputItem = ({ output, outKey, richRenderer }) => {
 // One CodeMirror instance per code cell (python). @uiw controlled `value`
 // handles external sync (disk reload); extensions memo handles live settings.
 // Shift/Ctrl/Alt+Enter are intercepted by the wrapper (capture phase).
-// NOTE: `.nb-monaco` class name CSS se aata hai (notebook.css) — sirf styling,
-// engine se koi lena-dena nahi.
+// NOTE: the `.nb-monaco` class name comes from CSS (notebook.css) — styling only,
+// unrelated to the engine.
 const CodeCellEditor = ({ cellId, value, settings, onChange, onRunKey, onCmFailed, registerEditor, onFocusCell }) => {
   const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);

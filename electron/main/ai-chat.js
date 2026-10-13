@@ -1,7 +1,7 @@
 // Hub chat AI (free, no key).
 // Chain: Pollinations (legacy anonymous text API) → fallback OVHcloud AI
 // Endpoints anonymous tier (OpenAI-compatible, 2 RPM per model).
-// Dono hi bina key ke chalte hain; ek fail hoto dusra try hota hai.
+// Both run without a key; if one fails, the other is tried.
 const { ipcMain } = require("electron");
 
 const SYSTEM =
@@ -41,7 +41,7 @@ const SYSTEM =
   "Put code inside markdown fences.";
 
 const OVH_URL = "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions";
-// Anonymous tier 2 RPM per model — 429 aane par agla model try hota hai.
+// Anonymous tier is 2 RPM per model — on 429 the next model is tried.
 const OVH_MODELS = [
   "Mistral-7B-Instruct-v0.3",
   "gpt-oss-20b",
@@ -113,7 +113,7 @@ async function ovhAsk(messages) {
       return text;
     } catch (e) {
       lastErr = e;
-      if (!e || !e.retry) break; // network/abort — aur models ka koi fayda nahi
+      if (!e || !e.retry) break; // network/abort — trying more models won't help
     }
   }
   throw lastErr || new Error("ovh failed");
@@ -121,7 +121,7 @@ async function ovhAsk(messages) {
 
 async function askAi(payload) {
   const messages = (payload && payload.messages) || [];
-  // 1) Pollinations try karo (jaisa user ne chuna), fail hoto fallback.
+  // 1) Try Pollinations first (as the user selected); on failure use the fallback.
   try {
     return await pollinationsAsk(messages);
   } catch (e) {
@@ -139,8 +139,8 @@ async function askAi(payload) {
 }
 
 // ── Streaming (live) mode — OpenAI-compatible SSE `data:` lines ─────────────
-// Chunks seedha renderer ko bhejte hain; partial stream fail hoto fallback
-// provider par jate hain (sirf jab koi chunk emit na hua ho — warna duplicate).
+// Chunks are sent straight to the renderer; a failed partial stream falls back
+// to the other provider only when no chunk was emitted yet — otherwise it would duplicate.
 async function readOpenAiSse(res, onDelta) {
   const reader = res.body.getReader();
   const dec = new TextDecoder();
@@ -168,10 +168,10 @@ async function readOpenAiSse(res, onDelta) {
   return full;
 }
 
-// 1) Pollinations — legacy GET ko progressive reader se padho (server agar
-// token-by-token bheje to live chunks, warna ek hi chunk me pura text).
-// NOTE: yahan POST /openai endpoint NAHI use karta wo anonymous tier par
-// hang/402 karta hai; plain GET fast respond karta hai (200/4xx dono).
+// 1) Pollinations — read the legacy GET with a progressive reader (live chunks
+// if the server streams token-by-token, otherwise the full text in one chunk).
+// NOTE: does NOT use POST /openai here — it hangs/402s on the anonymous tier;
+// plain GET responds fast (both 200 and 4xx).
 async function pollinationsAskStream(messages, onDelta) {
   const url = "https://text.pollinations.ai/" + encodeURIComponent(buildPrompt(messages)) + "?model=openai";
   return withTimeout(async (signal) => {
@@ -192,7 +192,7 @@ async function pollinationsAskStream(messages, onDelta) {
   }, 40000);
 }
 
-// 2) OVHcloud — OpenAI-compatible streaming (model loop, 429 par agla model)
+// 2) OVHcloud — OpenAI-compatible streaming (model loop, next model on 429)
 async function ovhAskStream(messages, onDelta) {
   const msgs = cleanMessages(messages);
   let emitted = 0;
@@ -221,18 +221,18 @@ async function ovhAskStream(messages, onDelta) {
       }, 45000);
       return text;
     } catch (e) {
-      // beech me chunk nikal chuke ho to retry = duplicate text — ruk jao.
+      // If chunks were already emitted, retrying would duplicate text — stop.
       if (emitted > 0) return;
       lastErr = e;
-      if (!e || !e.retry) break; // network/abort — aur models ka koi fayda nahi
+      if (!e || !e.retry) break; // network/abort — trying more models won't help
     }
   }
   throw lastErr || new Error("ovh stream failed");
 }
 
-// Stream chain: ovh(SSE, asli token streaming) → pollinations(GET progressive)
-// → non-stream fallback (single chunk). Partial chunk nikal chuke ho to
-// retry nahi (duplicate text bachega).
+// Stream chain: ovh (SSE, real token streaming) → pollinations (GET progressive)
+// → non-stream fallback (single chunk). No retry once a partial chunk
+// was emitted (avoids duplicate text).
 async function askAiStream(messages, onDelta) {
   let emitted = 0;
   const emit = (d) => { if (d) { emitted++; onDelta(d); } };
@@ -244,8 +244,8 @@ async function askAiStream(messages, onDelta) {
   if (text) onDelta(text);
 }
 
-// ── Voice input — renderer ka 16k mono PCM WAV → Windows System.Speech
-// (offline, bina key ke) se text. Best-effort: fail ho to "" jata hai.
+// ── Voice input — renderer's 16k mono PCM WAV → Windows System.Speech
+// (offline, keyless) to text. Best-effort: "" on failure.
 const os = require("os");
 const path = require("path");
 const fs = require("fs");
@@ -285,8 +285,8 @@ function registerAiChat() {
     ipcMain.handle("ai:chat", (_e, payload) => askAi(payload || {}));
     // Mic input: WAV base64 → transcribed text (Windows speech engine)
     ipcMain.handle("ai:transcribe", (_e, p) => transcribeWav(p && p.wav));
-    // Streaming: renderer `ai:chat:start` bhejta hai, main chunk/done/error
-    // events wapas usi webContents ko deta hai.
+    // Streaming: the renderer sends `ai:chat:start`; main sends chunk/done/error
+    // events back to the same webContents.
     ipcMain.on("ai:chat:start", async (e, payload) => {
       const id = (payload && payload.id) || "ai_" + Date.now();
       const sender = e.sender;

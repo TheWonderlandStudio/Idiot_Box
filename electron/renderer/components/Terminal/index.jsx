@@ -1,5 +1,5 @@
 // Terminal Panel — Flexlayout integrated standalone terminal component
-// Multi-session: ek panel me multiple PTY + dropdown se switch + top toolbar.
+// Multi-session: multiple PTYs in one panel + dropdown switch + top toolbar.
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef, useSyncExternalStore } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -13,13 +13,12 @@ const genSessionId = () => {
   return `term_g_${Date.now().toString(36)}_${rand}`;
 };
 
-// ─── Global terminal registry: saare panels ek hi dropdown/list dekhte hain ─
-// Sessions panel-level nahi, app-level hain — naya terminal tab kholo to wahi
-// list + wahi shells dikhenge. PTY main-process me tabId se keyed hai aur
-// `terminal:open` bina forceRestart ke reuse karta hai, isliye multiple views
-// (panels) ek hi PTY ko mirror kar sakte hain. PTY sirf explicit kill par
-// close hota hai (view unmount par nahi), taaki panel switch/close par shell
-// zinda rahe.
+// ─── Global terminal registry: all panels share one dropdown/list ─
+// Sessions are app-level, not panel-level — opening a new terminal tab shows the same
+// list + the same shells. The PTY is keyed by tabId in the main process and
+// `terminal:open` reuses it without forceRestart, so multiple views
+// (panels) can mirror one PTY. The PTY only closes on explicit kill
+// (not on view unmount), so the shell survives panel switch/close.
 const GlobalTerms = {
   sessions: [{ id: genSessionId(), n: 1 }],
   activeId: null,
@@ -29,7 +28,7 @@ const GlobalTerms = {
   cachedSnap: null,
   listeners: new Set(),
   snapshot() {
-    // useSyncExternalStore: same reference until data changes, warna infinite loop
+    // useSyncExternalStore: same reference until data changes, otherwise infinite loop
     if (!this.cachedSnap || this.cachedSnap.v !== this.version) {
       this.cachedSnap = {
         v: this.version,
@@ -84,10 +83,10 @@ const useGlobalTerms = () => useSyncExternalStore(
   () => GlobalTerms.snapshot()
 );
 
-// ── Project switch/close: purane root ke PTY sessions kill ──────────────
-// index.jsx `terminals:killAll` dispatch karta hai (detail.root = old root).
-// cwd root ke andar ho tabhi kill — emulator mirror jaise bahari sessions
-// bachte hain. Store me fresh session, taaki naya project clean shell paye.
+// ── Project switch/close: kill PTY sessions of the old root ──────────────
+// index.jsx dispatches `terminals:killAll` (detail.root = old root).
+// Kill only when cwd is inside root — outside sessions like the emulator mirror
+// survive. Fresh session in the store, so the new project gets a clean shell.
 if (typeof window !== "undefined" && !window.__termsKillHooked) {
   window.__termsKillHooked = true;
   window.addEventListener("terminals:killAll", (e) => {
@@ -98,7 +97,7 @@ if (typeof window !== "undefined" && !window.__termsKillHooked) {
       const killed = new Set();
       for (const s of [...(snap.sessions || [])]) {
         const cwd = GlobalTerms.cwdMap[s.id];
-        // cwd null = kabhi start hi nahi hua (PTY nahi) → reset list me jayega
+        // cwd null = never started (no PTY) → goes into the reset list
         const match = !root || !cwd || norm(cwd).startsWith(root);
         if (!match) continue;
         killed.add(s.id);
@@ -129,11 +128,11 @@ if (typeof window !== "undefined" && !window.__termsKillHooked) {
 }
 
 // ── Workspace terminal runner ─────────────────────────────────────────────
-// Create flow scaffold commands yahan bhejta hai: ek shell line ko active
-// session ke PTY me type karke Enter dabaya jaata hai. PTY ka ACK ({ok})
-// na mile to spawn/ready hone tak retry (project switch par terminals:killAll
-// fresh session deta hai). Output dikhna chahiye — terminal view mounted
-// nahi hai to pehle neeche Terminal tab add kar dete hain.
+// Create flow scaffold commands go here: one shell line is typed into the active
+// session's PTY and Enter is pressed. If the PTY ACK ({ok})
+// never arrives, retry until spawn/ready (on project switch, terminals:killAll
+// yields a fresh session). Output must be visible — if the terminal view is not
+// mounted, first add a Terminal tab below.
 if (typeof window !== "undefined" && !window.__runInTermHooked) {
   window.__runInTermHooked = true;
   window.__runInWorkspaceTerminal = async ({ command, cwd } = {}) => {
@@ -148,8 +147,8 @@ if (typeof window !== "undefined" && !window.__runInTermHooked) {
     };
     const focusTerminal = () => window.dispatchEvent(new CustomEvent("focus-terminal-tab"));
     const hasTermTab = () => [...document.querySelectorAll(".flexlayout__tab_button")].some((t) => /Terminal/i.test(t.textContent));
-    // Terminal tab selected + stable (late layout overwrite ke baad bhi wapas
-    // select) hone tak wait — tabhi commands user ko dikhti hain.
+    // Wait until the Terminal tab is selected + stable (even after a late layout overwrite
+    // re-selects) — only then are commands visible to the user.
     let stable = 0;
     for (let i = 0; i < 40 && stable < 3; i++) {
       try {
@@ -173,7 +172,7 @@ if (typeof window !== "undefined" && !window.__runInTermHooked) {
         const id = snap.activeId || (snap.sessions && snap.sessions[0] && snap.sessions[0].id);
         if (id) {
           const dir = cwd || window.__currentProjectPath || null;
-          // reuse (PTY maujood) ho to cwd chhoot jaata hai, warna yahin spawn
+          // on reuse (PTY exists) cwd would be missed, otherwise spawn here
           if (dir) await window.electronAPI.openTerminal(id, dir);
           const w = await window.electronAPI.writeToTerminal(id, cmd + "\r");
           if (w && w.ok) {
@@ -423,9 +422,9 @@ const TerminalSession = forwardRef(({ tabId, nodeId, config, active, onCwd }, re
         lineHeight: 1.15,
         letterSpacing: 0,
         allowTransparency: false,
-        // Palette xterm canvas par paint hota hai — var() yahan resolve nahi
-        // hota, isliye CENTRAL sheet se runtime par read karo (cssVar).
-        // Fallbacks == pehle wale hardcoded values (koi visual change nahi).
+        // Palette paints on the xterm canvas — var() does not resolve
+        // here, so read from the CENTRAL sheet at runtime (cssVar).
+        // Fallbacks == the previous hardcoded values (no visual change).
         theme: {
           background: cssVar("--bg-surface", "#1e1e1e"),
           foreground: cssVar("--text-bright", "#cccccc"),
@@ -585,8 +584,8 @@ const TerminalSession = forwardRef(({ tabId, nodeId, config, active, onCwd }, re
       initTerminalRef.current = null;
       if (rafId !== undefined) cancelAnimationFrame(rafId);
       if (fitIv !== undefined) clearInterval(fitIv);
-      // NOTE: PTY close nahi karte — sessions global hain, view unmount
-      // (panel switch/close) par shell zinda rehta hai. Kill sirf 🗑 se.
+      // NOTE: PTYs are not closed — sessions are global; the shell stays alive on view unmount
+      // (panel switch/close). Kill only via 🗑.
       if (term) { try { term.dispose(); } catch {} }
       termRef.current = null;
       fitRef.current = null;
@@ -675,7 +674,7 @@ const TerminalSession = forwardRef(({ tabId, nodeId, config, active, onCwd }, re
   }, [tabId]);
 
   // ── Listen for "Open in Terminal" from file explorer ──────────────────────
-  // Multi-session: only the ACTIVE session handles it (warna saare cd ho jate).
+  // Multi-session: only the ACTIVE session handles it (otherwise all would cd).
   useEffect(() => {
     const handler = (e) => {
       if (!activeRef.current) return;
@@ -812,7 +811,7 @@ const TerminalSession = forwardRef(({ tabId, nodeId, config, active, onCwd }, re
     if (!active) return;
     let cancelled = false;
     const boot = async () => {
-      // hidden mount par xterm bana hi nahi hoga — ab visible hai to start karo
+      // xterm was never created on a hidden mount — start now that it is visible
       if (!termRef.current && initTerminalRef.current && !mirrorTabId) {
         let dir = cwdRef.current || window.__currentProjectPath;
         if (!dir) { try { dir = await window.electronAPI.getProjectPath(); } catch {} }
@@ -844,9 +843,9 @@ const TerminalSession = forwardRef(({ tabId, nodeId, config, active, onCwd }, re
 });
 
 // ─── Multi-session panel: GLOBAL toolbar (dropdown + actions) + sessions ────
-// Saare terminal panels ek hi GlobalTerms store se render hote hain — naya
-// tab/panel kholo to wahi dropdown, wahi shells. Har panel har session ka
-// mirror view mount karta hai (PTY shared, open reuse karta hai).
+// All terminal panels render from the same GlobalTerms store — opening a new
+// tab/panel shows the same dropdown, the same shells. Each panel mounts a
+// mirror view of every session (PTY shared, open reuses it).
 const TerminalPanel = ({ nodeId, config }) => {
   const mirrorTabId = config?.mirrorTabId || null;
 
@@ -870,7 +869,7 @@ const TerminalPanel = ({ nodeId, config }) => {
     };
   }, []);
 
-  // dropdown bahar click / Escape → band
+  // close the dropdown on outside click / Escape
   useEffect(() => {
     if (!ddOpen) return;
     const onDoc = (e) => { try { if (ddRef.current && !ddRef.current.contains(e.target)) setDdOpen(false); } catch {} };

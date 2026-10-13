@@ -1,6 +1,6 @@
 /* Editor panel — side preview panes (markdown + sqlite) & corner toggle. */
 
-/* ── Corner preview toggle (chhota icon-only button, editor ke top-right) ── */
+/* ── Corner preview toggle (small icon-only button, top-right of the editor) ── */
 .ed-prevbtn {
   position: absolute;
   top: 5px;
@@ -29,7 +29,7 @@
 }
 .ed-prevbtn--on:hover { background: var(--accent); color: var(--text-inverse); }
 
-/* ── Preview pane — editor area ka full overlay (side split nahi) ── */
+/* ── Preview pane — full overlay over the editor area (not a side split) ── */
 .ed-prev {
   position: absolute;
   inset: 0;
@@ -46,7 +46,7 @@
   gap: var(--space-8);
   height: var(--bar-h-sm);
   flex-shrink: 0;
-  /* corner toggle button ke liye right side reserve */
+  /* reserve the right side for the corner toggle button */
   padding: 0 36px 0 var(--space-10);
   background: var(--bg-vscode);
   border-bottom: 1px solid var(--border);
@@ -176,7 +176,7 @@
 .ed-blob { color: var(--teal); }
 .ed-bool { color: var(--code-cyan, var(--teal)); }
 
-/* ── DB placeholder (editor area me, preview band hone par) ── */
+/* ── DB placeholder (in the editor area, when preview is closed) ── */
 .ed-dbhint {
   display: flex;
   flex-direction: column;

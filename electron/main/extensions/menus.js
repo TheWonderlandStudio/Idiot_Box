@@ -1,6 +1,6 @@
 // ─── Context-menu contributions ─────────────────────────────────────────────
-// package.json `contributes.menus` + runtime `ibox.menus.register` dono yahan
-// se native Electron menus me lagte hain.
+// package.json `contributes.menus` and runtime `ibox.menus.register` both end up
+// as native Electron menus here.
 "use strict";
 
 const path = require("path");

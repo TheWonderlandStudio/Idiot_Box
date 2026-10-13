@@ -27,6 +27,7 @@ jobs:
               dist/Idiot-Box-Setup-*.exe
               dist/Idiot-Box-Setup-*.msi
               dist/Idiot-Box-Setup-*.msix
+              dist/*.msixupload
           - os: ubuntu-latest
             builder-args: --linux AppImage deb rpm pacman
             artifact-glob: |
@@ -64,6 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Unsigned builds: don't fail looking for a cert/identity.
+          # (Store signs the .msixupload itself on submission.)
           CSC_IDENTITY_AUTO_DISCOVERY: false
           # macOS notarization (optional — notarize.cjs skips when unset).
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -92,8 +94,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      # CHANGELOG.md se release notes nikaalne ke liye repo checkout zaroori
-      # hai (yahan warna sirf dist/ artifacts hote hain).
+      # Repo checkout is required to extract release notes from CHANGELOG.md
+      # (otherwise only dist/ artifacts are present here).
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -104,8 +106,8 @@ jobs:
           merge-multiple: true
 
       - name: Extract release notes from CHANGELOG
-        # Tagged version (e.g. v0.1.25) ka "## [0.1.25]" section CHANGELOG.md
-        # se nikaal kar release body banao — auto "Full Changelog" link nahi.
+        # Extract the tagged version's (e.g. v0.1.25) "## [0.1.25]" section
+        # from CHANGELOG.md as the release body — no auto "Full Changelog" link.
         run: |
           node -e 'const fs=require("fs");const md=fs.readFileSync("CHANGELOG.md","utf8");const ver=String(process.env.GITHUB_REF_NAME||"").replace(/^v/,"");const lines=md.split(/\r?\n/);let out=[],cap=false;for(const ln of lines){const m=ln.match(/^## \[(.+?)\]/);if(m){if(cap)break;if(m[1]===ver){cap=true;continue;}}else if(cap)out.push(ln);}let body=out.join("\n").trim();if(!body)body="See CHANGELOG.md for details.";fs.writeFileSync("release-notes.md",body+"\n");console.log("notes for v"+ver+":",body.length,"chars");'
 
@@ -119,6 +121,7 @@ jobs:
             dist/Idiot-Box-Setup-*.exe
             dist/Idiot-Box-Setup-*.msi
             dist/Idiot-Box-Setup-*.msix
+            dist/*.msixupload
             dist/*.blockmap
             dist/latest*.yml
             dist/Idiot-Box-*.AppImage

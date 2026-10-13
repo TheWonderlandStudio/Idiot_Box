@@ -92,11 +92,11 @@ const SampleComponent = () => {
   );
 };
 
-// NOTE: IFRAME_HTML alag document me render hota hai — wahan app ke
-// var(--tokens) resolve NAHI hote, isliye literals rakhe hain.
-// Values CENTRAL sheet ke barabar hain: --error-bg (#2a1717),
+// NOTE: IFRAME_HTML renders in a separate document — the app's
+// var(--tokens) do NOT resolve there, so literals are used.
+// Values match the CENTRAL sheet: --error-bg (#2a1717),
 // --error-border (#732222), --danger (#f44747), --border (#333).
-// Token badle to yahan bhi badlo.
+// If a token changes, change it here too.
 const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:#2a1717;border:1px solid #732222;border-radius:6px;color:#f44747;font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
 <script>
 (function(){
@@ -323,7 +323,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   const [ComponentToRender, setComponentToRender] = useState(null); // legacy, not used in iframe isolated mode
   const [lastUpdateKey, setLastUpdateKey] = useState(0);
   const [sampleMode, setSampleMode] = useState(false);
-  // HTML docs: bundler nahi — raw doc (+<base>) seedha srcDoc me jata hai.
+  // HTML docs: no bundler — the raw doc (+<base>) goes straight into srcDoc.
   const [htmlDoc, setHtmlDoc] = useState(null);
 
   // Iframe sandbox — full isolation from main window navigation (allow-scripts + allow-same-origin + allow-forms, but NO allow-top-navigation / allow-popups)
@@ -337,7 +337,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   const liveSourcesRef = useRef(new Map());
   const liveReloadTimerRef = useRef(null);
   const fsReloadTimerRef = useRef(null);
-  const loadSeqRef = useRef(0); // stale bundle results discard karne ke liye
+  const loadSeqRef = useRef(0); // for discarding stale bundle results
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
 
@@ -407,7 +407,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   }, []);
 
   // Tailwind browser build compiles <style type="text/tailwindcss"> live.
-  // Plain <style> me @tailwind/@apply dead rehte hain — isliye type switch.
+  // @tailwind/@apply stay dead in a plain <style> — hence the type switch.
   const ensureTailwindScript = useCallback((doc) => {
     if (!doc || !doc.head) return;
     try {
@@ -421,9 +421,9 @@ const ComponentPreview = ({ nodeId, config }) => {
   }, []);
 
   // ── Helper to inject CSS into the iframe's document head ───────────────────
-  // Equality guard: same content dobara likhne se Tailwind browser build har
-  // baar recompile karta hai (MutationObserver storm) — CPU/OOM se app band
-  // ho sakti hai. Isliye badla hua ho tabhi DOM touch karo.
+  // Equality guard: rewriting the same content makes the Tailwind browser build
+  // recompile every time (MutationObserver storm) — the app could freeze
+  // from CPU/OOM. So touch the DOM only when it actually changed.
   const injectPreviewCss = useCallback((cssKey, cssContent, opts = {}) => {
     if (!cssKey) return;
     const next = cssContent || "";
@@ -447,13 +447,13 @@ const ComponentPreview = ({ nodeId, config }) => {
     }
     const wantType = needsTw ? "text/tailwindcss" : null;
     const hasType = el.getAttribute("type");
-    if (prev === next && (hasType === wantType || (!hasType && !wantType))) return; // kuch nahi badla
+    if (prev === next && (hasType === wantType || (!hasType && !wantType))) return; // nothing changed
     if (needsTw) el.setAttribute("type", "text/tailwindcss");
     else el.removeAttribute("type");
     el.textContent = next;
   }, [getIframeDoc, isTailwindCss, ensureTailwindScript]);
 
-  // Re-apply cached styles after srcDoc reload (head wipe ho jata hai).
+    // Re-apply cached styles after srcDoc reload (the head gets wiped).
   const reapplyPreviewCss = useCallback(() => {
     const doc = getIframeDoc();
     if (!doc || !doc.head) return;
@@ -494,7 +494,7 @@ const ComponentPreview = ({ nodeId, config }) => {
     try {
       doc.head.querySelectorAll("style[data-preview-css]").forEach((el) => {
         if (!onlyBundle) { el.remove(); return; }
-        // bundle key ka styleId `preview-css-__bundle__...` se shuru hota hai
+        // a bundle key's styleId starts with `preview-css-__bundle__...`
         if ((el.id || "").includes("__bundle__")) el.remove();
       });
     } catch {}
@@ -591,15 +591,15 @@ const ComponentPreview = ({ nodeId, config }) => {
   }, []);
 
   // ── Project-aware CSS auto-detect ─────────────────────────────────────────
-  // NOTE: component ke import kiye CSS (relative / package / @import chain)
-  // bundler khud resolve karke `res.css` me deta hai (neeche inject hota hai).
-  // Yahan GLOBAL stylesheets auto-detect hoti hain jo import me nahi hain —
-  // project structure ke hisaab se:
+  // NOTE: CSS imported by the component (relative / package / @import chain)
+  // is resolved by the bundler itself into `res.css` (injected below).
+  // GLOBAL stylesheets are auto-detected here when they are not in the imports —
+  // based on the project structure:
   //  1. sibling same-name (App.jsx -> App.css / App.module.css)
-  //  2. component dir se project root tak walk-up (index.css, globals.css…)
+  //  2. walk-up from the component dir to the project root (index.css, globals.css…)
   //  3. root conventions (src/index.css, app/globals.css, output.css…)
-  //  4. entry files (main/index/App) ke `import './x.css'`
-  //  5. index.html ke <link rel=stylesheet>
+  //  4. `import './x.css'` in entry files (main/index/App)
+  //  5. <link rel=stylesheet> in index.html
   //  6. framework dist (bootstrap/bulma) + tailwind browser fallback
   const toPosix = (p) => String(p || "").replace(/\\/g, "/");
   const posixNorm = (p) => {
@@ -631,8 +631,8 @@ const ComponentPreview = ({ nodeId, config }) => {
     } catch { return null; }
   };
 
-  // Global CSS ke @import "..." ko inline resolve karo (relative chain).
-  // "tailwindcss" / http / package imports ko chhodo — bundler/CDN sambhalega.
+  // Inline relative @import "..." in global CSS (relative chain).
+  // Skip "tailwindcss" / http / package imports — the bundler/CDN handles them.
   const resolveCssImports = useCallback(async (css, baseDirPosix, seen = new Set(), depth = 0) => {
     if (!css || depth > 4) return css;
     const re = /@import\s+(?:url\(\s*["']?([^"')]+)["']?\s*\)|["']([^"']+)["'])\s*[^;]*;/g;
@@ -679,10 +679,10 @@ const ComponentPreview = ({ nodeId, config }) => {
     const rootRaw = window.__currentProjectPath || null;
     const rootPosix = rootRaw ? toPosix(rootRaw).replace(/\/$/, "") : posixDir(targetPosix);
 
-    // Live typing (har keystroke) par disk rescan mat karo — cache reuse.
+    // Do not rescan the disk on live typing (every keystroke) — reuse the cache.
     const cache = projectCssCacheRef.current;
     if (isLive && !force && cache.root === rootPosix && cache.globals?.length) {
-      clearPreviewCss(true); // sirf purana bundle css hatao, globals re-apply
+      clearPreviewCss(true); // remove only the old bundle css, re-apply globals
       for (const g of cache.globals) injectPreviewCss(g.key, g.content);
       setLoadedCssFiles(cache.globals.map((g) => g.key));
       return;
@@ -716,7 +716,7 @@ const ComponentPreview = ({ nodeId, config }) => {
         for (const n of COMMON) mark(`${dir}/${n}`);
         if (toPosix(dir).toLowerCase() === rootPosix.toLowerCase()) break;
         if (!stripRoot(rootPosix, dir) && toPosix(dir).toLowerCase() !== rootPosix.toLowerCase()) {
-          // root ke bahar nikal gaye (target root ke bahar?) — ek level aur bas
+          // went outside the root (outside the target root?) — just one more level
           if (guard > 3 && !toPosix(dir).startsWith(rootPosix.slice(0, 3))) break;
         }
         const parent = posixDir(dir);
@@ -749,7 +749,7 @@ const ComponentPreview = ({ nodeId, config }) => {
       }
     }
     if (hasTailwind && !hasTwConfig) {
-      // tailwind v4 (CSS-based, bina config) — globals me @import "tailwindcss" hi kaafi
+      // tailwind v4 (CSS-based, no config) — @import "tailwindcss" in globals is enough
       hasTwConfig = true;
     }
 
@@ -793,14 +793,14 @@ const ComponentPreview = ({ nodeId, config }) => {
       }
     }
 
-    // ── 6. framework dist css (deps ke hisaab se) ──
+    // ── 6. framework dist css (based on deps) ──
     if (deps.bootstrap) mark(`${rootPosix}/node_modules/bootstrap/dist/css/bootstrap.min.css`);
     if (deps.bulma) mark(`${rootPosix}/node_modules/bulma/css/bulma.min.css`);
     if (deps["foundation-sites"]) mark(`${rootPosix}/node_modules/foundation-sites/dist/css/foundation.min.css`);
     if (deps.antd) mark(`${rootPosix}/node_modules/antd/dist/antd.min.css`);
     if (deps["semantic-ui-css"]) mark(`${rootPosix}/node_modules/semantic-ui-css/semantic.min.css`);
 
-    // ── 7. build output css (vite/cra dist) — pehla chhota bundle ──
+    // ── 7. build output css (vite/cra dist) — first small bundle ──
     for (const drel of ["dist", "build"]) {
       try {
         const entries = await window.electronAPI?.readDirAll(`${rootPosix}/${drel}`);
@@ -810,7 +810,7 @@ const ComponentPreview = ({ nodeId, config }) => {
             if (/\.css$/i.test(e.name || e.path || "")) mark(e.path || `${rootPosix}/${drel}/${e.name}`);
             if (orderedKeys.length > 60) break;
           }
-          // dist/assets me aksar hashed css hota hai
+          // dist/assets often holds hashed css
           const assets = (entries || []).find((e) => e && e.isDir && e.name === "assets");
           if (assets) {
             try {
@@ -825,8 +825,8 @@ const ComponentPreview = ({ nodeId, config }) => {
     }
 
     // ── read + inject (order preserved, cap 12 files / 600KB total / 500KB per file) ──
-    // Bahut badi single stylesheet (MBs) iframe me lagatar inject hona OOM ka
-    // reason ban sakta hai — isliye per-file cap.
+    // A very large single stylesheet (MBs) injected into the iframe repeatedly can cause OOM —
+    // hence the per-file cap.
     clearPreviewCss();
     const loaded = [];
     let bytes = 0;
@@ -844,11 +844,11 @@ const ComponentPreview = ({ nodeId, config }) => {
       bytes += (finalCss || "").length;
       contents.set(key, finalCss);
       injectPreviewCss(key, finalCss);
-      // chhota display name: root-relative agar andar hai
+      // short display name: root-relative when inside
       const rel = stripRoot(rootPosix, key);
       loaded.push(rel ? (rel === "." ? key : rel) : key);
     }
-    // tailwind dep hai par koi tailwind css nahi mila -> browser CDN ready rakho
+    // tailwind is a dep but no tailwind css was found -> keep the browser CDN ready
     if (hasTailwind && ![...contents.values()].some((c) => isTailwindCss(c))) {
       tailwindNeededRef.current = true;
       try { ensureTailwindScript(getIframeDoc()); } catch {}
@@ -932,16 +932,16 @@ const ComponentPreview = ({ nodeId, config }) => {
       return;
     }
 
-    // Stale guard: tez typing/save me purana bundle naya state overwrite na kare.
+    // Stale guard: on fast typing/save, an old bundle must not overwrite the new state.
     if (mySeq !== loadSeqRef.current || path !== filePathRef.current) return;
 
     // Store CJS bundle for iframe to evaluate independently (isolated realm)
-    // + bundler-resolved CSS (saare CSS imports — relative / package /
-    // @import / CSS modules — resolve hokar ek stylesheet me)
+    // + bundler-resolved CSS (all CSS imports — relative / package /
+    // @import / CSS modules — resolved into one stylesheet)
     if (res.css) {
       injectPreviewCss(`__bundle__${path}`, res.css);
     } else {
-      // pichhli file ka bundle-css yahan leak na ho
+      // do not leak the previous file's bundle-css here
       try {
         const k = `__bundle__${path}`;
         if (loadedCssRef.current.has(k)) {
@@ -1012,14 +1012,14 @@ const ComponentPreview = ({ nodeId, config }) => {
 
   // Watch for filesystem changes to auto-update live preview (authoritative
   // disk content after a save — drop any stale in-memory live source).
-  // CSS save par cache invalidate taaki nayi global styles turant lagen.
+  // Invalidate the cache on CSS save so new global styles apply immediately.
   useEffect(() => {
     const root = window.__currentProjectPath;
     if (!root) return;
     const unsub = window.electronAPI.onFsChange((_dir, changedPath) => {
       if (!filePath) return;
-      // Har fs event par reload nahi — dev-server (vite HMR) dist/build me
-      // lagatar likhta hai; har event par full rescan+bundle = overload/crash.
+      // No reload on every fs event — a dev-server (vite HMR) writes to dist/build
+      // continuously; a full rescan+bundle per event = overload/crash.
       try {
         const cp = String(changedPath || "").replace(/\\/g, "/");
         if (!cp) return;
@@ -1033,7 +1033,7 @@ const ComponentPreview = ({ nodeId, config }) => {
         if (isCss) {
           projectCssCacheRef.current = { root: null, globals: [], hasTailwind: false };
         }
-        // self-file change par stale live-source hatao; doosri file par nahi
+        // on a self-file change drop the stale live-source; not for other files
         if (isSelf) liveSourcesRef.current.delete(filePath);
         if (fsReloadTimerRef.current) clearTimeout(fsReloadTimerRef.current);
         fsReloadTimerRef.current = setTimeout(() => {
@@ -1087,9 +1087,9 @@ const ComponentPreview = ({ nodeId, config }) => {
     const doc = getIframeDoc();
     if (!win || !doc) return;
     setupIframeGuard();
-    // HTML docs already live in srcDoc — React mount ki zaroorat nahi.
+    // HTML docs already live in srcDoc — no React mount needed.
     if (!sampleMode && htmlDoc) return;
-    // srcDoc reload head wipe kar deta hai — cached CSS wapas lagao
+    // srcDoc reload wipes the head — re-apply the cached CSS
     try { reapplyPreviewCss(); } catch {}
     // Ensure React is available inside iframe
     if (!win.__previewMount) {
