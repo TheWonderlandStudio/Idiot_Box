@@ -709,7 +709,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                     style={{
                       display: "inline-flex", alignItems: "center", gap: "var(--space-4)",
                       padding: "0 var(--space-6)", border: "1px solid var(--border-subtle, rgba(255,255,255,0.15))",
-                      borderRadius: "var(--radius-xs)", background: previewOpen ? "var(--accent)" : "rgba(255,255,255,0.08)",
+                      borderRadius: "var(--radius-xs)", background: previewOpen ? "var(--accent)" : "var(--bg-hover)",
                       color: "inherit", font: "inherit", cursor: "pointer",
                       height: 18, lineHeight: "16px", fontSize: "11px",
                     }}

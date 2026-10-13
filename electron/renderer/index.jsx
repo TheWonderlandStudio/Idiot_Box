@@ -323,7 +323,7 @@ const RunStatusButton = () => {
   const menuItem = {
     height: 34, display: "flex", alignItems: "center", gap: 10, width: "100%",
     padding: "0 10px", border: 0, borderRadius: 6, background: "transparent",
-    color: "#c9c9d4", fontSize: 12.5, textAlign: "left", cursor: "pointer",
+    color: "var(--text-primary)", fontSize: 12.5, textAlign: "left", cursor: "pointer",
     fontFamily: "inherit", WebkitAppRegion: "no-drag",
   };
 
@@ -363,7 +363,7 @@ const RunStatusButton = () => {
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 7px)", right: 0, zIndex: "var(--z-menu)",
-          background: "#1b1b1b", border: "1px solid #343434", borderRadius: 6,
+          background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 6,
           boxShadow: "0 12px 35px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25)",
           minWidth: 250, maxWidth: 340, padding: 5, overflow: "hidden", display: "flex", flexDirection: "column",
         }}>
@@ -375,7 +375,7 @@ const RunStatusButton = () => {
             <Play size={15} strokeWidth={1.8} fill="currentColor" /> <span>{running ? "Stop" : "Run"}</span>
           </button>
           {runOptions.length > 0 && (
-            <div style={{ height: 1, background: "#303030", margin: "5px 4px" }} />
+            <div style={{ height: 1, background: "var(--border-subtle)", margin: "5px 4px" }} />
           )}
           {runOptions.map((o) => (
             <button
@@ -397,11 +397,11 @@ const RunStatusButton = () => {
             </button>
           ))}
           {runOptions.length === 0 && (
-            <div style={{ fontSize: 12, color: "#8a8a8a", padding: "6px 10px" }}>
+            <div style={{ fontSize: 12, color: "var(--icon)", padding: "6px 10px" }}>
               Open Run &amp; Debug once — options appear here
             </div>
           )}
-          <div style={{ height: 1, background: "#303030", margin: "5px 4px" }} />
+          <div style={{ height: 1, background: "var(--border-subtle)", margin: "5px 4px" }} />
           <button onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent("add-run-panel")); }} style={menuItem} title="Run Configuration">
             <Settings2 size={15} strokeWidth={1.8} /> <span>Run Configuration</span>
           </button>

@@ -17,9 +17,12 @@
         height: 100%;
         margin: 0;
         overflow: hidden;
-        background: #0d0d0d;
+        background: var(--bg-app, #0d0d0d);
       }
     </style>
   </head>
-  <body></body>
+  <body>
+    <!-- Theme sync lives in popout.js (external: inline scripts are CSP-blocked). -->
+    <script src="popout.js"></script>
+  </body>
 </html>

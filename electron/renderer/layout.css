@@ -1264,3 +1264,206 @@ li,
 }
 .ui-pop  { animation: ui-pop-in var(--t-slow) ease both; }
 .ui-scrim { animation: ui-scrim-in var(--t-normal) ease both; }
+
+/* ── Light theme: app shell chrome (titlebar / FlexLayout / chips) ──────────
+   Dark rules above are untouched — everything below is scoped to
+   :root[data-theme="light"] and appended last so it wins at equal-or-higher
+   specificity. CET injects several colors as inline styles (#171717 bar /
+   menu bg, #2a2d2e item bg, #EEEEEE text), hence !important below. */
+:root[data-theme="light"] .cet-titlebar {
+  background-color: #f3f3f3 !important;
+  color: #1e1e1e !important;
+}
+:root[data-theme="light"] .cet-titlebar .cet-title {
+  color: #1e1e1e !important;
+}
+:root[data-theme="light"] .cet-titlebar .cet-menubar-menu-button {
+  color: #1e1e1e !important;
+}
+:root[data-theme="light"] .cet-titlebar .cet-menubar .cet-menubar-menu-button:not(.disabled):hover,
+:root[data-theme="light"] .cet-titlebar .cet-menubar .cet-menubar-menu-button:not(.disabled).open {
+  background-color: rgb(0 0 0 / 12%) !important;
+}
+/* CET dropdown: container / items / separators / hover */
+:root[data-theme="light"] .cet-menubar-menu-container {
+  background-color: #ffffff !important;
+  color: #1e1e1e !important;
+  border: 1px solid #e0e0e0 !important;
+}
+:root[data-theme="light"] .cet-menubar-menu-container .cet-action-menu-item {
+  color: #1e1e1e !important;
+  background-color: transparent !important;
+}
+:root[data-theme="light"] .cet-menubar-menu-container .cet-action-item.focused > .cet-action-menu-item,
+:root[data-theme="light"] .cet-menubar-menu-container .cet-action-menu-item:hover {
+  background-color: #e5e5e5 !important;
+  color: #000000 !important;
+}
+:root[data-theme="light"] .cet-menubar-menu-container .cet-action-label.separator {
+  opacity: 1 !important;
+  border-bottom-color: #e0e0e0 !important;
+}
+:root[data-theme="light"] .cet-menubar-menu-container .cet-action-label.separator.text {
+  color: #555555 !important;
+}
+:root[data-theme="light"] .cet-menubar-menu-container .keybinding,
+:root[data-theme="light"] .cet-menubar-menu-container .cet-submenu-indicator,
+:root[data-theme="light"] .cet-menubar-menu-container .cet-menu-item-icon {
+  color: #555555 !important;
+}
+/* CET window controls: dark icons on the light bar (mirrors the lib's own
+   `.light` rules, which never apply — the app themes via data-theme) */
+:root[data-theme="light"] .cet-titlebar .cet-control-icon svg {
+  fill: #222222 !important;
+}
+:root[data-theme="light"] .cet-titlebar .cet-control-icon:not(.inactive):hover {
+  background-color: rgb(0 0 0 / 12%) !important;
+}
+:root[data-theme="light"] .cet-titlebar .cet-control-icon:not(.inactive):hover svg {
+  fill: #222222 !important;
+}
+:root[data-theme="light"] .cet-titlebar .cet-control-close:not(.inactive):hover {
+  background-color: rgb(232 17 35 / 90%) !important;
+}
+:root[data-theme="light"] .cet-titlebar .cet-control-close:not(.inactive):hover svg {
+  fill: #ffffff !important;
+}
+/* Logo trigger chevron: readable on light */
+:root[data-theme="light"] .cet-titlebar .tb-logo::after {
+  border-top-color: #555555;
+}
+/* Layouts chip: dark-on-light (replaces #a6a6b2 / #f0f0f5, unreadable on light) */
+:root[data-theme="light"] .tb-workspaces {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #555555;
+}
+:root[data-theme="light"] .tb-workspaces:hover {
+  background: rgba(0, 0, 0, 0.09);
+  border-color: rgba(0, 0, 0, 0.2);
+  color: #111111;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+:root[data-theme="light"] .tb-workspaces:active {
+  background: rgba(0, 0, 0, 0.12);
+}
+/* FlexLayout: light variable set (mirrors light.css; keeps this app's seamless
+   transparent divider lines so no grid lines reappear) */
+:root[data-theme="light"] .flexlayout__layout {
+  --color-text: #1e1e1e;
+  --color-background: #ffffff;
+  --color-base: #ffffff;
+  --color-1: #f7f7f7;
+  --color-2: #efefef;
+  --color-3: #e8e8e8;
+  --color-4: #e0e0e0;
+  --color-5: #d8d8d8;
+  --color-6: #d1d1d1;
+  --color-drag1: rgb(95, 134, 196);
+  --color-drag2: rgb(119, 166, 119);
+  --color-drag1-background: rgba(95, 134, 196, 0.1);
+  --color-drag2-background: rgba(119, 166, 119, 0.075);
+  --color-overflow: #808080;
+  --color-icon: #808080;
+  --color-tabset-background: #ffffff;
+  --color-tabset-background-selected: #f7f7f7;
+  --color-tabset-background-maximized: #efefef;
+  --color-tabset-divider-line: transparent;
+  --color-tabset-header-background: #f3f3f3;
+  --color-tabset-header: #1e1e1e;
+  --color-border-tab-content: transparent;
+  --color-border-background: transparent;
+  --color-border-divider-line: transparent;
+  --color-tab-content: #ffffff;
+  --color-tab-selected: #1e1e1e;
+  --color-tab-selected-background: #ffffff;
+  --color-tab-unselected: #555555;
+  --color-tab-unselected-background: transparent;
+  --color-tab-textbox: #1e1e1e;
+  --color-tab-textbox-background: #e8e8e8;
+  --color-border-tab-selected: transparent;
+  --color-border-tab-selected-background: #ffffff;
+  --color-border-tab-unselected: transparent;
+  --color-border-tab-unselected-background: #efefef;
+  --color-splitter: #f3f3f3;
+  --color-splitter-hover: #e0e0e0;
+  --color-splitter-drag: #c8c8c8;
+  --color-drag-rect-border: #cccccc;
+  --color-drag-rect-background: #d8d8d8;
+  --color-drag-rect: #1e1e1e;
+  --color-popup-border: #d1d1d1;
+  --color-popup-unselected: #1e1e1e;
+  --color-popup-unselected-background: #ffffff;
+  --color-popup-selected: #1e1e1e;
+  --color-popup-selected-background: #e8e8e8;
+  --color-edge-marker: #aaaaaa;
+  --color-edge-icon: #555555;
+  --color-toolbar-button-hover: #e8e8e8;
+}
+/* FlexLayout: explicit light element rules */
+:root[data-theme="light"] .flexlayout__tabset_header {
+  background-color: #f3f3f3;
+  color: #1e1e1e;
+  border-bottom-color: #e0e0e0;
+  box-shadow: none;
+}
+:root[data-theme="light"] .flexlayout__tabset_tabbar_outer {
+  background-color: #f3f3f3;
+}
+:root[data-theme="light"] .flexlayout__tabset_tabbar_outer_top {
+  border-bottom-color: #e0e0e0;
+}
+:root[data-theme="light"] .flexlayout__tabset_tabbar_outer_bottom {
+  border-top-color: #e0e0e0;
+}
+:root[data-theme="light"] .flexlayout__tab_button--unselected {
+  color: #555555;
+  background-color: transparent;
+}
+:root[data-theme="light"] .flexlayout__tab_button--selected {
+  color: #1e1e1e;
+  background-color: #ffffff;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+:root[data-theme="light"] .flexlayout__tab_button_stretch {
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .flexlayout__tabset {
+  background-color: #f3f3f3;
+}
+:root[data-theme="light"] .flexlayout__tabset-selected {
+  background-color: #ffffff;
+  background-image: none;
+}
+:root[data-theme="light"] .flexlayout__tabset_content {
+  background-color: #ffffff;
+}
+:root[data-theme="light"] .flexlayout__tab {
+  background-color: #ffffff;
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .flexlayout__splitter {
+  background-color: #f3f3f3;
+}
+:root[data-theme="light"] .flexlayout__splitter:hover {
+  background-color: #e0e0e0;
+}
+:root[data-theme="light"] .flexlayout__tab_button_trailing {
+  color: #555555;
+}
+:root[data-theme="light"] .flexlayout__tab_button_trailing:hover {
+  background-color: #e0e0e0;
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .flexlayout__tab_toolbar_button:hover {
+  background-color: #e8e8e8;
+}
+:root[data-theme="light"] .flexlayout__drag_rect {
+  color: #1e1e1e;
+  background-color: #d8d8d8;
+  border-color: #cccccc;
+}
+:root[data-theme="light"] .flexlayout__outline_rect {
+  border-color: rgb(95, 134, 196);
+  background: rgba(95, 134, 196, 0.1);
+}

@@ -3690,4 +3690,276 @@
   .phub__path-bar, .phub__path-bar--collapsed { margin-left: 0; width: 100%; max-width: 100%; }
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   LIGHT THEME overrides — Project Hub (dark stays pixel-identical above)
+   Only ADDITIONS below. Every rule is scoped to :root[data-theme="light"]
+   so dark mode never matches. Brand accents (blue CTA, orange glow hue,
+   teal, discord blurple, framework colors) and red/green/amber semantics
+   are kept; the orange page glow is only softened (lower alpha).
+   Terminal/xterm surfaces intentionally stay dark (see notes at the end).
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Page root + glow (was #0a0a0c + strong orange) ─────────────────── */
+:root[data-theme="light"] .phub { background: #f3f3f3; }
+:root[data-theme="light"] .phub__glow {
+  background:
+    radial-gradient(52% 40% at 50% 105%, rgba(255, 150, 74, 0.22), transparent 74%),
+    radial-gradient(36% 28% at 50% 107%, rgba(255, 100, 30, 0.16), transparent 76%),
+    radial-gradient(90% 62% at 50% 112%, rgba(255, 70, 12, 0.10), transparent 84%);
+}
+/* Wallpaper sidebar glass — light frost instead of dark glass */
+:root[data-theme="light"] .phub--wallpaper .phub__sidebar {
+  background: color-mix(in srgb, var(--wall-tint, #ffffff) 9%, rgba(255, 255, 255, 0.74));
+  border-right-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Sidebar (was gradient #1d1d21 → #18181b) ───────────────────────── */
+:root[data-theme="light"] .phub__sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #ececec 100%);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+}
+:root[data-theme="light"] .phub__sidebar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.18); }
+:root[data-theme="light"] .phub__sidebar::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.28); }
+:root[data-theme="light"] .phub__sidebar-brand { color: #1e1e1e; }
+/* brand mark orange (ex-#ff9d4d) reads on light too — kept as-is */
+:root[data-theme="light"] .phub__sidebar-btn { color: #555; }
+:root[data-theme="light"] .phub__sidebar-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .phub__sidebar-btn:active { background: rgba(0, 0, 0, 0.08); }
+:root[data-theme="light"] .phub__sidebar-ico {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  color: #555;
+}
+:root[data-theme="light"] .phub__sidebar-btn:hover .phub__sidebar-ico {
+  color: #1e1e1e;
+  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.06);
+}
+/* primary blue CTA + white text — kept identical (reads on both) */
+/* active panel wash: near-white text would vanish on light, use deep blue */
+:root[data-theme="light"] .phub__sidebar-btn--active {
+  background: rgba(0, 122, 204, 0.12);
+  border-color: rgba(0, 122, 204, 0.40);
+  color: #005fb8;
+}
+:root[data-theme="light"] .phub__sidebar-btn--active .phub__sidebar-ico {
+  color: #007acc;
+  border-color: rgba(0, 122, 204, 0.45);
+  background: rgba(0, 122, 204, 0.10);
+}
+:root[data-theme="light"] .phub__sidebar-label { color: #555; }
+:root[data-theme="light"] .phub__sidebar-label--gap { border-top: 1px solid rgba(0, 0, 0, 0.08); }
+:root[data-theme="light"] .phub__sidebar-user { border-top: 1px solid rgba(0, 0, 0, 0.08); }
+:root[data-theme="light"] .phub__sidebar-user:hover { background: rgba(0, 0, 0, 0.04); }
+:root[data-theme="light"] .phub__sidebar-avatar {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+}
+:root[data-theme="light"] .phub__sidebar-hidebtn { color: #555; }
+:root[data-theme="light"] .phub__sidebar-hidebtn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #1e1e1e;
+}
+
+/* ── Path bar (was rgba(10,10,12,0.72) + white hairline) ────────────── */
+:root[data-theme="light"] .phub__path-bar {
+  background: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* ── Modal card (bg is tokenized; only the white hairline needs a swap) */
+:root[data-theme="light"] .phub__center--modal > .phub__panel { border: 1px solid rgba(0, 0, 0, 0.12); }
+
+/* ── Home cards (were #131316 / white-hairline) ─────────────────────── */
+:root[data-theme="light"] .phub__card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
+}
+:root[data-theme="light"] .phub__card:hover {
+  border-color: rgba(0, 0, 0, 0.20);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
+}
+:root[data-theme="light"] .phub__card-thumb {
+  background: radial-gradient(130% 100% at 50% 0%, #e8e8e8 0%, #f3f3f3 55%, #ffffff 100%);
+}
+:root[data-theme="light"] .phub__card-thumbico {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+:root[data-theme="light"] .phub__card-foot {
+  background: #ececec;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+:root[data-theme="light"] .phub__card-ico {
+  background: #ececec;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+}
+:root[data-theme="light"] .phub__card-name { color: #1e1e1e; }
+:root[data-theme="light"] .phub__card-time { color: #555; }
+:root[data-theme="light"] .phub__card-kebab { color: #555; }
+:root[data-theme="light"] .phub__card-kebab:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .phub__home-empty { color: #555; }
+:root[data-theme="light"] .phub__home-emptybtn {
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.04);
+  color: #333;
+}
+:root[data-theme="light"] .phub__home-emptybtn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.22);
+}
+/* primary empty-state button (editor-blue + white) — kept identical */
+
+/* ── Bottom composer (was rgba(19,19,22,0.92) + white hairline) ─────── */
+:root[data-theme="light"] .phub__composer {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 14px 46px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+:root[data-theme="light"] .phub__composer-input { color: #1e1e1e; }
+:root[data-theme="light"] .phub__composer-input::placeholder { color: #999; }
+:root[data-theme="light"] .phub__composer-btn {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+  color: #555;
+}
+:root[data-theme="light"] .phub__composer-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #1e1e1e;
+  border-color: rgba(0, 0, 0, 0.20);
+}
+:root[data-theme="light"] .phub__composer-btn--mute:hover,
+:root[data-theme="light"] .phub__composer-btn:disabled:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #555;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+/* recording red pulse + transcribing amber — readable on light, kept;
+   only the amber icon is deepened slightly for contrast */
+:root[data-theme="light"] .phub__composer-btn--busy { color: #b45309; }
+/* send: light-grey pill with dark arrow works on white too; only the
+   hover (pure white) and disabled (white wash) states need remapping */
+:root[data-theme="light"] .phub__composer-send:hover:not(:disabled) { background: #dcdce0; }
+:root[data-theme="light"] .phub__composer-send:disabled {
+  background: #ececec;
+  color: #999;
+}
+
+/* ── Popup menus: composer menu + card menu (were #16161a) ──────────── */
+:root[data-theme="light"] .phub__composer-menu,
+:root[data-theme="light"] .phub__card-menu {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18);
+}
+:root[data-theme="light"] .phub__composer-menu-item { color: #333; }
+:root[data-theme="light"] .phub__composer-menu-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #1e1e1e;
+}
+/* danger red menu items — readable on light, kept as-is */
+:root[data-theme="light"] .phub__composer-menu-sep { background: rgba(0, 0, 0, 0.08); }
+:root[data-theme="light"] .phub__composer-menu-info { color: #555; }
+/* .phub__wallmenu is already fully tokenized (bg-raised/border-strong) */
+
+/* ── Chat overlay + home chat ───────────────────────────────────────── */
+:root[data-theme="light"] .phub__chatfs-body {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="light"] .phub__home-chat-scroll { scrollbar-color: rgba(0, 0, 0, 0.22) transparent; }
+:root[data-theme="light"] .phub__home-chat-scroll::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.20); }
+/* user bubble: warm dark-brown → warm light-peach, same orange border hue */
+:root[data-theme="light"] .phub__msg--user {
+  background: #fff0dd;
+  border: 1px solid rgba(255, 150, 74, 0.45);
+  color: #6b3410;
+}
+:root[data-theme="light"] .phub__msg-wrap--user .phub__msg-copy-btn { color: #7a4a1e; }
+:root[data-theme="light"] .phub__msg-wrap--user .phub__msg-copy-btn:hover {
+  background: rgba(255, 150, 74, 0.15);
+  border-color: rgba(255, 150, 74, 0.28);
+  color: #6b3410;
+}
+/* ai bubble + typing bubble: near-black → white */
+:root[data-theme="light"] .phub__msg--ai {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .phub__msg--busy {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #555;
+}
+:root[data-theme="light"] .phub__msg-copy-btn { color: #555; }
+:root[data-theme="light"] .phub__msg-copy-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #1e1e1e;
+}
+/* copied green tint — readable on light, kept as-is */
+/* proposal card: dark panel → white, orange border hue kept */
+:root[data-theme="light"] .phub__msg--proposal {
+  background: #ffffff;
+  border: 1px solid rgba(255, 150, 74, 0.45);
+}
+:root[data-theme="light"] .phub__proposal-title { color: #b45309; }
+:root[data-theme="light"] .phub__proposal-row span { color: #555; }
+:root[data-theme="light"] .phub__proposal-row b { color: #1e1e1e; }
+:root[data-theme="light"] .phub__proposal-panels span {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #555;
+}
+/* orange gradient Create button + dark text — kept identical */
+:root[data-theme="light"] .phub__proposal-change {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: #333;
+}
+:root[data-theme="light"] .phub__proposal-change:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .phub__home-chat-close {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  color: #555;
+}
+:root[data-theme="light"] .phub__home-chat-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #1e1e1e;
+}
+/* orange text selection — kept identical (white on orange reads both ways) */
+
+/* ── Legacy panels: note body, mini chat box, clone logs, setup cmds ── */
+:root[data-theme="light"] .phub__note-body { background: #ffffff; }
+:root[data-theme="light"] .phub__chat-input { background: #ffffff; }
+:root[data-theme="light"] .phub__clone-logs-body { background: #ffffff; }
+:root[data-theme="light"] .phub__cmds { background: #ffffff; }
+:root[data-theme="light"] .phub__cmds-input { background: #ffffff; }
+/* teal mono prompt/input text (ex-#4ec9b0) reads on white — kept as-is */
+:root[data-theme="light"] .phub__cmds-input:focus { background: #ececec; }
+/* NOTE: .phub__clone-xterm + inner .xterm rows stay dark on purpose — they
+   are live terminals whose JS theme (Hub.jsx) is fixed #0a0a0a/#cccccc. */
+
+/* ── Create layout wireframe preview (was #101010) ──────────────────── */
+:root[data-theme="light"] .phub__layout-opt-svg { background: #ececec; }
+:root[data-theme="light"] .phub__layout-opt-svg .lp-dash { fill: rgba(0, 0, 0, 0.04); }
+/* selected blue wash (rgba(0,122,204,0.12)) — kept as-is */
+
+/* ── Heatmap (empty-cell hairline was white-on-dark) ────────────────── */
+:root[data-theme="light"] .phub__heat-cell { border: 1px solid rgba(0, 0, 0, 0.08); }
+/* ghColor() teal steps + var(--bg-active) empty cells adapt — kept as-is */
+
 

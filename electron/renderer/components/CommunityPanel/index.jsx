@@ -1,14 +1,14 @@
 // CommunityPanel — embedded Discord server.
-// The official widget (https://discord.com/widget?id=<guild>&theme=dark) is
-// used because discord.gg invite links are blocked by X-Frame-Options.
-// The Join button opens the invite in the OS browser.
-import React, { useCallback, useRef, useState } from "react";
+// The official widget is used because discord.gg invite links are blocked
+// by X-Frame-Options. The widget theme follows the app theme (data-theme).
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { X, RefreshCw, TriangleAlert, ExternalLink, Users } from "lucide-react";
 import "./community.css";
 
 const DISCORD_INVITE = "https://discord.gg/Z9DynuSxRY";
 const DISCORD_GUILD_ID = "1147110101203816509";
-const DISCORD_WIDGET_URL = `https://discord.com/widget?id=${DISCORD_GUILD_ID}&theme=dark`;
+const widgetFor = (light) =>
+  `https://discord.com/widget?id=${DISCORD_GUILD_ID}&theme=${light ? "light" : "dark"}`;
 const DISCORD_SERVER_NAME = "Wonderland";
 
 function openInBrowser(url) {
@@ -22,8 +22,27 @@ function openInBrowser(url) {
 }
 
 export default function CommunityPanel({ nodeId, config }) {
-  const widgetUrl = (config && (config.discordUrl || config.url)) || DISCORD_WIDGET_URL;
+  const customUrl = config && (config.discordUrl || config.url);
   const inviteUrl = (config && config.inviteUrl) || DISCORD_INVITE;
+
+  const [isLight, setIsLight] = useState(false);
+  const widgetUrl = customUrl || widgetFor(isLight);
+
+  // Follow the app theme so the widget never stays a dark patch in light mode.
+  useEffect(() => {
+    const read = () => {
+      try {
+        setIsLight(document.documentElement.getAttribute("data-theme") === "light");
+      } catch {}
+    };
+    read();
+    let obs = null;
+    try {
+      obs = new MutationObserver(read);
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    } catch {}
+    return () => { try { obs && obs.disconnect(); } catch {} };
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);

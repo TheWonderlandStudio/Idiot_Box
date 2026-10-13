@@ -137,8 +137,8 @@ export default function GitGraph({ commits, onSelect, selectedHash }) {
               key={`n${i}`}
               cx={x(r.col)} cy={y(i)} r={NODE_R}
               fill={laneColor(r.col)}
-              stroke={isHead ? "#ffffff" : "none"}
               strokeWidth={isHead ? 1.5 : 0}
+              style={isHead ? { stroke: "var(--text-primary)" } : { stroke: "none" }}
             />
           );
           return <g key={`r${i}`}>{els}</g>;
