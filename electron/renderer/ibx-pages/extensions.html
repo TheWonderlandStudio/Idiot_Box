@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extensions</title>
+<!-- NOTE: no "Pack extension" button — the app backend currently exposes only
+     load-unpacked / load-CRX / enable / remove (no pack-to-zip/crx IPC), and
+     this page must not invent a backend. -->
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1f1f1f;
+    --bg-raised: #2b2b2b;
+    --bg-card: #282828;
+    --bg-hover: #333333;
+    --border: #3f3f3f;
+    --border-strong: #555555;
+    --text: #e3e3e3;
+    --text-dim: #9e9e9e;
+    --accent: #8ab4f8;
+    --accent-dim: #669df6;
+    --danger: #f28b82;
+    --danger-hover: #f6a19b;
+    --toggle-on: #8ab4f8;
+    --toggle-off: #5f6368;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.45;
+    min-height: 100vh;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 24px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .brand svg { width: 28px; height: 28px; flex: none; }
+  .brand h1 { font-size: 22px; font-weight: 400; margin: 0; white-space: nowrap; }
+  .search-wrap { flex: 1; display: flex; justify-content: center; }
+  .search-wrap input {
+    width: min(480px, 100%);
+    background: var(--bg-raised);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--text);
+    font: inherit;
+    padding: 8px 18px;
+    outline: none;
+  }
+  .search-wrap input::placeholder { color: var(--text-dim); }
+  .search-wrap input:focus { border-color: var(--accent); background: #303030; }
+  .devmode { display: flex; align-items: center; gap: 10px; white-space: nowrap; color: var(--text); }
+
+  /* ── Toolbar ────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 24px 4px;
+  }
+  .btn {
+    font: inherit;
+    color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 7px 18px;
+    cursor: pointer;
+  }
+  .btn:hover { background: rgba(138, 180, 248, 0.12); }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn.danger { color: var(--danger); }
+  .btn.danger:hover { background: rgba(242, 139, 130, 0.12); }
+  .btn.ghost { border-color: transparent; }
+  [hidden] { display: none !important; }
+
+  /* ── Error banner ───────────────────────────────────── */
+  .banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 24px 0;
+    padding: 10px 16px;
+    background: #3d2b28;
+    border: 1px solid #6f4a44;
+    border-radius: var(--radius-sm);
+    color: #f6cdbd;
+  }
+  .banner .grow { flex: 1; }
+
+  /* ── Cards grid ─────────────────────────────────────── */
+  main { padding: 12px 24px 40px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card-head { display: flex; gap: 14px; align-items: flex-start; }
+  .icon-tile {
+    width: 44px; height: 44px; flex: none;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 600; color: #fff;
+    background: #5f6368;
+    overflow: hidden;
+  }
+  .icon-tile img { width: 100%; height: 100%; object-fit: contain; }
+  .meta { min-width: 0; flex: 1; }
+  .meta .name { font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+  .meta .name .ver { color: var(--text-dim); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .meta .id { color: var(--text-dim); font-size: 12px; font-family: Consolas, "Courier New", monospace; overflow-wrap: anywhere; }
+  .desc { color: var(--text); font-size: 13px; overflow-wrap: anywhere; }
+  .desc.dim { color: var(--text-dim); }
+  .card-foot {
+    display: flex; align-items: center; gap: 10px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px; margin-top: 2px;
+  }
+  .card-foot .spacer { flex: 1; }
+  .details-box {
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    font-size: 13px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .details-box .row { display: flex; gap: 8px; }
+  .details-box .k { color: var(--text-dim); min-width: 88px; flex: none; }
+  .details-box .v { overflow-wrap: anywhere; font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+  .empty {
+    text-align: center; color: var(--text-dim);
+    padding: 60px 20px; font-size: 15px;
+  }
+
+  /* ── Toggle switch ──────────────────────────────────── */
+  .switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .switch .track {
+    width: 34px; height: 20px; border-radius: 999px;
+    background: var(--toggle-off);
+    transition: background 0.15s ease;
+    position: relative; flex: none;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; transition: left 0.15s ease;
+  }
+  .switch input:checked + .track { background: var(--toggle-on); }
+  .switch input:checked + .track::after { left: 16px; }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path fill="#8ab4f8" d="M10.5 2.5a2.5 2.5 0 0 0-2.5 2.5H6.2a3.7 3.7 0 0 0-3.7 3.7v1.8a2.5 2.5 0 0 0 0 5v1.8a3.7 3.7 0 0 0 3.7 3.7H8a2.5 2.5 0 0 0 5 0h1.8a3.7 3.7 0 0 0 3.7-3.7v-1.8a2.5 2.5 0 0 0 0-5V8.7a3.7 3.7 0 0 0-3.7-3.7H13a2.5 2.5 0 0 0-2.5-2.5Z"/>
+    </svg>
+    <h1>Extensions</h1>
+  </div>
+  <div class="search-wrap">
+    <input id="search" type="search" placeholder="Search extensions" aria-label="Search extensions" autocomplete="off">
+  </div>
+  <label class="devmode">
+    <span>Developer mode</span>
+    <span class="switch">
+      <input id="devToggle" type="checkbox" aria-label="Developer mode">
+      <span class="track"></span>
+    </span>
+  </label>
+</header>
+
+<div class="toolbar">
+  <button id="loadBtn" class="btn" hidden>Load unpacked</button>
+  <button id="updateBtn" class="btn">Update</button>
+</div>
+
+<div id="error" class="banner" hidden>
+  <span class="grow" id="errorText"></span>
+  <button id="retryBtn" class="btn ghost">Retry</button>
+</div>
+
+<main>
+  <div id="grid" class="grid"></div>
+  <div id="empty" class="empty" hidden>No extensions installed yet. Turn on Developer mode and choose “Load unpacked” to install one.</div>
+</main>
+
+<script>
+"use strict";
+(function () {
+  var grid = document.getElementById("grid");
+  var emptyEl = document.getElementById("empty");
+  var errorBox = document.getElementById("error");
+  var errorText = document.getElementById("errorText");
+  var retryBtn = document.getElementById("retryBtn");
+  var searchInput = document.getElementById("search");
+  var devToggle = document.getElementById("devToggle");
+  var loadBtn = document.getElementById("loadBtn");
+  var updateBtn = document.getElementById("updateBtn");
+
+  var DEV_KEY = "ibx-ext-devmode"; // persisted per origin (idiotbox://extensions)
+  var all = [];
+  var detailsCache = {};
+  var devMode = false;
+  try { devMode = window.localStorage.getItem(DEV_KEY) === "1"; } catch (e) { devMode = false; }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function showError(msg) {
+    errorText.textContent = msg;
+    errorBox.hidden = false;
+  }
+  function clearError() { errorBox.hidden = true; errorText.textContent = ""; }
+
+  async function getJson(url) {
+    var r = await fetch(url, { headers: { "Accept": "application/json" } });
+    var data = null;
+    try { data = await r.json(); } catch (e) { data = null; }
+    if (!r.ok) throw new Error((data && data.error) || ("Request failed (" + r.status + ")"));
+    return data || {};
+  }
+
+  async function postJson(url, body) {
+    var r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+    var data = null;
+    try { data = await r.json(); } catch (e) { data = null; }
+    if (!r.ok || !data || data.ok !== true) {
+      throw new Error((data && data.error) || ("Request failed (" + r.status + ")"));
+    }
+    return data;
+  }
+
+  // Only absolute fetchable URLs are used for icons. Manifest icon paths are
+  // plain relative disk paths (not URLs) and crx:// icons are unreachable
+  // from this origin, so anything else falls back to a letter tile.
+  function iconUrlFor(ext) {
+    var cands = [];
+    if (typeof ext.iconUrl === "string") cands.push(ext.iconUrl);
+    if (typeof ext.icon === "string") cands.push(ext.icon);
+    if (typeof ext.icons === "string") cands.push(ext.icons);
+    if (ext.icons && typeof ext.icons === "object") {
+      var keys = Object.keys(ext.icons).sort(function (a, b) { return Number(a) - Number(b); });
+      for (var i = keys.length - 1; i >= 0; i--) {
+        if (typeof ext.icons[keys[i]] === "string") cands.push(ext.icons[keys[i]]);
+      }
+    }
+    for (var j = 0; j < cands.length; j++) {
+      var u = cands[j];
+      if (/^(data:|blob:|https?:\/\/|idiotbox:\/\/)/i.test(u)) return u;
+    }
+    return null;
+  }
+
+  function tileColor(id) {
+    var h = 0;
+    var s = String(id || "?");
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return "hsl(" + (h % 360) + ", 38%, 42%)";
+  }
+
+  function iconHtml(ext) {
+    var u = iconUrlFor(ext);
+    var letter = esc((ext.name || ext.id || "?").trim().charAt(0).toUpperCase() || "?");
+    if (u) {
+      return '<span class="icon-tile"><img src="' + esc(u) + '" alt="" loading="lazy" ' +
+        'onerror="this.parentNode.style.background=' + "'" + tileColor(ext.id) + "';" + 'this.remove();' +
+        (letter ? "this.parentNode.appendChild(document.createTextNode('" + letter + "'));" : "") + '"></span>';
+    }
+    return '<span class="icon-tile" style="background:' + tileColor(ext.id) + '">' + letter + "</span>";
+  }
+
+  function cardHtml(ext) {
+    var id = String(ext.id || "");
+    var name = ext.name || id || "Unknown extension";
+    var ver = ext.version ? '<span class="ver">' + esc(ext.version) + "</span>" : "";
+    var desc = ext.description
+      ? '<p class="desc">' + esc(ext.description) + "</p>"
+      : '<p class="desc dim">No description.</p>';
+    return (
+      '<article class="card" data-id="' + esc(id) + '">' +
+        '<div class="card-head">' + iconHtml(ext) +
+          '<div class="meta"><div class="name">' + esc(name) + ver + '</div>' +
+          '<div class="id">' + esc(id) + "</div></div>" +
+        "</div>" + desc +
+        '<div class="card-foot">' +
+          '<label class="switch" title="' + (ext.enabled ? "Disable" : "Enable") + '">' +
+            '<input type="checkbox" class="enable-toggle" ' + (ext.enabled ? "checked" : "") + ' aria-label="Enable ' + esc(name) + '">' +
+            '<span class="track"></span>' +
+          "</label>" +
+          '<span class="spacer"></span>' +
+          '<button class="btn ghost details-btn" type="button">Details</button>' +
+          '<button class="btn danger ghost remove-btn" type="button">Remove</button>' +
+        "</div>" +
+        '<div class="details-box" hidden></div>' +
+      "</article>"
+    );
+  }
+
+  function matches(ext, q) {
+    if (!q) return true;
+    var hay = ((ext.name || "") + " " + (ext.id || "") + " " + (ext.description || "")).toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+
+  function render() {
+    var q = searchInput.value.trim().toLowerCase();
+    var shown = all.filter(function (e) { return matches(e, q); });
+    grid.innerHTML = shown.map(cardHtml).join("");
+    emptyEl.hidden = shown.length !== 0;
+    wireCards();
+  }
+
+  function setCardBusy(card, busy) {
+    var els = card.querySelectorAll("button, input");
+    for (var i = 0; i < els.length; i++) els[i].disabled = busy;
+  }
+
+  function wireCards() {
+    var cards = grid.querySelectorAll(".card");
+    for (var i = 0; i < cards.length; i++) {
+      (function (card) {
+        var id = card.getAttribute("data-id");
+        var ext = null;
+        for (var k = 0; k < all.length; k++) {
+          if (String(all[k].id) === id) { ext = all[k]; break; }
+        }
+        var toggle = card.querySelector(".enable-toggle");
+        var removeBtn = card.querySelector(".remove-btn");
+        var detailsBtn = card.querySelector(".details-btn");
+        var box = card.querySelector(".details-box");
+
+        toggle.addEventListener("change", async function () {
+          var on = toggle.checked;
+          setCardBusy(card, true);
+          try {
+            await postJson("api/enable", { id: id, on: on });
+            if (ext) ext.enabled = on;
+            toggle.parentNode.title = on ? "Disable" : "Enable";
+            clearError();
+          } catch (e) {
+            toggle.checked = !on;
+            showError("Could not " + (on ? "enable" : "disable") + " extension: " + e.message);
+          } finally {
+            setCardBusy(card, false);
+          }
+        });
+
+        removeBtn.addEventListener("click", async function () {
+          var label = (ext && ext.name) || id;
+          if (!window.confirm('Remove "' + label + '"?')) return;
+          setCardBusy(card, true);
+          try {
+            await postJson("api/uninstall", { id: id });
+            all = all.filter(function (e) { return String(e.id) !== id; });
+            delete detailsCache[id];
+            clearError();
+            render();
+          } catch (e) {
+            setCardBusy(card, false);
+            showError("Could not remove extension: " + e.message);
+          }
+        });
+
+        detailsBtn.addEventListener("click", async function () {
+          if (box.hidden) {
+            box.hidden = false;
+            detailsBtn.textContent = "Hide details";
+            if (!detailsCache[id]) {
+              box.innerHTML = '<div class="row"><span class="k">Loading…</span></div>';
+              try {
+                var d = await getJson("api/details?id=" + encodeURIComponent(id));
+                detailsCache[id] = d.details || d;
+              } catch (e) {
+                box.innerHTML = '<div class="row"><span class="k">Error</span><span class="v">' + esc(e.message) + "</span></div>";
+                return;
+              }
+            }
+            var det = detailsCache[id] || {};
+            var rows = [
+              ["Name", det.name || (ext && ext.name) || ""],
+              ["Version", det.version || (ext && ext.version) || ""],
+              ["ID", id],
+              ["Description", det.description || (ext && ext.description) || ""],
+              ["Path", det.path || (ext && ext.path) || ""]
+            ];
+            box.innerHTML = rows.map(function (r) {
+              return '<div class="row"><span class="k">' + esc(r[0]) + '</span><span class="v">' + esc(r[1] || "—") + "</span></div>";
+            }).join("");
+          } else {
+            box.hidden = true;
+            detailsBtn.textContent = "Details";
+          }
+        });
+      })(cards[i]);
+    }
+  }
+
+  async function refresh() {
+    clearError();
+    updateBtn.disabled = true;
+    try {
+      var data = await getJson("api/list");
+      all = Array.isArray(data.extensions) ? data.extensions : [];
+      render();
+    } catch (e) {
+      showError("Could not load extensions: " + e.message);
+    } finally {
+      updateBtn.disabled = false;
+    }
+  }
+
+  function applyDevMode() {
+    devToggle.checked = devMode;
+    loadBtn.hidden = !devMode;
+    try { window.localStorage.setItem(DEV_KEY, devMode ? "1" : "0"); } catch (e) {}
+  }
+
+  devToggle.addEventListener("change", function () {
+    devMode = devToggle.checked;
+    applyDevMode();
+  });
+
+  searchInput.addEventListener("input", render);
+
+  loadBtn.addEventListener("click", async function () {
+    loadBtn.disabled = true;
+    try {
+      var res = await postJson("api/load-unpacked", {});
+      clearError();
+      await refresh();
+      if (res && res.ok === false) showError("Load unpacked did not complete.");
+    } catch (e) {
+      // The host opens a folder dialog; cancelling it reports ok:false.
+      if (!/cancel/i.test(e.message)) showError("Could not load unpacked extension: " + e.message);
+    } finally {
+      loadBtn.disabled = false;
+    }
+  });
+
+  updateBtn.addEventListener("click", async function () {
+    try {
+      await postJson("api/reload", {});
+      clearError();
+    } catch (e) {
+      showError("Update failed: " + e.message);
+    } finally {
+      await refresh();
+    }
+  });
+
+  retryBtn.addEventListener("click", refresh);
+
+  applyDevMode();
+  refresh();
+})();
+</script>
+</body>
+</html>

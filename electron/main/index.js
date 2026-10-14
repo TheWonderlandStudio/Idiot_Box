@@ -195,7 +195,13 @@ async function handleIbxProtocolUrl(raw) {
     const m = u.match(/^idiotbox:\/\/([^?#]*)/i);
     action = (m ? m[1] : "").toLowerCase();
   } catch {}
-  if (action !== "update") return false;
+  if (action !== "update" && action !== "extensions") return false;
+  if (action === "extensions") {
+    console.log("[protocol] idiotbox://extensions — opening extensions page");
+    const win = focusMainWindow();
+    try { if (win && !win.isDestroyed()) win.webContents.send("add-browser-panel", { url: "idiotbox://extensions/" }); } catch {}
+    return true;
+  }
   console.log("[protocol] idiotbox://update — triggering update check");
   try { logOutput("Updater", "Update requested from website (idiotbox://update)"); } catch {}
   const win = focusMainWindow();
@@ -345,6 +351,12 @@ protocol.registerSchemesAsPrivileged([
   {
     scheme: "ibx-file",
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+  },
+  {
+    // Internal app pages (idiotbox://extensions) + same-origin JSON API.
+    // standard+secure: localStorage/fetch work; supportFetchAPI: page fetches api/*.
+    scheme: "idiotbox",
+    privileges: { standard: true, secure: true, supportFetchAPI: true },
   },
 ]);
 
@@ -5825,10 +5837,65 @@ function saveChromeExtensionEntry(entry) {
 }
 
 ipcMain.handle("chrome:loadExtension", async () => {
+  const r = await loadUnpackedChromeExtension();
+  return r;
+});
+
+// ─── Shared extension ops (IPC handlers below + idiotbox:// page API) ──────
+function listChromeExtensions() {
+  const out = [];
+  if (!chromeExt) return out;
+  try {
+    const all = chromeExtensionsApi().getAllExtensions() || [];
+    const entries = readChromeExtensionEntries();
+    for (const ext of all) {
+      const entry = entries.find((e) => typeof e === "object" && e.id === ext.id);
+      out.push({
+        id: ext.id,
+        name: ext.name,
+        version: ext.version,
+        description: ext.manifest?.description || "",
+        path: entry?.path || ext.path || "",
+        enabled: entry ? entry.enabled !== false : true,
+      });
+    }
+  } catch {}
+  return out;
+}
+
+async function setChromeExtensionEnabled(id, enabled) {
+  if (!chromeExt) return { ok: false };
+  const entries = readChromeExtensionEntries();
+  const entry = entries.find((e) => typeof e === "object" && e.id === id);
+  if (!entry) return { ok: false, error: "Not found" };
+  try {
+    if (enabled) {
+      const ext = await chromeExtensionsApi().loadExtension(entry.path);
+      entry.id = ext.id;
+    } else {
+      chromeExtensionsApi().removeExtension(id);
+    }
+    entry.enabled = !!enabled;
+    saveChromeExtensionEntry(entry);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
+function removeChromeExtension(id) {
+  if (!chromeExt) return { ok: false };
+  try { chromeExtensionsApi().removeExtension(id); } catch {}
+  const entries = readChromeExtensionEntries().filter((e) => typeof e !== "object" || e.id !== id);
+  try { fs.writeFileSync(EXTENSIONS_FILE, JSON.stringify(entries, null, 2)); } catch {}
+  return { ok: true };
+}
+
+async function loadUnpackedChromeExtension() {
   const r = await dialog.showOpenDialog({
     title: "Load unpacked Chrome extension", properties: ["openDirectory"],
   });
-  if (r.canceled || !r.filePaths.length || !chromeExt) return { ok: false };
+  if (r.canceled || !r.filePaths.length || !chromeExt) return { ok: false, error: "cancelled by user" };
   try {
     const ext = await chromeExtensionsApi().loadExtension(r.filePaths[0]);
     saveChromeExtensionEntry({ path: r.filePaths[0], id: ext.id, enabled: true });
@@ -5836,7 +5903,24 @@ ipcMain.handle("chrome:loadExtension", async () => {
   } catch (err) {
     return { ok: false, error: String(err) };
   }
-});
+}
+
+// Re-load enabled entries missing from the live session (Update button).
+function reloadChromeExtensions() {
+  if (!chromeExt) return { ok: false, error: "Extensions not available" };
+  let reloaded = 0;
+  try {
+    const live = new Set((chromeExtensionsApi().getAllExtensions() || []).map((e) => e.id));
+    for (const e of readChromeExtensionEntries()) {
+      const p = typeof e === "string" ? e : e?.path;
+      if (!p || e?.enabled === false) continue;
+      const id = typeof e === "object" ? e.id : "";
+      if (id && live.has(id)) continue;
+      try { chromeExtensionsApi().loadExtension(p); reloaded++; } catch (err) { console.error("reloadExtension failed:", p, err); }
+    }
+  } catch (err) { return { ok: false, error: String((err && err.message) || err) }; }
+  return { ok: true, reloaded };
+}
 
 // ── CRX upload: .crx file → unzip to userData/extensions → load ─────────
 // CRX3: Cr24 | ver(3) | header_len | header | zip. CRX2: Cr24 | ver(2) |
@@ -5928,54 +6012,11 @@ ipcMain.handle("chrome:loadCrx", async () => {
   }
 });
 
-ipcMain.handle("chrome:listExtensions", () => {
-  if (!chromeExt) return [];
-  const out = [];
-  try {
-    const all = chromeExtensionsApi().getAllExtensions() || [];
-    const entries = readChromeExtensionEntries();
-    for (const ext of all) {
-      const entry = entries.find((e) => typeof e === "object" && e.id === ext.id);
-      out.push({
-        id: ext.id,
-        name: ext.name,
-        version: ext.version,
-        description: ext.manifest?.description || "",
-        path: entry?.path || ext.path || "",
-        enabled: entry ? entry.enabled !== false : true,
-      });
-    }
-  } catch {}
-  return out;
-});
+ipcMain.handle("chrome:listExtensions", () => listChromeExtensions());
 
-ipcMain.handle("chrome:setExtensionEnabled", async (_e, id, enabled) => {
-  if (!chromeExt) return { ok: false };
-  const entries = readChromeExtensionEntries();
-  const entry = entries.find((e) => typeof e === "object" && e.id === id);
-  if (!entry) return { ok: false, error: "Not found" };
-  try {
-    if (enabled) {
-      const ext = await chromeExtensionsApi().loadExtension(entry.path);
-      entry.id = ext.id;
-    } else {
-      chromeExtensionsApi().removeExtension(id);
-    }
-    entry.enabled = !!enabled;
-    saveChromeExtensionEntry(entry);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: String(err) };
-  }
-});
+ipcMain.handle("chrome:setExtensionEnabled", async (_e, id, enabled) => setChromeExtensionEnabled(id, enabled));
 
-ipcMain.handle("chrome:removeExtension", (_e, id) => {
-  if (!chromeExt) return { ok: false };
-  try { chromeExtensionsApi().removeExtension(id); } catch {}
-  const entries = readChromeExtensionEntries().filter((e) => typeof e !== "object" || e.id !== id);
-  try { fs.writeFileSync(EXTENSIONS_FILE, JSON.stringify(entries, null, 2)); } catch {}
-  return { ok: true };
-});
+ipcMain.handle("chrome:removeExtension", (_e, id) => removeChromeExtension(id));
 
 // ─── Settings window ──────────────────────────────────────────────────────────
 let settingsWin = null;
@@ -6484,7 +6525,7 @@ function createWindow() {
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith("file://")) {
       event.preventDefault();
-      if (/^(https?:|ibx-file:|view-source:)/i.test(url) || url.startsWith("localhost") || /^\d+\.\d+\.\d+\.\d+/.test(url) || /^[^\s]+\.[^\s]+/.test(url)) {
+      if (/^(https?:|ibx-file:|idiotbox:|view-source:)/i.test(url) || url.startsWith("localhost") || /^\d+\.\d+\.\d+\.\d+/.test(url) || /^[^\s]+\.[^\s]+/.test(url)) {
         safeForward(url);
       } else {
         safeForward(url);
@@ -6747,6 +6788,64 @@ app.whenReady().then(async () => {
   // renders a styled letter tile via .action.no-icon + data-letter
   // (browser-action.js `img.onerror`), which distinguishes per extension
   // better than the app logo.
+  // ── Extension popup anchor relay ───────────────────────────────────────
+  // The renderer reports the clicked <browser-action> button rect (true CSS
+  // px in its own window) before the library positions the popup. The
+  // library's own math can't account for UI zoom / popout windows / DPI, so
+  // the popup-created handler below places the window from this anchor.
+  const pendingPopupAnchors = []; // { winId, rect, t }
+  ipcMain.handle("ext:popupAnchor", (e, a) => {
+    try {
+      const w = BrowserWindow.fromWebContents(e.sender);
+      pendingPopupAnchors.push({ winId: w ? w.id : null, rect: a || {}, t: Date.now() });
+      while (pendingPopupAnchors.length > 8) pendingPopupAnchors.shift();
+    } catch {}
+    return true;
+  });
+
+  // Place an extension popup exactly under its toolbar button (Chrome style:
+  // below the button, right-aligned), clamped inside the owning window's
+  // content bounds. First call consumes a fresh relayed anchor and stores it
+  // on the window; later calls (resize/settle) reuse the stored anchor.
+  // Returns false when no anchor is available.
+  function placePopupFromAnchor(pwin) {
+    try {
+      if (!pwin || pwin.isDestroyed()) return false;
+      let anchor = pwin._ibxAnchor || null;
+      if (!anchor) {
+        const now = Date.now();
+        for (let i = pendingPopupAnchors.length - 1; i >= 0; i--) {
+          const p = pendingPopupAnchors[i];
+          if (now - p.t > 3000) { pendingPopupAnchors.splice(i, 1); continue; }
+          const w = p.winId ? BrowserWindow.fromId(p.winId) : null;
+          if (w && !w.isDestroyed()) { pendingPopupAnchors.splice(i, 1); anchor = { win: w, rect: p.rect }; break; }
+        }
+        if (!anchor) return false;
+        try { pwin._ibxAnchor = anchor; } catch {}
+      } else if (!anchor.win || anchor.win.isDestroyed()) return false;
+      const target = anchor.win;
+      try { if (typeof pwin.getParentWindow === "function" && pwin.getParentWindow() !== target) pwin.setParentWindow(target); } catch {}
+      let z = 1;
+      try { if (target.webContents && typeof target.webContents.getZoomFactor === "function") z = target.webContents.getZoomFactor() || 1; } catch {}
+      const cb = target.getContentBounds();
+      const r = anchor.rect || {};
+      const ax = cb.x + (Number(r.x) || 0) * z;
+      const ay = cb.y + (Number(r.y) || 0) * z;
+      const aw = (Number(r.width) || 0) * z;
+      const ah = (Number(r.height) || 0) * z;
+      const wb = pwin.getBounds();
+      let x = Math.round(ax + aw - wb.width);
+      let y = Math.round(ay + ah + 5);
+      x = Math.max(Math.round(cb.x + 4), Math.min(x, Math.round(cb.x + cb.width - wb.width - 4)));
+      if (y + wb.height > cb.y + cb.height - 4) y = Math.round(ay - wb.height - 5);
+      y = Math.max(Math.round(cb.y + 4), y);
+      // Only touch bounds when they actually change — otherwise our own
+      // move/resize listeners would ping-pong with the library's.
+      if (x !== wb.x || y !== wb.y) pwin.setBounds({ ...wb, x, y });
+      return true;
+    } catch { return false; }
+  }
+
   if (ElectronChromeExtensions) {
   chromeExt = new ElectronChromeExtensions({
     license: "GPL-3.0",
@@ -6791,7 +6890,9 @@ app.whenReady().then(async () => {
       if (settleShown || pwin.isDestroyed() || parent.isDestroyed()) return;
       settleShown = true;
       suppressShow = false;
-      clamp();
+      // Prefer exact anchor placement (renderer-reported button rect, zoom/DPI
+      // aware); fall back to the bounds clamp when no anchor arrived.
+      if (!placePopupFromAnchor(pwin)) clamp();
       pwin.show();
     };
 
@@ -6800,7 +6901,7 @@ app.whenReady().then(async () => {
       settleTimer = setTimeout(showSettled, 120);
     };
 
-    const onLayoutChange = () => { clamp(); kickSettle(); };
+    const onLayoutChange = () => { if (!placePopupFromAnchor(pwin)) clamp(); kickSettle(); };
 
     // Hide the initial premature show (library shows on first preferred-size-changed)
     pwin.on("show", () => {
@@ -6881,6 +6982,24 @@ app.whenReady().then(async () => {
       return new Response("Not found", { status: 404 });
     }
   });
+  // Internal app pages (idiotbox://extensions + same-origin JSON API).
+  try {
+    const { registerIbxPages } = require("./ibx-pages");
+    registerIbxPages({
+      protocol,
+      api: {
+        listExtensions: async () => ({ ok: true, extensions: listChromeExtensions() }),
+        getDetails: async (id) => {
+          const ext = listChromeExtensions().find((e) => e.id === id);
+          return ext ? { ok: true, details: ext } : { ok: false, error: "Not found: " + id };
+        },
+        setEnabled: async (id, on) => setChromeExtensionEnabled(id, on),
+        uninstall: async (id) => removeChromeExtension(id),
+        loadUnpacked: async () => loadUnpackedChromeExtension(),
+        reloadAll: async () => reloadChromeExtensions(),
+      },
+    });
+  } catch (err) { console.warn("[ibx-pages] registration failed:", err && err.message); }
   getShell();
   rebuildMenu();
   createWindow();

@@ -457,6 +457,16 @@
   --icon-hover:      #333;
   --icon-faint:      #999;
 
+  /* ── Media viewer (follows the app theme; stage stays neutral gray) ─── */
+  --media-stage:     #dcdcdc;
+  --media-panel:     #ffffff;
+  --media-chip:      #ececec;
+  --media-video-bg:  #a8adb0;
+  --media-sep:       #e0e0e0;
+  --media-error-bg:  #fdeceb;
+  --media-error-border: #f0b0b0;
+  --media-veil:      rgba(255,255,255,0.92);
+
   /* Hardcoded-dark content surfaces (notebook cells, terminal, canvas stage)
      used to stay dark even in light mode — kept that behavior for a
      "what you see is what you get" look. To lighten them, change only here. */

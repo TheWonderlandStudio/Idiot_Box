@@ -210,6 +210,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   extViewMessage: (extId, viewType, msg) => ipcRenderer.invoke("ext:viewMessage", extId, viewType, msg),
   extLog: (extId, message, level, opts) => ipcRenderer.invoke("ext:log", extId, message, level, opts),
   extStatusItems: () => ipcRenderer.invoke("ext:statusItems"),
+  // Last clicked browser-action button rect (CSS px, viewport-relative) so the
+  // main process can anchor the extension popup under the button. Fire-and-forget.
+  extPopupAnchor: (a) => { try { ipcRenderer.invoke("ext:popupAnchor", a).catch(() => {}); } catch {} return true; },
   onExtChanged: (cb) => {
     const handler = () => cb();
     ipcRenderer.on("ext:changed", handler);

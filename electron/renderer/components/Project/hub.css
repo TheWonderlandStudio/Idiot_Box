@@ -3700,7 +3700,11 @@
    ════════════════════════════════════════════════════════════════════ */
 
 /* ── Page root + glow (was #0a0a0c + strong orange) ─────────────────── */
-:root[data-theme="light"] .phub { background: #f3f3f3; }
+/* NOTE: :not(.phub--wallpaper) is required — a plain `background` shorthand
+   here would out-specify `.phub.phub--wallpaper` below and reset its
+   cover/center/no-repeat, tiling the wallpaper (same trap the dark
+   redesign guards against with double-class specificity). */
+:root[data-theme="light"] .phub:not(.phub--wallpaper) { background: #f3f3f3; }
 :root[data-theme="light"] .phub__glow {
   background:
     radial-gradient(52% 40% at 50% 105%, rgba(255, 150, 74, 0.22), transparent 74%),

@@ -27,7 +27,7 @@ const ExtensionsPage = () => {
 
   const loadNew = async () => {
     const res = await window.electronAPI.loadChromeExtension();
-    if (res?.error) setError(res.error);
+    if (res?.error && !/cancel/i.test(res.error)) setError(res.error);
     else refresh();
   };
 

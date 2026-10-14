@@ -62,7 +62,7 @@ const ChromeSection = () => {
     setError("");
     if (!window.electronAPI?.loadChromeExtension) { setError("Extensions API not available"); return; }
     const res = await window.electronAPI.loadChromeExtension();
-    if (res?.error) setError(res.error);
+    if (res?.error && !/cancel/i.test(res.error)) setError(res.error);
     else if (res?.ok === false) { /* user cancelled */ }
     else showToast("Extension loaded");
     refresh(true);

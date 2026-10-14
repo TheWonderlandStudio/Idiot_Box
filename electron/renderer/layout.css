@@ -158,6 +158,11 @@ body,
   padding: 0 1.2em 0 0.5em !important;
 }
 
+/* Tabset header add-panel (+) button — theme-aware fill (was hardcoded
+   white, invisible on light tab strips). */
+.flexlayout__tab_toolbar_button svg { fill: var(--text-secondary); }
+.flexlayout__tab_toolbar_button:hover svg { fill: var(--text-primary); }
+
 /* ── Title bar right: Layouts button (Hub-style ghost chip) ─────────────── */
 .tb-workspaces {
   /* flex order: box after the left cluster, before window controls */
