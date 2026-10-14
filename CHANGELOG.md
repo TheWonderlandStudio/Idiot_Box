@@ -3,6 +3,37 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.27] - 2026-10-14
+
+### Added
+- **All 8 installer formats** — same as 0.1.26: every release ships
+  `.exe` (NSIS), `.msi` (WiX) and `.msix` (+ `.msixupload` for Store
+  submission) for Windows, `.AppImage`, `.deb`, `.rpm` and `.pacman`
+  for Linux, and `.dmg` (+ `.zip` updater feed) for macOS
+  (Intel + Apple Silicon), built on Windows, Ubuntu and macOS runners
+  and attached to one GitHub Release.
+- **Extension management pages** — internal `idiotbox://` pages for
+  listing, enabling, uninstalling and loading unpacked extensions,
+  with popup anchoring API and improved load error handling.
+- **Complete light mode** — titlebar, tabs, Hub and popouts now fully
+  themed (new `popout.js`, layout/variable CSS, Hub light styles).
+- **MSIX Store readiness** — appx tiles/splash assets, Store updater
+  guard (Store-signed builds skip the `latest.yml` self-updater),
+  documented NSIS installer exit codes (`docs/installer-exit-codes.md`),
+  hardened MSI/MSIX config (`winCodeSign` toolset, `warningsAsErrors`,
+  `minVersion`/`maxVersionTested`, `showNameOnTiles`,
+  `createMsixupload`).
+
+### Changed
+- **Discord-only Community panel** with its own styles; English-only
+  pass across menus, installer script, release workflow and landing
+  page.
+
+### Fixed
+- **Browser webview popout crash** — popout is blocked for webview
+  panels (browser/community) so detaching them can no longer crash
+  the app.
+
 ## [0.1.26] - 2026-10-12
 
 ### Added
