@@ -66,7 +66,7 @@ const DEFAULT_JSON = {
             type: "row", weight: 65,
             children: [
               { type: "tabset", weight: 30, children: [{ type: "tab", name: "Media Viewer", component: "mediaViewer" }] },
-              { type: "tabset", weight: 70, children: [{ type: "tab", name: "Browser", component: "panel3", config: { type: "browser", title: "Browser" } }] },
+              { type: "tabset", weight: 70, children: [{ type: "tab", name: "Browser", component: "panel3", enablePopout: false, config: { type: "browser", title: "Browser" } }] },
             ],
           },
           {
@@ -881,6 +881,76 @@ const enablePopouts = (json) => {
   return json;
 };
 
+// ── Webview panels must NEVER pop out ──────────────────────────────────────
+// Electron <webview> guests are bound to their embedder WebContents — moving
+// the tab into a FlexLayout popout window (popout.html, a separate
+// BrowserWindow) detaches/re-parents the guest and crashes the whole app.
+// This affects Browser, Community, OpenPencil and AI Agent (all host <webview>).
+// Fix: per-tab enablePopout=false (hides the header popout icon + context
+// menu entry) AND a runtime veto in handleLayoutAction (covers drag-out,
+// programmatic popoutTab and old saved layouts that lack the flag).
+const WEBVIEW_NO_POPOUT_COMPONENTS = new Set(["panel3", "community", "openPencil", "aiAgent"]);
+const isWebviewTabJson = (tabJson) => {
+  try {
+    if (!tabJson || tabJson.type !== "tab") return false;
+    if (WEBVIEW_NO_POPOUT_COMPONENTS.has(tabJson.component)) return true;
+    if (tabJson.config && tabJson.config.type === "browser") return true;
+  } catch {}
+  return false;
+};
+// Force enablePopout=false on every saved/default webview tab (idempotent).
+const disableWebviewPopouts = (json) => {
+  try {
+    const walk = (node) => {
+      if (!node || typeof node !== "object") return;
+      if (node.type === "tab" && isWebviewTabJson(node)) {
+        node.enablePopout = false;
+      }
+      if (Array.isArray(node.children)) node.children.forEach(walk);
+    };
+    if (json?.layout) walk(json.layout);
+    if (Array.isArray(json?.borders)) json.borders.forEach(walk);
+    if (json?.popouts && typeof json.popouts === "object") {
+      Object.values(json.popouts).forEach((p) => walk(p?.layout));
+    }
+  } catch {}
+  return json;
+};
+// New tabs: single place that builds tab JSON with the correct popout flag.
+const makeTabJson = (component, name, config, extra) => {
+  const json = { type: "tab", component, name, enableClose: true, config, ...(extra || {}) };
+  if (isWebviewTabJson(json)) json.enablePopout = false;
+  return json;
+};
+// Runtime check on live model nodes (for the onAction veto).
+const isWebviewModelNode = (node) => {
+  try {
+    if (!node || node.getType?.() !== "tab") return false;
+    const c = node.getComponent?.();
+    if (c && WEBVIEW_NO_POPOUT_COMPONENTS.has(c)) return true;
+    const cfg = node.getConfig?.();
+    if (cfg && cfg.type === "browser") return true;
+  } catch {}
+  return false;
+};
+// Small transient notice — FlexLayout gives no callback when onAction vetoes,
+// so tell the user why nothing happened (instead of silent confusion).
+const showPopoutBlockedToast = () => {
+  try {
+    let el = document.getElementById("ibx-popout-blocked-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ibx-popout-blocked-toast";
+      el.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);max-width:min(520px,90vw);background:var(--bg-vscode,#1e1e1e);color:var(--text-hover,#ddd);border:1px solid var(--border-strong,#444);border-radius:8px;padding:10px 16px;font-size:12px;font-family:inherit;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:99999;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;";
+      document.body.appendChild(el);
+    }
+    el.textContent = "Browser / webview panels can't be popped out — the embedded page must stay in the main window.";
+    el.style.opacity = "1";
+    clearTimeout(el._hideT);
+    el._hideT = setTimeout(() => { try { el.style.opacity = "0"; } catch {} }, 2800);
+  } catch {}
+};
+
 const forceLayoutRedraw = (m) => {
   try {
     [...m.getwindowsMap().values()].forEach((lw) => lw?.layout?.redraw?.("force"));
@@ -1132,7 +1202,7 @@ const App = () => {
         if (s.restoreTabs === false) session = null;
       } catch {}
       const json = (session && session.layout) ? JSON.parse(JSON.stringify(session.layout)) : DEFAULT_JSON;
-      enablePopouts(json);
+      disableWebviewPopouts(enablePopouts(json));
       // Migrate old component names
       if (session && session.layout) {
         (function migrate(node) {
@@ -1328,7 +1398,7 @@ const App = () => {
       let restored = false;
       if (savedPanels) {
         try {
-          const json = enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(savedPanels))));
+          const json = disableWebviewPopouts(enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(savedPanels)))));
           modelRef.current = Model.fromJson(json);
           restored = true;
         } catch {}
@@ -1431,10 +1501,9 @@ const App = () => {
       if (!tabsetId) return;
       lastBrowserTabsetRef.current = tabsetId;
       try { window.__lastBrowserTabsetId = tabsetId; } catch {}
-      m.doAction(Actions.addNode({
-        type: "tab", component: "panel3", name: "New Tab", enableClose: true,
-        config: { type: "browser", title: "New Tab", url: url || "https://www.google.com" },
-      }, tabsetId, DockLocation.CENTER, -1, true));
+      m.doAction(Actions.addNode(
+        makeTabJson("panel3", "New Tab", { type: "browser", title: "New Tab", url: url || "https://www.google.com" }),
+      tabsetId, DockLocation.CENTER, -1, true));
       scheduleSaveProjectTabs();
     });
     return unsub;
@@ -1595,9 +1664,9 @@ const App = () => {
         const activeTabset = m.getActiveTabset?.();
         parentId = activeTabset ? activeTabset.getId() : m.getRoot().getId();
       }
-      m.doAction(Actions.addNode({
-        type: "tab", component, name, enableClose: true, config,
-      }, parentId, DockLocation.CENTER, -1, true));
+      m.doAction(Actions.addNode(
+        makeTabJson(component, name, config),
+      parentId, DockLocation.CENTER, -1, true));
     };
     const onBrowser = (e) => addPanel("panel3", "Browser", e.detail?.config || { type: "browser", title: "Browser", url: e.detail?.url || "https://www.google.com" });
     const onPreview = () => addPanel("componentPreview", "Component Preview", {});
@@ -2571,7 +2640,42 @@ const App = () => {
   // dialog resolves we re-issue the close directly on the model (which
   // bypasses onAction, so no loop).
   const handleLayoutAction = (action) => {
+    // ── Crash guard: never let a <webview> tab leave the main window ──────
+    // Popping out Browser/Community/OpenPencil/AI-Agent re-parents the guest
+    // across BrowserWindows and crashes the app. Veto + toast instead.
     try {
+      if (action && (action.type === Actions.POPOUT_TAB || action.type === Actions.POPOUT_TABSET)) {
+        const m = modelRef.current;
+        let blocked = false;
+        try {
+          if (action.type === Actions.POPOUT_TAB) {
+            const n = action.data?.node && m ? m.getNodeById(action.data.node) : null;
+            blocked = isWebviewModelNode(n);
+          } else if (action.type === Actions.POPOUT_TABSET) {
+            const ts = action.data?.node && m ? m.getNodeById(action.data.node) : null;
+            const kids = ts?.getChildren?.() || [];
+            blocked = kids.some(isWebviewModelNode);
+            // Tabset popout via drag can also carry the tabset's selected tab
+            // only — walk one level deeper to be safe.
+            if (!blocked) {
+              try {
+                const walk = (node) => {
+                  if (!node) return false;
+                  if (node.getType?.() === "tab" && isWebviewModelNode(node)) return true;
+                  const ch = node.getChildren?.() || [];
+                  for (const c of ch) if (walk(c)) return true;
+                  return false;
+                };
+                blocked = walk(ts);
+              } catch {}
+            }
+          }
+        } catch {}
+        if (blocked) {
+          try { showPopoutBlockedToast(); } catch {}
+          return undefined; // veto — keeps the webview in the main window
+        }
+      }
       if (action && action.type === Actions.DELETE_TAB) {
         const nodeId = action.data?.node;
         const m = modelRef.current;
@@ -2642,7 +2746,7 @@ const App = () => {
   const applyLayoutPreset = (preset) => {
     try {
       if (!preset || !preset.panels || !preset.panels.layout || !currentProjectRef.current) return false;
-      const json = enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(preset.panels))));
+      const json = disableWebviewPopouts(enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(preset.panels)))));
       modelRef.current = Model.fromJson(json);
       projectLayoutRef.current = preset.layout === "blank" ? "blank" : null;
       setTick((t) => t + 1);
@@ -2763,17 +2867,19 @@ const App = () => {
             else if (action === "closeOthers") tabs.filter((tab) => tab.getId() !== tabId).forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
             else if (action === "closeAll") tabs.forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
             else if (action === "duplicate" && duplicateable && parent) {
-              m.doAction(Actions.addNode({
-                type: "tab", component: current.getComponent(), name: current.getName(), enableClose: true,
-                config: { ...(current.getConfig?.() || {}) },
-              }, parent.getId(), DockLocation.CENTER, -1, true));
+              m.doAction(Actions.addNode(
+                makeTabJson(current.getComponent(), current.getName(), { ...(current.getConfig?.() || {}) }),
+              parent.getId(), DockLocation.CENTER, -1, true));
             } else if (action === "splitRight" && parent) {
-              m.doAction(Actions.addNode({
-                type: "tab", component: current.getComponent(), name: current.getName(), enableClose: true,
-                config: { ...(current.getConfig?.() || {}) },
-              }, parent.getId(), DockLocation.RIGHT, -1, true));
+              m.doAction(Actions.addNode(
+                makeTabJson(current.getComponent(), current.getName(), { ...(current.getConfig?.() || {}) }),
+              parent.getId(), DockLocation.RIGHT, -1, true));
             }
-            else if (action === "popout") m.doAction(Actions.popoutTab(tabId));
+            else if (action === "popout") {
+              // Webview tabs are vetoed in handleLayoutAction too — fast-path
+              // here so the user gets the toast immediately.
+              try { if (isWebviewModelNode(current)) { showPopoutBlockedToast(); } else m.doAction(Actions.popoutTab(tabId)); } catch { try { m.doAction(Actions.popoutTab(tabId)); } catch {} }
+            }
             else if (action === "copyPath" && filePath) window.electronAPI?.clipboardWrite?.(filePath);
             else if (action === "reveal" && filePath) window.electronAPI?.revealInExplorer?.(filePath);
             scheduleSaveProjectTabs();
@@ -2869,7 +2975,7 @@ const App = () => {
             onContextMenu={openPanelAddMenu}
             title="Add Panel"
           >
-            <svg style={{ fill: "var(--text-inverse)" }} width="12" height="12" viewBox="0 0 16 16">
+            <svg width="12" height="12" viewBox="0 0 16 16">
               <rect x="7" y="1" width="2" height="14" rx="1"/>
               <rect x="1" y="7" width="14" height="2" rx="1"/>
             </svg>

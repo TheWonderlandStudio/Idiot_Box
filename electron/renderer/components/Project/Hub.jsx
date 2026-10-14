@@ -117,11 +117,14 @@ const buildPanelsJson = (panelKeys) => {
   push("editor");
   (panelKeys || []).forEach(push);
   const others = comps.filter((c) => c !== "editor");
+  // Webview tabs must never pop out (cross-window re-parent crashes the app).
+  const WEBVIEW_NO_POPOUT = new Set(["panel3", "community", "openPencil", "aiAgent"]);
   const tab = (component) => ({
     type: "tab",
     name: COMPONENT_NAMES[component] || component,
     component,
     ...(component === "terminal" ? { id: "terminal-tab" } : {}),
+    ...(WEBVIEW_NO_POPOUT.has(component) ? { enablePopout: false } : {}),
   });
   let layout;
   if (!others.length) {

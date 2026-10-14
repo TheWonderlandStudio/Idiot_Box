@@ -347,11 +347,16 @@ const BlankPanel = ({ nodeId, config }) => {
     const m = window.__flexModel?.current;
     if (m && nodeId) {
       try {
+        // Webview panels must stay in the main window (popout = app crash).
+        const isWebview = panelItem.component === "panel3" || panelItem.component === "community"
+          || panelItem.component === "openPencil" || panelItem.component === "aiAgent"
+          || panelItem.config?.type === "browser";
         m.doAction(
           Actions.updateNodeAttributes(nodeId, {
             component: panelItem.component,
             name: panelItem.name,
             config: panelItem.config || {},
+            ...(isWebview ? { enablePopout: false } : {}),
           })
         );
         // Flexlayout memoizes tab content (SizeTracker) and won't re-render it

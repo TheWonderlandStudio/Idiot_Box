@@ -463,6 +463,32 @@ const BrowserPanel = (props) => {
     } catch {}
   }, []);
 
+  // ── Extension popup anchor relay ─────────────────────────────────────────
+  // The library positions popups from the clicked button's rect, but it can't
+  // account for UI zoom / popout windows / DPI. Report the true button rect
+  // (capture phase, before the library handles the click) so the main process
+  // can place the popup exactly under the button. Document-level so it
+  // survives toolbar remounts (e.g. hide/show toolbar).
+  useEffect(() => {
+    const send = (e) => {
+      try {
+        const btn = e.target && e.target.closest ? e.target.closest("browser-action") : null;
+        if (!btn) return;
+        const r = btn.getBoundingClientRect();
+        window.electronAPI?.extPopupAnchor?.({
+          id: btn.getAttribute("id") || btn.id || "",
+          x: r.left, y: r.top, width: r.width, height: r.height,
+        });
+      } catch {}
+    };
+    document.addEventListener("click", send, true);
+    document.addEventListener("contextmenu", send, true);
+    return () => {
+      try { document.removeEventListener("click", send, true); } catch {}
+      try { document.removeEventListener("contextmenu", send, true); } catch {}
+    };
+  }, []);
+
   // Keep nodeIdRef current (nodeId itself doesn't change but keep defensive)
   useEffect(() => { nodeIdRef.current = nodeId; }, [nodeId]);
   useEffect(() => { editModeRef.current = editMode; }, [editMode]);
@@ -771,7 +797,7 @@ const BrowserPanel = (props) => {
   const isLocal  = !hostname || hostname === "localhost" || hostname === "127.0.0.1"
     || hostname === "0.0.0.0" || hostname.startsWith("192.168.") || hostname.startsWith("10.");
   const isHttps  = protocol === "https:";
-  const isFile   = protocol === "file:" || protocol === "ibx-file:";
+  const isFile   = protocol === "file:" || protocol === "ibx-file:" || protocol === "idiotbox:";
   const iconPath  = isFile ? LOCAL_ICON : isLocal ? LOCAL_ICON : (isHttps ? LOCK_ICON : UNLOCK_ICON);
   const iconColor = isFile ? "var(--teal)" : isLocal ? "var(--icon)" : (isHttps ? "var(--teal)" : "var(--warning)");
 
@@ -787,7 +813,7 @@ const BrowserPanel = (props) => {
   const goToUrl = useCallback((u) => {
     let fixed = u.trim();
     if (!fixed) return;
-    if (/^https?:\/\//i.test(fixed) || fixed.startsWith("ibx-file://") || fixed.startsWith("file://") || fixed.startsWith("view-source:")) {
+    if (/^https?:\/\//i.test(fixed) || fixed.startsWith("ibx-file://") || fixed.startsWith("idiotbox://") || fixed.startsWith("file://") || fixed.startsWith("view-source:")) {
       // already has scheme
     } else if (fixed.startsWith("localhost") || fixed.startsWith("127.0.0.1") || /^\d+\.\d+\.\d+\.\d+/.test(fixed)) {
       fixed = "http://" + fixed;
@@ -1307,6 +1333,9 @@ const BrowserPanel = (props) => {
             if (tabset) {
               m.doAction(Actions.addNode({
                 type:"tab",component:"panel3",name:"New Tab",enableClose:true,
+                // NOTE: webview tabs must never pop out (cross-window
+                // re-parent crashes the app) — keep the flag on every creator.
+                enablePopout:false,
                 config:{ type:"browser",title:"New Tab",url:result.data?.url },
               }, tabset.getId(), DockLocation.CENTER));
             }
@@ -1321,6 +1350,7 @@ const BrowserPanel = (props) => {
             if (tabset) {
               m.doAction(Actions.addNode({
                 type:"tab",component:"panel3",name:"New Tab",enableClose:true,
+                enablePopout:false,
                 config:{ type:"browser",title:"New Tab",url:result.data?.url },
               }, tabset.getId(), DockLocation.CENTER));
             }
@@ -1336,6 +1366,7 @@ const BrowserPanel = (props) => {
             if (tabset) {
               m.doAction(Actions.addNode({
                 type:"tab",component:"panel3",name:"Image",enableClose:true,
+                enablePopout:false,
                 config:{ type:"browser",title:"Image",url:result.data?.url },
               }, tabset.getId(), DockLocation.CENTER));
             }
@@ -1402,6 +1433,7 @@ const BrowserPanel = (props) => {
             try { window.__lastBrowserTabsetId = targetTabsetId; } catch {}
             m.doAction(Actions.addNode({
               type: "tab", component: "panel3", name: "New Tab", enableClose: true,
+              enablePopout: false,
               config: { type: "browser", title: "New Tab", url },
             }, targetTabsetId, DockLocation.CENTER));
             return;
@@ -1430,8 +1462,8 @@ const BrowserPanel = (props) => {
     try {
       wv.addEventListener("will-navigate", (e) => {
         const url = e.url || "";
-        // Allow navigation inside webview for http/https and ibx-file/view-source
-        if (/^(https?:|ibx-file:|view-source:|data:|blob:|about:)/i.test(url)) return;
+        // Allow navigation inside webview for http/https and ibx-file/idiotbox/view-source
+        if (/^(https?:|ibx-file:|idiotbox:|view-source:|data:|blob:|about:)/i.test(url)) return;
         // Block exotic top-navigation attempts
       });
     } catch {}
