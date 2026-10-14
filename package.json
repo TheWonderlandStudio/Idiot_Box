@@ -537,6 +537,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Idiot Box",
       "artifactName": "Idiot-Box-Setup-${version}.${ext}",
+      "installerIcon": "build/icons/icon.ico",
+      "uninstallerIcon": "build/icons/icon.ico",
       "differentialPackage": true,
       "deleteAppDataOnUninstall": false,
       "displayLanguageSelector": false,
