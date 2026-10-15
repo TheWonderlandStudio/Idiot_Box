@@ -986,6 +986,22 @@ const showPopoutBlockedToast = () => {
     el._hideT = setTimeout(() => { try { el.style.opacity = "0"; } catch {} }, 2800);
   } catch {}
 };
+// Generic transient notice for layout ops (move-to-border failures, etc.).
+const showLayoutToast = (msg) => {
+  try {
+    let el = document.getElementById("ibx-layout-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ibx-layout-toast";
+      el.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);max-width:min(520px,90vw);background:var(--bg-vscode,#1e1e1e);color:var(--text-hover,#ddd);border:1px solid var(--border-strong,#444);border-radius:8px;padding:10px 16px;font-size:12px;font-family:inherit;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:99999;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = "1";
+    clearTimeout(el._hideT);
+    el._hideT = setTimeout(() => { try { el.style.opacity = "0"; } catch {} }, 3200);
+  } catch {}
+};
 
 const forceLayoutRedraw = (m) => {
   try {
@@ -2956,8 +2972,32 @@ const App = () => {
                     return String(name).toLowerCase() === String(loc).toLowerCase();
                   } catch { return false; }
                 });
-                if (b) m.doAction(Actions.moveNode(tabId, b.getId(), DockLocation.CENTER, -1, true));
-              } catch {}
+                const countOf = (bx) => { try { return bx.getTabNodes?.().length ?? bx.getChildren?.().length ?? -1; } catch { return -1; } };
+                if (!b) {
+                  try { console.error("[border] no border node for location:", loc, "have:", borders.length); } catch {}
+                  showLayoutToast("Border nahi mila (" + loc + ") — project dobara kholo");
+                } else {
+                  const before = countOf(b);
+                  m.doAction(Actions.moveNode(tabId, b.getId(), DockLocation.CENTER, -1, true));
+                  const parentId = m.getNodeById(tabId)?.getParent?.()?.getId?.();
+                  const after = countOf(m.getNodeById(b.getId()) || b);
+                  try { console.debug("[border] move", tabId, "→", loc, "before:", before, "after:", after, "parent:", parentId); } catch {}
+                  if (parentId !== b.getId()) {
+                    // Retry via canonical border id, then report visibly.
+                    try {
+                      const b2 = m.getNodeById("border_" + String(loc).toLowerCase());
+                      if (b2) m.doAction(Actions.moveNode(tabId, b2.getId(), DockLocation.CENTER, -1, true));
+                    } catch {}
+                    const p2 = m.getNodeById(tabId)?.getParent?.()?.getId?.();
+                    if (p2 !== b.getId() && p2 !== "border_" + String(loc).toLowerCase()) {
+                      try { console.error("[border] move failed:", { tabId, loc, parentId: p2 }); } catch {}
+                      showLayoutToast("Border me move nahi ho paya — DevTools console dekho");
+                    }
+                  }
+                }
+              } catch (err) {
+                try { console.error("[border] move threw:", err); } catch {}
+              }
             }
             scheduleSaveProjectTabs();
           } catch {}
