@@ -4,6 +4,12 @@
 
 Idiot Box is a modern, customizable desktop IDE designed to make development simpler, more flexible, and more enjoyable. Code, preview, terminal, browser, and developer tools, all in one workspace.
 
+## Download
+
+- **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare)
+- **macOS / Linux:** [Download page](https://thewonderlandstudio.github.io/Idiot_Box/download.html)
+- All installers: [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases)
+
 ## Features
 
 - **Canvas — Visual Project Map** — every page & component of your project as live preview cards, grouped by folder on an infinite pan/zoom canvas. Drag cards (push the parent edge to expand), shift+drag to move card+group together, resize groups from all 8 sides, search, fit view, and persist your layout per project (`.canvas/layout.json`).
@@ -70,8 +76,9 @@ build/              esbuild configs + worker asset copy
 
 ## Official sources
 
+- Download (Windows): https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare (Microsoft Store)
+- Download page (macOS / Linux + all formats): https://thewonderlandstudio.github.io/Idiot_Box/download.html
 - Releases: https://github.com/TheWonderlandStudio/Idiot_Box/releases
-- Download page: https://thewonderlandstudio.github.io/Idiot_Box/download.html
 - Discord: https://discord.gg/Z9DynuSxRY
 
 Other sites offering "Idiot Box" for download are not official.
