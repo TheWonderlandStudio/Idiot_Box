@@ -359,10 +359,15 @@ const BlankPanel = ({ nodeId, config }) => {
             ...(isWebview ? { enablePopout: false } : {}),
           })
         );
-        // Flexlayout memoizes tab content (SizeTracker) and won't re-render it
+        // Flexlayout memoizes tab content and won't re-render it
         // for attribute-only changes — force a redraw so the new component mounts.
+        // 0.11: use the Layout ref's redraw() (old getwindowsMap path is gone).
         try {
-          [...m.getwindowsMap().values()].forEach((lw) => lw?.layout?.redraw?.("force"));
+          window.__flexLayoutApi?.current?.redraw?.();
+        } catch {}
+        try {
+          const map = m?.getLayouts?.() ?? m?.getwindowsMap?.();
+          if (map) [...map.values()].forEach((lw) => { try { lw?.layout?.redraw?.("force"); } catch {} try { lw?.redraw?.("force"); } catch {} });
         } catch {}
       } catch (err) {
         console.error("Failed to set panel component:", err);

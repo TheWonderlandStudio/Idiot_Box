@@ -52,18 +52,25 @@ body,
 }
 
 /* FlexLayout base theme overrides — seamless: no divider line shows */
+/* 0.11: theme vars namespaced to --fl-* with --flexlayout-* global override. */
 .flexlayout__layout {
   background: var(--bg-app);
-  --color-tabset-divider-line: transparent;
-  --color-border-divider-line: transparent;
-  --color-border-tab-content: transparent;
-  --color-border-background: transparent;
-  --color-border-tab-selected: transparent;
-  --color-border-tab-unselected: transparent;
-  --color-drag-rect-border: var(--accent);
-  --color-splitter: transparent;
-  --color-splitter-hover: var(--bg-hover);
-  --color-splitter-drag: var(--bg-hover-strong);
+  --flexlayout-splitter-size: 6px;
+  --flexlayout-splitter-active-size: 14px;
+  --flexlayout-color-tabset-divider-line: transparent;
+  /* Borders keep readable colors (these render tab buttons — transparent
+     text would make the whole border strip invisible). */
+  --flexlayout-color-border-divider-line: var(--border);
+  --flexlayout-color-border-tab-content: var(--bg-panel);
+  --flexlayout-color-border-background: var(--bg-panel);
+  --flexlayout-color-border-tab-selected: var(--text-primary);
+  --flexlayout-color-border-tab-selected-background: var(--bg-hover);
+  --flexlayout-color-border-tab-unselected: var(--text-secondary);
+  --flexlayout-color-border-tab-unselected-background: transparent;
+  --flexlayout-color-drag-rect-border: var(--accent);
+  --flexlayout-color-splitter: transparent;
+  --flexlayout-color-splitter-hover: var(--bg-hover);
+  --flexlayout-color-splitter-drag: var(--bg-hover-strong);
 }
 
 .flexlayout__splitter {
@@ -162,6 +169,16 @@ body,
    white, invisible on light tab strips). */
 .flexlayout__tab_toolbar_button svg { fill: var(--text-secondary); }
 .flexlayout__tab_toolbar_button:hover svg { fill: var(--text-primary); }
+
+/* ── Built-in float panels (0.9+) — match app theme ─────────────────────── */
+.flexlayout__float_window {
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --flexlayout-color-float-window-header-background: var(--bg-panel);
+}
+:root[data-theme="light"] .flexlayout__float_window {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
 
 /* ── Title bar right: Layouts button (Hub-style ghost chip) ─────────────── */
 .tb-workspaces {
@@ -1355,55 +1372,55 @@ li,
 /* FlexLayout: light variable set (mirrors light.css; keeps this app's seamless
    transparent divider lines so no grid lines reappear) */
 :root[data-theme="light"] .flexlayout__layout {
-  --color-text: #1e1e1e;
-  --color-background: #ffffff;
-  --color-base: #ffffff;
-  --color-1: #f7f7f7;
-  --color-2: #efefef;
-  --color-3: #e8e8e8;
-  --color-4: #e0e0e0;
-  --color-5: #d8d8d8;
-  --color-6: #d1d1d1;
-  --color-drag1: rgb(95, 134, 196);
-  --color-drag2: rgb(119, 166, 119);
-  --color-drag1-background: rgba(95, 134, 196, 0.1);
-  --color-drag2-background: rgba(119, 166, 119, 0.075);
-  --color-overflow: #808080;
-  --color-icon: #808080;
-  --color-tabset-background: #ffffff;
-  --color-tabset-background-selected: #f7f7f7;
-  --color-tabset-background-maximized: #efefef;
-  --color-tabset-divider-line: transparent;
-  --color-tabset-header-background: #f3f3f3;
-  --color-tabset-header: #1e1e1e;
-  --color-border-tab-content: transparent;
-  --color-border-background: transparent;
-  --color-border-divider-line: transparent;
-  --color-tab-content: #ffffff;
-  --color-tab-selected: #1e1e1e;
-  --color-tab-selected-background: #ffffff;
-  --color-tab-unselected: #555555;
-  --color-tab-unselected-background: transparent;
-  --color-tab-textbox: #1e1e1e;
-  --color-tab-textbox-background: #e8e8e8;
-  --color-border-tab-selected: transparent;
-  --color-border-tab-selected-background: #ffffff;
-  --color-border-tab-unselected: transparent;
-  --color-border-tab-unselected-background: #efefef;
-  --color-splitter: #f3f3f3;
-  --color-splitter-hover: #e0e0e0;
-  --color-splitter-drag: #c8c8c8;
-  --color-drag-rect-border: #cccccc;
-  --color-drag-rect-background: #d8d8d8;
-  --color-drag-rect: #1e1e1e;
-  --color-popup-border: #d1d1d1;
-  --color-popup-unselected: #1e1e1e;
-  --color-popup-unselected-background: #ffffff;
-  --color-popup-selected: #1e1e1e;
-  --color-popup-selected-background: #e8e8e8;
-  --color-edge-marker: #aaaaaa;
-  --color-edge-icon: #555555;
-  --color-toolbar-button-hover: #e8e8e8;
+  --flexlayout-color-text: #1e1e1e;
+  --flexlayout-color-background: #ffffff;
+  --flexlayout-color-base: #ffffff;
+  --flexlayout-color-1: #f7f7f7;
+  --flexlayout-color-2: #efefef;
+  --flexlayout-color-3: #e8e8e8;
+  --flexlayout-color-4: #e0e0e0;
+  --flexlayout-color-5: #d8d8d8;
+  --flexlayout-color-6: #d1d1d1;
+  --flexlayout-color-drag1: rgb(95, 134, 196);
+  --flexlayout-color-drag2: rgb(119, 166, 119);
+  --flexlayout-color-drag1-background: rgba(95, 134, 196, 0.1);
+  --flexlayout-color-drag2-background: rgba(119, 166, 119, 0.075);
+  --flexlayout-color-overflow: #808080;
+  --flexlayout-color-icon: #808080;
+  --flexlayout-color-tabset-background: #ffffff;
+  --flexlayout-color-tabset-background-selected: #f7f7f7;
+  --flexlayout-color-tabset-background-maximized: #efefef;
+  --flexlayout-color-tabset-divider-line: transparent;
+  --flexlayout-color-tabset-header-background: #f3f3f3;
+  --flexlayout-color-tabset-header: #1e1e1e;
+  --flexlayout-color-border-tab-content: #ffffff;
+  --flexlayout-color-border-background: #f3f3f3;
+  --flexlayout-color-border-divider-line: #e0e0e0;
+  --flexlayout-color-tab-content: #ffffff;
+  --flexlayout-color-tab-selected: #1e1e1e;
+  --flexlayout-color-tab-selected-background: #ffffff;
+  --flexlayout-color-tab-unselected: #555555;
+  --flexlayout-color-tab-unselected-background: transparent;
+  --flexlayout-color-tab-textbox: #1e1e1e;
+  --flexlayout-color-tab-textbox-background: #e8e8e8;
+  --flexlayout-color-border-tab-selected: #1e1e1e;
+  --flexlayout-color-border-tab-selected-background: #ffffff;
+  --flexlayout-color-border-tab-unselected: #555555;
+  --flexlayout-color-border-tab-unselected-background: transparent;
+  --flexlayout-color-splitter: #f3f3f3;
+  --flexlayout-color-splitter-hover: #e0e0e0;
+  --flexlayout-color-splitter-drag: #c8c8c8;
+  --flexlayout-color-drag-rect-border: #cccccc;
+  --flexlayout-color-drag-rect-background: #d8d8d8;
+  --flexlayout-color-drag-rect: #1e1e1e;
+  --flexlayout-color-popup-border: #d1d1d1;
+  --flexlayout-color-popup-unselected: #1e1e1e;
+  --flexlayout-color-popup-unselected-background: #ffffff;
+  --flexlayout-color-popup-selected: #1e1e1e;
+  --flexlayout-color-popup-selected-background: #e8e8e8;
+  --flexlayout-color-edge-marker: #aaaaaa;
+  --flexlayout-color-edge-icon: #555555;
+  --flexlayout-color-toolbar-button-hover: #e8e8e8;
 }
 /* FlexLayout: explicit light element rules */
 :root[data-theme="light"] .flexlayout__tabset_header {

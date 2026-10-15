@@ -105,11 +105,18 @@ const COMPONENT_NAMES = Object.fromEntries(
 const PANEL_GLOBAL = {
   tabEnableClose: false, tabEnableRename: false, tabEnableDrag: true,
   tabEnablePopout: true, tabEnablePopoutIcon: true,
+  // 0.9+ built-in float panels (main-window floating, webview-safe).
+  tabEnableFloat: true,
   tabSetEnableMaximize: true, tabSetEnableDrop: true, tabSetHeaderShown: true,
-  tabSetTabStripHeight: 26, splitterSize: 6, splitterExtra: 8,
+  tabSetTabStripHeight: 26,
+  // 0.9+: splitterSize/splitterExtra removed — CSS vars in layout.css.
   tabSetMinWidth: 100, tabSetMinHeight: 80, borderMinSize: 80,
   enableUseVisibility: true,
 };
+
+const defaultBorders = () => (["left", "right", "top", "bottom"].map((location) => ({
+  type: "border", location, size: 240, selected: -1, show: true, enableAutoHide: true,
+})));
 
 const buildPanelsJson = (panelKeys) => {
   const comps = [];
@@ -153,7 +160,7 @@ const buildPanelsJson = (panelKeys) => {
       ],
     };
   }
-  return { global: PANEL_GLOBAL, layout };
+  return { global: PANEL_GLOBAL, borders: defaultBorders(), layout };
 };
 
 // ```setup fence in the AI reply → proposal object (null on wrong framework/panels)

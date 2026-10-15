@@ -3572,7 +3572,7 @@ ipcMain.handle("browser:tabContextMenu", (event) => {
 });
 
 // ─── FlexLayout tab context menu ────────────────────────────────────────────
-ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, canPopout = false, filePath = null } = {}) => {
+ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, canPopout = false, canFloat = false, inBorder = false, filePath = null } = {}) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
     const sep = { type: "separator" };
@@ -3584,6 +3584,18 @@ ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = fals
     if (canDuplicate) items.push({ label: "Duplicate", click: () => act("duplicate") });
     items.push({ label: "Split Right", click: () => act("splitRight") });
     if (canPopout) items.push({ label: "Popout", click: () => act("popout") });
+    if (canFloat) items.push({ label: "Float", click: () => act("float") });
+    // Deterministic border docking (drag-to-edge needs pixel precision).
+    if (inBorder) {
+      items.push({ label: "Move to Center", click: () => act("moveCenter") });
+    } else {
+      items.push({ label: "Move to Border", submenu: [
+        { label: "Left", click: () => act("moveBorder:left") },
+        { label: "Right", click: () => act("moveBorder:right") },
+        { label: "Top", click: () => act("moveBorder:top") },
+        { label: "Bottom", click: () => act("moveBorder:bottom") },
+      ]});
+    }
     if (canRefresh || isBrowser) {
       items.push(sep);
       items.push({ label: "Refresh", click: () => act("refresh") });

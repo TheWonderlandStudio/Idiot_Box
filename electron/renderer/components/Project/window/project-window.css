@@ -31,6 +31,19 @@
 /* ── Body ────────────────────────────────────────────────────────────────── */
 .pw-body { display: flex; flex: 1; overflow: hidden; }
 
+/* ── Compact (sidebar-only) mode — narrow panels (<360px) ─────────────────
+   Content grid + statusbar hide; the tree takes the full width and already
+   supports every file op (rename/new/delete/duplicate/clipboard/…). */
+.pw-root.pw-compact .pw-right,
+.pw-root.pw-compact .pw-statusbar,
+.pw-root.pw-compact .pw-sidebar__resize { display: none; }
+.pw-root.pw-compact .pw-sidebar {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+}
+
 /* ── Sidebar — resizable ─────────────────────────────────────────────────── */
 .pw-sidebar {
   background: var(--bg-raised);
@@ -93,6 +106,7 @@
 }
 .pw-sidebar__action-btn:hover { background: var(--bg-subtle); color: var(--icon-hover); }
 .pw-sidebar__action-btn:active { background: var(--bg-hover); }
+.pw-sidebar__action-btn--active { background: var(--bg-hover); color: var(--accent); }
 
 /* ── Section header ──────────────────────────────────────────────────────── */
 .pw-section { padding: var(--space-14) var(--space-8) var(--space-2) var(--space-8); }

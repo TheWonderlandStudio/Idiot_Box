@@ -3,7 +3,7 @@ import VscodeIcon from "../../shared/VscodeIcon.jsx";
 import { useInputDialog } from "../../shared/InputDialog.jsx";
 import { PreviewIcon } from "./ContentArea.jsx";
 import { isMediaFile, shouldAutoOpenMediaViewer } from "../../MediaViewer/mediaTypes.js";
-import { ChevronRight, FilePlus, FolderPlus, RefreshCw, FoldVertical } from "lucide-react";
+import { ChevronRight, FilePlus, FolderPlus, RefreshCw, FoldVertical, PanelLeft } from "lucide-react";
 
 const ArrowSvg = () => <ChevronRight size={10} style={{ display: "block" }} />;
 
@@ -262,8 +262,8 @@ const SidebarTree = ({
   onSelect, onToggle, loadChildren, onDrop,
   clipboard, invalidateCache, onClipboardChange,
   showHidden, showFolders, showFiles, showPreview,
-  onFileSelect, pushUndo,
-  onCollapseAll, onRefreshAll,
+  onFileSelect, pushUndo, performUndo, performRedo,
+  onCollapseAll, onRefreshAll, treeOnly, onToggleTreeOnly,
 }) => {
   const [rootChildren, setRootChildren] = useState(null);
   const [dropTarget,   setDropTarget]   = useState(null);
@@ -980,6 +980,17 @@ const SidebarTree = ({
       e.preventDefault();
       const name = selectedPath.replace(/.*[\\/]/, "");
       const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
+      // Shift+Delete → permanent (bypass Recycle Bin, matches ContentArea).
+      if (e.shiftKey) {
+        const ok = await confirmIfNeeded(`Permanently delete "${name}"? This cannot be undone.`);
+        if (!ok) return;
+        try {
+          await window.electronAPI.deleteItem(selectedPath);
+        } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
+        invalidateCache(parentDir);
+        setLocalRefresh((k) => k + 1);
+        return;
+      }
       // Project Panel: Delete → OS Recycle Bin
       const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
       if (ok) await trashAndRefresh(selectedPath, parentDir);
@@ -1050,7 +1061,18 @@ const SidebarTree = ({
       handleHeaderRefresh();
       return;
     }
-  }, [rootPath, selectedPath, expandedSet, clipboard, ask, pushUndo, invalidateCache, onClipboardChange, getActiveDir, handleHeaderRefresh, handleHeaderNewFile, handleHeaderNewFolder, trashAndRefresh]);
+    // Undo / redo (matches ContentArea).
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      try { if (e.shiftKey) await performRedo?.(); else await performUndo?.(); } catch {}
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      try { await performRedo?.(); } catch {}
+      return;
+    }
+  }, [rootPath, selectedPath, expandedSet, clipboard, ask, pushUndo, performUndo, performRedo, invalidateCache, onClipboardChange, getActiveDir, handleHeaderRefresh, handleHeaderNewFile, handleHeaderNewFolder, trashAndRefresh]);
 
   return (
     <>
@@ -1070,6 +1092,13 @@ const SidebarTree = ({
           <button className="pw-sidebar__action-btn" title="Collapse All" onClick={handleHeaderCollapse}>
             <FoldVertical size={13} />
           </button>
+          {onToggleTreeOnly && (
+            <button className={treeOnly ? "pw-sidebar__action-btn pw-sidebar__action-btn--active" : "pw-sidebar__action-btn"}
+              title={treeOnly ? "Show grid view" : "Sidebar only — hide grid view"}
+              onClick={onToggleTreeOnly}>
+              <PanelLeft size={13} />
+            </button>
+          )}
         </div>
       </div>
       <div className="pw-sidebar__scroll" role="tree" aria-label="Project tree"

@@ -3,6 +3,16 @@ import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
 import { Play, ChevronDown, Bug, PlayCircle, Settings2, Home, FolderPlus, FolderOpen, Search } from "lucide-react";
 import { Layout, Model, Actions, DockLocation } from "flexlayout-react";
+// flexlayout-react 0.11 compat: getRoot() -> getRootRow(), getwindowsMap() -> getLayouts().
+// Old saved code calls m.getRoot() everywhere — keep it working via alias.
+try {
+  if (Model && Model.prototype && !Model.prototype.getRoot && Model.prototype.getRootRow) {
+    Model.prototype.getRoot = function (...a) { return this.getRootRow(...a); };
+  }
+  if (Model && Model.prototype && !Model.prototype.getwindowsMap && Model.prototype.getLayouts) {
+    Model.prototype.getwindowsMap = function (...a) { return this.getLayouts(...a); };
+  }
+} catch {}
 import "./variables.css";
 import "flexlayout-react/style/dark.css";
 import "./layout.css";
@@ -37,6 +47,22 @@ import ExtView from "./components/Extensions/ExtView.jsx";
 import { ExtStatusItems, ExtToasts } from "./components/Extensions/Host.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 
+// Edge borders (left / right / top / bottom) — empty + auto-hidden until
+// a tab is dragged to a window edge. Drag-to-edge docking needs them present.
+const defaultBorders = () => (["left", "right", "top", "bottom"].map((location) => ({
+  type: "border", location, size: 240, selected: -1, show: true, enableAutoHide: true,
+})));
+// Old saved layouts predate borders — inject any missing ones (idempotent).
+const ensureBorders = (json) => {
+  try {
+    if (!json || typeof json !== "object") return json;
+    if (!Array.isArray(json.borders)) json.borders = [];
+    const have = new Set(json.borders.map((b) => b && b.location));
+    defaultBorders().forEach((b) => { if (!have.has(b.location)) json.borders.push(b); });
+  } catch {}
+  return json;
+};
+
 const DEFAULT_JSON = {
   global: {
     tabEnableClose: false,
@@ -44,17 +70,21 @@ const DEFAULT_JSON = {
     tabEnableDrag: true,
     tabEnablePopout: true,
     tabEnablePopoutIcon: true,
+    // 0.9+ built-in float: floating panels inside the main window
+    // (safe for <webview> tabs — no cross-window re-parent).
+    tabEnableFloat: true,
     tabSetEnableMaximize: true,
     tabSetEnableDrop: true,
     tabSetHeaderShown: true,
     tabSetTabStripHeight: 26,
-    splitterSize: 6,
-    splitterExtra: 8,
+    // 0.9+: splitterSize/splitterExtra globals removed — now CSS vars
+    // (--flexlayout-splitter-size / --flexlayout-splitter-active-size in layout.css).
     tabSetMinWidth: 100,
     tabSetMinHeight: 80,
     borderMinSize: 80,
     enableUseVisibility: true,
   },
+  borders: defaultBorders(),
   layout: {
     type: "row",
     weight: 100,
@@ -97,6 +127,7 @@ const DEFAULT_JSON = {
 // panel — the user opens panels manually. tabs.json `layout: "blank"` triggers it.
 const BLANK_JSON = {
   global: { ...DEFAULT_JSON.global },
+  borders: defaultBorders(),
   layout: {
     type: "row",
     weight: 100,
@@ -115,6 +146,7 @@ const BLANK_JSON = {
 // It is transient and never persisted.
 const SINGLE_FILE_JSON = {
   global: { ...DEFAULT_JSON.global },
+  borders: defaultBorders(),
   layout: {
     type: "row",
     weight: 100,
@@ -863,20 +895,23 @@ const sanitizeProjectPanels = (json) => {
     if (Array.isArray(json?.borders)) json.borders.forEach(walk);
     // Also sanitize popout windows (FlexLayout multi-window) — their
     // inner tabs are saved in the same model JSON.
-    if (json?.popouts && typeof json.popouts === "object") {
-      Object.values(json.popouts).forEach((p) => walk(p?.layout));
-    }
+    // 0.9+: `popouts` renamed to `subLayouts` (old sessions still load) — walk both.
+    const sub = json?.subLayouts && typeof json.subLayouts === "object" ? Object.values(json.subLayouts) : [];
+    const pops = json?.popouts && typeof json.popouts === "object" ? Object.values(json.popouts) : [];
+    [...sub, ...pops].forEach((p) => walk(p?.layout));
   } catch {}
   return json;
 };
 
 // Old saved sessions may have tabEnablePopout saved as false — always
-// force-enable the popout feature (both default + saved).
+// force-enable the popout + float features (both default + saved).
+// Float stays in the main window, so it is safe for <webview> tabs too.
 const enablePopouts = (json) => {
   try {
     if (!json.global || typeof json.global !== "object") json.global = {};
     json.global.tabEnablePopout = true;
     json.global.tabEnablePopoutIcon = true;
+    json.global.tabEnableFloat = true;
   } catch {}
   return json;
 };
@@ -910,9 +945,10 @@ const disableWebviewPopouts = (json) => {
     };
     if (json?.layout) walk(json.layout);
     if (Array.isArray(json?.borders)) json.borders.forEach(walk);
-    if (json?.popouts && typeof json.popouts === "object") {
-      Object.values(json.popouts).forEach((p) => walk(p?.layout));
-    }
+    // 0.9+: subLayouts (popouts deprecated) — walk both for old sessions.
+    const sub2 = json?.subLayouts && typeof json.subLayouts === "object" ? Object.values(json.subLayouts) : [];
+    const pops2 = json?.popouts && typeof json.popouts === "object" ? Object.values(json.popouts) : [];
+    [...sub2, ...pops2].forEach((p) => walk(p?.layout));
   } catch {}
   return json;
 };
@@ -953,12 +989,17 @@ const showPopoutBlockedToast = () => {
 
 const forceLayoutRedraw = (m) => {
   try {
-    [...m.getwindowsMap().values()].forEach((lw) => lw?.layout?.redraw?.("force"));
+    const map = m?.getLayouts?.() ?? m?.getwindowsMap?.();
+    if (map) [...map.values()].forEach((lw) => {
+      try { lw?.layout?.redraw?.("force"); } catch {}
+      try { lw?.redraw?.("force"); } catch {}
+    });
   } catch { /* ignore */ }
 };
 
 const App = () => {
   const modelRef          = useRef(null);
+  const layoutRef         = useRef(null); // ILayoutApi (0.9+: Layout is functional)
   const readyRef          = useRef(false);
   const currentProjectRef = useRef(null);
   const saveTabsTimer     = useRef(null);
@@ -1067,11 +1108,13 @@ const App = () => {
     window.__flexModel = modelRef;
     window.__flexActions = Actions;
     window.__flexDockLocation = DockLocation;
+    window.__flexLayoutApi = layoutRef;
     window.__getLayoutJSON = () => modelRef.current ? modelRef.current.toJson() : null;
     return () => {
       delete window.__flexModel;
       delete window.__flexActions;
       delete window.__flexDockLocation;
+      delete window.__flexLayoutApi;
       delete window.__getLayoutJSON;
     };
   }, []);
@@ -1202,7 +1245,7 @@ const App = () => {
         if (s.restoreTabs === false) session = null;
       } catch {}
       const json = (session && session.layout) ? JSON.parse(JSON.stringify(session.layout)) : DEFAULT_JSON;
-      disableWebviewPopouts(enablePopouts(json));
+      disableWebviewPopouts(enablePopouts(ensureBorders(json)));
       // Migrate old component names
       if (session && session.layout) {
         (function migrate(node) {
@@ -1398,7 +1441,7 @@ const App = () => {
       let restored = false;
       if (savedPanels) {
         try {
-          const json = disableWebviewPopouts(enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(savedPanels)))));
+          const json = disableWebviewPopouts(enablePopouts(ensureBorders(sanitizeProjectPanels(JSON.parse(JSON.stringify(savedPanels))))));
           modelRef.current = Model.fromJson(json);
           restored = true;
         } catch {}
@@ -2643,8 +2686,11 @@ const App = () => {
     // ── Crash guard: never let a <webview> tab leave the main window ──────
     // Popping out Browser/Community/OpenPencil/AI-Agent re-parents the guest
     // across BrowserWindows and crashes the app. Veto + toast instead.
+    // NOTE: "float" popouts stay inside the main window — always allowed
+    // (this is the webview-safe way to float Browser/AI panels).
     try {
-      if (action && (action.type === Actions.POPOUT_TAB || action.type === Actions.POPOUT_TABSET)) {
+      if (action && (action.type === Actions.POPOUT_TAB || action.type === Actions.POPOUT_TABSET)
+        && action.data?.type !== "float") {
         const m = modelRef.current;
         let blocked = false;
         try {
@@ -2746,7 +2792,7 @@ const App = () => {
   const applyLayoutPreset = (preset) => {
     try {
       if (!preset || !preset.panels || !preset.panels.layout || !currentProjectRef.current) return false;
-      const json = disableWebviewPopouts(enablePopouts(sanitizeProjectPanels(JSON.parse(JSON.stringify(preset.panels)))));
+      const json = disableWebviewPopouts(enablePopouts(ensureBorders(sanitizeProjectPanels(JSON.parse(JSON.stringify(preset.panels))))));
       modelRef.current = Model.fromJson(json);
       projectLayoutRef.current = preset.layout === "blank" ? "blank" : null;
       setTick((t) => t + 1);
@@ -2792,6 +2838,7 @@ const App = () => {
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <Layout
+      ref={layoutRef}
       model={modelRef.current}
       factory={factory}
       onAction={handleLayoutAction}
@@ -2806,6 +2853,8 @@ const App = () => {
       supportsPopout
       popoutURL="popout.html"
       popoutWindowName="Idiot Box"
+      // Keep floating panels inside the main window (0.9+ built-in float).
+      constrainFloatPanels
       onDrop={(node, e) => {
         // Intercept file drops from the Project Panel onto any tabset.
         // window.__ibxDragPaths is set by ContentArea/SidebarTree dragStart.
@@ -2880,8 +2929,36 @@ const App = () => {
               // here so the user gets the toast immediately.
               try { if (isWebviewModelNode(current)) { showPopoutBlockedToast(); } else m.doAction(Actions.popoutTab(tabId)); } catch { try { m.doAction(Actions.popoutTab(tabId)); } catch {} }
             }
+            else if (action === "float") {
+              // Built-in float (0.9+): panel floats inside the main window.
+              // Safe for <webview> tabs — no cross-window re-parent.
+              try { m.doAction(Actions.popoutTab(tabId, "float")); } catch {}
+            }
             else if (action === "copyPath" && filePath) window.electronAPI?.clipboardWrite?.(filePath);
             else if (action === "reveal" && filePath) window.electronAPI?.revealInExplorer?.(filePath);
+            else if (action === "moveCenter") {
+              // Border tab → back into the main layout (editor tabset).
+              try {
+                const ts = findEditorTabset(m.getRoot()) || findAnyTabset(m.getRoot());
+                const targetId = ts ? ts.getId() : m.getRoot().getId();
+                m.doAction(Actions.moveNode(tabId, targetId, DockLocation.CENTER, -1, true));
+              } catch {}
+            }
+            else if (typeof action === "string" && action.startsWith("moveBorder:")) {
+              // Main tab → edge border (deterministic; no drag precision needed).
+              const loc = action.split(":")[1];
+              try {
+                const borders = m.getBorderSet?.().getBorders?.() || [];
+                const b = borders.find((x) => {
+                  try {
+                    const l = x.getLocation?.();
+                    const name = (l && l.getName ? l.getName() : l);
+                    return String(name).toLowerCase() === String(loc).toLowerCase();
+                  } catch { return false; }
+                });
+                if (b) m.doAction(Actions.moveNode(tabId, b.getId(), DockLocation.CENTER, -1, true));
+              } catch {}
+            }
             scheduleSaveProjectTabs();
           } catch {}
         };
@@ -2895,6 +2972,8 @@ const App = () => {
               isBrowser,
               canRefresh: isBrowser || isOpenPencil,
               canPopout: node.isEnablePopout?.() !== false,
+              canFloat: node.isEnableFloat?.() !== false,
+              inBorder: node.getParent?.()?.getType?.() === "border",
               filePath,
             });
             if (result?.action === "refresh") {
@@ -2934,6 +3013,8 @@ const App = () => {
         }
       }}
       onRenderTabSet={(node, renderValues) => {
+        // Border strips get no toolbar buttons (no room on the edge strip).
+        if (node.getType?.() === "border") return;
         const openPanelAddMenu = async (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -2978,6 +3059,31 @@ const App = () => {
             <svg width="12" height="12" viewBox="0 0 16 16">
               <rect x="7" y="1" width="2" height="14" rx="1"/>
               <rect x="1" y="7" width="14" height="2" rx="1"/>
+            </svg>
+          </button>
+        );
+        // Float icon next to + — floats this tabset's selected tab as a
+        // main-window floating panel (0.9+ built-in, webview-safe).
+        renderValues.buttons.push(
+          <button key="float" className="flexlayout__tab_toolbar_button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const m = modelRef.current;
+              if (!m) return;
+              try {
+                const sel = node.getSelectedNode?.() || null;
+                const id = sel?.getId?.();
+                if (!id) return;
+                if (sel?.isEnableFloat?.() === false) return;
+                m.doAction(Actions.popoutTab(id, "float"));
+              } catch {}
+            }}
+            title="Float Tab — open as floating panel"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16">
+              <path d="M6 2h8v8h-2V4H6V2z"/>
+              <path d="M2 6h8v8H2V6zm2 2v4h4V8H4z"/>
             </svg>
           </button>
         );

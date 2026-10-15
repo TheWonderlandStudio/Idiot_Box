@@ -31,6 +31,14 @@ const ProjectWindow = () => {
   const startXRef   = useRef(0);
   const startWRef   = useRef(SIDEBAR_DEFAULT);
   const settingsRef = useRef({});
+  // ── Compact (sidebar-only) mode — when the panel is too narrow for the
+  // grid content area, show just the tree. The sidebar already supports all
+  // file ops (rename/new/delete/duplicate/clipboard/terminal/…).
+  const rootRef = useRef(null);
+  const [compact, setCompact] = useState(false);
+  // Manual sidebar-only override (header toggle) — works at any width.
+  const [treeOnly, setTreeOnly] = useState(false);
+  const sidebarOnly = compact || treeOnly;
 
   // ── Persist zoom & bar toggles to settings + live sync ───────────────────
   // Previously zoom was read once and written via read→write (race), and
@@ -299,6 +307,21 @@ const ProjectWindow = () => {
     }
   }, [refreshAll]);
 
+  // ── Compact mode tracking — sidebar-only below ~360px panel width ──────
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      try {
+        const w = entries[0]?.contentRect?.width ?? el.clientWidth;
+        setCompact(w > 0 && w < 360);
+      } catch {}
+    });
+    ro.observe(el);
+    return () => { try { ro.disconnect(); } catch {} };
+    // Re-run when the project opens (empty-state and explorer are different divs).
+  }, [rootPath]);
+
   // ── Mouse back/forward buttons ────────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
@@ -453,9 +476,9 @@ const ProjectWindow = () => {
   }
 
   return (
-    <div className="pw-root">
+    <div className={sidebarOnly ? "pw-root pw-compact" : "pw-root"} ref={rootRef}>
       <div className="pw-body">
-        <div className="pw-sidebar" style={{ width: sidebarWidth, minWidth: SIDEBAR_MIN, maxWidth: SIDEBAR_MAX }}>
+        <div className="pw-sidebar" style={sidebarOnly ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN, maxWidth: SIDEBAR_MAX }}>
           <SidebarTree
             rootPath={rootPath}
             selectedPath={selectedPath}
@@ -474,8 +497,12 @@ const ProjectWindow = () => {
             showPreview={showPreview}
             onFileSelect={handleSidebarFileSelect}
             pushUndo={pushUndo}
+            performUndo={performUndo}
+            performRedo={performRedo}
             onCollapseAll={handleCollapseAll}
             onRefreshAll={handleRefreshAll}
+            treeOnly={treeOnly}
+            onToggleTreeOnly={() => setTreeOnly((v) => !v)}
           />
           <div className="pw-sidebar__resize" onMouseDown={onResizeStart} />
         </div>

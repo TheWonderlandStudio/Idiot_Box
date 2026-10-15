@@ -151,12 +151,12 @@
   }
 }
 
-/* Ensure flexlayout never crushes below readable — scroll instead */
+/* Ensure flexlayout never crushes below readable — scroll instead.
+   NOTE: borders excluded — edge strips are intentionally thin. */
 .flexlayout__layout {
   min-width: 0;
 }
-.flexlayout__tabset,
-.flexlayout__border {
+.flexlayout__tabset {
   min-width: 80px;
   min-height: 60px;
 }
