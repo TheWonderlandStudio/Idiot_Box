@@ -125,6 +125,7 @@
     (function () {
       var STATS = window.IBXStats;
       var RELEASES = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+      var STORE_URL = 'https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare';
       var IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
       var IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
 
@@ -195,9 +196,15 @@
         document.getElementById('dl-title').textContent = latest.name || latest.tag_name || 'Latest release';
         var hero = primaryAsset(latest.assets);
         if (hero) {
-          document.getElementById('dl-primary').href = hero.browser_download_url;
-          document.getElementById('dl-primary').textContent =
-            (IS_MAC ? 'Download for macOS — ' : IS_LINUX ? 'Download for Linux — ' : 'Download for Windows — ') + hero.name;
+          if (!IS_MAC && !IS_LINUX) {
+            // Windows → Microsoft Store (direct exe/msi/msix stay listed below)
+            document.getElementById('dl-primary').href = STORE_URL;
+            document.getElementById('dl-primary').textContent = 'Download for Windows — Microsoft Store';
+          } else {
+            document.getElementById('dl-primary').href = hero.browser_download_url;
+            document.getElementById('dl-primary').textContent =
+              (IS_MAC ? 'Download for macOS — ' : 'Download for Linux — ') + hero.name;
+          }
         }
 
         // all formats of the latest release

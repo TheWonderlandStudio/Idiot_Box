@@ -35,7 +35,7 @@
     "isAccessibleForFree": true,
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "url": "https://thewonderlandstudio.github.io/Idiot_Box/",
-    "downloadUrl": "https://github.com/TheWonderlandStudio/Idiot_Box/releases",
+    "downloadUrl": "https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare",
     "softwareVersion": "0.1.14",
     "author": { "@type": "Organization", "name": "The Wonderland Studio", "url": "https://github.com/TheWonderlandStudio" },
     "description": "Free, open-source desktop IDE for Windows with a Monaco code editor, integrated terminal, browser panel, visual project map and file manager in one window."
@@ -187,6 +187,7 @@
       (function () {
         const API = 'https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest';
         const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+        const STORE_URL = 'https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare';
         const POLL_MS = 10 * 60 * 1000;
         let currentTag = null;
         let cachedUrl = null;
@@ -209,6 +210,10 @@
           document.querySelectorAll('.btn-primary[data-download-latest]').forEach((b) => { b.textContent = 'Download for macOS'; });
         } else if (IS_LINUX) {
           document.querySelectorAll('.btn-primary[data-download-latest]').forEach((b) => { b.textContent = 'Download for Linux'; });
+        } else {
+          // Windows → Microsoft Store (href swap also opts out of the GitHub
+          // direct-download interceptor below, which only binds github hrefs)
+          document.querySelectorAll('.btn-primary[data-download-latest]').forEach((b) => { b.href = STORE_URL; b.textContent = 'Download for Windows'; b.target = '_blank'; b.rel = 'noopener'; });
         }
 
         async function checkRelease() {

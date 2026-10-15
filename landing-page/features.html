@@ -225,8 +225,9 @@ buildSomething('your idea');</pre></div>
       video.play().catch(function () {});
       video.addEventListener('canplay', function () { video.play().catch(function () {}); });
 
-      // Nav download — always the latest release installer (per OS: macOS → dmg, Linux → AppImage/deb, else Windows exe)
+      // Nav download — always the latest release installer (per OS: macOS → dmg, Linux → AppImage/deb, Windows → Microsoft Store)
       const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+      const STORE_URL = 'https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare';
       let cachedUrl = null;
       const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
       const IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
@@ -244,6 +245,10 @@ buildSomething('your idea');</pre></div>
         document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download .dmg'; });
       } else if (IS_LINUX) {
         document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download .AppImage'; });
+      } else {
+        // Windows → Microsoft Store (href swap opts out of the GitHub
+        // direct-download interceptor below, which only binds github hrefs)
+        document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download from Microsoft Store'; b.href = STORE_URL; b.target = '_blank'; b.rel = 'noopener'; });
       }
       function resolveExeUrl() {
         if (cachedUrl) return Promise.resolve(cachedUrl);
