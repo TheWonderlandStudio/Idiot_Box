@@ -16,7 +16,9 @@ import CodeMirror from "@uiw/react-codemirror";
 import {
   undo, redo, selectAll, toggleComment, deleteLine,
   moveLineUp, moveLineDown, copyLineDown, copyLineUp,
+  isolateHistory,
 } from "@codemirror/commands";
+import { Transaction } from "@codemirror/state";
 import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/search";
 import NotebookPanel from "../Notebook/index.jsx";
 import { Play, Sparkles, Square } from "lucide-react";
@@ -88,6 +90,14 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [langQuery, setLangQuery] = useState("");
   const [binaryFile, setBinaryFile] = useState(false);
+  // Gate CodeMirror mount on content load — the view is created WITH the
+  // file's text (empty history), so Ctrl+Z can never reach a previous file.
+  const [contentReady, setContentReady] = useState(false);
+  // Per-file view key — fresh EditorView (fresh undo stack) per file.
+  const fileKey = useMemo(
+    () => `${filePath || ""}::${forceText ? "text" : "auto"}`,
+    [filePath, forceText]
+  );
 
   // ── Side preview (markdown / mdx render / sqlite inspect) ──
   const canPreview = !!filePath && !isIpynb && (isDbFile || isMdFile || isMdxFile || languageId === "markdown" || languageId === "mdx");
@@ -106,12 +116,48 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const saveTimer = useRef(null);
   const lastSelfSaveRef = useRef(0);
   const externalWriteRef = useRef(false);
+  const loadGenRef = useRef(0);
 
   pathRef.current = filePath;
   langRef.current = languageId;
   docRef.current = doc;
   const binaryRef = useRef(false);
   binaryRef.current = binaryFile;
+
+  // ── History-safe external replace (same-file reloads) ──
+  // Programmatic content swaps must NOT enter the undo stack — otherwise
+  // Ctrl+Z reverts to stale/disk content. Uses addToHistory:false so the
+  // change is un-undoable, with isolateHistory so it never merges with
+  // the user's own edits. User typing / format / AI edits stay undoable.
+  const replaceDocWithoutHistory = useCallback((text) => {
+    const next = String(text ?? "");
+    originalRef.current = next;
+    const view = viewRef.current;
+    if (view) {
+      try {
+        const cur = view.state.doc.toString();
+        if (cur !== next) {
+          externalWriteRef.current = true;
+          // No explicit selection — CodeMirror maps the existing cursor
+          // through the change, so external reloads don't jump to top.
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: next },
+            annotations: [
+              Transaction.addToHistory.of(false),
+              isolateHistory.of("full"),
+            ],
+          });
+          // onChange fires for this dispatch → handleChange consumes the
+          // flag and syncs React state; keep value prop in sync as well
+          // (equal → @uiw no-ops, no second history entry).
+          setDoc(next);
+          return;
+        }
+      } catch {}
+    }
+    externalWriteRef.current = false;
+    setDoc(next);
+  }, []);
 
   // ── Problems panel diagnostics (debounced Lezer syntax check) ──────────
   // The view may belong to an older file (tab switch) — so capture the
@@ -170,11 +216,28 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     return () => { settingsListeners.delete(handler); };
   }, []);
 
-  // ── File load ──
+  // ── File load (Ctrl+Z safe) ──
+  // Single-click replaces this tab's filePath (same nodeId, same component
+  // instance). The old file's text must never enter the new file's undo
+  // stack. Strategy: clear synchronously, mount a FRESH view (key=fileKey)
+  // only when content is ready, so the view is created WITH the file text
+  // (empty history). No value-diff → no undoable file-switch transaction.
   useEffect(() => {
     if (!filePath || isIpynb) return;
+    const gen = ++loadGenRef.current;
     loadedRef.current = false;
+    setContentReady(false);
     setBinaryFile(false);
+    // Drop any pending autosave for the previous file — it must not fire
+    // after the switch and save the wrong tab.
+    try { clearTimeout(saveTimer.current); } catch {}
+    externalWriteRef.current = false;
+    originalRef.current = "";
+    setDoc("");
+    setCursorPos({ line: 1, col: 1, totalLines: 1 });
+    // Old view is being torn down (key change) — forget it so no programmatic
+    // dispatch can hit a destroyed view.
+    viewRef.current = null;
     // DB file = binary — do not read it as text (mojibake + cost of a large file);
     // the preview pane is its view.
     if (isDbFile) {
@@ -182,15 +245,18 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       setDoc("");
       setLanguageId("plaintext");
       setCursorPos({ line: 1, col: 1, totalLines: 1 });
+      setContentReady(true);
       return;
     }
     let cancelled = false;
     (async () => {
       const text = await window.electronAPI.readTextFile(filePath);
-      if (cancelled) return;
+      if (cancelled || loadGenRef.current !== gen) return;
       const isBinaryExt = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".so", ".dylib", ".bin", ".dat", ".wasm"].some((x) => filePath.toLowerCase().endsWith(x));
       if (text === null || isBinaryExt) {
+        if (loadGenRef.current !== gen) return;
         setBinaryFile(true);
+        setContentReady(true);
         flashStatus(`Binary or unreadable file: ${fileName(filePath)}`);
         return;
       }
@@ -201,8 +267,14 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       baseNames.set(filePath, fileName(filePath));
       originalRef.current = text;
       loadedRef.current = true;
-      externalWriteRef.current = true;
+      // Fresh mount path: view is null (torn down above) or already the new
+      // key's view showing "". Either way setDoc makes the mounted view's
+      // initial doc correct with EMPTY history. Do NOT flag as external —
+      // @uiw suppresses onChange for this sync, so a stale flag would leak
+      // into the next real user edit and break autosave.
+      externalWriteRef.current = false;
       setDoc(text);
+      setContentReady(true);
       setLanguageId(lang);
       setCursorPos({ line: 1, col: 1, totalLines: text.split("\n").length });
       dirtyFlags.set(filePath, false);
@@ -499,6 +571,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   }, [filePath]);
 
   // ── Live reload: external edits -> auto-update (when not dirty) ──
+  // History-safe: disk content must never become an undo step.
   useEffect(() => {
     if (!filePath || isIpynb) return;
     let timer = null;
@@ -506,15 +579,15 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       if (changedPath !== filePath) return;
       if (Date.now() - lastSelfSaveRef.current < 1200) return;
       if (dirtyFlags.get(filePath)) return;
+      if (!loadedRef.current) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
         const text = await window.electronAPI.readTextFile(filePath);
         if (text === null) return;
+        if (pathRef.current !== filePath) return;
         const cur = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
         if (cur === text) return;
-        originalRef.current = text;
-        externalWriteRef.current = true;
-        setDoc(text);
+        replaceDocWithoutHistory(text);
         dirtyFlags.set(filePath, false);
         updateTabName(nodeId, filePath);
         setCursorPos((pr) => ({ ...pr, totalLines: text.split("\n").length }));
@@ -525,20 +598,19 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       }, 150);
     });
     return () => { unsub(); if (timer) clearTimeout(timer); };
-  }, [filePath, nodeId, isIpynb]);
+  }, [filePath, nodeId, isIpynb, replaceDocWithoutHistory]);
 
-  // ── Live Edit from Browser ──
+  // ── Live Edit from Browser (history-safe) ──
   useEffect(() => {
     if (!filePath || isIpynb) return;
     const applyText = async (label) => {
       try {
         const text = await window.electronAPI.readTextFile(filePath);
         if (text === null) return;
+        if (pathRef.current !== filePath || !loadedRef.current) return;
         const cur = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
         if (cur === text) return;
-        originalRef.current = text;
-        externalWriteRef.current = true;
-        setDoc(text);
+        replaceDocWithoutHistory(text);
         dirtyFlags.set(filePath, false);
         updateTabName(nodeId, filePath);
         setCursorPos((pr) => ({ ...pr, totalLines: text.split("\n").length }));
@@ -644,17 +716,24 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                   style={{ position: "absolute", inset: 0 }}
                   onContextMenuCapture={onEditorContextMenu}
                 >
-                  <CodeMirror
-                    value={doc}
-                    height="100%"
-                    basicSetup={false}
-                    theme="none"
-                    indentWithTab={true}
-                    extensions={extensions}
-                    onChange={handleChange}
-                    onUpdate={handleUpdate}
-                    onCreateEditor={handleCreateEditor}
-                  />
+                  {!contentReady ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-disabled)", fontSize: "var(--fs-small)" }}>
+                      Loading {fileName(filePath)}…
+                    </div>
+                  ) : (
+                    <CodeMirror
+                      key={fileKey}
+                      value={doc}
+                      height="100%"
+                      basicSetup={false}
+                      theme="none"
+                      indentWithTab={true}
+                      extensions={extensions}
+                      onChange={handleChange}
+                      onUpdate={handleUpdate}
+                      onCreateEditor={handleCreateEditor}
+                    />
+                  )}
                 </div>
               )}
             </div>
