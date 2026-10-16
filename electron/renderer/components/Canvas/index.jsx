@@ -64,7 +64,19 @@ const parseDrawing = (text) => {
   const elements = Array.isArray(data?.elements) ? data.elements : [];
   const appState = data?.appState && typeof data.appState === "object" ? data.appState : undefined;
   const files = data?.files && typeof data.files === "object" ? data.files : undefined;
-  return { elements, appState, files };
+  // Valid JSON but not a drawing (e.g. some other .json content): loading it
+  // as an empty canvas would destroy data on save — flag it suspicious so the
+  // load site can park autosave and warn instead of silently overwriting.
+  let suspicious = false;
+  try {
+    if (elements.length === 0 && data && typeof data === "object" && !Array.isArray(data)) {
+      const keys = Object.keys(data);
+      const looksLikeDrawing =
+        data.type === "excalidraw" || Array.isArray(data.elements) || keys.length === 0;
+      if (!looksLikeDrawing) suspicious = true;
+    }
+  } catch {}
+  return { elements, appState, files, suspicious: suspicious || undefined };
 };
 
 const serializeDrawing = (elements, appState, files) => {
@@ -668,6 +680,15 @@ const CanvasPanel = ({ config }) => {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [externalChange, setExternalChange] = useState(false);
+  // Corrupt / non-drawing file: empty canvas is shown but autosave is PARKED
+  // until an explicit Save — otherwise the next stroke would silently
+  // overwrite the original file (breaking the "untouched until you save" promise).
+  const [corrupt, setCorrupt] = useState(false);
+  const corruptRef = useRef(false);
+  const setCorruptBoth = useCallback((v) => {
+    corruptRef.current = !!v;
+    setCorrupt(!!v);
+  }, []);
   const [opts, setOpts] = useState(() => getCanvasSettings({}));
   const [theme, setTheme] = useState(() => resolveTheme(getCanvasSettings({}).theme));
   const [rootPath, setRootPath] = useState(() => window.__currentProjectPath || null);
@@ -818,6 +839,9 @@ const CanvasPanel = ({ config }) => {
       setLoading(true);
       setError(null);
       setExternalChange(false);
+      setCorruptBoth(false);
+    } else {
+      corruptRef.current = false;
     }
     suppressSaveRef.current = true;
     try {
@@ -847,6 +871,25 @@ const CanvasPanel = ({ config }) => {
         text = null;
       }
       const parsed = parseDrawing(text);
+      if (parsed.suspicious) {
+        // Valid JSON but not a drawing — same protection as corrupt: show an
+        // empty canvas, park autosave, and let the user inspect/decide.
+        elementsRef.current = [];
+        appStateRef.current = null;
+        filesRef.current = {};
+        if (mountedRef.current) {
+          setInitialData({ elements: [], appState: undefined, files: {} });
+          setSceneKey((k) => k + 1);
+          setDirty(false);
+          setCorruptBoth(true);
+          setError(
+            `“${baseName(fp || "drawing.excalidraw")}” is valid JSON but not a drawing — empty canvas shown, autosave paused. Your file is untouched until you save.`
+          );
+        } else {
+          corruptRef.current = true;
+        }
+        return;
+      }
       elementsRef.current = parsed.elements || [];
       appStateRef.current = parsed.appState || null;
       filesRef.current = parsed.files || {};
@@ -862,7 +905,22 @@ const CanvasPanel = ({ config }) => {
       }
     } catch (err) {
       console.error("[Canvas] load failed:", err);
-      if (mountedRef.current) setError(err?.message || String(err));
+      // Corrupt file: NEVER leave the previous file's scene mounted — that
+      // stale drawing + autosave would overwrite the corrupt file with wrong
+      // data. Mount a truly empty canvas and park autosave until explicit Save.
+      elementsRef.current = [];
+      appStateRef.current = null;
+      filesRef.current = {};
+      if (mountedRef.current) {
+        setInitialData({ elements: [], appState: undefined, files: {} });
+        setSceneKey((k) => k + 1);
+        setDirty(false);
+        setCorruptBoth(true);
+        const name = baseName(stateRef.current.filePath || "drawing.excalidraw");
+        setError(err?.message || `“${name}” is corrupted (invalid JSON) — empty canvas shown, autosave paused. Your file is untouched until you save.`);
+      } else {
+        corruptRef.current = true;
+      }
     } finally {
       if (mountedRef.current) setLoading(false);
       // Let Excalidraw mount + fire its initial onChange before saving.
@@ -870,7 +928,7 @@ const CanvasPanel = ({ config }) => {
         suppressSaveRef.current = false;
       }, 600);
     }
-  }, []);
+  }, [setCorruptBoth]);
 
   useEffect(() => {
     loadDrawing();
@@ -899,6 +957,7 @@ const CanvasPanel = ({ config }) => {
       if (mountedRef.current) {
         setDirty(false);
         setError(null);
+        setCorruptBoth(false);
       }
     } catch (err) {
       console.error("[Canvas] save failed:", err);
@@ -906,10 +965,13 @@ const CanvasPanel = ({ config }) => {
     } finally {
       if (mountedRef.current) setSaving(false);
     }
-  }, []);
+  }, [setCorruptBoth]);
 
   const scheduleSave = useCallback(() => {
     if (!stateRef.current.autosave) return;
+    // Corrupt / non-drawing file: NEVER autosave — only an explicit Save may
+    // overwrite it (keeps the "untouched until you save" promise).
+    if (corruptRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(doSave, SAVE_DEBOUNCE_MS);
   }, [doSave]);
@@ -1047,8 +1109,8 @@ const CanvasPanel = ({ config }) => {
     }
   }, [excalidrawAPI]);
 
-  const statusText = loading ? "Loading…" : saving ? "Saving…" : dirty ? "● Unsaved" : "Saved";
-  const statusColor = loading || saving ? "var(--icon)" : dirty ? "var(--warning)" : "var(--teal)";
+  const statusText = loading ? "Loading…" : saving ? "Saving…" : corrupt ? "Autosave paused — press Save to overwrite" : dirty ? "● Unsaved" : "Saved";
+  const statusColor = loading || saving ? "var(--icon)" : corrupt ? "var(--error-soft)" : dirty ? "var(--warning)" : "var(--teal)";
 
   return (
     <div className="excalidraw-panel">
@@ -1211,7 +1273,20 @@ const CanvasPanel = ({ config }) => {
 
         {error && !loading && (
           <div className="excalidraw-banner" style={{ background: "var(--error-bg-strong)", borderColor: "var(--error-border-soft)", color: "var(--error-soft)" }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{error}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={error}>{error}</span>
+            {corrupt && filePath && (
+              <button
+                className="excalidraw-banner__btn"
+                onClick={() => {
+                  try {
+                    window.dispatchEvent(new CustomEvent("open-file-in-new-editor-tab", { detail: { path: filePath, forceText: true } }));
+                  } catch {}
+                }}
+                title="Open the raw file as text to inspect / repair it"
+              >
+                Open as text
+              </button>
+            )}
             <button className="excalidraw-banner__btn" onClick={loadDrawing}>
               Retry
             </button>
