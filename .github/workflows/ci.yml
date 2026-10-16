@@ -1,0 +1,41 @@
+name: Build check (PR)
+
+# Enforces CONTRIBUTING.md ("npm run build passes") on every PR.
+# Runs the real build so broken renderer/preload/main changes get caught
+# before merge. Heavier than security.yml (~a few minutes: npm ci + build).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build bundles
+        run: npm run build
+
+      - name: Syntax-check main process
+        run: node --check electron/main/index.js

@@ -34,6 +34,9 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Free license key stored as repo secret (Settings > Secrets >
+          # Actions > GITLEAKS_LICENSE). Required since gitleaks-action v2.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
   dependency-review:
     name: Dependency review
