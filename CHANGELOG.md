@@ -3,6 +3,34 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.28] - 2026-10-17
+
+### Added
+- **Ctrl+PageDown / Ctrl+PageUp tab navigation** — switch to the next or
+  previous tab in the active panel (VS Code style, wraps around). Works from
+  the editor, terminal or any other panel; Cmd also works on macOS.
+
+### Fixed
+- **Editor Ctrl+Z cross-file leak** — undo history is now isolated per file:
+  switching files (single-click preview open) no longer lets Ctrl+Z revert to
+  a previously opened file's content, which could corrupt a save. Disk/live
+  reloads are also excluded from history, so Ctrl+Z never restores stale
+  on-disk text.
+- **Canvas corrupt-file protection** — a corrupted (invalid JSON) or
+  non-drawing `.excalidraw` file now mounts a truly empty scene with autosave
+  paused, instead of leaving the previous drawing mounted and silently
+  overwriting the file. The banner adds an "Open as text" action to inspect or
+  repair the raw file; your file stays untouched until you explicitly save.
+
+### Changed
+- **flexlayout-react upgraded** to 0.11.1 (from 0.8.19) with a verified
+  move-to-border flow and clearer error reporting.
+- **Windows downloads** route to the Microsoft Store from the landing page;
+  the README now has a top Download section, and the NSIS installer uses
+  explicit installer/uninstaller icons.
+- **CI** — PR build check added; secret/dependency security checks and the
+  gitleaks license configuration fixed.
+
 ## [0.1.27] - 2026-10-14
 
 ### Added

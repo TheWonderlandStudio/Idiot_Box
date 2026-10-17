@@ -35,6 +35,8 @@ const KEYBINDINGS = [
     { command: "Find Previous", key: "Shift+F3", desc: "Find previous occurrence" },
   ]},
   { category: "View", bindings: [
+    { command: "Next Tab", key: "Ctrl+PageDown", desc: "Switch to next tab in active panel" },
+    { command: "Previous Tab", key: "Ctrl+PageUp", desc: "Switch to previous tab in active panel" },
     { command: "Zoom In", key: "Ctrl+Plus / Ctrl+=", desc: "Zoom in" },
     { command: "Zoom Out", key: "Ctrl+-", desc: "Zoom out" },
     { command: "Actual Size", key: "Ctrl+0", desc: "Reset zoom to 100%" },

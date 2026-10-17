@@ -2247,6 +2247,52 @@ const App = () => {
     };
   }, []);
 
+  // ── Ctrl+PageUp / Ctrl+PageDown: prev / next tab in the active tabset ──
+  // VS Code style tab cycling — works from editor, terminal, or any panel
+  // (capture phase so CodeMirror/xterm don't swallow it). Wraps around.
+  useEffect(() => {
+    const cycle = (dir) => {
+      const m = modelRef.current;
+      if (!m) return;
+      try {
+        const ts = m.getActiveTabset?.();
+        if (!ts) return;
+        const kids = (ts.getChildren?.() || []).filter((n) => {
+          try { return n.getType() === "tab"; } catch { return false; }
+        });
+        if (kids.length < 2) return;
+        const sel = ts.getSelectedNode?.();
+        let idx = -1;
+        try {
+          const selId = sel?.getId?.();
+          idx = kids.findIndex((k) => { try { return k.getId() === selId; } catch { return false; } });
+        } catch {}
+        if (idx < 0) idx = dir > 0 ? -1 : 0;
+        const next = kids[(idx + dir + kids.length) % kids.length];
+        if (next) {
+          try { m.doAction(Actions.selectTab(next.getId())); } catch {}
+          try { forceLayoutRedraw(m); } catch {}
+        }
+      } catch {}
+    };
+    const handler = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      const k = e.key;
+      if (k !== "PageUp" && k !== "PageDown") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === "function") try { e.stopImmediatePropagation(); } catch {}
+      cycle(k === "PageUp" ? -1 : 1);
+      return false;
+    };
+    window.addEventListener("keydown", handler, true);
+    document.addEventListener("keydown", handler, true);
+    return () => {
+      window.removeEventListener("keydown", handler, true);
+      document.removeEventListener("keydown", handler, true);
+    };
+  }, []);
+
   // ── UI Size — View → Ctrl + + / Ctrl + - / Ctrl + 0 / Ctrl + Scroll + overlay ──
   // Main process handles accelerators + before-input-event, but Monaco/webview can
   // swallow them. This renderer fallback ensures Ctrl+=/Plus/Minus/0/wheel still zoom.
