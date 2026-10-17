@@ -3,7 +3,7 @@ name: Release (all installers)
 # Cut a release by pushing a tag like v0.1.25 (must match package.json "version").
 # Builds every installer across three runners, then attaches all of them to
 # one GitHub Release:
-#   windows-latest → .exe (NSIS) + .msi (WiX) + .msix
+#   windows-latest → .exe (NSIS)
 #   ubuntu-latest  → .AppImage + .deb + .rpm + .pacman
 #   macos-latest   → .dmg (+ .zip for the auto-updater feed)
 
@@ -22,12 +22,9 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            builder-args: --win nsis msi msix
+            builder-args: --win nsis
             artifact-glob: |
               dist/Idiot-Box-Setup-*.exe
-              dist/Idiot-Box-Setup-*.msi
-              dist/Idiot-Box-Setup-*.msix
-              dist/*.msixupload
           - os: ubuntu-latest
             builder-args: --linux AppImage deb rpm pacman
             artifact-glob: |
@@ -65,7 +62,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Unsigned builds: don't fail looking for a cert/identity.
-          # (Store signs the .msixupload itself on submission.)
           CSC_IDENTITY_AUTO_DISCOVERY: false
           # macOS notarization (optional — notarize.cjs skips when unset).
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -114,14 +110,11 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # All 8 installer formats + updater feed (latest*.yml) +
+          # Installer formats + updater feed (latest*.yml) +
           # differential blockmaps. Explicit list taake builder-debug junk
           # attach na ho aur feed files miss na hon.
           files: |
             dist/Idiot-Box-Setup-*.exe
-            dist/Idiot-Box-Setup-*.msi
-            dist/Idiot-Box-Setup-*.msix
-            dist/*.msixupload
             dist/*.blockmap
             dist/latest*.yml
             dist/Idiot-Box-*.AppImage
