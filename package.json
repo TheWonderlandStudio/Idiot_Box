@@ -97,7 +97,7 @@
     "marked": "^18.1.0",
     "motion": "^13.4.6",
     "mqtt": "^5.16.0",
-    "nanoid": "^6.0.1",
+    "nanoid": "^6.0.2",
     "node-pty": "^1.1.0",
     "opencode-ai": "^1.18.35",
     "prettier": "^3.9.10",
