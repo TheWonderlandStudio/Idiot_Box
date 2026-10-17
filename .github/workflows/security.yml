@@ -4,8 +4,6 @@ name: Security checks (PR)
 #  1. Gitleaks  -> blocks tokens/keys/secrets (.env.signing, GH tokens, etc.)
 #  2. Dependency review -> blocks PRs adding known HIGH/CRITICAL CVEs
 # No npm install, no CodeQL, so this finishes in ~30-60s.
-#
-# Dependabot (npm + actions) already handles weekly updates separately.
 
 on:
   pull_request:

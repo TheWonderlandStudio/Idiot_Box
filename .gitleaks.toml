@@ -1,0 +1,16 @@
+title = "Idiot Box Gitleaks config"
+
+# Use the upstream default ruleset, then narrow it for this repo.
+[extend]
+useDefault = true
+
+# Vendored third-party libraries and generated/minified bundles are not our
+# code and produce high-entropy false positives for the generic-api-key rule.
+[allowlist]
+description = "Vendored libs and generated bundles (false positives)"
+paths = [
+  '''landing-page/vendor/''',
+  '''electron/renderer/bundle\.js''',
+  '''electron/renderer/settings-bundle\.js''',
+  '''electron/renderer/chunks/''',
+]
