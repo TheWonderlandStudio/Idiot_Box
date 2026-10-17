@@ -88,7 +88,7 @@
     "cmdk": "^1.1.1",
     "cn": "^0.2.6",
     "custom-electron-titlebar": "^4.4.1",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "electron-chrome-extensions": "^4.9.0",
     "electron-updater": "^6.8.9",
     "esbuild": "^0.25.6",
