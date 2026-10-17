@@ -101,7 +101,7 @@
     "node-pty": "^1.1.0",
     "opencode-ai": "^1.18.35",
     "prettier": "^3.9.10",
-    "radix-ui": "^1.6.7",
+    "radix-ui": "^1.8.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "streamdown": "^2.7.0",
