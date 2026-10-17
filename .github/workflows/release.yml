@@ -60,6 +60,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y libarchive-tools
 
+      - name: Generate app icons
+        # build/icons/ is gitignored, so the NSIS installerIcon/uninstallerIcon
+        # (build/icons/icon.ico) and win/mac/linux icons don't exist on a fresh
+        # checkout — generate them from the tracked PNG before packaging.
+        run: npm run build:icons
+
       - name: Build and package
         run: npm run build && npx electron-builder ${{ matrix.builder-args }} --publish never
         env:
