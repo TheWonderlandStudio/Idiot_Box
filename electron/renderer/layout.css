@@ -86,20 +86,75 @@ body,
   background: var(--accent);
 }
 
-/* Hide the tabset header bar entirely — we want bare panels */
+/* ── Tab strip — show tabs as a compact header above panel content ── */
 .flexlayout__tabset_header {
-  display: none;
+  display: flex;
+  height: var(--bar-h-sm);
+  flex-shrink: 0;
+  align-items: center;
+  background: var(--bg-vscode);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-4);
+  gap: var(--space-2);
+  overflow-x: auto;
 }
 
 .flexlayout__tabset {
   background: var(--bg-app);
   border: none;
+  display: flex;
+  flex-direction: column;
 }
 
-.flexlayout__tab {
-  background: var(--bg-app);
+/* Individual tab button — unified, slightly smaller font */
+.flexlayout__tab_button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--bar-h-sm);
+  padding: 0 var(--space-6);
+  min-height: 0;
+  background: transparent;
   border: none;
-  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+  font-family: var(--font-ui);
+  font-weight: var(--fw-regular);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-normal), color var(--t-normal), opacity var(--t-normal);
+}
+
+.flexlayout__tab_button:hover {
+  background: var(--bg-hover);
+  color: var(--text-bright);
+}
+
+.flexlayout__tab_button--selected {
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}
+
+.flexlayout__tab_button--unselected {
+  opacity: 0.9;
+}
+
+/* Leading icon area (file icon for editor tabs) */
+.flexlayout__tab_button_leading {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.85;
+}
+
+/* Tab text content */
+.flexlayout__tab_button_content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
 }
 
 /* The visible panel card — borderless (flat seamless look) */

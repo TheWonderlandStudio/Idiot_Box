@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
-import { Play, ChevronDown, Bug, PlayCircle, Settings2, Home, FolderPlus, FolderOpen, Search } from "lucide-react";
+import { Play, ChevronDown, Bug, PlayCircle, Settings2, Home, FolderPlus, FolderOpen, Search, File, FileCode, FileText, FileImage, FileVideo, Database } from "lucide-react";
 import { Layout, Model, Actions, DockLocation } from "flexlayout-react";
 // flexlayout-react 0.11 compat: getRoot() -> getRootRow(), getwindowsMap() -> getLayouts().
 // Old saved code calls m.getRoot() everywhere — keep it working via alias.
@@ -1011,6 +1011,26 @@ const forceLayoutRedraw = (m) => {
       try { lw?.redraw?.("force"); } catch {}
     });
   } catch { /* ignore */ }
+};
+
+// ── File-type icon for editor tabs ─────────────────────────────────────────
+// Maps file extensions to lucide icons so editor tabs show a file icon
+// alongside the filename. Pure/synchronous — no IPC needed at tab render time.
+const CODE_EXTS = new Set([".js",".jsx",".ts",".tsx",".mjs",".cjs",".html",".htm",".css",".scss",".sass",".less",".json",".py",".java",".c",".cpp",".h",".hpp",".rs",".go",".rb",".php",".xml",".yaml",".yml",".toml",".ini",".cfg",".conf"]);
+const TEXT_EXTS = new Set([".md",".markdown",".txt",".log",".pdf",".rtf"]);
+const IMAGE_EXTS = new Set([".png",".jpg",".jpeg",".gif",".svg",".webp",".ico",".bmp",".tiff",".avif"]);
+const VIDEO_EXTS = new Set([".mp4",".mov",".avi",".mkv",".webm",".flv",".wmv"]);
+const DB_EXTS   = new Set([".db",".sqlite",".sqlite3",".sql",".mdb",".accdb"]);
+
+const getFileTypeIcon = (filePath) => {
+  if (!filePath) return <File size={10} />;
+  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+  if (CODE_EXTS.has(ext))   return <FileCode size={10} />;
+  if (TEXT_EXTS.has(ext))   return <FileText size={10} />;
+  if (IMAGE_EXTS.has(ext))  return <FileImage size={10} />;
+  if (VIDEO_EXTS.has(ext))  return <FileVideo size={10} />;
+  if (DB_EXTS.has(ext))     return <Database size={10} />;
+  return <File size={10} />;
 };
 
 const App = () => {
@@ -3091,6 +3111,8 @@ const App = () => {
             </div>
           );
         } else {
+          const isEditor = node.getComponent() === "editor" || node.getComponent() === "notebook";
+          renderValues.leading = isEditor ? getFileTypeIcon(filePath) : null;
           renderValues.content = (
             <span onContextMenu={onTabContextMenu} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {node.getName()}
