@@ -371,6 +371,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   gitDiff:    (rootPath, filePath)   => ipcRenderer.invoke("git:diff", rootPath, filePath),
   gitDiffStaged: (rootPath, filePath)=> ipcRenderer.invoke("git:diffStaged", rootPath, filePath),
   gitDiffAll: (rootPath)             => ipcRenderer.invoke("git:diffAll", rootPath),
+  gitBlame:   (rootPath, relPath)    => ipcRenderer.invoke("git:blame", rootPath, relPath),
   gitBranch:  (rootPath)             => ipcRenderer.invoke("git:branch", rootPath),
   gitBranches: (rootPath)            => ipcRenderer.invoke("git:branches", rootPath),
   gitCreateBranch: (rootPath, name)  => ipcRenderer.invoke("git:createBranch", rootPath, name),

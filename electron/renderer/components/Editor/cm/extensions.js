@@ -28,6 +28,8 @@ import {
   deleteLine,
   moveLineUp,
   moveLineDown,
+  addCursorAbove,
+  addCursorBelow,
 } from "@codemirror/commands";
 import {
   indentOnInput,
@@ -45,11 +47,22 @@ import {
   completionKeymap,
   acceptCompletion,
 } from "@codemirror/autocomplete";
-import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { highlightSelectionMatches, search, searchKeymap, selectNextOccurrence } from "@codemirror/search";
 import { vim } from "@replit/codemirror-vim";
 import { vscodeDark, vscodeLight } from "@uiw/codemirror-theme-vscode";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { getSnippetCompletionSource } from "./snippets.js";
+import {
+  minimapExtension,
+  indentGuidesExtension,
+  bracketColorExtension,
+  whitespaceExtension,
+  typographyExtension,
+} from "./visual.js";
+import { linksExtension } from "./goto.js";
+import { colorDecoratorExtension } from "./colors.js";
+import { emmetExtension } from "./emmet.js";
+import { gitGutterExtension } from "./gitgutter.js";
 
 export const themeExtensionFor = (theme) => {
   if (theme === "light") return vscodeLight;
@@ -90,6 +103,18 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
 
   // ── Language ──
   if (Array.isArray(languageSupport) && languageSupport.length) ext.push(...languageSupport);
+
+  // ── Visual helpers (each is a no-op when its setting is off) ──
+  try { ext.push(typographyExtension(s)); } catch {}
+  if (s.minimap !== false) { try { ext.push(minimapExtension()); } catch {} }
+  if (s.indentGuides !== false) { try { ext.push(...indentGuidesExtension()); } catch {} }
+  if (s.bracketPairColorization !== false) { try { ext.push(bracketColorExtension()); } catch {} }
+  if (s.highlightWhitespace) { try { ext.push(whitespaceExtension()); } catch {} }
+  if (s.colorDecorators !== false && /css|scss|less|sass/.test(languageId || "")) {
+    try { ext.push(colorDecoratorExtension()); } catch {}
+  }
+  try { ext.push(...linksExtension()); } catch {}
+  if (s.gitGutter !== false) { try { ext.push(gitGutterExtension()); } catch {} }
 
   // ── Gutter / view (lineNumbers + wrapping from settings, rest fixed on) ──
   if (s.lineNumbers !== false) ext.push(lineNumbers());
@@ -144,13 +169,23 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
     ext.push(Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])));
   }
 
-  // ── Custom keys (comment / delete-line / move-line) ──
+  // ── Custom keys (VS Code-style: comment / multi-cursor / delete / move line) ──
   ext.push(keymap.of([
     { key: "Mod-/", run: toggleComment },
-    { key: "Mod-D", run: deleteLine },
+    { key: "Mod-d", run: selectNextOccurrence },
+    { key: "Mod-Shift-k", run: deleteLine },
+    { key: "Ctrl-Alt-ArrowUp", run: addCursorAbove },
+    { key: "Ctrl-Alt-ArrowDown", run: addCursorBelow },
     { key: "Alt-ArrowUp", run: moveLineUp },
     { key: "Alt-ArrowDown", run: moveLineDown },
   ]));
+
+  // Emmet gets the last word on Tab (abbreviation expand) — when no Emmet
+  // abbreviation is active its handler returns false and Tab falls through
+  // to the acceptCompletion / indent handling above.
+  if (s.emmet !== false) {
+    try { ext.push(...emmetExtension(languageId)); } catch {}
+  }
 
   return ext;
 };

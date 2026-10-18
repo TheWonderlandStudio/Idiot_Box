@@ -93,13 +93,7 @@ const DEFAULT_JSON = {
       {
         type: "row", weight: 75,
         children: [
-          {
-            type: "row", weight: 65,
-            children: [
-              { type: "tabset", weight: 30, children: [{ type: "tab", name: "Media Viewer", component: "mediaViewer" }] },
-              { type: "tabset", weight: 70, children: [{ type: "tab", name: "Browser", component: "panel3", enablePopout: false, config: { type: "browser", title: "Browser" } }] },
-            ],
-          },
+          { type: "tabset", weight: 65, children: [{ type: "tab", name: "Browser", component: "panel3", enablePopout: false, config: { type: "browser", title: "Browser" } }] },
           {
             type: "tabset", weight: 35,
             children: [
@@ -1008,10 +1002,17 @@ const forceLayoutRedraw = (m) => {
   try {
     const map = m?.getLayouts?.() ?? m?.getwindowsMap?.();
     if (map) [...map.values()].forEach((lw) => {
+      // FlexLayout memoises tab CONTENT (TabContentRenderer). An in-place
+      // attribute change (e.g. replacing a tab's filePath) updates the header
+      // but not the content unless the controller bumps its revision. On
+      // flexlayout 0.11 the only reliable way is redrawLayoutAndTabContent().
+      try { lw?.getController?.()?.redrawLayoutAndTabContent?.(); } catch {}
       try { lw?.layout?.redraw?.("force"); } catch {}
       try { lw?.redraw?.("force"); } catch {}
     });
   } catch { /* ignore */ }
+  // Main layout ref fallback (e.g. transient/edge models without controllers).
+  try { window.__flexLayoutApi?.current?.redraw?.(); } catch { /* ignore */ }
 };
 
 const App = () => {

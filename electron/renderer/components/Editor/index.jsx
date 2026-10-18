@@ -16,10 +16,12 @@ import CodeMirror from "@uiw/react-codemirror";
 import {
   undo, redo, selectAll, toggleComment, deleteLine,
   moveLineUp, moveLineDown, copyLineDown, copyLineUp,
-  isolateHistory,
+  isolateHistory, addCursorAbove, addCursorBelow,
 } from "@codemirror/commands";
 import { Transaction } from "@codemirror/state";
 import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/search";
+import { foldAll, unfoldAll } from "@codemirror/language";
+import { unifiedMergeView } from "@codemirror/merge";
 import NotebookPanel from "../Notebook/index.jsx";
 import { Play, Sparkles, Square } from "lucide-react";
 import { MarkdownPreview, MdxPreview, DbPreview } from "./preview.jsx";
@@ -37,6 +39,8 @@ import { resolveCmLanguage, getLanguageSupport, displayNameFor, CM_LANG_IDS } fr
 import { collectSyntaxDiagnostics, publishDiagnostics } from "./cm/diagnostics.js";
 import { buildCmExtensions } from "./cm/extensions.js";
 import { createCmBridge, offsetToPos } from "./cm/bridge.js";
+import { applyGitChanges, parseUnifiedDiff } from "./cm/gitgutter.js";
+import { collectSymbols, symbolPathAt } from "./cm/goto.js";
 
 // CodeMirror needs no async init — ready immediately. Compat for any old
 // listeners: resolved promise + ready events.
@@ -57,6 +61,28 @@ try {
 } catch {}
 
 const fileName = (p) => { try { return p.split(/[\\/]/).pop(); } catch { return p; } };
+
+// Symbol glyphs for breadcrumbs / outline.
+const KIND_ICON = {
+  function: "ƒ", method: "ƒ", class: "▤", interface: "◈", type: "◈", enum: "≣",
+  struct: "▤", trait: "◈", impl: "▦", module: "▣", variable: "▪", property: "▪",
+  rule: "▦", tag: "<>", heading1: "H1", heading2: "H2", heading3: "H3",
+  heading4: "H4", heading5: "H5", heading6: "H6",
+};
+const kindIcon = (k) => KIND_ICON[k] || "•";
+
+const formatRelTime = (t) => {
+  if (!t) return "";
+  try {
+    const d = new Date(t * 1000);
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
+    return d.toLocaleDateString();
+  } catch { return ""; }
+};
 
 const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const filePath = config?.filePath || null;
@@ -90,6 +116,16 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [langQuery, setLangQuery] = useState("");
   const [binaryFile, setBinaryFile] = useState(false);
+  // ── Editor chrome state (status bar / breadcrumbs / overlays) ──
+  const [eol, setEol] = useState("LF");
+  const [encoding, setEncoding] = useState("UTF-8");
+  const [problemCount, setProblemCount] = useState(0);
+  const [symbols, setSymbols] = useState([]);
+  const [crumbs, setCrumbs] = useState([]);
+  const [showOutline, setShowOutline] = useState(false);
+  const [zen, setZen] = useState(false);
+  const [diffOriginal, setDiffOriginal] = useState(null);
+  const [blame, setBlame] = useState(null);
   // Gate CodeMirror mount on content load — the view is created WITH the
   // file's text (empty history), so Ctrl+Z can never reach a previous file.
   const [contentReady, setContentReady] = useState(false);
@@ -113,6 +149,12 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const loadedRef = useRef(false);
   const langRef = useRef("plaintext");
   const docRef = useRef("");
+  const blameRef = useRef(false);
+  const eolRef = useRef("LF");
+  const symbolsRef = useRef([]);
+  const markersRef = useRef([]);
+  const blameDataRef = useRef(null);
+  const gitDescRef = useRef(null);
   const saveTimer = useRef(null);
   const lastSelfSaveRef = useRef(0);
   const externalWriteRef = useRef(false);
@@ -121,6 +163,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   pathRef.current = filePath;
   langRef.current = languageId;
   docRef.current = doc;
+  eolRef.current = eol;
+  blameRef.current = cmSettings.gitBlame === true;
   const binaryRef = useRef(false);
   binaryRef.current = binaryFile;
 
@@ -130,7 +174,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   // change is un-undoable, with isolateHistory so it never merges with
   // the user's own edits. User typing / format / AI edits stay undoable.
   const replaceDocWithoutHistory = useCallback((text) => {
-    const next = String(text ?? "");
+    const next = String(text ?? "").replace(/\r\n?/g, "\n");
     originalRef.current = next;
     const view = viewRef.current;
     if (view) {
@@ -172,7 +216,15 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         if (pathRef.current !== p || binaryRef.current) return;
         const v = viewRef.current;
         if (!v) return;
-        publishDiagnostics(p, collectSyntaxDiagnostics(v));
+        const markers = collectSyntaxDiagnostics(v);
+        markersRef.current = markers;
+        publishDiagnostics(p, markers);
+        setProblemCount(markers.length);
+        try {
+          const syms = collectSymbols(v);
+          symbolsRef.current = syms;
+          setSymbols(syms);
+        } catch {}
       } catch {}
     }, delay);
   }, []);
@@ -235,6 +287,11 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     originalRef.current = "";
     setDoc("");
     setCursorPos({ line: 1, col: 1, totalLines: 1 });
+    setEol("LF");
+    setEncoding("UTF-8");
+    setProblemCount(0);
+    setSymbols([]);
+    setBlame(null);
     // Old view is being torn down (key change) — forget it so no programmatic
     // dispatch can hit a destroyed view.
     viewRef.current = null;
@@ -264,8 +321,15 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         flashStatus(`Large file (${(text.length / 1048576).toFixed(1)} MB)`);
       } else setStatusMsg(null);
       const lang = resolveCmLanguage(filePath);
+      // Detect line endings / BOM, then normalize the buffer to LF (CodeMirror
+      // works in LF; save converts back to the detected EOL).
+      const hasCRLF = text.includes("\r\n");
+      const hasBOM = text.charCodeAt(0) === 0xFEFF;
+      setEol(hasCRLF ? "CRLF" : "LF");
+      setEncoding(hasBOM ? "UTF-8 with BOM" : "UTF-8");
+      const normalized = text.replace(/\r\n?/g, "\n");
       baseNames.set(filePath, fileName(filePath));
-      originalRef.current = text;
+      originalRef.current = normalized;
       loadedRef.current = true;
       // Fresh mount path: view is null (torn down above) or already the new
       // key's view showing "". Either way setDoc makes the mounted view's
@@ -273,16 +337,16 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       // @uiw suppresses onChange for this sync, so a stale flag would leak
       // into the next real user edit and break autosave.
       externalWriteRef.current = false;
-      setDoc(text);
+      setDoc(normalized);
       setContentReady(true);
       setLanguageId(lang);
-      setCursorPos({ line: 1, col: 1, totalLines: text.split("\n").length });
+      setCursorPos({ line: 1, col: 1, totalLines: normalized.split("\n").length });
       dirtyFlags.set(filePath, false);
       updateTabName(nodeId, filePath);
       setActiveEditorPath(filePath);
       try {
         window.dispatchEvent(new CustomEvent("editor:fileActivated", { detail: { path: filePath } }));
-        window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } }));
+        window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: normalized } }));
       } catch {}
     })();
     return () => { cancelled = true; };
@@ -290,12 +354,25 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   }, [filePath, nodeId, hasProject, isIpynb, isDbFile]);
 
   // ── Extensions (memo; reconfigure keeps history) ──
-  const extensions = useMemo(() => buildCmExtensions({
-    settings: cmSettings,
-    languageSupport: getLanguageSupport(languageId),
-    languageId,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [cmSettings, languageId]);
+  const extensions = useMemo(() => {
+    const base = buildCmExtensions({
+      settings: cmSettings,
+      languageSupport: getLanguageSupport(languageId),
+      languageId,
+    });
+    // Inline diff against the last-saved snapshot ("Compare with Saved").
+    if (diffOriginal != null) {
+      try {
+        base.push(unifiedMergeView({
+          original: diffOriginal,
+          mergeControls: true,
+          highlightChanges: true,
+          gutter: true,
+        }));
+      } catch {}
+    }
+    return base;
+  }, [cmSettings, languageId, diffOriginal]);
 
   // Lint on file load / language-mode change (even when the doc text is unchanged —
   // docChanged does not fire on tab switch; this effect catches it).
@@ -347,6 +424,14 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         const head = viewUpdate.state.selection.main.head;
         const p = offsetToPos(viewUpdate.state.doc, head);
         setCursorPos({ line: p.lineNumber, col: p.column, totalLines: viewUpdate.state.doc.lines });
+        // Breadcrumbs from the current symbol path.
+        try { setCrumbs(symbolPathAt(symbolsRef.current, head)); } catch {}
+        // Inline blame for the cursor line.
+        if (blameRef.current) {
+          const bd = blameDataRef.current;
+          const rec = bd && bd[p.lineNumber];
+          setBlame(rec || null);
+        }
       }
       // Re-lint on every edit (debounced) — keeps the Problems panel live.
       if (viewUpdate.docChanged) {
@@ -361,23 +446,95 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     } catch {}
   }, []);
 
+  // ── Git gutter refresh ──
+  const refreshGit = useCallback(async () => {
+    const v = viewRef.current;
+    const p = pathRef.current;
+    const root = window.__currentProjectPath;
+    if (!v) return;
+    if (cmSettings.gitGutter === false || !p || !root || binaryRef.current) {
+      applyGitChanges(v, null);
+      gitDescRef.current = null;
+      return;
+    }
+    try {
+      const [unstaged, staged] = await Promise.all([
+        window.electronAPI.gitDiff(root, p).catch(() => ""),
+        window.electronAPI.gitDiffStaged(root, p).catch(() => ""),
+      ]);
+      const desc = { added: new Set(), modified: new Set(), deleted: new Set() };
+      for (const patch of [unstaged, staged]) {
+        if (typeof patch !== "string" || !patch) continue;
+        const d = parseUnifiedDiff(patch);
+        d.added.forEach((n) => desc.added.add(n));
+        d.modified.forEach((n) => { desc.added.delete(n); desc.modified.add(n); });
+        d.deleted.forEach((n) => desc.deleted.add(n));
+      }
+      gitDescRef.current = desc;
+      if (viewRef.current === v) applyGitChanges(v, desc);
+    } catch {}
+  }, [cmSettings.gitGutter]);
+  const refreshGitRef = useRef(refreshGit);
+  refreshGitRef.current = refreshGit;
+
+  // Apply a save-time transformation pipeline (format / trim / final newline).
+  const transformForSave = useCallback(async (text) => {
+    let out = text;
+    if (cmSettings.formatOnSave) {
+      try {
+        const res = await window.electronAPI?.extFormat?.(pathRef.current, out, langRef.current, {
+          tabSize: cmSettings.tabSize,
+          insertSpaces: !(cmSettings.indentUnit || "  ").startsWith("\t"),
+        });
+        if (res?.ok && typeof res.text === "string") out = res.text;
+      } catch {}
+    }
+    if (cmSettings.trimTrailingWhitespace) {
+      out = out.split("\n").map((l) => l.replace(/[ \t]+$/, "")).join("\n");
+    }
+    if (cmSettings.insertFinalNewline && out.length && !out.endsWith("\n")) out += "\n";
+    return out;
+  }, [cmSettings]);
+
+  // Write transformed text back into the view without polluting undo history,
+  // then persist to disk with the detected EOL.
+  const commitSave = useCallback(async (p, text) => {
+    const view = viewRef.current;
+    if (view) {
+      try {
+        const cur = view.state.doc.toString();
+        if (cur !== text) {
+          externalWriteRef.current = true;
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: text },
+            annotations: [Transaction.addToHistory.of(false), isolateHistory.of("full")],
+          });
+          setDoc(text);
+        }
+      } catch {}
+    }
+    const diskText = eolRef.current === "CRLF" ? text.replace(/\n/g, "\r\n") : text;
+    return window.electronAPI.writeFileText(p, diskText);
+  }, []);
+
   // ── Save / Save As ──
   const doSave = useCallback(async () => {
     const p = pathRef.current;
     if (!p || isIpynb) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
-    const text = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
-    const result = await window.electronAPI.writeFileText(p, text);
+    const raw = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
+    const text = await transformForSave(raw);
+    const result = await commitSave(p, text);
     if (result?.success) {
       lastSelfSaveRef.current = Date.now();
       originalRef.current = text;
       setDirty(nodeId, p, false);
       flashStatus(`Saved: ${fileName(p)}`);
+      refreshGitRef.current?.();
     } else {
       await window.electronAPI.showAlert(`Failed to save file:\n${result?.error || "Unknown error"}`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeId, isIpynb]);
+  }, [nodeId, isIpynb, transformForSave, commitSave]);
   const doSaveRef = useRef(doSave);
   doSaveRef.current = doSave;
 
@@ -385,8 +542,10 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     const p = pathRef.current;
     if (!p || isIpynb) return;
     if (!loadedRef.current) { flashStatus("Nothing to save — file was not loaded"); return; }
-    const text = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
-    const result = await window.electronAPI.saveFileAs(p, text);
+    const raw = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
+    const text = await transformForSave(raw);
+    const diskText = eolRef.current === "CRLF" ? text.replace(/\n/g, "\r\n") : text;
+    const result = await window.electronAPI.saveFileAs(p, diskText);
     if (result?.canceled) return;
     if (result?.error) { await window.electronAPI.showAlert(`Save As failed:\n${result.error}`); return; }
     const newPath = result.path;
@@ -401,7 +560,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       } catch {}
     }
     flashStatus(`Saved as: ${fileName(newPath)}`);
-  }, [nodeId, isIpynb]);
+  }, [nodeId, isIpynb, transformForSave]);
 
   const formatDocument = useCallback(async () => {
     const view = viewRef.current;
@@ -438,6 +597,39 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       setFormatBusy(false);
     }
   }, [cmSettings, isIpynb, formatBusy]);
+
+  // ── Navigate between syntax problems (F8 / Shift+F8) ──
+  const gotoProblem = useCallback((dir) => {
+    const view = viewRef.current;
+    if (!view) return;
+    const markers = markersRef.current || [];
+    if (!markers.length) { flashStatus("No problems in this file"); return; }
+    const cur = view.state.selection.main.head;
+    const lines = markers.map((m) => m.startLineNumber || 1);
+    let target = null;
+    if (dir > 0) {
+      target = lines.find((ln) => view.state.doc.line(ln).from > cur);
+      if (target == null) target = lines[0];
+    } else {
+      const before = lines.filter((ln) => view.state.doc.line(ln).from < cur);
+      target = before.length ? before[before.length - 1] : lines[lines.length - 1];
+    }
+    try {
+      const off = view.state.doc.line(target).from;
+      view.dispatch({ selection: { anchor: off }, scrollIntoView: true });
+      view.focus();
+    } catch {}
+  }, []);
+
+  // ── Inline diff vs last-saved snapshot ──
+  const toggleCompare = useCallback(() => {
+    setDiffOriginal((prev) => {
+      if (prev != null) { flashStatus("Diff closed"); return null; }
+      const saved = originalRef.current || "";
+      flashStatus("Comparing with saved — accept/reject in the gutter");
+      return saved;
+    });
+  }, []);
 
   // ── Editor command executor (runs on this tab's view) ──
   const execCommand = useCallback(async (cmd) => {
@@ -491,11 +683,20 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         case "moveLineUp": moveLineUp(view); break;
         case "moveLineDown": moveLineDown(view); break;
         case "deleteLine": deleteLine(view); break;
-        default: break; // gotoSymbol retired with the plain editor
+        case "addCursorAbove": addCursorAbove(view); break;
+        case "addCursorBelow": addCursorBelow(view); break;
+        case "foldAll": foldAll(view); break;
+        case "unfoldAll": unfoldAll(view); break;
+        case "gotoSymbol": setShowOutline(true); break;
+        case "nextProblem": gotoProblem(1); break;
+        case "prevProblem": gotoProblem(-1); break;
+        case "compareWithSaved": toggleCompare(); break;
+        case "toggleZen": setZen((v) => !v); break;
+        default: break;
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isIpynb, formatDocument]);
+  }, [isIpynb, formatDocument, gotoProblem, toggleCompare]);
 
   // ── File & Edit menu commands (only the active tab reacts) ──
   useEffect(() => {
@@ -578,15 +779,25 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
     const unsub = window.electronAPI.onFsChange((_dir, changedPath) => {
       if (changedPath !== filePath) return;
       if (Date.now() - lastSelfSaveRef.current < 1200) return;
-      if (dirtyFlags.get(filePath)) return;
       if (!loadedRef.current) return;
+      const wasDirty = !!dirtyFlags.get(filePath);
       if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
-        const text = await window.electronAPI.readTextFile(filePath);
-        if (text === null) return;
+        const raw = await window.electronAPI.readTextFile(filePath);
+        if (raw === null) return;
         if (pathRef.current !== filePath) return;
+        const text = raw.replace(/\r\n?/g, "\n");
         const cur = viewRef.current ? viewRef.current.state.doc.toString() : docRef.current;
-        if (cur === text) return;
+        if (cur === text) { refreshGitRef.current?.(); return; }
+        // Conflict: the file changed on disk while the buffer has unsaved edits.
+        if (wasDirty && viewRef.current && viewRef.current.state.doc.toString() === cur) {
+          try {
+            const reload = await window.electronAPI.confirmDialog(
+              `${fileName(filePath)} changed on disk and you have unsaved changes.\n\nOK = reload from disk (discard your changes)\nCancel = keep your unsaved changes`,
+            );
+            if (!reload) return;
+          } catch { return; }
+        }
         replaceDocWithoutHistory(text);
         dirtyFlags.set(filePath, false);
         updateTabName(nodeId, filePath);
@@ -595,6 +806,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
           window.dispatchEvent(new CustomEvent("component:sourceChanged", { detail: { path: filePath, code: text } }));
         } catch {}
         flashStatus("File changed on disk — reloaded");
+        refreshGitRef.current?.();
       }, 150);
     });
     return () => { unsub(); if (timer) clearTimeout(timer); };
@@ -636,6 +848,64 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       try { unsub(); } catch {}
     };
   }, [filePath, nodeId, isIpynb]);
+
+  // ── Git gutter + inline blame refresh ──
+  useEffect(() => {
+    if (!filePath || isIpynb || binaryFile) {
+      try { if (viewRef.current) applyGitChanges(viewRef.current, null); } catch {}
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      await refreshGitRef.current?.();
+      const root = window.__currentProjectPath;
+      if (cmSettings.gitBlame && root) {
+        try {
+          const res = await window.electronAPI.gitBlame?.(root, filePath);
+          if (!cancelled) {
+            blameDataRef.current = res?.ok ? res.lines : null;
+            // Populate blame for the current cursor line immediately.
+            const v = viewRef.current;
+            if (v && blameDataRef.current) {
+              const ln = offsetToPos(v.state.doc, v.state.selection.main.head).lineNumber;
+              setBlame(blameDataRef.current[ln] || null);
+            }
+          }
+        } catch { if (!cancelled) blameDataRef.current = null; }
+      } else if (!cancelled) {
+        blameDataRef.current = null;
+        setBlame(null);
+      }
+    };
+    run();
+    const t = setTimeout(run, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePath, isIpynb, binaryFile, contentReady, cmSettings.gitGutter, cmSettings.gitBlame]);
+
+  // ── F8 / Shift+F8 problem navigation ──
+  useEffect(() => {
+    if (isIpynb) return;
+    const onKey = (e) => {
+      if (getActiveEditorPath() !== pathRef.current) return;
+      if (e.key === "F8") { e.preventDefault(); gotoProblem(e.shiftKey ? -1 : 1); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [gotoProblem, isIpynb]);
+
+  // ── Status-bar mutations (persist to settings.json) ──
+  const patchSetting = useCallback(async (patch) => {
+    try {
+      const cur = (await window.electronAPI.readSettings()) || {};
+      await window.electronAPI.writeSettings({ ...cur, ...patch });
+    } catch {}
+  }, []);
+
+  const changeIndent = useCallback((units) => {
+    if (units === "tab") patchSetting({ tabSize: 4, indentUnit: "\t" });
+    else patchSetting({ tabSize: units, indentUnit: " ".repeat(units) });
+  }, [patchSetting]);
 
   const tabSize = Number.isFinite(cmSettings.tabSize) ? cmSettings.tabSize : 2;
   const displayName = displayNameFor(languageId);
@@ -680,6 +950,37 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         </div>
       ) : (
         <>
+          {!zen && cmSettings.breadcrumbs !== false && filePath && !isIpynb && !binaryFile && !isDbFile && (
+            <div className="ed-crumbs">
+              <span
+                className="ed-crumbs__file"
+                onClick={() => setShowOutline((v) => !v)}
+                title="Show document outline"
+              >
+                {fileName(filePath)}
+              </span>
+              {crumbs.map((c, i) => (
+                <React.Fragment key={`${c.from}:${i}`}>
+                  <span className="ed-crumbs__sep">›</span>
+                  <span
+                    className="ed-crumbs__item"
+                    title={`${c.kind}: ${c.name}`}
+                    onClick={() => {
+                      try {
+                        const v = viewRef.current;
+                        if (v) { v.dispatch({ selection: { anchor: c.from }, scrollIntoView: true }); v.focus(); }
+                      } catch {}
+                    }}
+                  >
+                    {kindIcon(c.kind)} {c.name}
+                  </span>
+                </React.Fragment>
+              ))}
+              <span style={{ flex: 1 }} />
+              <button className="ed-crumbs__btn" title="Outline" onClick={() => setShowOutline((v) => !v)}>☰</button>
+              <button className="ed-crumbs__btn" title="Exit Zen Mode (Ctrl+K Z)" onClick={() => setZen(false)}>⤢</button>
+            </div>
+          )}
           <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", inset: 0, overflow: "hidden", display: previewOpen && canPreview ? "none" : "block" }}>
               {isIpynb ? (
@@ -761,7 +1062,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
             )}
           </div>
 
-          {filePath && !isIpynb && (
+          {!zen && filePath && !isIpynb && (
             <div
               style={{
                 display: "flex",
@@ -778,6 +1079,22 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
             >
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
                 <span>{statusMsg || (isDbFile ? "SQLite database · read-only" : `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`)}</span>
+                {!isDbFile && !binaryFile && (
+                  <>
+                    <span
+                      title="Problems (F8)"
+                      onClick={() => gotoProblem(1)}
+                      style={{ cursor: "pointer", opacity: problemCount ? 1 : 0.6 }}
+                    >
+                      ⚠ {problemCount}
+                    </span>
+                    {blame && cmSettings.gitBlame && (
+                      <span className="ed-blame" title={`${blame.author} · ${blame.hash.slice(0, 7)}`}>
+                        {blame.author} · {formatRelTime(blame.time)} · {blame.summary}
+                      </span>
+                    )}
+                  </>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
                 {canPreview && (
@@ -814,8 +1131,48 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                   </button>
                 )}
                 {(autoSave || isAutoSaveEnabled()) && <span>AutoSave: On</span>}
-                <span>Spaces: {tabSize}</span>
-                <span>UTF-8</span>
+                <span
+                  title="Indentation — click to cycle 2 / 4 / Tab"
+                  onClick={() => {
+                    const unit = cmSettings.indentUnit === "\t" ? 2 : (tabSize === 2 ? 4 : "tab");
+                    changeIndent(unit);
+                  }}
+                  style={{ cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)" }}
+                >
+                  {cmSettings.indentUnit === "\t" ? "Tab" : `Spaces: ${tabSize}`}
+                </span>
+                <span
+                  title="End of line — click to toggle LF / CRLF"
+                  onClick={() => {
+                    const next = eol === "CRLF" ? "LF" : "CRLF";
+                    setEol(next);
+                    setDirty(nodeId, filePath, true);
+                  }}
+                  style={{ cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)" }}
+                >
+                  {eol}
+                </span>
+                <span title="File encoding" style={{ opacity: 0.9 }}>{encoding}</span>
+                <span
+                  title="Toggle word wrap"
+                  onClick={() => patchSetting({ lineWrapping: cmSettings.lineWrapping === false })}
+                  style={{
+                    cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)",
+                    opacity: cmSettings.lineWrapping === false ? 0.55 : 1,
+                  }}
+                >
+                  Wrap: {cmSettings.lineWrapping === false ? "Off" : "On"}
+                </span>
+                <span
+                  title="Toggle minimap"
+                  onClick={() => patchSetting({ minimap: cmSettings.minimap === false })}
+                  style={{
+                    cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)",
+                    opacity: cmSettings.minimap === false ? 0.55 : 1,
+                  }}
+                >
+                  Minimap
+                </span>
                 <span
                   onClick={() => { setShowLangMenu((v) => !v); setLangQuery(""); }}
                   title="Change language mode"
@@ -871,6 +1228,53 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                   >
                     {displayNameFor(id)}
                     <span style={{ opacity: 0.6, fontSize: "var(--fs-small)" }}> — {id}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {showOutline && filePath && !isIpynb && (
+            <>
+              <div
+                onClick={() => setShowOutline(false)}
+                style={{ position: "absolute", inset: 0, zIndex: "var(--z-menu)" }}
+              />
+              <div
+                style={{
+                  position: "absolute", left: 8, top: 30, zIndex: "var(--z-menu-top)",
+                  background: "var(--bg-vscode)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-md)",
+                  boxShadow: "var(--shadow-pop)",
+                  maxHeight: "60%", overflowY: "auto", minWidth: 260, maxWidth: 420, padding: "var(--space-4)",
+                }}
+              >
+                <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon)", padding: "var(--space-4) var(--space-8)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Outline
+                </div>
+                {symbols.length === 0 ? (
+                  <div style={{ fontSize: "var(--fs-small)", color: "var(--text-placeholder)", padding: "var(--space-6) var(--space-8)" }}>
+                    No symbols for this file
+                  </div>
+                ) : symbols.map((sym, i) => (
+                  <div
+                    key={`${sym.from}:${i}`}
+                    onClick={() => {
+                      setShowOutline(false);
+                      try {
+                        const v = viewRef.current;
+                        if (v) { v.dispatch({ selection: { anchor: sym.from }, scrollIntoView: true }); v.focus(); }
+                      } catch {}
+                    }}
+                    title={`${sym.kind}: ${sym.name}`}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "var(--space-6)",
+                      fontSize: "var(--fs-body)", padding: "var(--space-3) var(--space-8)",
+                      paddingLeft: `${6 + (sym.depth || 0) * 12}px`,
+                      borderRadius: "var(--radius-sm)", cursor: "pointer", color: "var(--text-bright)",
+                    }}
+                  >
+                    <span style={{ opacity: 0.8 }}>{kindIcon(sym.kind)}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sym.name}</span>
                   </div>
                 ))}
               </div>

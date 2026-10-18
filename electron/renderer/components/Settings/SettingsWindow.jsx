@@ -326,11 +326,15 @@ const SettingsWindow = () => {
       {/* Content */}
       <div className="sw-content">
         <div className="sw-content__header">
-          <span className="sw-content__title">{pageTitle}</span>
-          {pageDesc ? <span className="sw-content__desc">{pageDesc}</span> : null}
+          <div className="sw-content__header-inner">
+            <span className="sw-content__title">{pageTitle}</span>
+            {pageDesc ? <span className="sw-content__desc">{pageDesc}</span> : null}
+          </div>
         </div>
         <div className="sw-content__body" ref={bodyRef} key={activePage}>
-          <UnwrapRoot>{renderPage()}</UnwrapRoot>
+          <div className="sw-content__inner">
+            <UnwrapRoot>{renderPage()}</UnwrapRoot>
+          </div>
         </div>
       </div>
 

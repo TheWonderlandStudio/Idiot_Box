@@ -2333,6 +2333,34 @@ ipcMain.handle("git:fetch", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
   try { const out = await gitRunLogged(rootPath, ["fetch"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
+ipcMain.handle("git:blame", async (_e, rootPath, relPath) => {
+  if (!rootPath || !relPath) return { ok: false, error: "Missing path" };
+  const rel = sanitizeGitArg(relPath);
+  if (!rel || rel.includes("\0")) return { ok: false, error: "Invalid path" };
+  try {
+    await gitExec(["rev-parse", "--is-inside-work-tree"], rootPath, 2000);
+    const out = await gitExec(["blame", "--line-porcelain", "--", rel], rootPath, 10000);
+    const lines = {};
+    const rows = String(out).split("\n");
+    let cur = null;
+    let lineNo = 0;
+    for (const row of rows) {
+      if (/^[0-9a-f]{7,40} \d+ \d+( \d+)?$/.test(row)) {
+        lineNo++;
+        const parts = row.split(" ");
+        cur = { hash: parts[0], line: parseInt(parts[2], 10) || lineNo, author: "", time: 0, summary: "" };
+        lines[lineNo] = cur;
+      } else if (cur) {
+        if (row.startsWith("author ")) cur.author = row.slice(7);
+        else if (row.startsWith("author-time ")) cur.time = parseInt(row.slice(12), 10) || 0;
+        else if (row.startsWith("summary ")) cur.summary = row.slice(8);
+      }
+    }
+    return { ok: true, lines };
+  } catch (e) {
+    return { ok: false, error: humanGitError(e.stderr || e.message) };
+  }
+});
 ipcMain.handle("git:menuAction", async (_e, rootPath, action, value) => {
   const actions = new Set(["remotes", "remote-add", "remote-remove", "stash-list", "stash-save", "stash-pop", "stash-apply", "stash-drop", "tags", "tag-create", "tag-delete", "tag-checkout", "sync", "fetch-all", "fetch-prune", "pull-rebase", "push-force-with-lease", "publish-branch"]);
   if (typeof rootPath !== "string" || !rootPath || !actions.has(action)) return { ok: false, error: "Invalid Git operation" };
@@ -3579,6 +3607,7 @@ ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = fals
     const items = [];
     if (canClose) items.push({ label: "Close", click: () => act("close") });
     if (canClose) items.push({ label: "Close Others", click: () => act("closeOthers") });
+    if (canClose) items.push({ label: "Close to the Right", click: () => act("closeRight") });
     if (canClose) items.push({ label: "Close All", click: () => act("closeAll") });
     if (canClose) items.push(sep);
     if (canDuplicate) items.push({ label: "Duplicate", click: () => act("duplicate") });
@@ -3768,7 +3797,14 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
         sep,
         { label: "Format Document",                                     click: () => act("format") },
         { label: "Toggle Line Comment",     accelerator: "Ctrl+/",       click: () => act("commentLine") },
-        { label: "Delete Line",             accelerator: "Ctrl+D",       click: () => act("deleteLine") },
+        { label: "Delete Line",             accelerator: "Ctrl+Shift+K", click: () => act("deleteLine") },
+        { label: "Add Cursor Above",        accelerator: "Ctrl+Alt+Up",  click: () => act("addCursorAbove") },
+        { label: "Add Cursor Below",        accelerator: "Ctrl+Alt+Down",click: () => act("addCursorBelow") },
+        sep,
+        { label: "Fold All",                                            click: () => act("foldAll") },
+        { label: "Unfold All",                                          click: () => act("unfoldAll") },
+        { label: "Compare with Saved",                                  click: () => act("compareWithSaved") },
+        { label: "Toggle Zen Mode",                                     click: () => act("toggleZen") },
         sep,
         { label: "Copy Path",               accelerator: "Ctrl+Shift+C", click: () => act("copyPath") },
         { label: "Reveal in File Explorer", accelerator: "Ctrl+Shift+R", click: () => act("reveal") },

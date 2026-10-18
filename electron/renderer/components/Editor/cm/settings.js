@@ -43,6 +43,24 @@ export const DEFAULT_CM_SETTINGS = {
   theme: "dark",
   fontSize: 14,
   customHighlights: true,
+  // ── Visual ──
+  minimap: true,
+  indentGuides: true,
+  bracketPairColorization: true,
+  fontLigatures: false,
+  lineHeight: 1.5,
+  fontWeight: 400,
+  stickyScroll: false,
+  // ── Editing behaviour ──
+  formatOnSave: false,
+  trimTrailingWhitespace: false,
+  insertFinalNewline: false,
+  // ── Integrations ──
+  gitGutter: true,
+  gitBlame: false,
+  breadcrumbs: true,
+  emmet: true,
+  colorDecorators: true,
 };
 
 const BOOL_KEYS = [
@@ -56,6 +74,10 @@ const BOOL_KEYS = [
   "lintKeymap", "lineWrapping", "highlightWhitespace", "lint",
   "lintGutter", "snippets", "customKeys", "vim", "tabAcceptsCompletion",
   "customHighlights",
+  "minimap", "indentGuides", "bracketPairColorization", "fontLigatures",
+  "stickyScroll", "formatOnSave", "trimTrailingWhitespace",
+  "insertFinalNewline", "gitGutter", "gitBlame", "breadcrumbs", "emmet",
+  "colorDecorators",
 ];
 
 const THEME_VALUES = ["dark", "light", "oneDark"];
@@ -98,6 +120,16 @@ export const validateCmSettings = (raw) => {
     if (Number.isFinite(n) && n >= 8 && n <= 32) out.fontSize = Math.round(n);
     else errors.push(`"fontSize" must be between 8–32 — kept previous value`);
   }
+  if ("lineHeight" in raw) {
+    const n = Number(raw.lineHeight);
+    if (Number.isFinite(n) && n >= 1 && n <= 3) out.lineHeight = Math.round(n * 100) / 100;
+    else errors.push(`"lineHeight" must be between 1.0–3.0 — kept previous value`);
+  }
+  if ("fontWeight" in raw) {
+    const n = Number(raw.fontWeight);
+    if ([300, 400, 500, 600, 700].includes(n)) out.fontWeight = n;
+    else errors.push(`"fontWeight" must be 300/400/500/600/700 — kept previous value`);
+  }
   if ("theme" in raw || "editorTheme" in raw) {
     const v = raw.theme ?? raw.editorTheme;
     if (typeof v === "string") out.theme = migrateTheme(v);
@@ -109,7 +141,7 @@ export const validateCmSettings = (raw) => {
   }
   out.wordWrap = out.lineWrapping !== false;
   // Passthrough compat keys (read by the save pipeline / notebook)
-  for (const k of ["fontFamily", "autoSave", "formatOnSave", "minimap"]) {
+  for (const k of ["fontFamily", "autoSave"]) {
     if (k in raw) out[k] = raw[k];
   }
   return { settings: out, errors };

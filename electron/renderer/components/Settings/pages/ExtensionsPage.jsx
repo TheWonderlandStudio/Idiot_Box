@@ -90,6 +90,7 @@ const ExtensionsPage = () => {
       </div>
 
       <section className="sw-frame">
+      <div className="sw-section-title">Discover</div>
       <div
         className="sw-row sw-row--actions"
         style={{ background: "var(--teal-a06)" }}
@@ -117,6 +118,7 @@ const ExtensionsPage = () => {
         </div>
       ) : (
         <section className="sw-frame">
+        <div className="sw-section-title">Installed</div>
         {list.map((ext) => (
           <div
             key={ext.id}

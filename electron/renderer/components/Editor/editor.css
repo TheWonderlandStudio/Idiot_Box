@@ -690,3 +690,102 @@
   margin: var(--space-12) 0;
 }
 
+
+/* ── Breadcrumbs ──────────────────────────────────────────────────────────── */
+.ed-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 0 var(--space-8);
+  background: var(--bg-surface, var(--bg-vscode));
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted, var(--icon));
+  font-size: var(--fs-small);
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+.ed-crumbs__file,
+.ed-crumbs__item {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: var(--radius-xs, 3px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.ed-crumbs__item { color: var(--text-soft, var(--text-bright)); }
+.ed-crumbs__file:hover,
+.ed-crumbs__item:hover { background: var(--bg-hover, rgba(255,255,255,0.08)); color: var(--text-bright); }
+.ed-crumbs__sep { opacity: 0.5; padding: 0 1px; }
+.ed-crumbs__btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0 5px;
+  opacity: 0.75;
+}
+.ed-crumbs__btn:hover { opacity: 1; }
+
+/* ── Bracket pair colorization ────────────────────────────────────────────── */
+.ibx-br0 { color: #ffd700; }
+.ibx-br1 { color: #da70d6; }
+.ibx-br2 { color: #179fff; }
+.ibx-br3 { color: #4ec9b0; }
+.ibx-br4 { color: #ff8c69; }
+.ibx-br5 { color: #9cdcfe; }
+
+/* ── Whitespace dots ──────────────────────────────────────────────────────── */
+.cm-content .ibx-ws {
+  background-image: radial-gradient(circle at 50% 55%, var(--ibx-ws-dot, rgba(150,150,150,0.55)) 0.8px, transparent 0.9px);
+}
+.cm-content .ibx-ws-tab {
+  background-image:
+    linear-gradient(90deg, var(--ibx-ws-dot, rgba(150,150,150,0.55)) 0 1px, transparent 1px),
+    radial-gradient(circle at 40% 55%, var(--ibx-ws-dot, rgba(150,150,150,0.55)) 0.8px, transparent 0.9px);
+  background-size: 4px 100%, 4px 100%;
+}
+
+/* ── CSS color swatch ─────────────────────────────────────────────────────── */
+.ibx-color-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 4px;
+  border: 1px solid var(--border-strong, rgba(128,128,128,0.6));
+  border-radius: 2px;
+  vertical-align: middle;
+  cursor: default;
+}
+
+/* ── Clickable links ──────────────────────────────────────────────────────── */
+.cm-content .ibx-link {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+
+/* ── Git gutter (line decorations) ────────────────────────────────────────── */
+.cm-line.ibx-git-added    { box-shadow: inset 3px 0 0 0 #2ea043; }
+.cm-line.ibx-git-modified { box-shadow: inset 3px 0 0 0 #316dca; }
+.cm-line.ibx-git-deleted  { box-shadow: inset 3px 0 0 0 #c93c37; }
+.cm-line.ibx-git-added    { background: rgba(46,160,67,0.10); }
+.cm-line.ibx-git-modified { background: rgba(49,109,202,0.10); }
+.cm-line.ibx-git-deleted  { background: rgba(201,60,55,0.10); }
+
+/* ── Minimap ──────────────────────────────────────────────────────────────── */
+.ibx-minimap { height: 100%; }
+
+/* ── Inline blame (status bar) ────────────────────────────────────────────── */
+.ed-blame {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.9;
+  font-style: italic;
+}
