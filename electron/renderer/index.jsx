@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import { createPortal } from "react-dom";
 import { Play, ChevronDown, Bug, PlayCircle, Settings2, Home, FolderPlus, FolderOpen, Search } from "lucide-react";
+import VscodeIcon from "./components/shared/VscodeIcon.jsx";
 import { Layout, Model, Actions, DockLocation } from "flexlayout-react";
 // flexlayout-react 0.11 compat: getRoot() -> getRootRow(), getwindowsMap() -> getLayouts().
 // Old saved code calls m.getRoot() everywhere — keep it working via alias.
@@ -3091,6 +3092,10 @@ const App = () => {
             </div>
           );
         } else {
+          const isEditor = node.getComponent() === "editor" || node.getComponent() === "notebook";
+          // Reuse the same VscodeIcon file icons as the Project Panel for UI consistency.
+          const fileName = filePath ? filePath.replace(/.*[\\/]/, "") : null;
+          renderValues.leading = isEditor && fileName ? <VscodeIcon name={fileName} size={10} /> : null;
           renderValues.content = (
             <span onContextMenu={onTabContextMenu} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {node.getName()}

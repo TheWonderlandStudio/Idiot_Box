@@ -1,0 +1,159 @@
+name: Release (all installers)
+
+# Cut a release by pushing a tag like v0.1.28 (must match package.json "version").
+# Builds every installer across three runners, verifies the tag/version match,
+# then attaches them all to one GitHub Release with CHANGELOG-based notes:
+#   windows-latest → .exe (NSIS) + .msi (WiX) + .msix (+ .msixupload)
+#   ubuntu-latest  → .AppImage + .deb + .rpm + .pacman
+#   macos-latest   → .dmg (+ .zip for the auto-updater feed)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Fail fast if the pushed tag does not match package.json "version", so we
+  # never publish an installer set whose files claim a different version.
+  guard:
+    name: Tag / version guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          node -e 'const p=require("./package.json");const tag=(process.env.GITHUB_REF_NAME||"").replace(/^v/,"");if(tag!==p.version){console.error(`Tag v${tag} != package.json version ${p.version}`);process.exit(1)}console.log(`OK: tag v${tag} == package.json ${p.version}`);'
+
+  build:
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            builder-args: --win nsis msi msix
+            artifact-glob: |
+              dist/Idiot-Box-Setup-*.exe
+              dist/Idiot-Box-Setup-*.msi
+              dist/Idiot-Box-Setup-*.msix
+              dist/*.msixupload
+          - os: ubuntu-latest
+            builder-args: --linux AppImage deb rpm pacman
+            artifact-glob: |
+              dist/Idiot-Box-*.AppImage
+              dist/Idiot-Box-*.deb
+              dist/Idiot-Box-*.rpm
+              dist/Idiot-Box-*.pacman
+          - os: macos-latest
+            builder-args: --mac dmg zip
+            artifact-glob: |
+              dist/Idiot-Box-*.dmg
+              dist/*-mac.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Linux packaging deps
+        # fpm needs bsdtar (libarchive-tools) for the pacman target — without it
+        # the build fails with "bsdtar failed (exit code 127)".
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+
+      - name: Generate app icons
+        # build/icons/ is gitignored, so the NSIS installerIcon/uninstallerIcon
+        # (build/icons/icon.ico) and the win/mac/linux icons don't exist on a
+        # fresh checkout — generate them from the tracked PNG before packaging.
+        run: npm run build:icons
+
+      - name: Build and package
+        run: npm run build && npx electron-builder ${{ matrix.builder-args }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned builds: don't fail looking for a cert/identity.
+          # (the Store signs the .msixupload itself on submission.)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # macOS notarization (optional — notarize.cjs skips when unset).
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: ${{ matrix.artifact-glob }}
+          if-no-files-found: error
+
+      - name: Upload update metadata (for in-app auto-updater)
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-meta-${{ matrix.os }}
+          path: |
+            dist/latest*.yml
+            dist/*.blockmap
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    # Only cut the GitHub Release for tag pushes, not manual dispatch runs.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      # Repo checkout is required to extract release notes from CHANGELOG.md
+      # (otherwise only dist/ artifacts are present here).
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Extract release notes from CHANGELOG
+        # Pull the tagged version's (e.g. v0.1.28) "## [0.1.28]" section from
+        # CHANGELOG.md as the release body — no auto "Full Changelog" link.
+        run: |
+          node -e 'const fs=require("fs");const md=fs.readFileSync("CHANGELOG.md","utf8");const ver=String(process.env.GITHUB_REF_NAME||"").replace(/^v/,"");const lines=md.split(/\r?\n/);let out=[],cap=false;for(const ln of lines){const m=ln.match(/^## \[(.+?)\]/);if(m){if(cap)break;if(m[1]===ver){cap=true;continue;}}else if(cap)out.push(ln);}let body=out.join("\n").trim();if(!body)body="See CHANGELOG.md for details.";fs.writeFileSync("release-notes.md",body+"\n");console.log("notes for v"+ver+":",body.length,"chars");'
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # All 8 installer formats + updater feed (latest*.yml) + differential
+          # blockmaps. Explicit list so builder-debug junk is not attached and
+          # the auto-updater feed files are never missed.
+          files: |
+            dist/Idiot-Box-Setup-*.exe
+            dist/Idiot-Box-Setup-*.msi
+            dist/Idiot-Box-Setup-*.msix
+            dist/*.msixupload
+            dist/*.blockmap
+            dist/latest*.yml
+            dist/Idiot-Box-*.AppImage
+            dist/Idiot-Box-*.deb
+            dist/Idiot-Box-*.rpm
+            dist/Idiot-Box-*.pacman
+            dist/Idiot-Box-*.dmg
+            dist/*-mac.zip
+          body_path: release-notes.md
+          name: Idiot Box ${{ github.ref_name }}
