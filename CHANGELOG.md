@@ -3,14 +3,25 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
-## [0.1.28] - 2026-10-17
+## [0.1.28] - 2026-10-21
 
 ### Added
-- **Ctrl+PageDown / Ctrl+PageUp tab navigation** — switch to the next or
+- **Ctrl+PageDown / Ctrl+PageUp tab navigation** - switch to the next or
   previous tab in the active panel (VS Code style, wraps around). Works from
   the editor, terminal or any other panel; Cmd also works on macOS.
+- **CodeMirror 6 editor upgrade** - minimap, indentation guides, bracket
+  colorization, Emmet abbreviation expansion, multi-cursor (Ctrl+D,
+  Ctrl+Alt+Up/Down), breadcrumbs and document outline, git gutter with inline
+  blame, format-on-save, problem navigation (F8 / Shift+F8) and a
+  compare-with-saved inline diff. New editor toggles added under
+  Settings → Editor.
 
 ### Fixed
+- **Editor stuck on the previous file** - rapid file switching no longer leaves
+  the old buffer on screen; tab content is now invalidated correctly with
+  flexlayout 0.11.
+- **Vim mode could not be enabled** - the Settings → Editor toggle now
+  persists and actually turns Vim mode on.
 - **Editor Ctrl+Z cross-file leak** — undo history is now isolated per file:
   switching files (single-click preview open) no longer lets Ctrl+Z revert to
   a previously opened file's content, which could corrupt a save. Disk/live
@@ -23,6 +34,10 @@ Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idi
   repair the raw file; your file stays untouched until you explicitly save.
 
 ### Changed
+- **Settings window redesigned** with a Material 3 layout: centered content
+  column, navigation pills, Material switches, buttons and inputs.
+- **Media Viewer removed from the default layout** - it is still available
+  from the panel menu.
 - **flexlayout-react upgraded** to 0.11.1 (from 0.8.19) with a verified
   move-to-border flow and clearer error reporting.
 - **Windows downloads** route to the Microsoft Store from the landing page;
