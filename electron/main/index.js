@@ -6805,24 +6805,6 @@ app.whenReady().then(async () => {
   // Must run BEFORE any BrowserWindow loads. Guest <webview> / ibx-file
   // content is intentionally excluded (see electron/main/csp.js).
   try { if (typeof setupCsp === "function") setupCsp(session.defaultSession); } catch (e) { console.warn("[csp] setup failed:", e?.message || e); }
-  // ─── OpenPencil brand icon block ───────────────────────────────────────────
-  // Cancel requests for /brand/app-icon.svg inside guest <webview>s so it
-  // never loads. Visual hiding is done by the OpenPencil panel via insertCSS
-  // (a broken img/alt can remain when the request is cancelled — both are needed).
-  try {
-    const webReq = session.defaultSession?.webRequest;
-    if (webReq && typeof webReq.onBeforeRequest === "function") {
-      webReq.onBeforeRequest({ urls: ["http://*/*", "https://*/*"] }, (details, callback) => {
-        try {
-          if (details.resourceType === "image" && typeof details.url === "string" && details.url.includes("/brand/app-icon.svg")) {
-            callback({ cancel: true });
-            return;
-          }
-        } catch {}
-        callback({});
-      });
-    }
-  } catch (e) { console.warn("[openpencil] icon block setup failed:", e?.message || e); }
   if (ElectronChromeExtensions) {
     try { ElectronChromeExtensions.handleCRXProtocol(session.defaultSession); } catch (e) { console.warn("[electron-chrome-extensions] handleCRXProtocol failed:", e.message); }
   }

@@ -1,6 +1,6 @@
 {
   "name": "idiot-box",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "private": true,
   "license": "GPL-3.0-only",
   "description": "Idiot Box - Code-OSS-backed desktop IDE built with Electron and React",
@@ -134,6 +134,7 @@
     "files": [
       "electron/**/*",
       "package.json",
+      "LICENSE",
       "!node_modules/.cache/**/*",
       "!**/*.map",
       "!**/*.ts",
@@ -551,7 +552,7 @@
       "installerHeaderIcon": "build/icons/icon.ico",
       "uninstallDisplayName": "Idiot Box",
       "include": "build/installer.nsh",
-      "license": "build/license.txt"
+      "license": "build/installer-license.txt"
     },
     "mac": {
       "category": "public.app-category.developer-tools",

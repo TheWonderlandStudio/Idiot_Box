@@ -4,9 +4,6 @@ import "./openpencil.css";
 
 const DEFAULT_URL = "https://app.openpencil.dev";
 
-// Hide the brand logo on the guest page (the request is blocked in the main process).
-const GUEST_ICON_CSS = 'img[data-test-id="app-logo"],img[src*="/brand/app-icon.svg"]{display:none!important}';
-
 const OpenPencilPanel = ({ config, nodeId }) => {
   const url = (config && config.url) || DEFAULT_URL;
   const webviewRef = useRef(null);
@@ -28,19 +25,10 @@ const OpenPencilPanel = ({ config, nodeId }) => {
       setFailed(true);
     };
     const onGone = () => { setLoading(false); setFailed(true); };
-    const injectCss = () => {
-      try {
-        const p = el.insertCSS(GUEST_ICON_CSS);
-        if (p && typeof p.catch === "function") p.catch(() => {});
-      } catch {}
-    };
     el.addEventListener("did-start-loading", onStart);
     el.addEventListener("did-stop-loading", onStop);
     el.addEventListener("did-fail-load", onFail);
     el.addEventListener("render-process-gone", onGone);
-    // The CSS must be re-applied after every navigation (a new document resets it).
-    el.addEventListener("did-finish-load", injectCss);
-    injectCss();
   }, []);
 
   const reload = () => {
