@@ -6664,7 +6664,8 @@ function createWindow() {
       const isCtrl = !!(input.control || input.meta);
       const key = String(input.key || "").toLowerCase();
       let action = null;
-      if (key === "f5" && !isCtrl && !input.shift && !input.alt) action = "reload";
+      if (key === "f12" && !isCtrl && !input.shift && !input.alt) action = "devtools";
+      else if (key === "f5" && !isCtrl && !input.shift && !input.alt) action = "reload";
       else if (isCtrl && !input.shift && !input.alt) {
         if (key === "r") action = "reload";
         else if (key === "f") action = "find";

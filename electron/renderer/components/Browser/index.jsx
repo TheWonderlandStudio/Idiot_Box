@@ -442,6 +442,13 @@ const BrowserPanel = (props) => {
         break;
       case "back":     try { if (wv?.canGoBack()) wv.goBack(); } catch {} break;
       case "forward":  try { if (wv?.canGoForward()) wv.goForward(); } catch {} break;
+      case "devtools":
+        try {
+          if (!wv) break;
+          if (wv.isDevToolsOpened()) wv.closeDevTools();
+          else wv.openDevTools();
+        } catch {}
+        break;
       case "newTab":
         try {
           const url = "https://www.google.com";
@@ -988,6 +995,24 @@ const BrowserPanel = (props) => {
       } catch {}
     });
 
+    // Persist the live URL into the tab's config so the layout save
+    // (tabs.json) restores the page the user was actually on.
+    const persistUrl = (url) => {
+      if (!url || !/^(https?:|file:|ibx-file:|idiotbox:|view-source:)/i.test(url)) return;
+      try {
+        const m = window.__flexModel?.current;
+        const nid = nodeIdRef.current;
+        if (!m || !nid) return;
+        const tabNode = m.getNodeById(nid);
+        if (!tabNode) return;
+        const cfg = tabNode.getConfig() || {};
+        if (cfg.url === url) return;
+        m.doAction(Actions.updateNodeAttributes(nid, {
+          config: { ...cfg, url },
+        }));
+      } catch {}
+    };
+
     wv.addEventListener("did-navigate", () => {
       try { closeFindRef.current?.(); } catch {}
       const cur = wv.getURL();
@@ -998,6 +1023,7 @@ const BrowserPanel = (props) => {
         setCrashed(false);
         errorUrlRef.current = null;
         httpsFallbackAttemptedRef.current = false;
+        persistUrl(cur);
       }
       try { setCanGoBack(wv.canGoBack()); setCanGoForward(wv.canGoForward()); } catch {}
       syncActionTab();
@@ -1020,6 +1046,7 @@ const BrowserPanel = (props) => {
         setLoadError(null);
         setCrashed(false);
         errorUrlRef.current = null;
+        persistUrl(cur);
       }
       try { setCanGoBack(wv.canGoBack()); setCanGoForward(wv.canGoForward()); } catch {}
       try {
@@ -1374,7 +1401,19 @@ const BrowserPanel = (props) => {
           break;
         }
         case "searchSelection": {
-          goToUrlRef.current("https://www.google.com/search?q=" + encodeURIComponent(result.data?.text || ""));
+          const q = result.data?.text || "";
+          const url = "https://www.google.com/search?q=" + encodeURIComponent(q);
+          const m = window.__flexModel?.current;
+          const tabset = m?.getNodeById(nid)?.getParent();
+          if (m && tabset) {
+            m.doAction(Actions.addNode({
+              type: "tab", component: "panel3", name: "New Tab", enableClose: true,
+              enablePopout: false,
+              config: { type: "browser", title: "New Tab", url },
+            }, tabset.getId(), DockLocation.CENTER));
+          } else {
+            goToUrlRef.current(url);
+          }
           break;
         }
         default: break;
@@ -1605,6 +1644,12 @@ const BrowserPanel = (props) => {
     const handler = (e) => {
       if (!isActiveBrowser()) return;
       const wv = webviewRef.current;
+      // F12 → Inspect Element / DevTools for this Browser tab
+      if (e.key === "F12") {
+        e.preventDefault();
+        runBrowserAction("devtools");
+        return;
+      }
       // F5 or Ctrl+R → reload (or retry failed URL if error page)
       if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "r")) {
         e.preventDefault();
@@ -1660,7 +1705,7 @@ const BrowserPanel = (props) => {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isLoading, setZoomExact, handleReload, handleHardReload]);
+  }, [isLoading, setZoomExact, handleReload, handleHardReload, runBrowserAction]);
 
   // ── Lock popup ─────────────────────────────────────────────────────────────
   const handleLockClick = useCallback((e) => {
