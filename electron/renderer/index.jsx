@@ -154,6 +154,125 @@ const SINGLE_FILE_JSON = {
     ],
   },
 };
+
+// Extra built-in presets (Layouts dropdown). Same shape as DEFAULT_JSON so
+// they pass through sanitize/enable/disable helpers unchanged.
+const makeBuiltinLayout = (children) => ({
+  global: { ...DEFAULT_JSON.global },
+  borders: defaultBorders(),
+  layout: { type: "row", weight: 100, children },
+});
+
+const browserTab = { type: "tab", name: "Browser", component: "panel3", enablePopout: false, config: { type: "browser", title: "Browser" } };
+const editorTab = { type: "tab", name: "Editor", component: "editor" };
+const terminalTab = { type: "tab", name: "Terminal", component: "terminal", id: "terminal-tab" };
+
+const VSCODE_JSON = makeBuiltinLayout([
+  {
+    type: "tabset", weight: 18,
+    children: [
+      { type: "tab", name: "Project", component: "projectPanel" },
+      { type: "tab", name: "Git", component: "gitPanel" },
+    ],
+  },
+  {
+    type: "row", weight: 57,
+    children: [
+      {
+        type: "tabset", weight: 68, id: "editor-tabset",
+        children: [editorTab],
+      },
+      {
+        type: "tabset", weight: 32,
+        children: [
+          terminalTab,
+          { type: "tab", name: "Problems", component: "problems" },
+          { type: "tab", name: "Output", component: "output" },
+          { type: "tab", name: "Ports", component: "ports" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "tabset", weight: 25,
+    children: [
+      browserTab,
+      { type: "tab", name: "Preview", component: "componentPreview" },
+    ],
+  },
+]);
+
+const WEBDEV_JSON = makeBuiltinLayout([
+  {
+    type: "row", weight: 60,
+    children: [
+      {
+        type: "tabset", weight: 72,
+        children: [
+          browserTab,
+          { type: "tab", name: "Preview", component: "componentPreview" },
+        ],
+      },
+      {
+        type: "tabset", weight: 28,
+        children: [
+          terminalTab,
+          { type: "tab", name: "Problems", component: "problems" },
+          { type: "tab", name: "Output", component: "output" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "tabset", weight: 40, id: "editor-tabset",
+    children: [
+      editorTab,
+      { type: "tab", name: "Project", component: "projectPanel" },
+      { type: "tab", name: "Git", component: "gitPanel" },
+    ],
+  },
+]);
+
+const DEBUG_JSON = makeBuiltinLayout([
+  {
+    type: "tabset", weight: 16,
+    children: [{ type: "tab", name: "Project", component: "projectPanel" }],
+  },
+  {
+    type: "row", weight: 59,
+    children: [
+      {
+        type: "tabset", weight: 62, id: "editor-tabset",
+        children: [editorTab],
+      },
+      {
+        type: "tabset", weight: 38,
+        children: [
+          terminalTab,
+          { type: "tab", name: "Output", component: "output" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "tabset", weight: 25,
+    children: [
+      { type: "tab", name: "Run & Debug", component: "runDebug" },
+      { type: "tab", name: "Problems", component: "problems" },
+    ],
+  },
+]);
+
+const FOCUS_JSON = makeBuiltinLayout([
+  {
+    type: "tabset", weight: 16,
+    children: [{ type: "tab", name: "Project", component: "projectPanel" }],
+  },
+  {
+    type: "tabset", weight: 84, id: "editor-tabset",
+    children: [editorTab],
+  },
+]);
 // Panel content by tab-JSON — the factory renders it from the tab node's
 // JSON attributes: component + config + nodeId in one place.
 const renderPanelContent = (json) => {
@@ -455,6 +574,10 @@ const layoutWhen = (ts) => {
 // and Blank. These are not saved presets, so they have no delete option.
 const BUILTIN_LAYOUTS = [
   { id: "__builtin_default", name: "Default layout", panels: DEFAULT_JSON, layout: "normal" },
+  { id: "__builtin_vscode", name: "VS Code layout", panels: VSCODE_JSON, layout: "normal" },
+  { id: "__builtin_webdev", name: "Web Dev layout", panels: WEBDEV_JSON, layout: "normal" },
+  { id: "__builtin_debug", name: "Debug layout", panels: DEBUG_JSON, layout: "normal" },
+  { id: "__builtin_focus", name: "Focus (editor) layout", panels: FOCUS_JSON, layout: "normal" },
   { id: "__builtin_blank", name: "Blank layout", panels: BLANK_JSON, layout: "blank" },
 ];
 
