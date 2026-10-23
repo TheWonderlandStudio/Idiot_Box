@@ -12,6 +12,10 @@ import {
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { renderMarkdown } from "../Notebook/index.jsx";
+import {
+  detectDelimiter, parseDelimited, delimiterLabel,
+  CSV_MAX_ROWS, CSV_MAX_COLS,
+} from "./csv.js";
 
 // Configure marked defaults once
 marked.setOptions({ gfm: true, breaks: false });
@@ -31,6 +35,133 @@ export const MarkdownPreview = ({ doc }) => {
     <>
       <PrevHead title="Markdown Preview" />
       <div className="nb-md-view ed-prev__body" dangerouslySetInnerHTML={{ __html: html }} />
+    </>
+  );
+};
+
+// ── CSV / TSV preview ───────────────────────────────────────────────────────
+export const CsvPreview = ({ doc, filePath }) => {
+  const [header, setHeader] = useState(true);
+  const [filter, setFilter] = useState("");
+
+  const isTsv = /\.tsv$/i.test(filePath || "");
+  const fileName = (filePath ? filePath.split(/[\\/]/).pop() : "data.csv") || "data.csv";
+
+  const parsed = useMemo(() => {
+    const text = String(doc || "");
+    if (!text.trim()) return { rows: [], truncated: false, delimiter: isTsv ? "\t" : "," };
+    const delimiter = isTsv ? "\t" : detectDelimiter(text);
+    return { ...parseDelimited(text, delimiter, CSV_MAX_ROWS), delimiter };
+  }, [doc, isTsv]);
+
+  const headerRow = header && parsed.rows.length ? parsed.rows[0] : null;
+  const dataRows = header ? parsed.rows.slice(1) : parsed.rows;
+  let columnCount = headerRow ? headerRow.length : 0;
+  for (const r of dataRows) columnCount = Math.max(columnCount, r.length);
+  const visibleCols = Math.min(columnCount, CSV_MAX_COLS);
+  const columns = Array.from({ length: visibleCols }, (_, i) => {
+    const label = headerRow?.[i]?.trim();
+    return label || `Col ${i + 1}`;
+  });
+
+  const query = filter.trim().toLowerCase();
+  const visibleRows = [];
+  for (let i = 0; i < dataRows.length; i++) {
+    const cells = dataRows[i];
+    if (!query || cells.some((c) => c.toLowerCase().includes(query))) {
+      visibleRows.push({ cells, index: i });
+    }
+  }
+
+  const rowLabel = dataRows.length === 1 ? "row" : "rows";
+  const colLabel = columnCount === 1 ? "col" : "cols";
+  const dims = `${dataRows.length} ${rowLabel} × ${columnCount} ${colLabel}`;
+
+  return (
+    <>
+      <PrevHead
+        title={`CSV Preview — ${fileName}`}
+        extra={
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)" }}>
+            <span className="ed-csv__meta">{dims}</span>
+            <span className="ed-csv__badge">{delimiterLabel(parsed.delimiter)}</span>
+          </div>
+        }
+      />
+      <div className="ed-prev__body ed-csv">
+        {!parsed.rows.length ? (
+          <div className="ed-csv__msg">Empty file — add some comma-separated data to see a preview.</div>
+        ) : (
+          <>
+            <div className="ed-csv__toolbar">
+              <input
+                className="ed-csv__filter"
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter rows…"
+                spellCheck={false}
+              />
+              <label className="ed-csv__check">
+                <input
+                  type="checkbox"
+                  checked={header}
+                  onChange={(e) => setHeader(e.target.checked)}
+                />
+                First row is header
+              </label>
+              {query && (
+                <span className="ed-csv__note">
+                  {visibleRows.length} match{visibleRows.length === 1 ? "" : "es"}
+                </span>
+              )}
+              {parsed.truncated && (
+                <span className="ed-csv__note" title={`Only the first ${CSV_MAX_ROWS} rows are rendered`}>
+                  First {CSV_MAX_ROWS} rows
+                </span>
+              )}
+              {columnCount > CSV_MAX_COLS && (
+                <span className="ed-csv__note" title={`Only the first ${CSV_MAX_COLS} of ${columnCount} columns are rendered`}>
+                  {CSV_MAX_COLS} of {columnCount} cols
+                </span>
+              )}
+            </div>
+            <div className="ed-csv__scroll">
+              <table className="ed-csv-tbl">
+                <thead>
+                  <tr>
+                    <th className="ed-csv__rownum">#</th>
+                    {columns.map((name, i) => (
+                      <th key={i} title={name}>{name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.length === 0 ? (
+                    <tr>
+                      <td className="ed-csv__empty" colSpan={visibleCols + 1}>No rows match the filter.</td>
+                    </tr>
+                  ) : visibleRows.map(({ cells, index }) => (
+                    <tr key={index}>
+                      <td className="ed-csv__rownum">{header ? index + 2 : index + 1}</td>
+                      {Array.from({ length: visibleCols }, (_, ci) => {
+                        const raw = cells[ci] ?? "";
+                        const oneLine = raw.replace(/\r?\n/g, " ↵ ");
+                        const display = oneLine.length > 200 ? `${oneLine.slice(0, 200)}…` : oneLine;
+                        return (
+                          <td key={ci} title={raw.length > 200 ? raw : undefined}>
+                            {display || "\u00A0"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 };

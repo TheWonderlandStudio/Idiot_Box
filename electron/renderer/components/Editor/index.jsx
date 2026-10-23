@@ -24,7 +24,7 @@ import { foldAll, unfoldAll } from "@codemirror/language";
 import { unifiedMergeView } from "@codemirror/merge";
 import NotebookPanel from "../Notebook/index.jsx";
 import { Play, Sparkles, Square } from "lucide-react";
-import { MarkdownPreview, MdxPreview, DbPreview } from "./preview.jsx";
+import { MarkdownPreview, MdxPreview, CsvPreview, DbPreview } from "./preview.jsx";
 import "./editor.css";
 // Shared editor state (dirty flags, settings sync) — engine-agnostic.
 import {
@@ -91,6 +91,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const isDbFile = !forceText && /\.(db|db3|sqlite|sqlite3)$/i.test(filePath || "");
   const isMdFile = !forceText && /\.(md|markdown|mdown|mkd|mkdn)$/i.test(filePath || "");
   const isMdxFile = !forceText && /\.mdx$/i.test(filePath || "");
+  const isCsvFile = !forceText && /\.(csv|tsv)$/i.test(filePath || "");
 
   // ── Project gate ──
   const [hasProject, setHasProject] = useState(!!window.__currentProjectPath);
@@ -136,7 +137,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   );
 
   // ── Side preview (markdown / mdx render / sqlite inspect) ──
-  const canPreview = !!filePath && !isIpynb && (isDbFile || isMdFile || isMdxFile || languageId === "markdown" || languageId === "mdx");
+  const canPreview = !!filePath && !isIpynb && (isDbFile || isCsvFile || isMdFile || isMdxFile || languageId === "markdown" || languageId === "mdx");
+  const previewKind = isCsvFile ? "CSV" : (isMdxFile || languageId === "mdx") ? "MDX" : "";
   const [previewOpen, setPreviewOpen] = useState(false);
   // New file → auto-open for db, closed for the rest.
   useEffect(() => { setPreviewOpen(isDbFile); }, [filePath, isDbFile]);
@@ -1042,7 +1044,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
             {canPreview && (
               <button
                 className={"ed-prevbtn" + (previewOpen ? " ed-prevbtn--on" : "")}
-                title={previewOpen ? "Back to editor" : (isMdxFile || languageId === "mdx" ? "Show MDX preview" : "Show preview")}
+                title={previewOpen ? "Back to editor" : (previewKind ? `Show ${previewKind} preview` : "Show preview")}
                 onClick={() => setPreviewOpen((v) => !v)}
               >
                 {previewOpen ? <Square size={11} /> : <Play size={11} />}
@@ -1053,6 +1055,8 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
               <div className="ed-prev">
                 {isDbFile ? (
                   <DbPreview filePath={filePath} />
+                ) : isCsvFile ? (
+                  <CsvPreview doc={doc} filePath={filePath} />
                 ) : (isMdxFile || languageId === "mdx") ? (
                   <MdxPreview doc={doc} filePath={filePath} />
                 ) : (
@@ -1101,7 +1105,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                   <button
                     type="button"
                     onClick={() => setPreviewOpen((v) => !v)}
-                    title={previewOpen ? "Back to editor" : (isMdxFile || languageId === "mdx" ? "Preview MDX" : "Preview Document")}
+                    title={previewOpen ? "Back to editor" : (previewKind ? `Preview ${previewKind}` : "Preview Document")}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: "var(--space-4)",
                       padding: "0 var(--space-6)", border: "1px solid var(--border-subtle, rgba(255,255,255,0.15))",
@@ -1111,7 +1115,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                     }}
                   >
                     {previewOpen ? <Square size={10} /> : <Play size={10} />}
-                    <span>{previewOpen ? "Editor" : (isMdxFile || languageId === "mdx" ? "MDX Preview" : "Preview")}</span>
+                    <span>{previewOpen ? "Editor" : (previewKind ? `${previewKind} Preview` : "Preview")}</span>
                   </button>
                 )}
                 {!isDbFile && !binaryFile && (
