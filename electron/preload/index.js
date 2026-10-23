@@ -1,5 +1,5 @@
 // Preload script entry point
-const { contextBridge, ipcRenderer, webUtils, clipboard } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 if (!window.location.pathname.toLowerCase().endsWith("/popout.html")) {
   try {
     const { createTitlebarOnDOMContentLoaded, TitlebarColor } = require("custom-electron-titlebar");
@@ -27,8 +27,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   startNativeDrag: (paths) => ipcRenderer.send("drag:startNative", paths),
 
   // ── Clipboard ─────────────────────────────────────────────────────────────
-  clipboardRead:  ()  => clipboard.readText(),
-  clipboardWrite: (t) => clipboard.writeText(t),
+  // Route through the main process: the preload may run in a sandboxed
+  // renderer where the clipboard module is unavailable. sendSync keeps the
+  // existing synchronous API contract used by the terminal/editor.
+  clipboardRead:  ()  => ipcRenderer.sendSync("clipboard:readText"),
+  clipboardWrite: (t) => ipcRenderer.sendSync("clipboard:writeText", String(t ?? "")),
 
   // ── Drag & drop (external files) ───────────────────────────────────────────
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -123,6 +126,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Browser context menus ──────────────────────────────────────────────────
   showBrowserTabContextMenu: ()            => ipcRenderer.invoke("browser:tabContextMenu"),
   showBrowserWebviewContextMenu: (params) => ipcRenderer.invoke("browser:webviewContextMenu", params),
+  browserGuestEdit: (params)              => ipcRenderer.invoke("browser:guestEdit", params),
   showTabContextMenu: (details)          => ipcRenderer.invoke("tab:contextMenu", details),
   openExternal: (url)                    => ipcRenderer.invoke("open:url", url),
   // ── Browser guest shortcuts (main forwards webview keys here) ─────────

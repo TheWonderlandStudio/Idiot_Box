@@ -1309,6 +1309,7 @@ const BrowserPanel = (props) => {
       const params = {
         hasSelection: !!(e.params?.selectionText),
         selectionText: e.params?.selectionText || "",
+        linkText:   e.params?.linkText   || "",
         linkURL:    e.params?.linkURL    || "",
         srcURL:     e.params?.srcURL     || "",
         isEditable: !!e.params?.isEditable,
@@ -1320,14 +1321,29 @@ const BrowserPanel = (props) => {
       const result = await window.electronAPI.showBrowserWebviewContextMenu(params);
       if (!result) return;
       const nid = nodeIdRef.current;
+      const guestEdit = async (action, data) => {
+        try {
+          const id = wv.getWebContentsId?.();
+          if (typeof id === "number" && window.electronAPI.browserGuestEdit) {
+            const ok = await window.electronAPI.browserGuestEdit({ webContentsId: id, action, ...data });
+            if (ok) return true;
+          }
+        } catch {}
+        // Fallback to the <webview> element API.
+        try {
+          if (action === "copyImageAt") wv.copyImageAt?.(data?.x, data?.y);
+          else wv[action]?.();
+          return true;
+        } catch { return false; }
+      };
       switch (result.action) {
         case "back":        try { wv.goBack();    } catch {} break;
         case "forward":     try { wv.goForward(); } catch {} break;
         case "reload":      wv.reload();     break;
-        case "copy":        wv.copy();       break;
-        case "paste":       wv.paste();      break;
-        case "cut":         wv.cut();        break;
-        case "selectAll":   wv.selectAll();  break;
+        case "copy":        await guestEdit("copy", { text: params.selectionText }); break;
+        case "paste":       await guestEdit("paste");      break;
+        case "cut":         await guestEdit("cut", { text: params.selectionText });  break;
+        case "selectAll":   await guestEdit("selectAll");  break;
         case "inspect":
           if (typeof result.data?.x === "number" && typeof result.data?.y === "number") {
             try { wv.inspectElement(result.data.x, result.data.y); } catch { wv.openDevTools(); }
@@ -1342,17 +1358,24 @@ const BrowserPanel = (props) => {
         case "copyLinkText": window.electronAPI.clipboardWrite(result.data?.text || result.data?.url || ""); break;
         case "copyImageURL":window.electronAPI.clipboardWrite(result.data?.url || ""); break;
         case "copyImage": {
-          // Try to copy image to clipboard via webview
-          try { wv.copyImageAt?.(result.data?.x, result.data?.y); } catch {}
-          // Fallback to copying URL
-          window.electronAPI.clipboardWrite(result.data?.url || "");
+          const ok = await guestEdit("copyImageAt", {
+            x: result.data?.x, y: result.data?.y, url: result.data?.url,
+          });
+          if (!ok) {
+            // Only fall back to the address when the bitmap really could not
+            // be copied, and tell the user what landed on the clipboard.
+            window.electronAPI.clipboardWrite(result.data?.url || "");
+            showToast("Could not copy image — copied its address instead", "error");
+          } else {
+            showToast("Image copied to clipboard", "success");
+          }
           break;
         }
         case "saveLinkAs":   try { wv.downloadURL?.(result.data?.url || wv.getURL()); } catch {} break;
         case "saveImageAs":  try { wv.downloadURL?.(result.data?.url || ""); } catch {} break;
-        case "undo":         try { wv.undo(); } catch { try { document.execCommand("undo"); } catch {} } break;
-        case "redo":         try { wv.redo(); } catch { try { document.execCommand("redo"); } catch {} } break;
-        case "delete":       try { wv.delete?.(); } catch { try { wv.cut(); wv.paste(); } catch {} } break;
+        case "undo":         await guestEdit("undo");   break;
+        case "redo":         await guestEdit("redo");   break;
+        case "delete":       await guestEdit("delete"); break;
         case "openLinkNewTab": {
           const m = window.__flexModel?.current;
           if (m) {

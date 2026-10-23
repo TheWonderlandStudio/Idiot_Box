@@ -3345,6 +3345,16 @@ ipcMain.handle("media:copyImage", async (_e, filePath) => {
   }
 });
 
+// Synchronous clipboard bridge for preloads (works even when the renderer is
+// sandboxed and the clipboard module is not available there).
+ipcMain.on("clipboard:readText", (event) => {
+  event.returnValue = clipboard.readText();
+});
+ipcMain.on("clipboard:writeText", (event, text) => {
+  try { clipboard.writeText(String(text ?? "")); } catch {}
+  event.returnValue = true;
+});
+
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const vsicons   = require("vscode-icons-js");
 const VSICONS_B = "https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons/";
@@ -3506,7 +3516,7 @@ ipcMain.handle("fs:unwatch", async (event, rootPath) => {
 });
 
 // ─── Browser webview context menu ────────────────────────────────────────────
-ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionText, linkURL, srcURL, isEditable, pageURL, x, y, webContentsId }) => {
+ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionText, linkText, linkURL, srcURL, isEditable, pageURL, x, y, webContentsId }) => {
   return new Promise((resolve) => {
     const act = (action, data) => resolve({ action, data });
     const sep = { type: "separator" };
@@ -3517,14 +3527,14 @@ ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionTe
       items.push({ label: "Open Link in New Window",  click: () => act("openLinkNewWindow", { url: linkURL }) });
       items.push({ label: "Save Link As…",            click: () => act("saveLinkAs", { url: linkURL }) });
       items.push({ label: "Copy Link Address",        click: () => act("copyLink",       { url: linkURL }) });
-      items.push({ label: "Copy Link Text",           click: () => act("copyLinkText", { text: selectionText || linkURL }) });
+      items.push({ label: "Copy Link Text",           click: () => act("copyLinkText", { text: linkText || selectionText || linkURL }) });
       items.push(sep);
     }
 
     if (srcURL) {
       items.push({ label: "Open Image in New Tab",    click: () => act("openImageNewTab", { url: srcURL }) });
       items.push({ label: "Save Image As…",           click: () => act("saveImageAs", { url: srcURL }) });
-      items.push({ label: "Copy Image",               click: () => act("copyImage", { url: srcURL }) });
+      items.push({ label: "Copy Image",               click: () => act("copyImage", { url: srcURL, x, y }) });
       items.push({ label: "Copy Image Address",       click: () => act("copyImageURL",    { url: srcURL }) });
       items.push(sep);
     }
@@ -3583,6 +3593,118 @@ ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionTe
     const win  = BrowserWindow.fromWebContents(event.sender);
     menu.popup({ window: win, callback: () => resolve(null) });
   });
+});
+
+// Run edit commands on the webview guest from the main process. Copying from
+// the renderer's <webview> element can race with focus restoration after the
+// native context menu closes; webContents.* is deterministic.
+ipcMain.handle("browser:guestEdit", async (_e, { webContentsId, action, x, y, url, text }) => {
+  const wc = require("electron").webContents.fromId(Number(webContentsId));
+  if (!wc) return false;
+
+  const readSelection = async () => {
+    try {
+      return await wc.executeJavaScript(`(() => {
+        const el = document.activeElement;
+        if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
+          try { return String(el.value).substring(el.selectionStart ?? 0, el.selectionEnd ?? 0); } catch {}
+        }
+        return String(window.getSelection ? window.getSelection().toString() : "");
+      })()`);
+    } catch { return ""; }
+  };
+  const readEditableState = async () => {
+    try {
+      return await wc.executeJavaScript(`(() => {
+        const el = document.activeElement;
+        if (!el) return null;
+        const editable = el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable;
+        return {
+          editable,
+          value: el.tagName === "INPUT" || el.tagName === "TEXTAREA" ? String(el.value) : String(el.innerText || ""),
+        };
+      })()`);
+    } catch { return null; }
+  };
+
+  try {
+    switch (action) {
+      case "copy": {
+        // webContents.copy() silently no-ops for some background webviews;
+        // fall back to the selected text so Copy always lands on clipboard.
+        try { wc.copy(); } catch {}
+        const selected = text || await readSelection();
+        if (selected) { clipboard.writeText(selected); return true; }
+        return !!clipboard.readText();
+      }
+      case "cut": {
+        const selected = text || await readSelection();
+        try { wc.cut(); } catch {}
+        if (selected && clipboard.readText() !== selected) clipboard.writeText(selected);
+        return true;
+      }
+      case "paste": {
+        const before = await readEditableState();
+        try { wc.paste(); } catch {}
+        if (before?.editable) {
+          const after = await readEditableState();
+          if (after && after.value === before.value) {
+            try { wc.insertText(clipboard.readText()); } catch {}
+          }
+        }
+        return true;
+      }
+      case "selectAll":  try { wc.selectAll(); } catch {} return true;
+      case "undo":       try { wc.undo(); } catch {} return true;
+      case "redo":       try { wc.redo(); } catch {} return true;
+      case "delete":     try { wc.delete(); } catch {} return true;
+      case "copyImageAt": {
+        const px = Math.round(Number(x) || 0);
+        const py = Math.round(Number(y) || 0);
+        const beforePng = clipboard.readImage().toPNG();
+        try { wc.copyImageAt(px, py); } catch {}
+        const afterImg = clipboard.readImage();
+        if (!afterImg.isEmpty() && !afterImg.toPNG().equals(beforePng)) return true;
+        // Fallback 1: capture the rendered image rectangle. This also works
+        // for CORS/blob images that cannot be fetched from the main process.
+        try {
+          const rect = await wc.executeJavaScript(`(() => {
+            const el = document.elementFromPoint(${px}, ${py});
+            const img = el && (el.tagName === "IMG" ? el : (el.closest ? el.closest("img") : null));
+            if (!img) return null;
+            const r = img.getBoundingClientRect();
+            if (!r.width || !r.height) return null;
+            return {
+              x: Math.max(0, Math.round(r.x)), y: Math.max(0, Math.round(r.y)),
+              width: Math.max(1, Math.round(r.width)), height: Math.max(1, Math.round(r.height)),
+            };
+          })()`);
+          if (rect) {
+            const img = await wc.capturePage(rect);
+            if (!img.isEmpty()) { clipboard.writeImage(img); return true; }
+          }
+        } catch {}
+        // Fallback 2: fetch the image URL in the main process (no CORS) and
+        // write the decoded bitmap to the clipboard.
+        if (url) {
+          try {
+            let buf;
+            if (String(url).startsWith("data:")) {
+              const m = String(url).match(/^data:([^;,]+)?(;base64)?,([\s\S]*)$/);
+              buf = m && m[2] ? Buffer.from(m[3], "base64") : Buffer.from(decodeURIComponent(m ? m[3] : ""));
+            } else {
+              const res = await electronNet.fetch(url);
+              buf = Buffer.from(await res.arrayBuffer());
+            }
+            const img = nativeImage.createFromBuffer(buf);
+            if (!img.isEmpty()) { clipboard.writeImage(img); return true; }
+          } catch {}
+        }
+        return false;
+      }
+      default: return false;
+    }
+  } catch { return false; }
 });
 
 // ─── Browser tab context menu ─────────────────────────────────────────────────

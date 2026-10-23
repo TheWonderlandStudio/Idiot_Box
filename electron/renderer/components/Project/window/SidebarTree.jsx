@@ -18,7 +18,7 @@ const confirmIfNeeded = async (msg) => {
 
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 const TreeRow = ({
-  label, iconEl, depth, hasChildren, isOpen, isSelected, isDropTarget, isCut,
+  label, iconEl, depth, path: rowPath, hasChildren, isOpen, isSelected, isDropTarget, isCut,
   onClick, onDoubleClick, onArrowClick, onDragEnter, onDragOver, onDragLeave, onDrop, onContextMenu,
   gitStatus,
   draggable, onDragStart, onDragEnd,
@@ -50,6 +50,7 @@ const TreeRow = ({
     onDrop={onDrop}
     onContextMenu={onContextMenu}
     role="treeitem"
+    data-tree-path={rowPath}
     aria-expanded={hasChildren ? isOpen : undefined}
     aria-selected={isSelected}
   >
@@ -107,9 +108,11 @@ const FolderNode = ({
   onExternalDrop,
   getGitStatus = () => null,
   clipboard,
+  isPathSelected, getDragPaths, onRowContext,
+  onRowFileClick,
 }) => {
   const isOpen     = expandedSet.has(entry.path);
-  const isSelected = selectedPath === entry.path;
+  const isSelected = isPathSelected ? isPathSelected(entry.path) : selectedPath === entry.path;
   const raw        = childCache.get(entry.path) ?? null;
   const children   = raw ? (showHidden ? raw : raw.filter((c) => !c.name.startsWith("."))) : null;
   const hasLoaded  = childCache.has(entry.path);
@@ -171,7 +174,10 @@ const FolderNode = ({
     if (await onExternalDrop?.(e, entry.path)) return;
     try { const paths = JSON.parse(e.dataTransfer.getData("application/ibx-paths")); if (paths?.length) onDrop(entry.path, paths); } catch {}
   }, [entry.path, onDrop, setDropTarget, onExternalDrop]);
-  const handleCtxMenu   = useCallback((e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(entry.path, e.shiftKey); }, [entry.path, onContextMenu]);
+  const handleCtxMenu   = useCallback((e) => {
+    if (onRowContext) { onRowContext(e, entry.path, true); return; }
+    e.preventDefault(); e.stopPropagation(); onContextMenu(entry.path, e.shiftKey);
+  }, [entry.path, onContextMenu, onRowContext]);
 
   const isCutSelf = clipboard?.mode === "cut" && clipboard?.paths?.includes(entry.path);
   return (
@@ -185,11 +191,12 @@ const FolderNode = ({
         isSelected={isSelected}
         isDropTarget={dropTarget === entry.path}
         isCut={isCutSelf}
-        onClick={() => onSelect(entry.path)}
+        path={entry.path}
+        onClick={(e) => onSelect(entry.path, e)}
         onDoubleClick={() => onToggle(entry.path)}
         onArrowClick={() => onToggle(entry.path)}
         draggable
-        onDragStart={(e) => startSidebarOutDrag(e, [entry.path])}
+        onDragStart={(e) => startSidebarOutDrag(e, getDragPaths ? getDragPaths(entry.path) : [entry.path])}
         onDragEnd={clearSidebarOutDrag}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
@@ -224,6 +231,10 @@ const FolderNode = ({
           onExternalDrop={onExternalDrop}
           getGitStatus={getGitStatus}
           clipboard={clipboard}
+          isPathSelected={isPathSelected}
+          getDragPaths={getDragPaths}
+          onRowContext={onRowContext}
+          onRowFileClick={onRowFileClick}
         />
       ) : (
         <TreeRow
@@ -231,22 +242,23 @@ const FolderNode = ({
           label={child.name}
           iconEl={<PreviewIcon entry={child} showPreview={showPreview} size={16} />}
           depth={depth + 1}
+          path={child.path}
           hasChildren={false}
           isOpen={false}
-          isSelected={selectedPath === child.path}
+          isSelected={isPathSelected ? isPathSelected(child.path) : selectedPath === child.path}
           isDropTarget={false}
           isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(child.path)}
-          onClick={() => onFileClick?.(child.path)}
+          onClick={(e) => onRowFileClick ? onRowFileClick(e, child.path) : onFileClick?.(child.path)}
           onDoubleClick={() => onFileDblClick?.(child.path)}
           onArrowClick={() => {}}
           draggable
-          onDragStart={(e) => startSidebarOutDrag(e, [child.path])}
+          onDragStart={(e) => startSidebarOutDrag(e, getDragPaths ? getDragPaths(child.path) : [child.path])}
           onDragEnd={clearSidebarOutDrag}
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDropTarget(entry.path); }}
           onDragLeave={(e) => { e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setDropTarget((p) => p === entry.path ? null : p); }}
           onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDrop(e); }}
           gitStatus={getGitStatus ? getGitStatus(child.path) : null}
-          onContextMenu={(e) => onFileCtxMenu?.(e, child.path)}
+          onContextMenu={(e) => onRowContext ? onRowContext(e, child.path, false) : onFileCtxMenu?.(e, child.path)}
         />
       ))}
       {isOpen && loading && (
@@ -258,7 +270,7 @@ const FolderNode = ({
 
 // ── SidebarTree root ──────────────────────────────────────────────────────────
 const SidebarTree = ({
-  rootPath, selectedPath, expandedSet, childCache,
+  rootPath, selectedPath, selectedItems, onSelectionChange, expandedSet, childCache,
   onSelect, onToggle, loadChildren, onDrop,
   clipboard, invalidateCache, onClipboardChange,
   showHidden, showFolders, showFiles, showPreview,
@@ -272,6 +284,73 @@ const SidebarTree = ({
   const [pinned,       setPinned]       = useState([]);
   const [gitStatus,    setGitStatus]    = useState(new Map());
   const { dialog: inputDialog, ask }    = useInputDialog();
+  const scrollRef       = useRef(null);
+  const anchorRef       = useRef(selectedPath || null);
+  const selectedItemsRef = useRef(selectedItems || new Set());
+  selectedItemsRef.current = selectedItems || new Set();
+
+  useEffect(() => {
+    if (selectedPath && (!selectedItems || selectedItems.size <= 1)) {
+      anchorRef.current = selectedPath;
+    }
+  }, [selectedPath, selectedItems]);
+
+  const isPathSelected = useCallback((p) => {
+    if (selectedItems) return selectedItems.has(p);
+    return selectedPath === p;
+  }, [selectedItems, selectedPath]);
+
+  const getDragPaths = useCallback((p) => {
+    const sel = selectedItemsRef.current;
+    return sel && sel.has(p) ? [...sel] : [p];
+  }, []);
+
+  // Visible tree rows in render order — used for Shift-click range selection.
+  const getVisibleTreePaths = useCallback(() => {
+    const host = scrollRef.current;
+    if (!host) return selectedPath ? [selectedPath] : [];
+    const seen = new Set();
+    return Array.from(host.querySelectorAll("[data-tree-path]"))
+      .map((el) => el.getAttribute("data-tree-path"))
+      .filter((p) => p && !seen.has(p) && seen.add(p));
+  }, [selectedPath]);
+
+  const commitSelection = useCallback((nextSet, primaryPath) => {
+    if (onSelectionChange) onSelectionChange(nextSet, primaryPath);
+    else if (primaryPath) onSelect?.(primaryPath);
+  }, [onSelectionChange, onSelect]);
+
+  // Returns "single" | "multi" | "range". Callers only navigate / open the
+  // file on a plain single click.
+  const applyTreeSelection = useCallback((e, p) => {
+    const multi = !!(e && (e.ctrlKey || e.metaKey));
+    const range = !!(e && e.shiftKey);
+    const current = selectedItemsRef.current || new Set();
+    if (range && anchorRef.current) {
+      const all = getVisibleTreePaths();
+      const a = all.indexOf(anchorRef.current);
+      const b = all.indexOf(p);
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        const slice = all.slice(lo, hi + 1);
+        commitSelection(multi ? new Set([...current, ...slice]) : new Set(slice), p);
+      } else {
+        anchorRef.current = p;
+        commitSelection(new Set([p]), p);
+      }
+      return "range";
+    }
+    if (multi) {
+      const next = new Set(current);
+      next.has(p) ? next.delete(p) : next.add(p);
+      anchorRef.current = p;
+      commitSelection(next, p);
+      return "multi";
+    }
+    anchorRef.current = p;
+    commitSelection(new Set([p]), p);
+    return "single";
+  }, [commitSelection, getVisibleTreePaths]);
 
   // ── Git status — lightweight, shared with GitPanel cache
   useEffect(() => {
@@ -501,6 +580,51 @@ const SidebarTree = ({
     window.dispatchEvent(new CustomEvent("pin-changed"));
   }, [rootPath, pinned]);
 
+  const writeClip = useCallback((text) => {
+    try {
+      if (window.electronAPI?.clipboardWrite) window.electronAPI.clipboardWrite(text);
+      else navigator.clipboard.writeText(text);
+    } catch {}
+  }, []);
+
+  // ── Multi-selection context menu ──────────────────────────────────────────
+  const handleMultiContext = useCallback(async (paths) => {
+    const result = await window.electronAPI.showContextMenu(
+      "multi", paths, clipboard?.paths ?? null
+    );
+    if (!result) return;
+    const parents = new Set(paths.map((p) => p.replace(/[\\/][^\\/]+$/, "") || p));
+    switch (result.action) {
+      case "delete": {
+        const ok = await confirmIfNeeded(`Move ${paths.length} items to Recycle Bin?`);
+        if (!ok) break;
+        const failed = [];
+        for (const p of paths) {
+          try { await window.electronAPI.trashItem(p, rootPath); }
+          catch (err) { failed.push(`${p.split(/[\\/]/).pop()}: ${err.message}`); }
+        }
+        if (failed.length) await window.electronAPI.showAlert(`Delete failed:\n${failed.join("\n")}`);
+        for (const d of parents) invalidateCache(d);
+        setLocalRefresh((k) => k + 1);
+        commitSelection(new Set(), null);
+        break;
+      }
+      case "copy": onClipboardChange?.({ paths, mode: "copy" }); break;
+      case "cut":  onClipboardChange?.({ paths, mode: "cut"  }); break;
+      case "copyPath": writeClip(paths.join("\n")); break;
+      case "copyRelativePath": {
+        const rels = paths.map((p) => rootPath && p.startsWith(rootPath) ? p.slice(rootPath.length + 1) : p);
+        writeClip(rels.join("\n"));
+        break;
+      }
+      case "reveal": if (paths[0]) window.electronAPI.revealInExplorer(paths[0]); break;
+      case "refresh":
+        for (const d of parents) invalidateCache(d);
+        setLocalRefresh((k) => k + 1);
+        break;
+    }
+  }, [clipboard, rootPath, invalidateCache, onClipboardChange, commitSelection, writeClip]);
+
   // ── Context menu for any sidebar folder ───────────────────────────────────
   const handleContextMenu = useCallback(async (folderPath, shiftKey = false) => {
     if (folderPath !== selectedPath) onSelect(folderPath);
@@ -625,13 +749,24 @@ const SidebarTree = ({
     }
   }, [selectedPath, onSelect, clipboard, invalidateCache, handlePinToggle, onClipboardChange, ask, pushUndo, rootPath, trashAndRefresh]);
 
+  // ── Selection-driven click handlers ──────────────────────────────────────
+  // Plain click keeps the old behaviour (navigate folders / open files).
+  // Ctrl/Cmd-click toggles a row and Shift-click selects a visible range
+  // without navigating or opening anything.
+  const handleFolderClick = useCallback((folderPath, e) => {
+    const mode = applyTreeSelection(e, folderPath);
+    if (mode === "single") onSelect(folderPath);
+  }, [applyTreeSelection, onSelect]);
+
   // ── File handlers ────────────────────────────────────────────────────────
   // Single click → "open-file-in-editor" (central router in index.jsx sends
   // media files to Media Viewer when Settings → Auto Open Media Viewer is ON).
-  const handleFileClick = useCallback((filePath) => {
+  const handleFileClick = useCallback((e, filePath) => {
+    const mode = applyTreeSelection(e, filePath);
+    if (mode !== "single") return;
     onFileSelect?.(filePath);
     window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: filePath } }));
-  }, [onFileSelect]);
+  }, [onFileSelect, applyTreeSelection]);
 
   // Double click → media files go to Media Viewer (if enabled), else system default.
   const handleFileDoubleClick = useCallback(async (filePath) => {
@@ -804,6 +939,24 @@ const SidebarTree = ({
     }
   }, [selectedPath, onSelect, clipboard, invalidateCache, trashAndRefresh, onClipboardChange, ask, pushUndo, rootPath]);
 
+  // ── Unified row context menu (single + multi) ────────────────────────────
+  const handleRowContext = useCallback(async (e, rowPath, isDir) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sel = selectedItemsRef.current || new Set();
+    let paths;
+    if (sel.has(rowPath)) {
+      paths = sel.size > 1 ? [...sel] : [rowPath];
+    } else {
+      anchorRef.current = rowPath;
+      commitSelection(new Set([rowPath]), rowPath);
+      paths = [rowPath];
+    }
+    if (paths.length > 1) { await handleMultiContext(paths); return; }
+    if (isDir) await handleContextMenu(rowPath, e.shiftKey);
+    else await handleFileContextMenu(e, rowPath);
+  }, [handleMultiContext, handleContextMenu, handleFileContextMenu, commitSelection]);
+
   // ── Blank area context menu (right-click empty space) ─────────────────────
   const handleBlankContext = useCallback(async (e) => {
     if (!rootPath) return;
@@ -950,27 +1103,25 @@ const SidebarTree = ({
 
   // ── Sidebar keyboard shortcuts ───────────────────────────────────────
   const handleSidebarKeyDown = useCallback(async (e) => {
-    if (!rootPath || !selectedPath) return;
-    const isFile = (() => {
-      // heuristic: if expandedSet has it, it's a folder; otherwise treat as file.
-      // For accurate check we could stat, but sync heuristic is fine for keyboard.
-      if (expandedSet.has(selectedPath)) return false;
-      // also check rootChildren to see if isDir false?
-      return true;
-    })();
+    const selectedPaths = selectedItemsRef.current?.size
+      ? [...selectedItemsRef.current]
+      : (selectedPath ? [selectedPath] : []);
+    if (!rootPath || selectedPaths.length === 0) return;
+    const primaryPath = selectedPath || selectedPaths[0];
+    const primaryParent = primaryPath.replace(/[\\/][^\\/]+$/, "") || primaryPath;
     // Don't handle if input dialog open
     if (document.activeElement?.tagName === "INPUT") return;
 
     if (e.key === "F2") {
+      if (selectedPaths.length !== 1) return;
       e.preventDefault();
-      const oldName = selectedPath.replace(/.*[\\/]/, "");
+      const oldName = primaryPath.replace(/.*[\\/]/, "");
       const n = await ask("Rename to:", oldName);
       if (n && n !== oldName) {
-        const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
         try {
-          const newPath = await window.electronAPI.rename(selectedPath, n);
-          if (pushUndo) pushUndo({ type: "rename", oldPath: selectedPath, oldName, newPath: newPath || parentDir + (parentDir.includes("\\") ? "\\" : "/") + n, newName: n, parentDir });
-          invalidateCache(parentDir);
+          const newPath = await window.electronAPI.rename(primaryPath, n);
+          if (pushUndo) pushUndo({ type: "rename", oldPath: primaryPath, oldName, newPath: newPath || primaryParent + (primaryParent.includes("\\") ? "\\" : "/") + n, newName: n, parentDir: primaryParent });
+          invalidateCache(primaryParent);
           setLocalRefresh((k) => k + 1);
         } catch (err) { await window.electronAPI.showAlert(`Cannot rename:\n${err.message}`); }
       }
@@ -978,22 +1129,40 @@ const SidebarTree = ({
     }
     if (e.key === "Delete") {
       e.preventDefault();
-      const name = selectedPath.replace(/.*[\\/]/, "");
-      const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
+      const parentDirs = new Set(selectedPaths.map((p) => p.replace(/[\\/][^\\/]+$/, "") || p));
       // Shift+Delete → permanent (bypass Recycle Bin, matches ContentArea).
       if (e.shiftKey) {
-        const ok = await confirmIfNeeded(`Permanently delete "${name}"? This cannot be undone.`);
+        const label = selectedPaths.length === 1
+          ? `Permanently delete "${selectedPaths[0].replace(/.*[\\/]/, "")}"? This cannot be undone.`
+          : `Permanently delete ${selectedPaths.length} items? This cannot be undone.`;
+        const ok = await confirmIfNeeded(label);
         if (!ok) return;
-        try {
-          await window.electronAPI.deleteItem(selectedPath);
-        } catch (err) { await window.electronAPI.showAlert(`Cannot delete:\n${err.message}`); }
-        invalidateCache(parentDir);
+        const failed = [];
+        for (const p of selectedPaths) {
+          try { await window.electronAPI.deleteItem(p); }
+          catch (err) { failed.push(`${p.split(/[\\/]/).pop()}: ${err.message}`); }
+        }
+        if (failed.length) await window.electronAPI.showAlert(`Delete failed:\n${failed.join("\n")}`);
+        for (const d of parentDirs) invalidateCache(d);
         setLocalRefresh((k) => k + 1);
+        commitSelection(new Set(), null);
         return;
       }
       // Project Panel: Delete → OS Recycle Bin
-      const ok = await confirmIfNeeded(`Move "${name}" to Recycle Bin?`);
-      if (ok) await trashAndRefresh(selectedPath, parentDir);
+      const label = selectedPaths.length === 1
+        ? `Move "${selectedPaths[0].replace(/.*[\\/]/, "")}" to Recycle Bin?`
+        : `Move ${selectedPaths.length} items to Recycle Bin?`;
+      const ok = await confirmIfNeeded(label);
+      if (!ok) return;
+      const failed = [];
+      for (const p of selectedPaths) {
+        try { await window.electronAPI.trashItem(p, findTrashRoot(p)); }
+        catch (err) { failed.push(`${p.split(/[\\/]/).pop()}: ${err.message}`); }
+      }
+      if (failed.length) await window.electronAPI.showAlert(`Delete failed:\n${failed.join("\n")}`);
+      for (const d of parentDirs) invalidateCache(d);
+      setLocalRefresh((k) => k + 1);
+      commitSelection(new Set(), null);
       return;
     }
     // Ctrl+Alt+C → Copy Relative Path (matches the native menu accelerator
@@ -1001,18 +1170,18 @@ const SidebarTree = ({
     // ignores altKey, so it would match before this one.
     if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "c") {
       e.preventDefault();
-      const rel = rootPath && selectedPath.startsWith(rootPath) ? selectedPath.slice(rootPath.length + 1) : selectedPath;
-      navigator.clipboard.writeText(rel);
+      const rels = selectedPaths.map((p) => rootPath && p.startsWith(rootPath) ? p.slice(rootPath.length + 1) : p);
+      writeClip(rels.join("\n"));
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
       e.preventDefault();
-      onClipboardChange?.({ paths: [selectedPath], mode: "copy" });
+      onClipboardChange?.({ paths: selectedPaths, mode: "copy" });
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
       e.preventDefault();
-      onClipboardChange?.({ paths: [selectedPath], mode: "cut" });
+      onClipboardChange?.({ paths: selectedPaths, mode: "cut" });
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
@@ -1048,12 +1217,24 @@ const SidebarTree = ({
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
       e.preventDefault();
-      const parentDir = selectedPath.replace(/[\\/][^\\/]+$/, "") || selectedPath;
-      try { await window.electronAPI.duplicate(selectedPath); invalidateCache(parentDir); setLocalRefresh((k)=>k+1); } catch (err) { await window.electronAPI.showAlert(`Cannot duplicate:\n${err.message}`); }
+      const failed = [];
+      const parentDirs = new Set(selectedPaths.map((p) => p.replace(/[\\/][^\\/]+$/, "") || p));
+      for (const p of selectedPaths) {
+        try { await window.electronAPI.duplicate(p); }
+        catch (err) { failed.push(`${p.split(/[\\/]/).pop()}: ${err.message}`); }
+      }
+      if (failed.length) await window.electronAPI.showAlert(`Cannot duplicate:\n${failed.join("\n")}`);
+      for (const d of parentDirs) invalidateCache(d);
+      setLocalRefresh((k)=>k+1);
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
-      // select all not applicable in tree; ignore
+      e.preventDefault();
+      const all = getVisibleTreePaths();
+      if (all.length) {
+        anchorRef.current = all[0];
+        commitSelection(new Set(all), all[0]);
+      }
       return;
     }
     if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r")) {
@@ -1072,7 +1253,7 @@ const SidebarTree = ({
       try { await performRedo?.(); } catch {}
       return;
     }
-  }, [rootPath, selectedPath, expandedSet, clipboard, ask, pushUndo, performUndo, performRedo, invalidateCache, onClipboardChange, getActiveDir, handleHeaderRefresh, handleHeaderNewFile, handleHeaderNewFolder, trashAndRefresh]);
+  }, [rootPath, selectedPath, clipboard, ask, pushUndo, performUndo, performRedo, invalidateCache, onClipboardChange, getActiveDir, handleHeaderRefresh, handleHeaderNewFile, handleHeaderNewFolder, findTrashRoot, commitSelection, getVisibleTreePaths, writeClip]);
 
   return (
     <>
@@ -1102,6 +1283,7 @@ const SidebarTree = ({
         </div>
       </div>
       <div className="pw-sidebar__scroll" role="tree" aria-label="Project tree"
+        ref={scrollRef}
         tabIndex={0}
         onKeyDown={handleSidebarKeyDown}
         onContextMenu={handleBlankContext}
@@ -1124,16 +1306,17 @@ const SidebarTree = ({
                     label={folderName}
                     iconEl={<VscodeIcon name={folderName} isDir={true} size={16} />}
                     depth={0}
+                    path={fullPath}
                     hasChildren={false}
                     isOpen={false}
-                    isSelected={selectedPath === fullPath}
+                    isSelected={isPathSelected(fullPath)}
                     isDropTarget={false}
                     isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(fullPath)}
-                    onClick={() => onSelect(fullPath)}
+                    onClick={(e) => handleFolderClick(fullPath, e)}
                     onDoubleClick={() => onToggle(fullPath)}
                     onArrowClick={() => {}}
                     draggable
-                    onDragStart={(e) => startSidebarOutDrag(e, [fullPath])}
+                    onDragStart={(e) => startSidebarOutDrag(e, getDragPaths(fullPath))}
                     onDragEnd={clearSidebarOutDrag}
                     onDragOver={() => {}}
                     onDragLeave={() => {}}
@@ -1141,7 +1324,12 @@ const SidebarTree = ({
                     onContextMenu={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      if (fullPath !== selectedPath) onSelect(fullPath);
+                      const pinnedSel = selectedItemsRef.current || new Set();
+                      if (pinnedSel.has(fullPath) && pinnedSel.size > 1) {
+                        await handleMultiContext([...pinnedSel]);
+                        return;
+                      }
+                      if (!pinnedSel.has(fullPath)) commitSelection(new Set([fullPath]), fullPath);
                       const parentDir = fullPath.replace(/[\\/][^\\/]+$/, "") || fullPath;
                       const result = await window.electronAPI.showContextMenu("pinned", [fullPath], clipboard?.paths ?? null);
                       if (!result) return;
@@ -1248,22 +1436,23 @@ const SidebarTree = ({
             label={rootName}
             iconEl={<VscodeIcon name={rootName} isDir={true} isOpen={expandedSet.has(rootPath)} size={16} />}
             depth={0}
+            path={rootPath}
             hasChildren={rootChildren === null || (rootChildren && rootChildren.length > 0)}
             isOpen={expandedSet.has(rootPath)}
-            isSelected={selectedPath === rootPath}
+            isSelected={isPathSelected(rootPath)}
             isDropTarget={dropTarget === rootPath}
             isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(rootPath)}
-            onClick={() => onSelect(rootPath)}
+            onClick={(e) => handleFolderClick(rootPath, e)}
             onDoubleClick={() => onToggle(rootPath)}
             onArrowClick={() => onToggle(rootPath)}
             draggable
-            onDragStart={(e) => startSidebarOutDrag(e, [rootPath])}
+            onDragStart={(e) => startSidebarOutDrag(e, getDragPaths(rootPath))}
             onDragEnd={clearSidebarOutDrag}
             onDragEnter={handleRootDragEnter}
             onDragOver={handleRootDragOver}
             onDragLeave={handleRootDragLeave}
             onDrop={handleRootDrop}
-            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleContextMenu(rootPath, e.shiftKey); }}
+            onContextMenu={(e) => handleRowContext(e, rootPath, true)}
             gitStatus={getGitStatus(rootPath)}
           />
           {expandedSet.has(rootPath) && rootChildren && rootChildren
@@ -1277,7 +1466,7 @@ const SidebarTree = ({
               selectedPath={selectedPath}
               expandedSet={expandedSet}
               childCache={childCache}
-              onSelect={onSelect}
+              onSelect={handleFolderClick}
               onToggle={onToggle}
               loadChildren={loadChildren}
               onDrop={onDrop}
@@ -1293,6 +1482,10 @@ const SidebarTree = ({
               onFileCtxMenu={handleFileContextMenu}
               onExternalDrop={handleExternalDrop}
               clipboard={clipboard}
+              isPathSelected={isPathSelected}
+              getDragPaths={getDragPaths}
+              onRowContext={handleRowContext}
+              onRowFileClick={handleFileClick}
             />
           ) : (
             <TreeRow
@@ -1300,21 +1493,22 @@ const SidebarTree = ({
               label={entry.name}
               iconEl={<PreviewIcon entry={entry} showPreview={showPreview} size={16} />}
               depth={1}
+              path={entry.path}
               hasChildren={false}
               isOpen={false}
-              isSelected={selectedPath === entry.path}
+              isSelected={isPathSelected(entry.path)}
               isDropTarget={false}
               isCut={clipboard?.mode === "cut" && clipboard?.paths?.includes(entry.path)}
-              onClick={() => handleFileClick(entry.path)}
+              onClick={(e) => handleFileClick(e, entry.path)}
               onDoubleClick={() => handleFileDoubleClick(entry.path)}
               onArrowClick={() => {}}
               draggable
-              onDragStart={(e) => startSidebarOutDrag(e, [entry.path])}
+              onDragStart={(e) => startSidebarOutDrag(e, getDragPaths(entry.path))}
               onDragEnd={clearSidebarOutDrag}
               onDragOver={() => {}}
               onDragLeave={() => {}}
               onDrop={() => {}}
-              onContextMenu={(e) => handleFileContextMenu(e, entry.path)}
+              onContextMenu={(e) => handleRowContext(e, entry.path, false)}
               gitStatus={getGitStatus(entry.path)}
             />
           ))}

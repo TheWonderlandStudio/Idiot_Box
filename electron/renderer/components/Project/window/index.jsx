@@ -409,6 +409,14 @@ const ProjectWindow = () => {
   const handleSetSelectedItems = useCallback((nextSet) => setSelectedItems(nextSet), []);
   const handleItemsLoaded      = useCallback((count)   => setItemCount(count),       []);
 
+  // Sidebar multi-select: keep the explorer tree and the content grid on the
+  // same selection. Unlike onSelect/onFileSelect this never navigates — it just
+  // updates the highlighted rows and the status-bar primary path.
+  const handleSidebarSelectionChange = useCallback((nextSet, primaryPath) => {
+    setSelectedItems(nextSet);
+    if (primaryPath != null) setSelectedPath(primaryPath);
+  }, []);
+
   const handleSidebarFileSelect = useCallback((filePath) => {
     setSelectedPath(filePath);
     setCurrentPath(filePath.replace(/[\\/][^\\/]+$/, "") || filePath);
@@ -482,6 +490,8 @@ const ProjectWindow = () => {
           <SidebarTree
             rootPath={rootPath}
             selectedPath={selectedPath}
+            selectedItems={selectedItems}
+            onSelectionChange={handleSidebarSelectionChange}
             expandedSet={expandedSet}
             childCache={childCache}
             clipboard={clipboard}
