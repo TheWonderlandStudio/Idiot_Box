@@ -296,6 +296,7 @@ const renderPanelContent = (json) => {
     case "output":            return <OutputPanel />;
     case "gitPanel":          return <GitPanel nodeId={nodeId} />;
     case "ports":             return <PortsPanel />;
+    case "aiPanel":           return <AIAgentPanel />;   // legacy saved tab → OpenCode AI Agent
     case "androidEmulator":   return <AndroidEmulatorPanel />;
     case "aiAgent":           return <AIAgentPanel />;
     case "extensions":        return <ExtensionsPanel />;
@@ -999,6 +1000,9 @@ const sanitizeProjectPanels = (json) => {
     const walk = (node) => {
       if (!node || typeof node !== "object") return;
       if (node.type === "tab") {
+        // Migrate old saved AI panel tabs (component "aiPanel") to the OpenCode-powered AI Agent tab
+        // so pre-0.1.29 saved sessions render the AI Agent instead of a blank panel.
+        if (node.component === "aiPanel") { node.component = "aiAgent"; node.name = "AI Agent"; node.config = node.config || {}; }
         // .ipynb files now render in editor tabs (like a session migration)
         if (node.component === "notebook") node.component = "editor";
         if (!PROJECT_PANEL_COMPONENTS.has(node.component)) {
@@ -1400,6 +1404,9 @@ const App = () => {
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
             const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs","openPencil","aiAgent"]);
+            // Migrate old saved AI panel tabs (component "aiPanel") to the OpenCode-powered AI Agent tab
+            // so pre-0.1.29 saved sessions render the AI Agent instead of a blank panel.
+            if (node.component === "aiPanel") { node.component = "aiAgent"; node.name = "AI Agent"; node.config = node.config || {}; }
             if (!allowed.has(node.component)) {
               node.component = "blank";
               node.name = "Blank";

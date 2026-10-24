@@ -16,6 +16,7 @@ export default function OpenCodePanel() {
   const [server, setServer] = useState(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [webviewLoaded, setWebviewLoaded] = useState(false);
   const webviewRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function OpenCodePanel() {
     let leaseId = "";
     setServer(null);
     setError("");
+    setWebviewLoaded(false);
 
     if (!rootPath) {
       setError("Open a project folder before starting the OpenCode panel.");
@@ -70,6 +72,7 @@ export default function OpenCodePanel() {
     if (!webview) return undefined;
     const handleLoad = () => {
       setError("");
+      setWebviewLoaded(true);
       const script = `(() => {
         const styleId = "idiot-box-current-project-only";
         if (!document.getElementById(styleId)) {
@@ -77,9 +80,6 @@ export default function OpenCodePanel() {
           style.id = styleId;
           style.textContent = '[data-action="home-add-project"], [data-action="home-add-project-row"], [data-action="prompt-project"] { display: none !important; }';
           (document.head || document.documentElement).appendChild(style);
-        }
-        if (window.location.pathname !== "/new-session") {
-          document.querySelector('a[href^="/new-session"]')?.click();
         }
         return true;
       })()`;
@@ -146,6 +146,13 @@ export default function OpenCodePanel() {
 
   return (
     <div className="opencode-panel">
+      {webviewLoaded ? null : (
+        <section className="opencode-panel-status" role="status" aria-live="polite" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 10, background: "rgba(13, 13, 13, 0.85)" }}>
+          <Loader2 size={18} className="opencode-panel-spinner" />
+          <b>Loading OpenCode…</b>
+          <p>Starting the OpenCode agent web interface for this project.</p>
+        </section>
+      )}
       <webview
         ref={attachWebview}
         className="opencode-panel-webview"

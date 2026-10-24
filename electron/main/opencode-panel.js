@@ -101,7 +101,8 @@ async function waitForOpenCode(instance) {
     }
   }
 
-  throw new Error(`OpenCode did not become ready in time${lastError ? `: ${lastError.message}` : "."}`);
+  const tail = instance.childLogs ? `\nOpenCode server log tail:\n${instance.childLogs.slice(-20).join("\n")}` : "";
+  throw new Error(`OpenCode did not become ready in time${lastError ? `: ${lastError.message}` : "."}${tail}`);
 }
 
 async function startInstance(workspace, instance) {
@@ -121,6 +122,7 @@ async function startInstance(workspace, instance) {
   } catch (syncErr) {
     console.warn("[OpenCode panel] Failed to sync MCP config:", syncErr && syncErr.message);
   }
+  const childLogs = [];
   const child = spawn(cliPath, [
     "serve",
     "--hostname", "127.0.0.1",
@@ -128,9 +130,12 @@ async function startInstance(workspace, instance) {
   ], {
     cwd: workspace,
     env: process.env,
-    stdio: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
+  instance.childLogs = childLogs;
+  child.stdout?.on("data", (d) => { childLogs.push(d.toString().trim()); if (childLogs.length > 80) childLogs.shift(); });
+  child.stderr?.on("data", (d) => { childLogs.push(`stderr: ${d.toString().trim()}`); if (childLogs.length > 80) childLogs.shift(); });
   instance.child = child;
   child.once("error", (error) => { instance.failure = error; });
   child.once("exit", (code, signal) => {
@@ -144,7 +149,8 @@ async function startInstance(workspace, instance) {
     await waitForOpenCode(instance);
   } catch (error) {
     await stopInstance(instance);
-    throw new Error(`Could not start OpenCode: ${error.message}`);
+    const tail = instance.childLogs ? `\nOpenCode server log tail:\n${instance.childLogs.slice(-20).join("\n")}` : "";
+    throw new Error(`Could not start OpenCode: ${error.message}${tail}`);
   }
 }
 
