@@ -21,6 +21,9 @@ const genSessionId = () => {
 // (not on view unmount), so the shell survives panel switch/close.
 const GlobalTerms = {
   sessions: [{ id: genSessionId(), n: 1 }],
+  // NOTE: activeId is NO LONGER global — each panel tracks its own local activeId.
+  // This field is kept only for legacy callers outside the component (e.g.
+  // __runInWorkspaceTerminal) and for the terminals:killAll handler.
   activeId: null,
   cwdMap: {},
   counter: 1,
@@ -45,31 +48,32 @@ const GlobalTerms = {
     this.counter += 1;
     const s = { id: genSessionId(), n: this.counter };
     this.sessions = [...this.sessions, s];
+    // Set legacy activeId for external callers
     this.activeId = s.id;
     this.emit();
     return s.id;
   },
   kill(id) {
-    const target = id || this.activeId || (this.sessions[0] && this.sessions[0].id);
+    const target = id || this.sessions[0]?.id;
     if (!target) return;
     try { window.electronAPI.closeTerminal(target); } catch {}
     const next = this.sessions.filter((s) => s.id !== target);
     const { [target]: _drop, ...restCwd } = this.cwdMap;
     this.cwdMap = restCwd;
+    let replacementId = null;
     if (!next.length) {
       this.counter += 1;
       const s = { id: genSessionId(), n: this.counter };
       this.sessions = [s];
+      replacementId = s.id;
       this.activeId = s.id;
     } else {
       this.sessions = next;
+      replacementId = next[0].id;
       if (this.activeId === target) this.activeId = next[0].id;
     }
     this.emit();
-  },
-  setActive(id) {
-    if (!id || !this.sessions.some((s) => s.id === id)) return;
-    if (this.activeId !== id) { this.activeId = id; this.emit(); }
+    return { killedId: target, replacementId };
   },
   setCwd(id, cwd) {
     if (this.cwdMap[id] === cwd) return;
@@ -849,7 +853,17 @@ const TerminalSession = forwardRef(({ tabId, nodeId, config, active, onCwd }, re
 const TerminalPanel = ({ nodeId, config }) => {
   const mirrorTabId = config?.mirrorTabId || null;
 
-  const { sessions, activeId, cwdMap } = useGlobalTerms();
+  const { sessions, cwdMap } = useGlobalTerms();
+  // ── Per-panel local active terminal ─────────────────────────────────────
+  // Each panel independently tracks which terminal session it displays.
+  // Switching in this panel's dropdown does NOT affect other panels.
+  const [localActiveId, setLocalActiveId] = useState(null);
+  // Ensure localActiveId always points at a valid session
+  const activeId = (() => {
+    if (localActiveId && sessions.some((s) => s.id === localActiveId)) return localActiveId;
+    return sessions[0]?.id || null;
+  })();
+
   const sessionApis = useRef(new Map());
   const [panelCwd, setPanelCwd] = useState(null);
   const [ddOpen, setDdOpen] = useState(false);
@@ -892,10 +906,9 @@ const TerminalPanel = ({ nodeId, config }) => {
   }, []);
 
   const focusActive = useCallback(() => {
-    const id = GlobalTerms.snapshot().activeId;
-    const api = sessionApis.current.get(id);
+    const api = sessionApis.current.get(activeId);
     try { api?.focus(); } catch {}
-  }, []);
+  }, [activeId]);
 
   // active switch → session start (hidden mount fix) + fit
   useEffect(() => {
@@ -909,22 +922,37 @@ const TerminalPanel = ({ nodeId, config }) => {
   }, [activeId]);
 
   const addSession = useCallback(() => {
-    GlobalTerms.add();
+    const newId = GlobalTerms.add();
+    setLocalActiveId(newId);
     setDdOpen(false);
-    setTimeout(focusActive, 150);
-  }, [focusActive]);
+    setTimeout(() => {
+      const api = sessionApis.current.get(newId);
+      try { api?.focus(); } catch {}
+    }, 150);
+  }, []);
 
   const killSession = useCallback((id) => {
-    GlobalTerms.kill(id);
+    const result = GlobalTerms.kill(id);
+    // If we killed the terminal this panel was viewing, switch to the replacement
+    if (id === activeId && result?.replacementId) {
+      setLocalActiveId(result.replacementId);
+    }
     setDdOpen(false);
-    setTimeout(focusActive, 150);
-  }, [focusActive]);
+    setTimeout(() => {
+      const nextId = (id === activeId && result?.replacementId) ? result.replacementId : activeId;
+      const api = sessionApis.current.get(nextId);
+      try { api?.focus(); } catch {}
+    }, 150);
+  }, [activeId]);
 
   const switchSession = useCallback((id) => {
-    GlobalTerms.setActive(id);
+    setLocalActiveId(id);
     setDdOpen(false);
-    setTimeout(focusActive, 80);
-  }, [focusActive]);
+    setTimeout(() => {
+      const api = sessionApis.current.get(id);
+      try { api?.focus(); } catch {}
+    }, 80);
+  }, []);
 
   const clearActive = useCallback(() => {
     const api = sessionApis.current.get(activeId);
