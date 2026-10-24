@@ -415,11 +415,18 @@ const RunStatusButton = () => {
       try { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); } catch {}
     };
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
+    const onBlur = () => { setOpen(false); };
+    window.addEventListener("pointerdown", onDoc, true);
+    window.addEventListener("mousedown", onDoc, true);
+    window.addEventListener("click", onDoc, true);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("blur", onBlur);
     return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDoc, true);
+      window.removeEventListener("mousedown", onDoc, true);
+      window.removeEventListener("click", onDoc, true);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("blur", onBlur);
     };
   }, [open]);
 
@@ -608,12 +615,19 @@ const LayoutsMenu = ({ hasProject, getSnapshot, onApply }) => {
       } catch {}
     };
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
+    const onBlur = () => { setOpen(false); };
+    window.addEventListener("pointerdown", onDoc, true);
+    window.addEventListener("mousedown", onDoc, true);
+    window.addEventListener("click", onDoc, true);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("blur", onBlur);
     return () => {
       dead = true;
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDoc, true);
+      window.removeEventListener("mousedown", onDoc, true);
+      window.removeEventListener("click", onDoc, true);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("blur", onBlur);
     };
   }, [open]);
 
@@ -807,13 +821,20 @@ const TitlebarLogoMenu = ({ hasProject }) => {
       } catch {}
     };
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
+    const onBlur = () => { setOpen(false); };
+    window.addEventListener("pointerdown", onDoc, true);
+    window.addEventListener("mousedown", onDoc, true);
+    window.addEventListener("click", onDoc, true);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("blur", onBlur);
     return () => {
       dead = true;
       try { unsub?.(); } catch {}
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDoc, true);
+      window.removeEventListener("mousedown", onDoc, true);
+      window.removeEventListener("click", onDoc, true);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("blur", onBlur);
     };
   }, [open, iconEl]);
 

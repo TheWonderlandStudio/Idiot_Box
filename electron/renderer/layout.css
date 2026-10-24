@@ -93,10 +93,19 @@ body,
   flex-shrink: 0;
   align-items: center;
   background: var(--bg-vscode);
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   padding: 0 var(--space-4);
   gap: var(--space-2);
   overflow-x: auto;
+}
+
+.flexlayout__tabset_tabbar_outer_top {
+  border-bottom: none;
+}
+
+.flexlayout__tabset_tabbar_inner_tab_container {
+  align-items: flex-end;
+  border-bottom: none;
 }
 
 .flexlayout__tabset {
@@ -116,13 +125,17 @@ body,
   min-height: 0;
   background: transparent;
   border: none;
-  border-radius: var(--radius-sm);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   color: var(--text-secondary);
   font-size: var(--fs-small);
   font-family: var(--font-ui);
   font-weight: var(--fw-regular);
   cursor: pointer;
   white-space: nowrap;
+  align-self: flex-end;
+  margin-bottom: 0;
+  box-shadow: none;
   transition: background var(--t-normal), color var(--t-normal), opacity var(--t-normal);
 }
 
@@ -428,15 +441,13 @@ body,
    Trigger is no new button — CET's existing .cet-icon (favicon image,
    before the File menu) is clickable here (class tb-logo applied from JS). */
 .cet-titlebar .tb-logo {
-  /* drop .cet-icon's fixed width:34px so icon + chevron both fit */
   width: auto;
   flex-shrink: 0;
   height: 30px;
-  padding: 0 7px 0 6px;
+  padding: 0 6px;
   margin-right: 2px;
   align-items: center;
-  gap: 4px;
-  border-radius: 5px;
+  border-radius: 0;
   cursor: pointer;
   -webkit-app-region: no-drag;
   outline: none;
@@ -447,23 +458,11 @@ body,
   height: 16px;
   width: auto;
   display: block;
-  border-radius: 3px;
+  border-radius: 0;
   flex-shrink: 0;
-}
-.cet-titlebar .tb-logo::after {
-  content: "";
-  width: 0;
-  height: 0;
-  border-left: 3.5px solid transparent;
-  border-right: 3.5px solid transparent;
-  border-top: 4px solid #9a9aa5;
-  opacity: 0.8;
-  transition: transform 140ms ease, opacity 140ms ease;
 }
 .cet-titlebar .tb-logo:hover,
 .cet-titlebar .tb-logo.is-open { background: var(--bg-hover); }
-.cet-titlebar .tb-logo:hover::after { opacity: 1; }
-.cet-titlebar .tb-logo.is-open::after { transform: rotate(180deg); opacity: 1; }
 .cet-titlebar .tb-logo:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 
 /* Dropdown — portalled from the titlebar into body (like LayoutsMenu) */
@@ -1405,10 +1404,6 @@ li,
 :root[data-theme="light"] .cet-titlebar .cet-control-close:not(.inactive):hover svg {
   fill: #ffffff !important;
 }
-/* Logo trigger chevron: readable on light */
-:root[data-theme="light"] .cet-titlebar .tb-logo::after {
-  border-top-color: #555555;
-}
 /* Layouts chip: dark-on-light (replaces #a6a6b2 / #f0f0f5, unreadable on light) */
 :root[data-theme="light"] .tb-workspaces {
   background: rgba(0, 0, 0, 0.05);
@@ -1481,14 +1476,14 @@ li,
 :root[data-theme="light"] .flexlayout__tabset_header {
   background-color: #f3f3f3;
   color: #1e1e1e;
-  border-bottom-color: #e0e0e0;
+  border-bottom: none;
   box-shadow: none;
 }
 :root[data-theme="light"] .flexlayout__tabset_tabbar_outer {
   background-color: #f3f3f3;
 }
 :root[data-theme="light"] .flexlayout__tabset_tabbar_outer_top {
-  border-bottom-color: #e0e0e0;
+  border-bottom: none;
 }
 :root[data-theme="light"] .flexlayout__tabset_tabbar_outer_bottom {
   border-top-color: #e0e0e0;
@@ -1500,7 +1495,7 @@ li,
 :root[data-theme="light"] .flexlayout__tab_button--selected {
   color: #1e1e1e;
   background-color: #ffffff;
-  box-shadow: inset 0 -2px 0 var(--accent);
+  box-shadow: none;
 }
 :root[data-theme="light"] .flexlayout__tab_button_stretch {
   color: #1e1e1e;

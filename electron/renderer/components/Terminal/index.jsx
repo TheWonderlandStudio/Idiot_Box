@@ -888,11 +888,18 @@ const TerminalPanel = ({ nodeId, config }) => {
     if (!ddOpen) return;
     const onDoc = (e) => { try { if (ddRef.current && !ddRef.current.contains(e.target)) setDdOpen(false); } catch {} };
     const onKey = (e) => { if (e.key === "Escape") setDdOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
+    const onBlur = () => { setDdOpen(false); };
+    window.addEventListener("pointerdown", onDoc, true);
+    window.addEventListener("mousedown", onDoc, true);
+    window.addEventListener("click", onDoc, true);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("blur", onBlur);
     return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDoc, true);
+      window.removeEventListener("mousedown", onDoc, true);
+      window.removeEventListener("click", onDoc, true);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("blur", onBlur);
     };
   }, [ddOpen]);
 
