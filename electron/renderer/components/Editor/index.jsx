@@ -138,7 +138,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
 
   // ── Side preview (markdown / mdx render / sqlite inspect) ──
   const canPreview = !!filePath && !isIpynb && (isDbFile || isCsvFile || isMdFile || isMdxFile || languageId === "markdown" || languageId === "mdx");
-  const previewKind = isCsvFile ? "CSV" : (isMdxFile || languageId === "mdx") ? "MDX" : "";
+  const previewKind = isCsvFile ? "CSV" : (isMdxFile || languageId === "mdx") ? "MDX" : isDbFile ? "DB" : "";
   const [previewOpen, setPreviewOpen] = useState(false);
   // New file → auto-open for db, closed for the rest.
   useEffect(() => { setPreviewOpen(isDbFile); }, [filePath, isDbFile]);
@@ -1004,10 +1004,10 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                 <div className="ed-dbhint">
                   <span>SQLite database — {fileName(filePath)}</span>
                   <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)" }}>
-                    Binary file · view tables, columns & rows in the preview
+                    Browse rows, edit data, run SQL, export tables
                   </span>
                   <button className="ed-dbhint__btn" onClick={() => setPreviewOpen(true)}>
-                    Open DB Preview
+                    Open DB Manager
                   </button>
                 </div>
               ) : binaryFile ? (
@@ -1082,7 +1082,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
-                <span>{statusMsg || (isDbFile ? "SQLite database · read-only" : `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`)}</span>
+                <span>{statusMsg || (isDbFile ? "SQLite database · data / schema / SQL" : `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`)}</span>
                 {!isDbFile && !binaryFile && (
                   <>
                     <span
