@@ -1,0 +1,398 @@
+/* Debugger panel */
+.ibx-debug {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: var(--fs-small);
+}
+
+.ibx-debug-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-10);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.ibx-debug-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold, 600);
+  color: var(--text-hover);
+}
+.ibx-debug-title svg { color: var(--success); }
+.ibx-debug-spacer { flex: 1; }
+
+.ibx-debug-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 1px var(--space-8);
+  border-radius: var(--radius-pill, 999px);
+  font-size: var(--fs-tiny);
+  color: var(--text-placeholder);
+  background: var(--bg-active);
+  white-space: nowrap;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ibx-debug-status[data-state="paused"] { color: var(--warn-gold, #d7ba7d); background: rgba(215, 186, 125, .12); }
+.ibx-debug-status[data-state="running"] { color: var(--success); background: rgba(78, 201, 176, .12); }
+.ibx-debug-status[data-state="terminated"] { color: var(--danger); background: rgba(244, 135, 113, .12); }
+
+.ibx-debug-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-width: 26px;
+  height: 25px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-button);
+  color: var(--text-soft);
+  font-size: var(--fs-tiny);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ibx-debug-btn:hover { background: var(--bg-hover-strong, var(--bg-hover)); color: var(--text-hover); }
+.ibx-debug-btn:disabled { opacity: .4; cursor: default; }
+.ibx-debug-btn[data-tone="accent"] { background: var(--editor-blue); border-color: var(--editor-blue); color: var(--text-inverse); }
+.ibx-debug-btn[data-tone="danger"] { color: var(--danger); border-color: var(--danger-a30, var(--danger)); }
+.ibx-debug-btn[data-tone="danger"]:not(:disabled):hover { background: rgba(244, 135, 113, .12); }
+
+.ibx-debug-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-10);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.ibx-debug-config-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+.ibx-debug-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-vscode);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-hover);
+  font-size: var(--fs-small);
+  font-family: var(--font-code);
+  padding: 3px var(--space-8);
+  outline: none;
+}
+.ibx-debug-input:focus { border-color: var(--accent); }
+.ibx-debug-input::placeholder { color: var(--text-placeholder); font-family: var(--font-ui, inherit); }
+.ibx-debug-select {
+  background: var(--bg-vscode);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  font-size: var(--fs-tiny);
+  padding: 3px 5px;
+  outline: none;
+}
+.ibx-debug-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  font-size: var(--fs-tiny);
+  color: var(--text-placeholder);
+  line-height: 1.45;
+}
+.ibx-debug-hint[data-kind="error"] { color: var(--danger); }
+.ibx-debug-hint[data-kind="ok"] { color: var(--success); }
+.ibx-debug-hint[data-kind="warn"] { color: var(--warn-gold, #d7ba7d); }
+
+.ibx-debug-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-10);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-tiny);
+  color: var(--text-soft);
+  background: var(--bg-surface);
+}
+.ibx-debug-notice[data-kind="error"] { color: var(--danger); }
+.ibx-debug-notice[data-kind="warn"] { color: var(--warn-gold, #d7ba7d); }
+.ibx-debug-notice[data-kind="ok"] { color: var(--success); }
+.ibx-debug-notice-text { flex: 1; min-width: 0; line-height: 1.45; }
+.ibx-debug-notice-x {
+  display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: var(--icon);
+  cursor: pointer;
+  padding: 1px;
+  flex-shrink: 0;
+}
+.ibx-debug-notice-x:hover { color: var(--text-hover); }
+
+.ibx-debug-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.ibx-debug-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.ibx-debug-col--stack { width: 43%; border-right: 1px solid var(--border); }
+.ibx-debug-col--vars { flex: 1; }
+
+.ibx-debug-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+}
+.ibx-debug-section:last-child { border-bottom: 0; }
+.ibx-debug-section--stack { flex: 0 0 46%; }
+.ibx-debug-section--breakpoints { flex: 1; }
+.ibx-debug-section--scopes { flex: 1; }
+.ibx-debug-section--watch { flex: 0 0 46%; }
+.ibx-debug-section--watch .ibx-debug-list { flex: 1 1 auto; }
+
+.ibx-debug-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 3px var(--space-10);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-active);
+  font-size: var(--fs-tiny);
+  font-weight: var(--fw-semibold, 600);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-placeholder);
+  user-select: none;
+}
+.ibx-debug-section-head svg { opacity: .8; }
+.ibx-debug-section-head .ibx-debug-spacer { flex: 1; }
+
+.ibx-debug-list {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.ibx-debug-empty {
+  padding: var(--space-14) var(--space-12);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.ibx-debug-frame {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  padding: 3px var(--space-10);
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-code);
+  font-size: var(--fs-small);
+}
+.ibx-debug-frame:hover { background: var(--bg-hover); }
+.ibx-debug-frame[data-active="true"] { background: var(--accent-soft-a08); border-left-color: var(--accent); }
+.ibx-debug-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-hover); }
+.ibx-debug-frame-loc { flex-shrink: 0; color: var(--text-placeholder); font-size: var(--fs-tiny); }
+
+.ibx-debug-bp-file {
+  padding: var(--space-5) var(--space-8) 2px;
+  font-size: var(--fs-tiny);
+  color: var(--text-placeholder);
+  font-family: var(--font-code);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ibx-debug-bp {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  padding: 2px var(--space-8);
+  border: 0;
+  background: transparent;
+  color: var(--text-bright);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-code);
+  font-size: var(--fs-small);
+}
+.ibx-debug-bp:hover { background: var(--bg-hover); }
+.ibx-debug-bp input { margin: 0; accent-color: var(--danger); }
+.ibx-debug-bp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--danger);
+}
+.ibx-debug-bp-dot[data-verified="false"] { background: transparent; border: 1px solid var(--text-placeholder); }
+.ibx-debug-bp-dot[data-enabled="false"] { background: transparent; border: 1px solid var(--danger); opacity: .55; }
+.ibx-debug-bp-line { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ibx-debug-bp-cond { color: var(--warn-gold, #d7ba7d); font-size: var(--fs-tiny); }
+.ibx-debug-bp-x {
+  display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: var(--icon);
+  cursor: pointer;
+  padding: 1px;
+  opacity: 0;
+}
+.ibx-debug-bp:hover .ibx-debug-bp-x { opacity: 1; }
+.ibx-debug-bp-x:hover { color: var(--danger); }
+.ibx-debug-bp-x:disabled { opacity: .35; cursor: default; }
+
+.ibx-debug-bp-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 3px var(--space-8) 3px var(--space-24);
+}
+.ibx-debug-bp-edit input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-vscode);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-hover);
+  font-family: var(--font-code);
+  font-size: var(--fs-small);
+  padding: 2px var(--space-6);
+  outline: none;
+}
+
+.ibx-debug-scope {
+  border-bottom: 1px solid var(--bg-active);
+}
+.ibx-debug-scope-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  padding: 3px var(--space-10);
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--fs-small);
+}
+.ibx-debug-scope-head:hover { background: var(--bg-hover); }
+.ibx-debug-scope-name { flex: 1; color: var(--text-hover); }
+
+.ibx-debug-var {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+  padding: 2px var(--space-8) 2px 0;
+  font-family: var(--font-code);
+  font-size: var(--fs-small);
+  cursor: default;
+  min-width: 0;
+}
+.ibx-debug-var[data-expandable="true"] { cursor: pointer; }
+.ibx-debug-var:hover { background: var(--bg-hover); }
+.ibx-debug-var-caret { flex-shrink: 0; width: 10px; color: var(--text-placeholder); font-size: 9px; }
+.ibx-debug-var-name { color: var(--code-blue, #9cdcfe); flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.ibx-debug-var-eq { color: var(--text-placeholder); flex-shrink: 0; }
+.ibx-debug-var-value {
+  color: var(--code-orange, #ce9178);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ibx-debug-var-value[data-type="number"], .ibx-debug-var-value[data-type="int"], .ibx-debug-var-value[data-type="float"] { color: var(--code-green, #b5cea8); }
+.ibx-debug-var-value[data-type="boolean"], .ibx-debug-var-value[data-type="bool"] { color: var(--code-blue, #569cd6); }
+.ibx-debug-var-value[data-type="undefined"], .ibx-debug-var-value[data-type="null"] { color: var(--text-muted); }
+
+.ibx-debug-watch-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-8);
+  border-bottom: 1px solid var(--bg-active);
+}
+.ibx-debug-watch-input input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-vscode);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-hover);
+  font-family: var(--font-code);
+  font-size: var(--fs-small);
+  padding: 2px var(--space-6);
+  outline: none;
+}
+.ibx-debug-watch-input input:focus { border-color: var(--accent); }
+.ibx-debug-watch-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-6);
+  padding: 2px var(--space-10);
+  font-family: var(--font-code);
+  font-size: var(--fs-small);
+  border-bottom: 1px solid var(--bg-active);
+}
+.ibx-debug-watch-row:hover .ibx-debug-bp-x { opacity: 1; }
+.ibx-debug-watch-expr { color: var(--text-placeholder); flex-shrink: 0; max-width: 44%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ibx-debug-watch-res { color: var(--text-hover); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ibx-debug-watch-res[data-error="true"] { color: var(--danger); }
+
+.ibx-debug-output {
+  flex: 0 0 30%;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--bg-deep, var(--bg-panel));
+}
+.ibx-debug-output-body {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-4) var(--space-10);
+  font-family: var(--font-code);
+  font-size: var(--fs-tiny);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-soft);
+}
+.ibx-debug-output-line[data-stream="stderr"] { color: var(--danger); }
+.ibx-debug-spin { animation: spin .8s linear infinite; }
+
+@media (max-width: 900px) {
+  .ibx-debug-body { flex-direction: column; }
+  .ibx-debug-col--stack { width: 100%; border-right: 0; border-bottom: 1px solid var(--border); }
+  .ibx-debug-section--stack { flex: 0 0 auto; max-height: 34%; }
+  .ibx-debug-section--breakpoints { max-height: 30%; }
+}

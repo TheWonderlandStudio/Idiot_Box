@@ -41,6 +41,7 @@ import { buildCmExtensions } from "./cm/extensions.js";
 import { createCmBridge, offsetToPos } from "./cm/bridge.js";
 import { applyGitChanges, parseUnifiedDiff } from "./cm/gitgutter.js";
 import { collectSymbols, symbolPathAt } from "./cm/goto.js";
+import { toggleBreakpoint } from "./breakpoints.js";
 
 // CodeMirror needs no async init — ready immediately. Compat for any old
 // listeners: resolved promise + ready events.
@@ -361,6 +362,7 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
       settings: cmSettings,
       languageSupport: getLanguageSupport(languageId),
       languageId,
+      getPath: () => pathRef.current,
     });
     // Inline diff against the last-saved snapshot ("Compare with Saved").
     if (diffOriginal != null) {
@@ -694,6 +696,14 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
         case "prevProblem": gotoProblem(-1); break;
         case "compareWithSaved": toggleCompare(); break;
         case "toggleZen": setZen((v) => !v); break;
+        case "toggleBreakpoint": {
+          const p = pathRef.current;
+          if (p && view) {
+            const line = view.state.doc.lineAt(view.state.selection.main.head).number;
+            toggleBreakpoint(p, line);
+          }
+          break;
+        }
         default: break;
       }
     } catch {}

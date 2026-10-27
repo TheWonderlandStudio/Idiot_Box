@@ -114,6 +114,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("test:event", handler);
   },
 
+  // ── Debugger ──────────────────────────────────────────────────────────────
+  debugStart:        (payload)  => ipcRenderer.invoke("debug:start", payload),
+  debugControl:      (sessionId, action) => ipcRenderer.invoke("debug:control", { sessionId, action }),
+  debugStop:         (sessionId) => ipcRenderer.invoke("debug:stop", { sessionId }),
+  debugStack:        (sessionId) => ipcRenderer.invoke("debug:stack", { sessionId }),
+  debugScopes:       (sessionId, frameId) => ipcRenderer.invoke("debug:scopes", { sessionId, frameId }),
+  debugVariables:    (sessionId, variablesReference) => ipcRenderer.invoke("debug:variables", { sessionId, variablesReference }),
+  debugEvaluate:     (sessionId, expression, frameId) => ipcRenderer.invoke("debug:evaluate", { sessionId, expression, frameId }),
+  debugSetBreakpoints: (sessionId, file, breakpoints) => ipcRenderer.invoke("debug:setBreakpoints", { sessionId, file, breakpoints }),
+  debugThreads:      (sessionId) => ipcRenderer.invoke("debug:threads", { sessionId }),
+  debugInstallDebugpy: () => ipcRenderer.invoke("debug:installDebugpy"),
+  debugAvailability: (opts) => ipcRenderer.invoke("debug:availability", opts),
+  debugSessions:     () => ipcRenderer.invoke("debug:sessions"),
+  onDebugEvent: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("debug:event", handler);
+    return () => ipcRenderer.removeListener("debug:event", handler);
+  },
+
   // ── File operations ────────────────────────────────────────────────────────
   newFolder:        (parentPath, name)          => ipcRenderer.invoke("fs:newFolder",  { parentPath, name }),
   newFile:          (parentPath, name)          => ipcRenderer.invoke("fs:newFile",    { parentPath, name }),

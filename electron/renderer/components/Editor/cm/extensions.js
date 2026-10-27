@@ -63,6 +63,7 @@ import { linksExtension } from "./goto.js";
 import { colorDecoratorExtension } from "./colors.js";
 import { emmetExtension } from "./emmet.js";
 import { gitGutterExtension } from "./gitgutter.js";
+import { breakpointGutterExtension } from "./breakpoints.js";
 
 export const themeExtensionFor = (theme) => {
   if (theme === "light") return vscodeLight;
@@ -76,7 +77,7 @@ const withMonoFallback = (f) => {
   return /monospace/i.test(s) ? s : `${s}, monospace`;
 };
 
-export const buildCmExtensions = ({ settings, languageSupport = [], languageId = "plaintext" }) => {
+export const buildCmExtensions = ({ settings, languageSupport = [], languageId = "plaintext", getPath = null }) => {
   const s = settings || {};
   const ext = [];
 
@@ -117,6 +118,7 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
   if (s.gitGutter !== false) { try { ext.push(gitGutterExtension()); } catch {} }
 
   // ── Gutter / view (lineNumbers + wrapping from settings, rest fixed on) ──
+  if (getPath) { try { ext.push(...breakpointGutterExtension(getPath)); } catch {} }
   if (s.lineNumbers !== false) ext.push(lineNumbers());
   ext.push(highlightActiveLineGutter());
   ext.push(highlightSpecialChars());

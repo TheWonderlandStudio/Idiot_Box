@@ -1632,6 +1632,28 @@
   cursor: pointer;
 }
 
+/* ── Debug breakpoint gutter ─────────────────────────────────────────────── */
+.cm-breakpoint-gutter { width: 14px; cursor: pointer; }
+.cm-breakpoint-gutter .cm-gutterElement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cm-bp-spacer { width: 8px; height: 8px; }
+.cm-bp-marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e51400;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .25);
+}
+.cm-bp-marker--disabled {
+  background: transparent;
+  border: 1.5px solid #e51400;
+  opacity: .6;
+  box-shadow: none;
+}
+
 /* ── Git gutter (line decorations) ────────────────────────────────────────── */
 .cm-line.ibx-git-added    { box-shadow: inset 3px 0 0 0 #2ea043; }
 .cm-line.ibx-git-modified { box-shadow: inset 3px 0 0 0 #316dca; }

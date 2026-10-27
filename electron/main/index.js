@@ -10,6 +10,7 @@ const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/mai
 const projectSearch = require("./search");
 const localHistory = require("./local-history");
 const testRunner = require("./test-runner");
+const debuggerService = require("./debugger");
 let ipcInvoke = null;
 try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ipc-invoke not available:", e.message); }
 let mcpServer = null;
@@ -1990,6 +1991,20 @@ ipcMain.handle("test:run", (event, payload) => testRunner.startRun(event, payloa
 ipcMain.handle("test:stop", (_e, { runId } = {}) => testRunner.stopRun(runId));
 ipcMain.handle("test:command", (_e, payload) => testRunner.buildRunCommand(payload || {}));
 ipcMain.handle("test:debugCommand", (_e, payload) => testRunner.buildDebugCommand(payload || {}));
+
+// ─── Debugger ────────────────────────────────────────────────────────────────
+ipcMain.handle("debug:start", (_e, payload) => debuggerService.startDebug(payload || {}));
+ipcMain.handle("debug:control", (_e, { sessionId, action } = {}) => debuggerService.control(sessionId, action));
+ipcMain.handle("debug:stop", (_e, { sessionId } = {}) => debuggerService.stopSession(sessionId));
+ipcMain.handle("debug:stack", (_e, { sessionId } = {}) => debuggerService.getStack(sessionId));
+ipcMain.handle("debug:scopes", (_e, { sessionId, frameId } = {}) => debuggerService.getScopes(sessionId, frameId));
+ipcMain.handle("debug:variables", (_e, { sessionId, variablesReference } = {}) => debuggerService.getVariables(sessionId, variablesReference));
+ipcMain.handle("debug:evaluate", (_e, { sessionId, expression, frameId } = {}) => debuggerService.evaluate(sessionId, expression, frameId));
+ipcMain.handle("debug:setBreakpoints", (_e, { sessionId, file, breakpoints } = {}) => debuggerService.setBreakpoints(sessionId, file, breakpoints));
+ipcMain.handle("debug:threads", (_e, { sessionId } = {}) => debuggerService.getThreads(sessionId));
+ipcMain.handle("debug:installDebugpy", () => debuggerService.installDebugpy());
+ipcMain.handle("debug:availability", (_e, opts = {}) => debuggerService.availability(opts || {}));
+ipcMain.handle("debug:sessions", () => ({ ok: true, sessions: debuggerService.listSessions() }));
 
 // ─── Git helpers — lightweight async (non-blocking) ────────────────────────────
 function gitExec(args, cwd, timeout = 4000) {
@@ -4936,6 +4951,7 @@ try {
     try {
       for (const [, s] of notebookSessions) { try { s.proc?.kill(); } catch {} }
       notebookSessions.clear();
+      try { debuggerService.stopAll(); } catch {}
     } catch {}
   });
 } catch {}
@@ -6510,6 +6526,7 @@ function buildMenu() {
         { label: "Stop", click: () => sendToRenderer("menu:runStop", null) },
         { type: "separator" },
         { label: "Open Run & Debug Panel", click: () => sendToRenderer("menu:openRunPanel", null) },
+        { label: "Debug Current File", click: () => sendToRenderer("menu:debugCurrent", null) },
       ],
     },
     {
