@@ -464,8 +464,9 @@ const BrowserPanel = (props) => {
   const syncActionTab = useCallback(() => {
     try {
       const id = webviewRef.current?.getWebContentsId();
-      if (typeof id === "number" && actionListRef.current) {
-        actionListRef.current.setAttribute("tab", String(id));
+      if (typeof id === "number") {
+        try { window.electronAPI?.registerBrowserGuest?.(id); } catch {}
+        if (actionListRef.current) actionListRef.current.setAttribute("tab", String(id));
       }
     } catch {}
   }, []);
@@ -889,6 +890,19 @@ const BrowserPanel = (props) => {
   attachListenersRef.current = (wv) => {
     if (attachedRef.current) return;
     attachedRef.current = true;
+
+    // Tell the main process that this webview is a browser panel. The MCP
+    // browser tools use this to tell it apart from the OpenCode/Community/
+    // OpenPencil webviews, which share the same Electron process.
+    const registerGuest = () => {
+      try {
+        const id = wv.getWebContentsId();
+        if (typeof id === "number") window.electronAPI?.registerBrowserGuest?.(id);
+      } catch {}
+    };
+    registerGuest();
+    try { wv.addEventListener("did-attach", registerGuest); } catch {}
+    try { wv.addEventListener("dom-ready", registerGuest); } catch {}
 
     wv.addEventListener("did-start-loading", () => {
       setIsLoading(true);

@@ -1,5 +1,5 @@
 // Main process entry point
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage, clipboard, protocol, net: electronNet, session } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, nativeImage, clipboard, protocol, net: electronNet, session, webContents } = require("electron");
 // TEMP DEBUG (remove after investigation): capture main-process crash dump locally.
 try { require("electron").crashReporter.start({ uploadToServer: false, compress: false }); } catch (e) { console.warn("[crashReporter]", e && e.message); }
 const path    = require("path");
@@ -11,6 +11,7 @@ const projectSearch = require("./search");
 const localHistory = require("./local-history");
 const testRunner = require("./test-runner");
 const debuggerService = require("./debugger");
+const browserRegistry = require("./browser-registry");
 let ipcInvoke = null;
 try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ipc-invoke not available:", e.message); }
 let mcpServer = null;
@@ -3652,6 +3653,37 @@ ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionTe
   });
 });
 
+// The Browser component marks its <webview> guests so the MCP browser tools
+// know which webviews belong to the browser panel (OpenCode, Community and
+// OpenPencil also use webviews but must not be driven as browser tabs).
+ipcMain.handle("browser:registerGuest", (event, webContentsId) => {
+  try {
+    const wc = webContents.fromId(Number(webContentsId));
+    if (!wc) return false;
+    const marked = browserRegistry.markBrowser(wc);
+
+    // Website popups (target="_blank", window.open) belong inside the browser
+    // panel as new tabs. Only browser guests get this handler; the OpenCode,
+    // Community and OpenPencil webviews keep Electron's normal popup behavior.
+    const host = BrowserWindow.fromWebContents(event.sender);
+    if (marked && host && !host.isDestroyed()) {
+      try {
+        wc.setWindowOpenHandler(({ url }) => {
+          if (url && /^https?:\/\//i.test(url)) {
+            // One channel only: the preload re-dispatches this as the renderer
+            // "add-browser-panel" event.
+            try { host.webContents.send("add-browser-panel", { url }); } catch {}
+          }
+          return { action: "deny" };
+        });
+      } catch {}
+    }
+    return marked;
+  } catch {
+    return false;
+  }
+});
+
 // Run edit commands on the webview guest from the main process. Copying from
 // the renderer's <webview> element can race with focus restoration after the
 // native context menu closes; webContents.* is deterministic.
@@ -6873,6 +6905,7 @@ function createWindow() {
   // Register every browser webview as a chrome.tabs tab
   win.webContents.on("did-attach-webview", (_e, wc) => {
     lastGuestWc = wc; lastGuestWin = win;
+    try { browserRegistry.add(wc, win); } catch {}
     try { chromeExt?.addTab(wc, win); } catch {}
     wc.on("did-navigate", () => { try { chromeExt?.selectTab(wc); } catch {} });
     wc.on("focus",       () => { try { chromeExt?.selectTab(wc); } catch {} });

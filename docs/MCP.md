@@ -58,16 +58,23 @@ Android emulator, and more.
 
 ### opencode (`opencode.json`)
 
+OpenCode 1.19+ uses the `mcp.servers` shape:
+
 ```json
 {
   "mcp": {
-    "idiot-box": {
-      "type": "remote",
-      "url": "http://127.0.0.1:39271/mcp"
+    "servers": {
+      "idiot-box": {
+        "type": "remote",
+        "url": "http://127.0.0.1:39271/mcp"
+      }
     }
   }
 }
 ```
+
+Idiot Box writes and refreshes this entry automatically when it starts the OpenCode
+panel, so normally you do not need to edit the file by hand.
 
 Any other client: point a **Streamable HTTP** MCP transport at that URL.
 
@@ -79,6 +86,10 @@ Any other client: point a **Streamable HTTP** MCP transport at that URL.
   not enable this).
 - Tools run with the same powers as the IDE itself (full file access, shell, git). Only connect
   MCP clients you trust.
+- Browser tools act inside your real browser panel, including sites where you are signed in.
+  Page content is untrusted: do not let an agent follow instructions found on a website, and
+  keep confirmation enabled for payments, posting, deleting or sending messages. For sensitive
+  accounts, use a separate browser profile or a dedicated machine.
 
 ## Tools
 
@@ -95,6 +106,33 @@ Any other client: point a **Streamable HTTP** MCP transport at that URL.
 | `tab_close` | Close an open tab by tabId, title/name, or file path |
 | `tab_select` | Focus / switch to an open tab by tabId, title/name, or file path |
 | `settings_open` | Open the Settings window (general, editor, terminal, ai, appearance, etc.) |
+
+### Browser
+
+These tools drive the **real Idiot Box browser panel** through the Chrome DevTools
+Protocol. The agent uses the same cookies, saved logins and extensions as the panel
+you see on screen — there is no second, isolated browser.
+
+| Tool | Description |
+| --- | --- |
+| `browser_open` | Open a browser panel and optionally navigate it; returns its `webContents` id |
+| `browser_tabs` | List open browser panels with id, URL, title and focus state |
+| `browser_navigate` | Navigate the panel to an http(s) URL and wait for the load |
+| `browser_read` | Read the page title, URL and visible text |
+| `browser_snapshot` | Accessibility snapshot of clickable/readable elements with `e1`, `e2`, … refs |
+| `browser_click` | Click an element by snapshot ref using real mouse events |
+| `browser_type` | Focus an element by ref and type text (optionally replacing existing text) |
+| `browser_press` | Press Enter, Tab, Escape, arrows and other named keys |
+| `browser_scroll` | Scroll by a pixel delta |
+| `browser_screenshot` | Capture the panel as a PNG image |
+| `browser_eval` | Evaluate a JavaScript expression in the page |
+| `browser_wait` | Wait for a selector or text to appear |
+| `browser_back` / `browser_forward` / `browser_reload` | Browser history and reload |
+
+Refs from `browser_snapshot` belong to that page and expire after navigation or a
+new snapshot. Call `browser_snapshot` again after a page change. If DevTools is
+open for the browser panel, close it before using these tools — Electron allows
+only one debugger attachment per `webContents`.
 
 ### Files
 
