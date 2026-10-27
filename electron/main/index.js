@@ -9,6 +9,7 @@ const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
 const projectSearch = require("./search");
 const localHistory = require("./local-history");
+const testRunner = require("./test-runner");
 let ipcInvoke = null;
 try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ipc-invoke not available:", e.message); }
 let mcpServer = null;
@@ -1981,6 +1982,14 @@ ipcMain.handle("history:clear", (_e, filePath) => {
   return localHistory.clearHistory(filePath);
 });
 ipcMain.handle("history:stats", () => localHistory.stats());
+
+// ─── Test Explorer ────────────────────────────────────────────────────────────
+ipcMain.handle("test:detect", (_e, rootPath) => testRunner.detectFrameworks(rootPath));
+ipcMain.handle("test:collect", (_e, payload) => testRunner.collectTests(payload || {}));
+ipcMain.handle("test:run", (event, payload) => testRunner.startRun(event, payload || {}));
+ipcMain.handle("test:stop", (_e, { runId } = {}) => testRunner.stopRun(runId));
+ipcMain.handle("test:command", (_e, payload) => testRunner.buildRunCommand(payload || {}));
+ipcMain.handle("test:debugCommand", (_e, payload) => testRunner.buildDebugCommand(payload || {}));
 
 // ─── Git helpers — lightweight async (non-blocking) ────────────────────────────
 function gitExec(args, cwd, timeout = 4000) {

@@ -101,6 +101,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
   localHistoryClear:    (filePath)        => ipcRenderer.invoke("history:clear", filePath),
   localHistoryStats:    ()                => ipcRenderer.invoke("history:stats"),
 
+  // ── Test Explorer ─────────────────────────────────────────────────────────
+  testDetect:       (rootPath) => ipcRenderer.invoke("test:detect", rootPath),
+  testCollect:      (payload)  => ipcRenderer.invoke("test:collect", payload),
+  testRun:          (payload)  => ipcRenderer.invoke("test:run", payload),
+  testStop:         (runId)    => ipcRenderer.invoke("test:stop", { runId }),
+  testCommand:      (payload)  => ipcRenderer.invoke("test:command", payload),
+  testDebugCommand: (payload)  => ipcRenderer.invoke("test:debugCommand", payload),
+  onTestEvent: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("test:event", handler);
+    return () => ipcRenderer.removeListener("test:event", handler);
+  },
+
   // ── File operations ────────────────────────────────────────────────────────
   newFolder:        (parentPath, name)          => ipcRenderer.invoke("fs:newFolder",  { parentPath, name }),
   newFile:          (parentPath, name)          => ipcRenderer.invoke("fs:newFile",    { parentPath, name }),
