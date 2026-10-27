@@ -7,6 +7,7 @@ const fs      = require("fs");
 const { pathToFileURL, fileURLToPath } = require("url");
 const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
+const projectSearch = require("./search");
 let ipcInvoke = null;
 try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ipc-invoke not available:", e.message); }
 let mcpServer = null;
@@ -1926,6 +1927,11 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
   }
   return results.slice(0, limit);
 });
+
+// ─── Project search & replace ─────────────────────────────────────────────────
+ipcMain.handle("search:project", (_e, payload) => projectSearch.searchProject(payload || {}));
+ipcMain.handle("search:replace", (_e, payload) => projectSearch.replaceProject(payload || {}));
+ipcMain.handle("search:undoReplace", (_e, payload) => projectSearch.undoReplace(payload || {}));
 
 // ─── Git helpers — lightweight async (non-blocking) ────────────────────────────
 function gitExec(args, cwd, timeout = 4000) {

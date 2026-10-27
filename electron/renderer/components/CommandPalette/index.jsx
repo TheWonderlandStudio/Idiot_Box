@@ -22,6 +22,7 @@ const COMMANDS = [
   { id: "toggle-autosave", group: "File", title: "Toggle Auto Save",        run: act("toggleAutoSave") },
   // ── View ──
   { id: "search-files",    group: "View", title: "Search: Find in Files",   run: ev("search:open") },
+  { id: "replace-files",   group: "View", title: "Search: Replace in Files", run: ev("search:open", { mode: "replace" }) },
   { id: "split-editor",    group: "View", title: "Split Editor Right",      run: ev("editor:splitRight") },
   { id: "toggle-fullscreen", group: "View", title: "Toggle Full Screen",    run: ev("app:fullscreen") },
   { id: "reset-layout",    group: "View", title: "Reset Window Layout",     run: act("resetLayout") },

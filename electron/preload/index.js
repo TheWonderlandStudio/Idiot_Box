@@ -87,6 +87,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   findFiles:   (rootPath, query, limit) => ipcRenderer.invoke("fs:findFiles", rootPath, query, limit),
   searchText:  (rootPath, query, limit) => ipcRenderer.invoke("fs:searchText", rootPath, query, limit),
 
+  // ── Project-wide search & replace ─────────────────────────────────────────
+  projectSearch:      (payload) => ipcRenderer.invoke("search:project", payload),
+  projectReplace:     (payload) => ipcRenderer.invoke("search:replace", payload),
+  projectReplaceUndo: (payload) => ipcRenderer.invoke("search:undoReplace", payload),
+
   // ── File operations ────────────────────────────────────────────────────────
   newFolder:        (parentPath, name)          => ipcRenderer.invoke("fs:newFolder",  { parentPath, name }),
   newFile:          (parentPath, name)          => ipcRenderer.invoke("fs:newFile",    { parentPath, name }),
