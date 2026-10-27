@@ -12,6 +12,41 @@ const localHistory = require("./local-history");
 const testRunner = require("./test-runner");
 const debuggerService = require("./debugger");
 const browserRegistry = require("./browser-registry");
+
+// ─── Dev builds get their own Chromium profile ──────────────────────────────
+// Chromium's HTTP cache, Service Worker and QuotaManager databases cannot be
+// shared by two Electron processes. If an installed build and `npm start` run
+// at once (different executables, same %APPDATA%\<name>), the loser logs
+//
+//   net\disk_cache: Unable to move the cache: Access is denied. (0x5)
+//   service_worker_storage: Failed to delete the database: Database IO error
+//   quota_database: Could not open the quota database, resetting.
+//
+// and the OpenCode panel fails to load. Point only Chromium's session data at
+// a dev-only folder; settings.json / projects / mcp.json stay shared, so the
+// IDE still opens with the same projects and layout.
+if (!app.isPackaged) {
+  try {
+    const sharedRoot = app.getPath("userData");
+    const devSession = path.join(sharedRoot, "session-dev");
+    if (!fs.existsSync(devSession)) {
+      fs.mkdirSync(devSession, { recursive: true });
+      // One-time carry-over of profile data that holds logins. Caches,
+      // Service Worker and QuotaManager are deliberately not copied — they
+      // are rebuilt, and the old ones are what got corrupted.
+      for (const name of ["Network", "Local Storage", "WebStorage", "Shared Dictionary", "DIPS", "SharedStorage", "Partitions"]) {
+        const from = path.join(sharedRoot, name);
+        if (!fs.existsSync(from)) continue;
+        try { fs.cpSync(from, path.join(devSession, name), { recursive: true }); }
+        catch (e) { console.warn("[main] dev profile copy skipped:", name, e && e.message); }
+      }
+    }
+    app.setPath("sessionData", devSession);
+    console.log("[main] dev sessionData:", devSession);
+  } catch (e) {
+    console.warn("[main] dev sessionData setup failed:", e && e.message);
+  }
+}
 let ipcInvoke = null;
 try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ipc-invoke not available:", e.message); }
 let mcpServer = null;
@@ -231,6 +266,8 @@ async function handleIbxProtocolUrl(raw) {
 // (the queue clears only after the renderer has taken it).
 const pendingOpenFiles = [];
 let osFilesRendererReady = false;
+// Taskbar jump-list action that arrived before the renderer was ready.
+let pendingJumpListAction = null;
 
 function normalizeOsFilePath(raw) {
   try {
@@ -291,6 +328,11 @@ ipcMain.handle("editor:rendererReady", (event) => {
       event.sender.send("editor:osFilesPending");
       console.log(`[open-with] renderer ready — flushing ${pendingOpenFiles.length} pending file(s)`);
     }
+    if (pendingJumpListAction) {
+      const action = pendingJumpListAction;
+      pendingJumpListAction = null;
+      setTimeout(() => { try { runJumpListAction(action); } catch {} }, 250);
+    }
     return true;
   } catch { return false; }
 });
@@ -315,9 +357,23 @@ try {
 // (Without the lock a protocol click would open a new window and never trigger the update.)
 const _ibxGotSingleLock = app.requestSingleInstanceLock();
 if (!_ibxGotSingleLock) {
-  try { app.quit(); } catch {}
-} else {
+  // Exit hard. `app.quit()` before `ready` does NOT stop the rest of this
+  // module from initialising, so a duplicate launch used to keep creating
+  // windows, bind the MCP port and run the updater against the same userData
+  // folder as the first instance. That is what produces the Chromium
+  // "Unable to move the cache: Access is denied (0x5)", ServiceWorker
+  // "Database IO error" and QuotaManager "Could not open/reset the quota
+  // database" spam when the app is opened twice.
+  try { app.exit(0); } catch {}
+  process.exit(0);
+}
+if (_ibxGotSingleLock) {
   app.on("second-instance", (_event, argv) => {
+    // Taskbar jump-list task (New Window / Open Project / Close Project…)
+    try {
+      const action = findJumpListAction(argv);
+      if (action) { dispatchJumpListAction(action); return; }
+    } catch {}
     try {
       const url = findProtocolUrlInArgs(argv);
       if (url) { handleIbxProtocolUrl(url); return; }
@@ -6416,6 +6472,85 @@ function clearRecentProjects() {
   broadcastRecentUpdated();
 }
 
+// ─── Windows taskbar jump list ────────────────────────────────────────────────
+// Right-clicking the taskbar button shows these quick actions. Each task
+// relaunches the app with a flag; the running instance handles it via
+// `second-instance` (a cold start queues it until the renderer is ready).
+const JUMP_LIST_ACTIONS = {
+  "--ibx-new-window": "new-window",
+  "--ibx-new-project": "new-project",
+  "--ibx-open-project": "open-project",
+  "--ibx-close-project": "close-project",
+};
+
+function findJumpListAction(argv) {
+  try {
+    const flag = (Array.isArray(argv) ? argv : []).find((a) => typeof a === "string" && JUMP_LIST_ACTIONS[a]);
+    return flag ? JUMP_LIST_ACTIONS[flag] : null;
+  } catch { return null; }
+}
+
+function dispatchJumpListAction(action) {
+  if (!action) return;
+  if (!osFilesRendererReady) { pendingJumpListAction = action; return; }
+  runJumpListAction(action);
+}
+
+async function runJumpListAction(action) {
+  try {
+    if (action === "new-window") { createWindow(); return; }
+    if (action === "close-project") {
+      const win = focusMainWindow();
+      if (win && !win.isDestroyed()) win.webContents.send("menu:closeProject", null);
+      return;
+    }
+    if (action === "new-project" || action === "open-project") {
+      const win = focusMainWindow();
+      const options = action === "new-project"
+        ? { title: "Select folder for new project", properties: ["openDirectory", "createDirectory"] }
+        : { title: "Open Project", properties: ["openDirectory"] };
+      const r = win && !win.isDestroyed()
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options);
+      if (r.canceled || !r.filePaths.length) return;
+      const folderPath = r.filePaths[0];
+      lastProjectPath = folderPath;
+      addRecentProject(folderPath);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(action === "new-project" ? "menu:newProject" : "menu:openProject", folderPath);
+      }
+    }
+  } catch (e) { console.warn("[jump-list] action failed:", e && e.message); }
+}
+
+function jumpListTaskArgs(flag) {
+  // Dev (`electron .`) needs the app path; a packaged build doesn't.
+  const appArg = process.defaultApp && process.argv[1] ? `"${path.resolve(process.argv[1])}" ` : "";
+  return `${appArg}${flag}`;
+}
+
+function setupJumpList() {
+  if (process.platform !== "win32") return;
+  try {
+    const iconPath = getAppIcon();
+    const task = (flag, title, description) => ({
+      type: "task", program: process.execPath, args: jumpListTaskArgs(flag),
+      iconPath, iconIndex: 0, title, description,
+    });
+    app.setJumpList([
+      {
+        type: "tasks",
+        items: [
+          task("--ibx-new-window", "New Window", "Open a new Idiot Box window"),
+          task("--ibx-new-project", "New Project", "Create a project in a new folder"),
+          task("--ibx-open-project", "Open Project", "Open an existing folder as a project"),
+          task("--ibx-close-project", "Close Current Project", "Close the project open in the current window"),
+        ],
+      },
+    ]);
+  } catch (e) { console.warn("[jump-list] setup failed:", e && e.message); }
+}
+
 function buildMenu() {
   let acceleratorFor = (_s, _id, def) => def;
   try { ({ acceleratorFor } = require("./keybindings")); } catch {}
@@ -7256,6 +7391,12 @@ app.whenReady().then(async () => {
   } catch (err) { console.warn("[ibx-pages] registration failed:", err && err.message); }
   getShell();
   rebuildMenu();
+  try { setupJumpList(); } catch (e) { console.warn("[jump-list] cold-start setup failed:", e && e.message); }
+  // Cold start via a taskbar task: queue it until the renderer is ready.
+  try {
+    const jumpAction = findJumpListAction(process.argv);
+    if (jumpAction && jumpAction !== "new-window") pendingJumpListAction = jumpAction;
+  } catch {}
   createWindow();
   if (ipcInvoke) {
     try {
