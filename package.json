@@ -7,7 +7,7 @@
   "homepage": "https://thewonderlandstudio.github.io/Idiot_Box/",
   "author": {
     "name": "TheWonderlandStudio",
-    "email": "support@thewonderlandstudio.com",
+    "email": "jigneshmaru690@gmail.com",
     "url": "https://github.com/TheWonderlandStudio"
   },
   "repository": {
@@ -630,7 +630,7 @@
       ],
       "icon": "build/icons/icon.png",
       "category": "Development",
-      "maintainer": "TheWonderlandStudio <support@thewonderlandstudio.com>",
+      "maintainer": "TheWonderlandStudio <jigneshmaru690@gmail.com>",
       "description": "Idiot Box - Code-OSS-backed desktop IDE with an embedded extension host",
       "mimeTypes": [
         "text/plain",

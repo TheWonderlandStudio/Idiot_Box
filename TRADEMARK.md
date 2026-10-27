@@ -51,7 +51,7 @@ The Idiot Box logo, icons and screenshots are our artwork (copyright). They may 
 
 ## Permission and contact
 
-Want to use a Mark in a way this file does not allow? Ask first. Open an issue at https://github.com/TheWonderlandStudio/Idiot_Box or email support@thewonderlandstudio.com describing exactly what you want to do. Permission, when given, is specific, revocable, and in writing.
+Want to use a Mark in a way this file does not allow? Ask first. Open an issue at https://github.com/TheWonderlandStudio/Idiot_Box or email jigneshmaru690@gmail.com describing exactly what you want to do. Permission, when given, is specific, revocable, and in writing.
 
 ## Enforcement
 
