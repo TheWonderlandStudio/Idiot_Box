@@ -6542,9 +6542,9 @@ function buildMenu() {
     },
     {
       id: "menu-git", label: "Git", submenu: [
-        { label: "Refresh Status", accelerator: "CmdOrCtrl+Shift+G", click: () => sendToRenderer("git:refresh", null) },
+        { label: "Refresh Status", accelerator: kb("gitRefresh", "CmdOrCtrl+Shift+G"), click: () => sendToRenderer("git:refresh", null) },
         { type: "separator" },
-        { label: "Commit…", accelerator: "CmdOrCtrl+Enter", click: () => sendToRenderer("git:commit", null) },
+        { label: "Commit…", accelerator: kb("gitCommit", "CmdOrCtrl+Enter"), click: () => sendToRenderer("git:commit", null) },
         { label: "Commit All & Push", click: () => sendToRenderer("git:commit", null) },
         { type: "separator" },
         { label: "Pull", click: () => sendToRenderer("git:pull", null) },
