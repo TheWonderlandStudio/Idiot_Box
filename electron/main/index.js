@@ -807,6 +807,11 @@ ipcMain.handle("settings:write", (_e, data) => {
     for (const win of BrowserWindow.getAllWindows()) {
       try { win.webContents.send("settings:updated", data); } catch {}
     }
+    // Editable keybindings rebuild the application menu so native
+    // accelerators match what the user recorded.
+    if (data && typeof data === "object" && Object.prototype.hasOwnProperty.call(data, "keybindings")) {
+      try { rebuildMenu(); } catch {}
+    }
   }
   return ok;
 });
@@ -6380,12 +6385,17 @@ function clearRecentProjects() {
 }
 
 function buildMenu() {
+  let acceleratorFor = (_s, _id, def) => def;
+  try { ({ acceleratorFor } = require("./keybindings")); } catch {}
+  const kb = (id, def) => {
+    try { return acceleratorFor(readSettings(), id, def); } catch { return def; }
+  };
   const template = [
     {
       id: "menu-file", label: "File", submenu: [
-        { label: "Open Project…", accelerator: "CmdOrCtrl+O", click: async () => { const r = await dialog.showOpenDialog({ title: "Open Project", properties: ["openDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:openProject", r.filePaths[0]); } } },
-        { label: "Open File…", accelerator: "CmdOrCtrl+Shift+O", click: async () => { const r = await dialog.showOpenDialog({ title: "Open File", properties: ["openFile"] }); if (!r.canceled && r.filePaths.length) { const fp = r.filePaths[0]; const lastWin = BrowserWindow.getAllWindows()[0]; if (lastWin) lastWin.webContents.send("editor:openFile", { filePath: fp }); } } },
-        { label: "New Project…",  accelerator: "CmdOrCtrl+N", click: async () => { const r = await dialog.showOpenDialog({ title: "Select folder for new project", properties: ["openDirectory","createDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:newProject", r.filePaths[0]); } } },
+        { label: "Open Project…", accelerator: kb("openProject", "CmdOrCtrl+O"), click: async () => { const r = await dialog.showOpenDialog({ title: "Open Project", properties: ["openDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:openProject", r.filePaths[0]); } } },
+        { label: "Open File…", accelerator: kb("openFile", "CmdOrCtrl+Shift+O"), click: async () => { const r = await dialog.showOpenDialog({ title: "Open File", properties: ["openFile"] }); if (!r.canceled && r.filePaths.length) { const fp = r.filePaths[0]; const lastWin = BrowserWindow.getAllWindows()[0]; if (lastWin) lastWin.webContents.send("editor:openFile", { filePath: fp }); } } },
+        { label: "New Project…",  accelerator: kb("newProject", "CmdOrCtrl+N"), click: async () => { const r = await dialog.showOpenDialog({ title: "Select folder for new project", properties: ["openDirectory","createDirectory"] }); if (!r.canceled && r.filePaths.length) { lastProjectPath = r.filePaths[0]; addRecentProject(r.filePaths[0]); sendToRenderer("menu:newProject", r.filePaths[0]); } } },
         { type: "separator" },
         {
           label: "Open Recent", submenu: recentProjects.length
@@ -6397,35 +6407,35 @@ function buildMenu() {
             : [{ label: "No recent projects", enabled: false }],
         },
         { type: "separator" },
-        { label: "Save",            accelerator: "CmdOrCtrl+S",          click: () => sendToRenderer("menu:saveFile", null) },
-        { label: "Save As…",         accelerator: "CmdOrCtrl+Shift+S",    click: () => sendToRenderer("menu:saveFileAs", null) },
-        { label: "Save All",        accelerator: "CmdOrCtrl+Alt+S",      click: () => sendToRenderer("menu:saveFile", null) },
+        { label: "Save",            accelerator: kb("saveFile", "CmdOrCtrl+S"),          click: () => sendToRenderer("menu:saveFile", null) },
+        { label: "Save As…",         accelerator: kb("saveFileAs", "CmdOrCtrl+Shift+S"),    click: () => sendToRenderer("menu:saveFileAs", null) },
+        { label: "Save All",        accelerator: kb("saveAll", "CmdOrCtrl+Alt+S"),      click: () => sendToRenderer("menu:saveFile", null) },
         { label: "Auto Save", type: "checkbox", checked: autoSaveEnabled, click: (item) => { autoSaveEnabled = item.checked; sendToRenderer("menu:toggleAutoSave", item.checked); } },
         { type: "separator" },
-        { label: "Close Editor",    accelerator: "CmdOrCtrl+W", click: () => sendToRenderer("menu:closeProject", null) },
+        { label: "Close Editor",    accelerator: kb("closeEditor", "CmdOrCtrl+W"), click: () => sendToRenderer("menu:closeProject", null) },
         { label: "Close Project", click: () => { lastProjectPath = null; sendToRenderer("menu:closeProject", null); } },
         { type: "separator" },
-        { label: "New Window", accelerator: "CmdOrCtrl+Shift+N", click: () => createWindow() },
+        { label: "New Window", accelerator: kb("newWindow", "CmdOrCtrl+Shift+N"), click: () => createWindow() },
         { type: "separator" },
         { label: "Exit",        accelerator: process.platform === "win32" ? "Alt+F4" : "CmdOrCtrl+Q", role: "quit" },
       ],
     },
     {
       id: "menu-edit", label: "Edit", submenu: [
-        { label: "Undo",  accelerator: "CmdOrCtrl+Z", click: () => sendToRenderer("menu:undo", null) },
-        { label: "Redo",  accelerator: "CmdOrCtrl+Y", click: () => sendToRenderer("menu:redo", null) },
-        { label: "Redo (Alt)",  accelerator: "CmdOrCtrl+Shift+Z", click: () => sendToRenderer("menu:redo", null) },
+        { label: "Undo",  accelerator: kb("undo", "CmdOrCtrl+Z"), click: () => sendToRenderer("menu:undo", null) },
+        { label: "Redo",  accelerator: kb("redo", "CmdOrCtrl+Y"), click: () => sendToRenderer("menu:redo", null) },
+        { label: "Redo (Alt)",  accelerator: kb("redo", "CmdOrCtrl+Shift+Z"), click: () => sendToRenderer("menu:redo", null) },
         { type: "separator" },
-        { label: "Cut",   accelerator: "CmdOrCtrl+X", click: () => sendToRenderer("menu:cut", null) },
-        { label: "Copy",  accelerator: "CmdOrCtrl+C", click: () => sendToRenderer("menu:copy", null) },
-        { label: "Paste", accelerator: "CmdOrCtrl+V", click: () => sendToRenderer("menu:paste", null) },
+        { label: "Cut",   accelerator: kb("cut", "CmdOrCtrl+X"), click: () => sendToRenderer("menu:cut", null) },
+        { label: "Copy",  accelerator: kb("copy", "CmdOrCtrl+C"), click: () => sendToRenderer("menu:copy", null) },
+        { label: "Paste", accelerator: kb("paste", "CmdOrCtrl+V"), click: () => sendToRenderer("menu:paste", null) },
         { type: "separator" },
-        { label: "Select All", accelerator: "CmdOrCtrl+A", click: () => sendToRenderer("menu:selectAll", null) },
+        { label: "Select All", accelerator: kb("selectAll", "CmdOrCtrl+A"), click: () => sendToRenderer("menu:selectAll", null) },
         { type: "separator" },
-        { label: "Find",      accelerator: "CmdOrCtrl+F", click: () => sendToRenderer("menu:find", null) },
-        { label: "Find Next", accelerator: "F3", click: () => sendToRenderer("menu:findNext", null) },
-        { label: "Find Previous", accelerator: "Shift+F3", click: () => sendToRenderer("menu:findPrevious", null) },
-        { label: "Replace",   accelerator: "CmdOrCtrl+H", click: () => sendToRenderer("menu:replace", null) },
+        { label: "Find",      accelerator: kb("find", "CmdOrCtrl+F"), click: () => sendToRenderer("menu:find", null) },
+        { label: "Find Next", accelerator: kb("findNext", "F3"), click: () => sendToRenderer("menu:findNext", null) },
+        { label: "Find Previous", accelerator: kb("findPrevious", "Shift+F3"), click: () => sendToRenderer("menu:findPrevious", null) },
+        { label: "Replace",   accelerator: kb("replace", "CmdOrCtrl+H"), click: () => sendToRenderer("menu:replace", null) },
         { type: "separator" },
         // NOTE: no accelerators here on purpose — these keys are already bound
         // inside Monaco (Ctrl+/, Shift+Alt+Down, Shift+Alt+F, Ctrl+G,
@@ -6443,13 +6453,13 @@ function buildMenu() {
     },
     {
       id: "menu-view", label: "View", submenu: [
-        { label: "Command Palette…", accelerator: "CmdOrCtrl+Shift+P", click: () => sendToRenderer("menu:commandPalette", null) },
+        { label: "Command Palette…", accelerator: kb("commandPalette", "CmdOrCtrl+Shift+P"), click: () => sendToRenderer("menu:commandPalette", null) },
         // NOTE: menu:quickOpen, NOT menu:commandPalette — Quick Open has its own
         // Ctrl+P handler that also fires, so both open the same overlay
         // (this used to send commandPalette → the two stacked on top of each other).
-        { label: "Quick Open…", accelerator: "CmdOrCtrl+P", click: () => sendToRenderer("menu:quickOpen", null) },
+        { label: "Quick Open…", accelerator: kb("quickOpen", "CmdOrCtrl+P"), click: () => sendToRenderer("menu:quickOpen", null) },
         { type: "separator" },
-        { label: "Toggle Full Screen", accelerator: "F11", click: () => sendToRenderer("menu:fullscreen", null) },
+        { label: "Toggle Full Screen", accelerator: kb("toggleFullscreen", "F11"), click: () => sendToRenderer("menu:fullscreen", null) },
         { type: "separator" },
         // ── UI Size — requested Ctrl + + (Zoom In) / Ctrl + - (Zoom Out) ──
         { label: "Zoom In — Increase UI Size", accelerator: "CmdOrCtrl+Plus", click: () => zoomIn() },
@@ -6480,18 +6490,18 @@ function buildMenu() {
             { type: "separator" },
             { label: `Zoom: ${Math.round(getUiZoomFactor() * 100)}%`, enabled: false },
             { type: "separator" },
-            { label: "Toggle Full Screen", accelerator: "F11", click: () => sendToRenderer("menu:fullscreen", null) },
+            { label: "Toggle Full Screen", accelerator: kb("toggleFullscreen", "F11"), click: () => sendToRenderer("menu:fullscreen", null) },
           ],
         },
         { type: "separator" },
-        { label: "Reset Layout", accelerator: "CmdOrCtrl+Alt+R", click: () => sendToRenderer("menu:resetLayout", null) },
-        { label: "Split Editor Right", accelerator: "CmdOrCtrl+\\", click: () => sendToRenderer("menu:splitEditorRight", null) },
+        { label: "Reset Layout", accelerator: kb("resetLayout", "CmdOrCtrl+Alt+R"), click: () => sendToRenderer("menu:resetLayout", null) },
+        { label: "Split Editor Right", accelerator: kb("splitEditorRight", "CmdOrCtrl+\\"), click: () => sendToRenderer("menu:splitEditorRight", null) },
         { type: "separator" },
         { label: "Ports", click: () => sendToRenderer("menu:openPorts", null) },
         { label: "Extensions", click: () => sendToRenderer("menu:openExtensions", null) },
         { label: "Android Emulator", click: () => sendToRenderer("menu:openAndroid", null) },
         { type: "separator" },
-        { label: "Toggle Developer Tools", accelerator: process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I", click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
+        { label: "Toggle Developer Tools", accelerator: kb("toggleDevTools", process.platform === "darwin" ? "Alt+Cmd+I" : "Ctrl+Shift+I"), click: () => { const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]; if (win) win.webContents.toggleDevTools(); } },
       ],
     },
     {
@@ -6511,11 +6521,11 @@ function buildMenu() {
     },
     {
       id: "menu-terminal", label: "Terminal", submenu: [
-        { label: "New Terminal", accelerator: "Ctrl+`", click: () => sendToRenderer("menu:newTerminal", null) },
-        { label: "Split Terminal Right", accelerator: "Ctrl+Shift+5", click: () => sendToRenderer("menu:splitTerminalRight", null) },
-        { label: "Split Terminal Down", accelerator: "Ctrl+Shift+\\", click: () => sendToRenderer("menu:splitTerminalDown", null) },
+        { label: "New Terminal", accelerator: kb("newTerminal", "Ctrl+`"), click: () => sendToRenderer("menu:newTerminal", null) },
+        { label: "Split Terminal Right", accelerator: kb("splitTerminalRight", "Ctrl+Shift+5"), click: () => sendToRenderer("menu:splitTerminalRight", null) },
+        { label: "Split Terminal Down", accelerator: kb("splitTerminalDown", "Ctrl+Shift+\\"), click: () => sendToRenderer("menu:splitTerminalDown", null) },
         { type: "separator" },
-        { label: "Clear Terminal", accelerator: "Ctrl+K", click: () => sendToRenderer("menu:clearTerminal", null) },
+        { label: "Clear Terminal", accelerator: kb("clearTerminal", "Ctrl+K"), click: () => sendToRenderer("menu:clearTerminal", null) },
         { label: "Kill Terminal", click: () => sendToRenderer("menu:killTerminal", null) },
       ],
     },
@@ -6616,7 +6626,7 @@ function buildMenu() {
         }},
       ],
     },
-    { label: "Settings", accelerator: "CmdOrCtrl+,", click: openSettingsWindow },
+    { label: "Settings", accelerator: kb("settings", "CmdOrCtrl+,"), click: openSettingsWindow },
     {
       label: "Window", submenu: [
         { label: "Minimize", accelerator: "CmdOrCtrl+M", role: "minimize" },

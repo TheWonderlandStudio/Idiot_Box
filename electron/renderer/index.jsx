@@ -47,6 +47,10 @@ import ExtensionsPanel from "./components/Extensions/index.jsx";
 import ExtView from "./components/Extensions/ExtView.jsx";
 import { ExtStatusItems, ExtToasts } from "./components/Extensions/Host.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
+import {
+  COMMANDS, effectiveBinding, eventToKey, isSafeBareKey,
+  normalizeKeyForCompare, runAppCommand,
+} from "./appCommands.js";
 
 // Edge borders (left / right / top / bottom) — empty + auto-hidden until
 // a tab is dragged to a window edge. Drag-to-edge docking needs them present.
@@ -1773,6 +1777,57 @@ const App = () => {
     ];
     return () => handlers.forEach((u) => u());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Editable global shortcuts (settings.keybindings) ────────────────────
+  // Native menu commands are handled by Electron accelerators; editor
+  // commands by the CodeMirror keymap. This listener covers renderer-level
+  // commands (Find in Files, Local History, Debugger, Test Explorer, …).
+  useEffect(() => {
+    let bindings = {};
+    let alive = true;
+    const nativeOrEditor = new Set(
+      COMMANDS.filter((c) => c.native || c.scope === "editor").map((c) => c.id)
+    );
+    const applySettings = (s) => {
+      if (!alive) return;
+      bindings = s && typeof s === "object" && s.keybindings && typeof s.keybindings === "object"
+        ? s.keybindings
+        : {};
+    };
+    window.electronAPI.readSettings().then(applySettings).catch(() => {});
+    let off = null;
+    try { off = window.electronAPI.onSettingsUpdated(applySettings); } catch {}
+
+    const commandForKey = (key) => {
+      const k = normalizeKeyForCompare(key);
+      if (!k) return null;
+      for (const c of COMMANDS) {
+        if (nativeOrEditor.has(c.id)) continue;
+        const wants = effectiveBinding(c.id, bindings);
+        if (wants && normalizeKeyForCompare(wants) === k) return c.id;
+      }
+      return null;
+    };
+
+    const onKey = (e) => {
+      if (e.defaultPrevented || e.isComposing) return;
+      const key = eventToKey(e);
+      if (!key) return;
+      const hasMod = /^(Ctrl|Alt)\+/.test(key);
+      if (!hasMod && !isSafeBareKey(key.replace(/^Shift\+/, ""))) return;
+      const id = commandForKey(key);
+      if (!id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      runAppCommand(id);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      alive = false;
+      try { off && off(); } catch {}
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, []);
 
   useEffect(() => {
     const handler = () => {

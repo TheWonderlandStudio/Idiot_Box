@@ -63,6 +63,7 @@ import { linksExtension } from "./goto.js";
 import { colorDecoratorExtension } from "./colors.js";
 import { emmetExtension } from "./emmet.js";
 import { gitGutterExtension } from "./gitgutter.js";
+import { buildEditorKeymap } from "./keybindings.js";
 import { breakpointGutterExtension } from "./breakpoints.js";
 
 export const themeExtensionFor = (theme) => {
@@ -181,6 +182,9 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
     { key: "Alt-ArrowUp", run: moveLineUp },
     { key: "Alt-ArrowDown", run: moveLineDown },
   ]));
+
+  // ── User-editable editor keybindings (settings.keybindings) ──
+  try { ext.push(...buildEditorKeymap(s.keybindings, getPath)); } catch {}
 
   // Emmet gets the last word on Tab (abbreviation expand) — when no Emmet
   // abbreviation is active its handler returns false and Tab falls through

@@ -1,118 +1,138 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { RotateCcw, Pencil, Check, X, AlertTriangle } from "lucide-react";
+import { COMMANDS as REGISTRY, displayKey, effectiveBinding, eventToKey, isSafeBareKey, normalizeKeyForCompare } from "../../../appCommands.js";
 
 // ─── KeybindingsPage ────────────────────────────────────────────────────────
-// Read-only reference of keyboard shortcuts. Filterable.
+// Fully editable keyboard shortcuts. Overrides are stored in settings.json
+// under "keybindings" as { commandId: "Ctrl+Shift+P" | "" }.
+// Native menu accelerators are rebuilt by the main process after saving.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const KEYBINDINGS = [
-  { category: "General", bindings: [
-    { command: "Command Palette", key: "Ctrl+Shift+P", desc: "Advanced palette — saare app commands (F1 bhi)" },
-    { command: "Quick Open", key: "Ctrl+P", desc: "Files + commands palette (merged)" },
-    { command: "Settings", key: "Ctrl+,", desc: "Open settings window" },
-    { command: "Toggle Fullscreen", key: "F11", desc: "Toggle fullscreen" },
-  ]},
-  { category: "File", bindings: [
-    { command: "Open Project", key: "Ctrl+O", desc: "Open a project folder" },
-    { command: "Open File", key: "Ctrl+Shift+O", desc: "Open a single file" },
-    { command: "New Project", key: "Ctrl+N", desc: "Create / select new project folder" },
-    { command: "Save", key: "Ctrl+S", desc: "Save current file" },
-    { command: "Save As", key: "Ctrl+Shift+S", desc: "Save current file as…" },
-    { command: "Save All", key: "Ctrl+Alt+S", desc: "Save all dirty files" },
-    { command: "Close Project", key: "Ctrl+W", desc: "Close current project (not window)" },
-    { command: "New Window", key: "Ctrl+Shift+N", desc: "Open a new Idiot Box window" },
-  ]},
-  { category: "Edit", bindings: [
-    { command: "Undo", key: "Ctrl+Z", desc: "Undo last change" },
-    { command: "Redo", key: "Ctrl+Y", desc: "Redo last undo" },
-    { command: "Redo (Alt)", key: "Ctrl+Shift+Z", desc: "Redo — alternative" },
-    { command: "Cut", key: "Ctrl+X", desc: "Cut selection" },
-    { command: "Copy", key: "Ctrl+C", desc: "Copy selection" },
-    { command: "Paste", key: "Ctrl+V", desc: "Paste clipboard" },
-    { command: "Select All", key: "Ctrl+A", desc: "Select all text" },
-    { command: "Find", key: "Ctrl+F", desc: "Find in file" },
-    { command: "Replace", key: "Ctrl+H", desc: "Find and replace" },
-    { command: "Find Next", key: "F3", desc: "Find next occurrence" },
-    { command: "Find Previous", key: "Shift+F3", desc: "Find previous occurrence" },
-  ]},
-  { category: "View", bindings: [
-    { command: "Next Tab", key: "Ctrl+PageDown", desc: "Switch to next tab in active panel" },
-    { command: "Previous Tab", key: "Ctrl+PageUp", desc: "Switch to previous tab in active panel" },
-    { command: "Zoom In", key: "Ctrl+Plus / Ctrl+=", desc: "Zoom in" },
-    { command: "Zoom Out", key: "Ctrl+-", desc: "Zoom out" },
-    { command: "Actual Size", key: "Ctrl+0", desc: "Reset zoom to 100%" },
-    { command: "Reset Layout", key: "Ctrl+Alt+R", desc: "Reset window layout to defaults" },
-    { command: "Toggle DevTools", key: "Ctrl+Shift+I", desc: "Toggle developer tools" },
-    { command: "Add Panel", key: "—", desc: "Add a new blank panel to the current tabset" },
-  ]},
-  { category: "Terminal", bindings: [
-    { command: "New Terminal", key: "Ctrl+`", desc: "Open a new integrated terminal" },
-    { command: "Split Terminal Right", key: "Ctrl+Shift+5", desc: "Split terminal to the right" },
-    { command: "Split Terminal Down", key: "Ctrl+Shift+\\", desc: "Split terminal down" },
-    { command: "Clear Terminal", key: "Ctrl+K", desc: "Clear terminal buffer" },
-    { command: "Copy (Terminal)", key: "Ctrl+C (with selection)", desc: "Copy selected terminal text" },
-    { command: "Paste (Terminal)", key: "Ctrl+V", desc: "Paste into terminal" },
-  ]},
-  { category: "Git", bindings: [
-    { command: "Refresh Git Status", key: "Ctrl+Shift+G", desc: "Refresh source control status" },
-    { command: "Commit (when commit box focused)", key: "Ctrl+Enter", desc: "Commit staged changes" },
-  ]},
-  { category: "Project Explorer", bindings: [
-    { command: "Rename", key: "F2", desc: "Rename selected file/folder" },
-    { command: "Delete", key: "Delete", desc: "Delete selected items" },
-    { command: "New File", key: "Ctrl+N (in explorer empty space)", desc: "Create new file" },
-    { command: "New Folder", key: "Ctrl+Shift+N", desc: "Create new folder" },
-    { command: "Copy Path", key: "Ctrl+Shift+C", desc: "Copy absolute path" },
-    { command: "Reveal in Explorer", key: "Ctrl+Shift+R", desc: "Reveal in file explorer" },
-    { command: "Refresh", key: "F5", desc: "Refresh project tree" },
-  ]},
-  { category: "Editor", bindings: [
-    { command: "Go to Line", key: "Ctrl+G", desc: "Go to line number" },
-    { command: "Comment Line", key: "Ctrl+/", desc: "Toggle line comment" },
-    { command: "Format Document", key: "Shift+Alt+F", desc: "Format document (if formatter available)" },
-    { command: "Quick Fix", key: "Ctrl+.", desc: "Show quick fixes" },
-    { command: "Reveal Line", key: "—", desc: "Click search result to reveal line in editor" },
-    { command: "Select Next Occurrence", key: "Ctrl+D", desc: "Add selection to next find match" },
-    { command: "Delete Line", key: "Ctrl+Shift+K", desc: "Delete the current line" },
-    { command: "Add Cursor Above", key: "Ctrl+Alt+Up", desc: "Insert an additional cursor above" },
-    { command: "Add Cursor Below", key: "Ctrl+Alt+Down", desc: "Insert an additional cursor below" },
-    { command: "Move Line Up / Down", key: "Alt+Up / Alt+Down", desc: "Move the current line" },
-    { command: "Fold All / Unfold All", key: "Ctrl+Alt+[ / ]", desc: "Collapse or expand all foldable regions" },
-    { command: "Go to Next / Prev Problem", key: "F8 / Shift+F8", desc: "Jump between syntax problems" },
-    { command: "Go to Symbol", key: "Ctrl+Shift+O", desc: "Open the document outline" },
-    { command: "Compare with Saved", key: "—", desc: "Inline diff against the last-saved version" },
-    { command: "Expand Abbreviation (Emmet)", key: "Tab", desc: "Expand an HTML/CSS abbreviation" },
-  ]},
-  { category: "Canvas", bindings: [
-    { command: "Pan Canvas", key: "Space + Drag / Middle-drag / Right-drag", desc: "Pan the canvas" },
-    { command: "Zoom", key: "Ctrl+Wheel", desc: "Zoom at cursor" },
-    { command: "Shift+Drag Card", key: "Shift+Drag", desc: "Move card together with its parent group" },
-    { command: "Fit View", key: "Fit button", desc: "Fit all groups/cards in view" },
-  ]},
-];
+const CATEGORY_ORDER = ["General", "Search", "Testing", "Debug", "Run", "File", "Edit", "Editor", "View", "Terminal", "Git"];
 
 const KeybindingsPage = () => {
   const [filter, setFilter] = useState("");
+  const [overrides, setOverrides] = useState({});
+  const [recordingId, setRecordingId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const toastTimer = useRef(null);
 
-  const filtered = useMemo(() => {
+  const flash = (msg, kind = "ok") => {
+    setToast({ msg, kind });
+    try { clearTimeout(toastTimer.current); } catch {}
+    toastTimer.current = setTimeout(() => setToast(null), 3200);
+  };
+
+  // Load + live-sync from settings.json
+  useEffect(() => {
+    let alive = true;
+    const apply = (data) => {
+      if (!alive || !data || typeof data !== "object") return;
+      if (!("keybindings" in data)) return;
+      setOverrides(data.keybindings && typeof data.keybindings === "object" ? data.keybindings : {});
+    };
+    (async () => {
+      try { apply(await window.electronAPI.readSettings()); } catch {}
+    })();
+    const off = window.electronAPI?.onSettingsUpdated?.(apply);
+    return () => { alive = false; try { off && off(); } catch {} try { clearTimeout(toastTimer.current); } catch {} };
+  }, []);
+
+  const persist = async (next) => {
+    setOverrides(next);
+    setSaving(true);
+    try {
+      const cur = (await window.electronAPI.readSettings()) || {};
+      await window.electronAPI.writeSettings({ ...cur, keybindings: next });
+    } catch (e) {
+      flash(`Could not save keybindings: ${e?.message || e}`, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changeBinding = async (id, key) => {
+    const next = { ...overrides };
+    const def = REGISTRY.find((c) => c.id === id)?.default || "";
+    if (key === null || key === def) delete next[id];
+    else next[id] = key;
+    await persist(next);
+    setRecordingId(null);
+    flash(key ? `${REGISTRY.find((c) => c.id === id)?.title || id} → ${displayKey(key)}` : "Shortcut cleared");
+  };
+
+  const clearBinding = (id) => changeBinding(id, "");
+  const resetOne = (id) => changeBinding(id, null);
+  const resetAll = async () => {
+    await persist({});
+    flash("All shortcuts reset to defaults");
+  };
+
+  // Shortcut recorder — capture the next chord anywhere in the window.
+  useEffect(() => {
+    if (!recordingId) return;
+    const onKey = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      if (e.key === "Escape") { setRecordingId(null); return; }
+      if (e.key === "Backspace" || e.key === "Delete") { changeBinding(recordingId, ""); return; }
+      const key = eventToKey(e);
+      if (!key) return;
+      const hasMod = /^(Ctrl|Alt)\+/.test(key);
+      if (!hasMod && !isSafeBareKey(key.replace(/^Shift\+/, ""))) {
+        flash("Use Ctrl/Alt with a letter, or a function key (F1–F12).", "error");
+        return;
+      }
+      changeBinding(recordingId, key);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordingId, overrides]);
+
+  const rows = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return KEYBINDINGS;
-    return KEYBINDINGS.map((cat) => ({
-      ...cat,
-      bindings: cat.bindings.filter(
-        (b) => b.command.toLowerCase().includes(q) || b.key.toLowerCase().includes(q) || b.desc.toLowerCase().includes(q)
-      ),
-    })).filter((cat) => cat.bindings.length > 0);
-  }, [filter]);
+    return REGISTRY
+      .filter((c) => !q || `${c.title} ${c.category} ${c.desc || ""} ${effectiveBinding(c.id, overrides)}`.toLowerCase().includes(q))
+      .map((c) => ({ ...c, key: effectiveBinding(c.id, overrides), isCustom: Object.prototype.hasOwnProperty.call(overrides, c.id), isDefault: !Object.prototype.hasOwnProperty.call(overrides, c.id) }));
+  }, [filter, overrides]);
 
-  const total = useMemo(() => KEYBINDINGS.reduce((n, c) => n + c.bindings.length, 0), []);
-  const shown = useMemo(() => filtered.reduce((n, c) => n + c.bindings.length, 0), [filtered]);
+  const grouped = useMemo(() => {
+    const map = new Map();
+    for (const r of rows) {
+      if (!map.has(r.category)) map.set(r.category, []);
+      map.get(r.category).push(r);
+    }
+    return [...map.entries()].sort((a, b) => {
+      const ai = CATEGORY_ORDER.indexOf(a[0]), bi = CATEGORY_ORDER.indexOf(b[0]);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+  }, [rows]);
+
+  const conflicts = useMemo(() => {
+    const seen = new Map();
+    const bad = new Set();
+    for (const r of rows) {
+      const k = normalizeKeyForCompare(r.key);
+      if (!k) continue;
+      if (seen.has(k)) { bad.add(seen.get(k)); bad.add(r.id); }
+      else seen.set(k, r.id);
+    }
+    return bad;
+  }, [rows]);
+
+  const customCount = Object.keys(overrides).length;
+  const total = REGISTRY.length;
+  const shown = rows.length;
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", marginBottom: "var(--space-16)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", marginBottom: "var(--space-8)", flexWrap: "wrap" }}>
         <input
           className="sw-input"
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 220 }}
           placeholder="Filter keybindings…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -121,37 +141,113 @@ const KeybindingsPage = () => {
         <span style={{ fontSize: "var(--fs-small)", color: "var(--text-placeholder)", whiteSpace: "nowrap" }}>
           {shown} of {total}
         </span>
+        <button
+          type="button"
+          onClick={resetAll}
+          disabled={!customCount || saving}
+          title="Reset every shortcut to its default"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px",
+            border: "1px solid var(--border-strong)", borderRadius: "var(--radius-md)",
+            background: "var(--bg-button)", color: "var(--text-soft)", fontSize: "var(--fs-small)",
+            cursor: customCount && !saving ? "pointer" : "default", opacity: customCount && !saving ? 1 : 0.5,
+          }}
+        >
+          <RotateCcw size={12} /> Reset all
+        </button>
       </div>
 
-      {filtered.length === 0 ? (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-16)", fontSize: "var(--fs-small)", color: "var(--text-placeholder)" }}>
+        <span>{customCount ? `${customCount} customized` : "All shortcuts are default"}</span>
+        <span style={{ opacity: 0.5 }}>·</span>
+        <span>Click a shortcut to record a new one. Backspace clears it. Esc cancels.</span>
+      </div>
+
+      {toast && (
+        <div style={{
+          marginBottom: "var(--space-12)", padding: "var(--space-8) var(--space-12)", borderRadius: "var(--radius-md)",
+          background: toast.kind === "error" ? "var(--bg-danger-soft)" : "var(--accent-soft-a08)",
+          border: `1px solid ${toast.kind === "error" ? "var(--danger-a30)" : "var(--accent-soft-a18)"}`,
+          color: toast.kind === "error" ? "var(--danger)" : "var(--text-soft)", fontSize: "var(--fs-body)",
+        }}>{toast.msg}</div>
+      )}
+
+      {grouped.length === 0 ? (
         <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-body)", padding: "var(--space-16)", textAlign: "center", border: "var(--space-1) dashed var(--border)", borderRadius: "var(--radius-lg)" }}>
           No keybindings match "{filter}"
         </div>
       ) : (
-        filtered.map((cat) => (
-          <div key={cat.category} style={{ marginBottom: "var(--space-20)" }}>
+        grouped.map(([category, items]) => (
+          <div key={category} style={{ marginBottom: "var(--space-20)" }}>
             <div style={{
               fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)", letterSpacing: 0.3,
               textTransform: "uppercase", color: "var(--text-label)",
-              marginBottom: "var(--space-8)", paddingBottom: "var(--space-4)", borderBottom: "1px solid var(--bg-subtle)"
+              marginBottom: "var(--space-8)", paddingBottom: "var(--space-4)", borderBottom: "1px solid var(--bg-subtle)",
             }}>
-              {cat.category}
+              {category}
             </div>
             <div className="sw-keybindings-table">
-              {cat.bindings.map((b) => (
-                <div key={`${cat.category}:${b.command}`} className="sw-kb-row">
-                  <span className="sw-kb-command">{b.command}</span>
-                  <span className="sw-kb-desc">{b.desc}</span>
-                  <span className="sw-kb-key">{b.key}</span>
-                </div>
-              ))}
+              {items.map((b) => {
+                const recording = recordingId === b.id;
+                const conflict = conflicts.has(b.id);
+                return (
+                  <div key={b.id} className="sw-kb-row" style={{ alignItems: "center" }}>
+                    <span className="sw-kb-command" title={b.desc || b.title}>
+                      {b.title}
+                      {b.isCustom && (
+                        <span title="Customized" style={{ marginLeft: 6, color: "var(--accent)", fontSize: 9, verticalAlign: "middle" }}>●</span>
+                      )}
+                    </span>
+                    <span className="sw-kb-desc" title={conflict ? "This shortcut is also used by another command" : (b.desc || "")}>
+                      {conflict ? <span style={{ color: "var(--warn-gold)", display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={11} /> Conflict</span> : (b.desc || "")}
+                    </span>
+                    <span className="sw-kb-key" style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 190, justifyContent: "flex-end" }}>
+                      {recording ? (
+                        <>
+                          <span style={{
+                            minWidth: 130, padding: "4px 8px", borderRadius: "var(--radius-sm)",
+                            border: "1px solid var(--accent)", background: "var(--accent-soft-a08)",
+                            color: "var(--accent)", fontSize: "var(--fs-small)", fontFamily: "var(--font-code)",
+                            animation: "pulse 1.4s infinite",
+                          }}>Press a shortcut…</span>
+                          <button type="button" title="Cancel (Esc)" onClick={() => setRecordingId(null)} style={{ border: 0, background: "transparent", color: "var(--icon)", cursor: "pointer", padding: 2 }}><X size={13} /></button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setRecordingId(b.id)}
+                            title={b.key ? `Change “${displayKey(b.key)}”` : "Assign a shortcut"}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                              border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)",
+                              background: "var(--bg-button)", color: b.key ? "var(--text-hover)" : "var(--text-placeholder)",
+                              fontFamily: "var(--font-code)", fontSize: "var(--fs-small)", padding: "4px 8px", cursor: "pointer",
+                              minWidth: 96, justifyContent: "center",
+                            }}
+                          >
+                            <Pencil size={10} /> {b.key ? displayKey(b.key) : "Unassigned"}
+                          </button>
+                          {b.key && (
+                            <button type="button" title="Clear shortcut" onClick={() => clearBinding(b.id)} style={{ border: 0, background: "transparent", color: "var(--icon)", cursor: "pointer", padding: 2 }}><X size={12} /></button>
+                          )}
+                          {b.isCustom && (
+                            <button type="button" title="Reset to default" onClick={() => resetOne(b.id)} style={{ border: 0, background: "transparent", color: "var(--icon)", cursor: "pointer", padding: 2 }}><RotateCcw size={12} /></button>
+                          )}
+                          {b.isCustom && <Check size={11} style={{ color: "var(--success)" }} />}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))
       )}
 
       <div style={{ marginTop: "var(--space-8)", padding: "var(--space-10)", background: "var(--accent-soft-a08)", border: "var(--space-1) solid var(--accent-soft-a18)", borderRadius: "var(--radius-md)", fontSize: "var(--fs-small)", color: "var(--text-placeholder)", lineHeight: "var(--lh-code)" }}>
-        Tip: Most shortcuts use <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Ctrl</code> on Windows/Linux and <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Cmd</code> on macOS. You can also open the Command Palette with <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Ctrl+Shift+P</code> to search for any command.
+        Shortcuts use <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Ctrl</code> on Windows/Linux and <code style={{ background: "var(--bg-hover)", padding: "var(--space-1) var(--space-4)", borderRadius: "var(--radius-sm)", color: "var(--text-soft)" }}>Cmd</code> on macOS. Editor shortcuts are applied by the CodeMirror keymap; app shortcuts rebuild the native menu as soon as you save.
       </div>
     </div>
   );

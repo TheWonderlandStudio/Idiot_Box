@@ -141,7 +141,7 @@ export const validateCmSettings = (raw) => {
   }
   out.wordWrap = out.lineWrapping !== false;
   // Passthrough compat keys (read by the save pipeline / notebook)
-  for (const k of ["fontFamily", "autoSave"]) {
+  for (const k of ["fontFamily", "autoSave", "keybindings"]) {
     if (k in raw) out[k] = raw[k];
   }
   return { settings: out, errors };
