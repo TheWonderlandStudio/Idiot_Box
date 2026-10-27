@@ -388,6 +388,26 @@ const UpdaterNavButton = () => {
   return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", border:"none", borderRadius:"var(--radius-md)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-10)", cursor:"pointer", display:"flex", alignItems:"center", gap:"var(--space-4)", animation:"pulse 1.5s infinite", boxShadow:"0 var(--space-2) var(--space-8) var(--teal-a32)"}}>⬇ Update v{info?.version||"new"}</button>;
 };
 
+// Stop the current run no matter where it was started. The Run panel (when
+// mounted) handles run:stopCurrent; if it is closed/hidden — or was just
+// reopened and lost its runs map — fall back to the newest PTY from main.
+const stopCurrentRunGlobal = async () => {
+  let before = [];
+  try { before = (await window.electronAPI?.runList?.()) || []; } catch {}
+  try { window.dispatchEvent(new CustomEvent("run:stopCurrent")); } catch {}
+  if (!before.length) return;
+  // Give the panel's stop IPC a moment to land before deciding it did nothing.
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  let after = [];
+  try { after = (await window.electronAPI?.runList?.()) || []; } catch {}
+  if (after.length >= before.length) {
+    const newest = [...before].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0];
+    if (newest?.runId) {
+      try { await window.electronAPI?.runStop?.(newest.runId); } catch {}
+    }
+  }
+};
+
 // ── Run status-bar button — visual replacement for the menu-bar Run menu ──
 // Main click → project auto-command first (npm run dev / ...), else open file.
 // Dropdown caret → ALL run options (Auto, Current File, npm scripts, customs)
@@ -400,10 +420,42 @@ const RunStatusButton = () => {
   const [runOptions, setRunOptions] = React.useState([]);
   const wrapRef = React.useRef(null);
   const menuRef = React.useRef(null);
+  const lastStatusAtRef = React.useRef(0);
+
+  // Authoritative status straight from main — works even when the Run panel is
+  // unmounted (FlexLayout removes hidden tabs, so its run:status broadcasts stop).
+  const refreshStatus = React.useCallback(async (force) => {
+    try {
+      const list = await window.electronAPI?.runList?.();
+      if (!Array.isArray(list)) return;
+      if (list.length) {
+        const newest = [...list].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0];
+        setRunning(true);
+        setRunLabel(newest?.label || `${list.length} running`);
+      } else if (force || Date.now() - lastStatusAtRef.current > 2500) {
+        // Don't race a just-started run: addRun fires run:status before the
+        // run:start IPC has registered the PTY in main.
+        setRunning(false);
+        setRunLabel("");
+      }
+    } catch {}
+  }, []);
+
+  React.useEffect(() => {
+    let dead = false;
+    const tick = async () => {
+      if (dead) return;
+      await refreshStatus();
+    };
+    tick();
+    const iv = setInterval(tick, 1500);
+    return () => { dead = true; clearInterval(iv); };
+  }, [refreshStatus]);
 
   React.useEffect(() => {
     const onStatus = (event) => {
       const detail = event?.detail || {};
+      lastStatusAtRef.current = Date.now();
       setRunning(!!detail.running);
       setRunLabel(detail.label || "");
     };
@@ -456,12 +508,20 @@ const RunStatusButton = () => {
     } catch {}
   };
 
-  const dispatch = (channel) => {
+  const dispatch = async (channel) => {
     setOpen(false);
     try {
       if (channel === "runAuto") {
-        if (running) {
-          window.dispatchEvent(new CustomEvent("run:stopCurrent"));
+        // Fresh check — the button state can lag behind main when the Run
+        // panel is closed (no run:status events reach us).
+        let active = running;
+        try {
+          const list = await window.electronAPI?.runList?.();
+          if (Array.isArray(list)) active = list.length > 0;
+        } catch {}
+        if (active) {
+          await stopCurrentRunGlobal();
+          refreshStatus(true);
           return;
         }
         window.__pendingAutoRun = { auto: true };
@@ -1347,8 +1407,8 @@ const App = () => {
   const closeProjectTabs = useCallback((oldRoot) => {
     // Terminal PTYs: kill only the old root's (emulator mirrors are spared)
     try { window.dispatchEvent(new CustomEvent("terminals:killAll", { detail: { root: oldRoot || null } })); } catch {}
-    // Stop the running run (RunPanel listens for this)
-    try { window.dispatchEvent(new CustomEvent("run:stopCurrent")); } catch {}
+    // Stop the running run (RunPanel listens; global fallback kills the PTY)
+    try { stopCurrentRunGlobal(); } catch {}
     // Output reset — clear all channels
     try {
       if (window.__outputBuffer) {
@@ -2358,7 +2418,7 @@ const App = () => {
       window.dispatchEvent(new CustomEvent("add-run-panel"));
     }));
     unsubs.push(window.electronAPI.onMenuEvent("menu:runStop", () => {
-      window.dispatchEvent(new CustomEvent("run:stopCurrent"));
+      try { stopCurrentRunGlobal(); } catch {}
     }));
     unsubs.push(window.electronAPI.onMenuEvent("menu:openRunPanel", () => {
       window.dispatchEvent(new CustomEvent("add-run-panel"));

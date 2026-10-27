@@ -8,6 +8,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { cssVar } from "../shared/theme.js";
+import { getActiveEditorPath } from "../Editor/shared.js";
 
 // No process.* in the renderer (context isolation) — detect the platform via UA
 const isWin = typeof navigator !== "undefined" && /win/i.test(`${navigator.platform || ""} ${navigator.userAgent || ""}`);
@@ -805,6 +806,38 @@ const dirName = (p) => {
   const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
   return i > 0 ? s.slice(0, i) : "";
 };
+
+// ── Active editor file discovery ───────────────────────────────────────────
+// The Run panel is often the ACTIVE tabset itself, so looking only at
+// getActiveTabset() returns the panel (no filePath) and Run says "Nothing to
+// run". Scan every tabset for a selected editor tab, then fall back to the
+// shared "last active editor" path (survives the editor being unmounted).
+const findActiveEditorFile = () => {
+  try {
+    const m = window.__flexModel?.current;
+    if (m) {
+      const sel = m.getActiveTabset?.()?.getSelectedNode?.();
+      const fp = sel?.getConfig?.()?.filePath;
+      if (fp) return fp;
+      let found = null;
+      try {
+        m.visitNodes?.((n) => {
+          if (found) return;
+          try {
+            if (n.getType?.() !== "tab" || n.getComponent?.() !== "editor") return;
+            // Prefer the selected tab of its own tabset.
+            const parent = n.getParent?.();
+            if (parent?.getSelectedNode?.() !== n) return;
+            const p = n.getConfig?.()?.filePath;
+            if (p) found = p;
+          } catch {}
+        });
+      } catch {}
+      if (found) return found;
+    }
+  } catch {}
+  try { return getActiveEditorPath() || null; } catch { return null; }
+};
 const extOf = (p) => {
   const b = baseName(p);
   const i = b.lastIndexOf(".");
@@ -930,6 +963,32 @@ const RunPanel = () => {
   const termWrapRef = useRef(null);
   const termRef = useRef(null);
   const fitRef = useRef(null);
+  // Project config detection (npm scripts + auto-detect) finished for the
+  // current project. Titlebar Run requests wait for this so the first auto
+  // command (npm run dev / …) is not missed on a cold start.
+  const configsReadyRef = useRef(false);
+
+  // FlexLayout unmounts hidden tabs, so this flag tells the titlebar Run
+  // button whether a mounted Run panel can handle Stop (run:stopCurrent).
+  useEffect(() => {
+    try { window.__ibxRunPanelMounted = true; } catch {}
+    return () => { try { window.__ibxRunPanelMounted = false; } catch {} };
+  }, []);
+
+  // Keep the panel bound to the project the rest of the IDE is on. A project
+  // switch can leave a reused/hidden Run panel with the old root + old autos;
+  // pending runs must wait until detection re-runs for the new root.
+  const syncProjectRoot = useCallback(() => {
+    let live = null;
+    try { live = window.__currentProjectPath || null; } catch {}
+    if (live !== projectRootRef.current) {
+      projectRootRef.current = live;
+      configsReadyRef.current = false;
+      setProjectRoot(live);
+      return false;
+    }
+    return true;
+  }, []);
 
   const out = useCallback((msg, level) => {
     try { window.__outputLog?.("Run", msg, level || "info"); } catch {}
@@ -946,20 +1005,22 @@ const RunPanel = () => {
       syncRoot();
     };
     const onClose = () => { setProjectRoot(null); };
-    syncRoot();
     const activePoll = () => {
-      try {
-        const m = window.__flexModel?.current;
-        const node = m?.getActiveTabset?.()?.getSelectedNode?.();
-        const fp = node?.getConfig?.()?.filePath;
-        if (fp) setActiveFile((prev) => (prev === fp ? prev : fp));
-      } catch {}
+      const fp = findActiveEditorFile();
+      if (fp) setActiveFile((prev) => (prev === fp ? prev : fp));
     };
+    const onFileActivated = (e) => {
+      const p = e?.detail?.path;
+      if (p) setActiveFile(p);
+      else activePoll();
+    };
+    syncRoot();
     activePoll();
     window.addEventListener("project:opened", onOpen);
     window.addEventListener("project:closed", onClose);
     window.addEventListener("open-file-in-editor", onOpen);
     window.addEventListener("open-file-in-new-editor-tab", onOpen);
+    window.addEventListener("editor:fileActivated", onFileActivated);
     const iv1 = setInterval(syncRoot, 3000);
     const iv2 = setInterval(activePoll, 2000);
     return () => {
@@ -967,6 +1028,7 @@ const RunPanel = () => {
       window.removeEventListener("project:closed", onClose);
       window.removeEventListener("open-file-in-editor", onOpen);
       window.removeEventListener("open-file-in-new-editor-tab", onOpen);
+      window.removeEventListener("editor:fileActivated", onFileActivated);
       clearInterval(iv1);
       clearInterval(iv2);
     };
@@ -1003,7 +1065,9 @@ const RunPanel = () => {
     runBuffersRef.current[id] = "";
     // Clear the browser-open flag for a new run (open a browser tab once on the first URL in output)
     runBrowserRef.current[id] = false;
-    setActiveRunId((cur) => cur || id); // a new run arrived → set it if none is active
+    // New run → make it the visible console tab. Rehydrated runs pass
+    // activate:false so a remount doesn't steal the user's selected tab.
+    setActiveRunId((cur) => (info.activate === false ? (cur || id) : id));
   };
   const updateRun = (id, patch) => {
     id = String(id);
@@ -1051,6 +1115,32 @@ const RunPanel = () => {
       try { termRef.current?.write(str); } catch {}
     }
   };
+
+  // Rehydrate runs that are still alive in main when this panel (re)mounts.
+  // FlexLayout unmounts hidden tabs, so the local runs map is lost while the
+  // PTYs keep running — without this the panel looks idle and Stop is a no-op.
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const list = await window.electronAPI?.runList?.();
+        if (dead || !Array.isArray(list)) return;
+        for (const r of list) {
+          if (!r?.runId) continue;
+          addRun({
+            runId: r.runId,
+            label: r.label || String(r.runId),
+            startedAt: r.startedAt || Date.now(),
+            cwd: null,
+            file: null,
+            activate: false,
+          });
+        }
+      } catch {}
+    })();
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const miseInstallAndRespawn = useCallback(async ({ tool, cmd, args, cwd, label, file }) => {
     const api = window.electronAPI;
@@ -1181,12 +1271,20 @@ const RunPanel = () => {
   // ── npm scripts + persisted customs/history per project ─────────────────
   useEffect(() => {
     let dead = false;
+    configsReadyRef.current = false;
     (async () => {
       try {
         setCustoms(loadJson(lsKey(projectRoot), []));
         setHistory(loadJson(histKey(projectRoot), []));
       } catch {}
-      if (!projectRoot) { if (!dead) { setNpmScripts([]); setAutos([]); } return; }
+      if (!projectRoot) {
+        if (!dead) {
+          setNpmScripts([]);
+          setAutos([]);
+          configsReadyRef.current = true; // nothing to detect — runs may proceed
+        }
+        return;
+      }
       try {
         const pkgPath = `${projectRoot.replace(/[\\/]+$/, "")}/package.json`;
         const text = await window.electronAPI?.readTextFile?.(pkgPath);
@@ -1204,6 +1302,7 @@ const RunPanel = () => {
         })) : [];
         if (!dead) setAutos(withIds);
       } catch { if (!dead) setAutos([]); }
+      if (!dead) configsReadyRef.current = true;
     })();
     return () => { dead = true; };
   }, [projectRoot]);
@@ -1253,6 +1352,11 @@ const RunPanel = () => {
         const pend = pendingExitRef.current;
         if (pend && String(id) === String(pend.runId)) {
           pendingExitRef.current = null;
+          // Setup steps (auto-install / mise install) are chained, not user
+          // runs — but they still need an exitCode, otherwise their tab stays
+          // "running" forever and the titlebar Stop never clears.
+          updateRun(id, { endedAt: Date.now(), exitCode: Number(code), ms: Number(ms) || 0 });
+          writeTermForRun(id, `\x1b[90m[exit code ${code} in ${((Number(ms) || 0) / 1000).toFixed(1)}s]\x1b[0m\r\n`);
           try { pend.resolve(Number(code)); } catch {}
           return;
         }
@@ -1582,6 +1686,17 @@ const RunPanel = () => {
 
   // Helper: given a config id/auto entry, also fall back to the current file in doRun
   const resolveCfgToRun = useCallback(async (cfg) => {
+    // Never launch a stale config from the previous project (switch in flight).
+    if (!syncProjectRoot()) return { err: "Project changed — detecting run commands, press Run again" };
+    // State can lag behind a just-opened/switched tab (the titlebar Run button
+    // fires in the same tick) — refresh from the live layout first.
+    try {
+      const liveFile = findActiveEditorFile();
+      if (liveFile && liveFile !== activeFileRef.current) {
+        activeFileRef.current = liveFile;
+        setActiveFile(liveFile);
+      }
+    } catch {}
     let c = cfg || active;
     if (!c) return { err: "Nothing selected" };
     if (c.disabled) {
@@ -1645,7 +1760,7 @@ const RunPanel = () => {
     const label = c.name;
     const runFile = (c.id === "__current__" ? (c.file || activeFileRef.current) : null) || null;
     return { run: run, cwd, args, label, runFile, live: run.live ? run : null, cfg: c };
-  }, [active, autosRef, tryMiseForFile, runLive]);
+  }, [active, autosRef, tryMiseForFile, runLive, syncProjectRoot]);
 
   const doRun = useCallback(async (cfg) => {
     const r = await resolveCfgToRun(cfg);
@@ -1711,7 +1826,25 @@ const RunPanel = () => {
     } catch {}
   }, []);
   const doStop = useCallback(async () => {
-    await stopRun();
+    // The selected tab may be an already-finished setup/run — stop a run that
+    // is actually alive, newest first.
+    let id = activeRunIdRef.current;
+    const activeInfo = id ? runsRef.current?.[id] : null;
+    if (id && activeInfo && typeof activeInfo.exitCode === "number") id = null;
+    if (!id) {
+      const alive = Object.entries(runsRef.current || {})
+        .filter(([, r]) => r && typeof r.exitCode !== "number")
+        .sort((a, b) => (b[1].startedAt || 0) - (a[1].startedAt || 0));
+      id = alive[0]?.[0] || null;
+    }
+    if (id) { await stopRun(id); return; }
+    // The panel may have been hidden and remounted (its runs map is empty),
+    // while the PTY is still alive in main. Stop the newest one.
+    try {
+      const list = await window.electronAPI?.runList?.();
+      const newest = [...(list || [])].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0];
+      if (newest?.runId) await stopRun(newest.runId);
+    } catch {}
   }, [stopRun]);
 
   // Restart a specific run (stop first, wait briefly, then relaunch from the matching config — best-effort)
@@ -1756,6 +1889,11 @@ const RunPanel = () => {
   doRunRef.current = doRun;
   useEffect(() => {
     const onRunRequest = () => {
+      // Wrong project bound (switch in progress) → re-detect and stay pending.
+      if (!syncProjectRoot()) return;
+      // Project config detection still running → keep the request pending; the
+      // 700ms poll fires it once the auto commands (npm run dev / …) are known.
+      if (!configsReadyRef.current) return;
       window.__pendingAutoRun = null;
       // If auto entries exist → first auto (Vite/Next etc.), else current-file fallback
       const first = autosRef.current?.[0];
@@ -1767,11 +1905,13 @@ const RunPanel = () => {
     };
     const iv = setInterval(() => {
       try {
+        if (!syncProjectRoot()) return;
+        if (!configsReadyRef.current) return;
         if (window.__pendingAutoRun) {
           window.__pendingAutoRun = null;
           try {
             const first = autosRef.current?.[0];
-            if (first) doRunRef.current?.({ id: first.id, auto: true, autoCfg: first, run: first.kind === "live" ? { live: true, file: first.file, cwd: first.cwd } : { cmd: first.cmd, args: first.args, cwd: first.cwd } });
+            if (first) doRunRef.current?.({ id: first.id, name: first.name, auto: true, autoCfg: first, run: first.kind === "live" ? { live: true, file: first.file, cwd: first.cwd } : { cmd: first.cmd, args: first.args, cwd: first.cwd } });
             else doRunRef.current?.({ id: "__auto__", auto: true });
           } catch {}
         }
@@ -1794,10 +1934,13 @@ const RunPanel = () => {
     window.addEventListener("run:request", onRunRequest);
     window.addEventListener("run:stopCurrent", onStopReq);
     return () => {
+      // Must clear the poll: an unmounted panel would otherwise keep consuming
+      // __pendingAutoRun and start runs whose exit listener is already gone.
+      clearInterval(iv);
       window.removeEventListener("run:request", onRunRequest);
       window.removeEventListener("run:stopCurrent", onStopReq);
     };
-  }, [out, doStop, autosRef]);
+  }, [out, doStop, autosRef, syncProjectRoot]);
   // Status broadcast: multiple-run count + active label
   useEffect(() => {
     try {

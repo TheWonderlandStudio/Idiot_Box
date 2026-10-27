@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 
 // ─── Module-level URL cache: "name|isDir|isOpen" → URL string ────────────────
 const urlCache = new Map();
@@ -32,19 +32,26 @@ const FileFallback = ({ size }) => (
 const VscodeIcon = ({ name, isDir = false, isOpen = false, size = 16, style }) => {
   const key = cacheKey(name, isDir, isOpen);
   const [url, setUrl] = useState(() => urlCache.get(key) ?? null);
-  const mounted = useRef(true);
+  const [prevKey, setPrevKey] = useState(key);
+
+  // The same component instance is reused when a tab switches to another file
+  // (or a folder expands). Drop the old icon in the same render — otherwise
+  // the previous file's icon would stay on screen forever.
+  if (prevKey !== key) {
+    setPrevKey(key);
+    setUrl(urlCache.get(key) ?? null);
+  }
 
   useEffect(() => {
-    mounted.current = true;
-    if (url) return;
+    if (url) return undefined;
+    let cancelled = false;
     window.electronAPI.getVscodeIcon(name, isDir, isOpen).then((resolved) => {
-      if (resolved && mounted.current) {
-        urlCache.set(key, resolved);
-        setUrl(resolved);
-      }
-    });
-    return () => { mounted.current = false; };
-  }, [key]);
+      if (cancelled || !resolved) return;
+      urlCache.set(key, resolved);
+      setUrl(resolved);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [key, url, name, isDir, isOpen]);
 
   if (!url) {
     return isDir

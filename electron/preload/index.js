@@ -197,6 +197,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runStart: (payload) => ipcRenderer.invoke("run:start", payload),
   runWrite: (runId, data) => ipcRenderer.invoke("run:write", { runId, data }),
   runStop:  (runId) => ipcRenderer.invoke("run:stop", { runId }),
+  runList:  () => ipcRenderer.invoke("run:list"),
   runProbes: () => ipcRenderer.invoke("run:probes"),
   onRunData: (callback) => {
     const handler = (_e, payload) => callback(payload);

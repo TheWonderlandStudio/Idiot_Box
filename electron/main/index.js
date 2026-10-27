@@ -4430,6 +4430,19 @@ ipcMain.handle("run:stop", async (event, { runId, signal }) => {
   try { logOutput("Run", `stopped — ${e.label}`, "warn"); } catch {}
   return { ok: true };
 });
+ipcMain.handle("run:list", async (event) => {
+  // Active runs for THIS renderer. The titlebar Run/Stop button polls this so
+  // it still shows the right state when the Run panel is closed/unmounted.
+  const prefix = `${event.sender.id}:`;
+  const list = [];
+  try {
+    for (const [key, e] of runProcesses) {
+      if (!key.startsWith(prefix)) continue;
+      list.push({ runId: key.slice(prefix.length), label: e.label, startedAt: e.startedAt });
+    }
+  } catch {}
+  return list;
+});
 ipcMain.handle("run:probes", async () => {
   // Best-effort runtime detection — node/python/php/go + compiled & scripting langs.
   // Per key, candidates: the first one that reports a version wins (on Win, py->python->python3 fallback).
