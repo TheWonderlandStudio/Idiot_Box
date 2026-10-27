@@ -92,6 +92,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   projectReplace:     (payload) => ipcRenderer.invoke("search:replace", payload),
   projectReplaceUndo: (payload) => ipcRenderer.invoke("search:undoReplace", payload),
 
+  // ── Local history (per-file snapshots in userData) ────────────────────────
+  localHistoryList:     (filePath)        => ipcRenderer.invoke("history:list", filePath),
+  localHistoryRead:     (filePath, id)    => ipcRenderer.invoke("history:read", { filePath, id }),
+  localHistorySnapshot: (filePath, reason) => ipcRenderer.invoke("history:snapshot", { filePath, reason }),
+  localHistoryRestore:  (filePath, id)    => ipcRenderer.invoke("history:restore", { filePath, id }),
+  localHistoryDelete:   (filePath, id)    => ipcRenderer.invoke("history:delete", { filePath, id }),
+  localHistoryClear:    (filePath)        => ipcRenderer.invoke("history:clear", filePath),
+  localHistoryStats:    ()                => ipcRenderer.invoke("history:stats"),
+
   // ── File operations ────────────────────────────────────────────────────────
   newFolder:        (parentPath, name)          => ipcRenderer.invoke("fs:newFolder",  { parentPath, name }),
   newFile:          (parentPath, name)          => ipcRenderer.invoke("fs:newFile",    { parentPath, name }),

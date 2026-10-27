@@ -8,6 +8,7 @@ const { pathToFileURL, fileURLToPath } = require("url");
 const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
 const projectSearch = require("./search");
+const localHistory = require("./local-history");
 let ipcInvoke = null;
 try { ipcInvoke = require("./ipc-invoke"); } catch (e) { console.warn("[main] ipc-invoke not available:", e.message); }
 let mcpServer = null;
@@ -1156,9 +1157,25 @@ ipcMain.handle("tabs:select", async (event, { tabId, name, path: filePath } = {}
   return await win.webContents.executeJavaScript(script);
 });
 
+// Binary/media extensions never enter local history.
+const NON_TEXT_HISTORY_RE = /\.(png|jpe?g|gif|webp|ico|bmp|tiff?|avif|pdf|zip|gz|tgz|7z|rar|exe|dll|so|dylib|node|db|sqlite3?|woff2?|ttf|otf|eot|mp3|mp4|wav|ogg|flac|webm|mov|avi|mkv|wasm|class|jar|pyc)$/i;
+
+/** Snapshot the previous on-disk content before an overwrite (best effort). */
+function snapshotBeforeWrite(filePath, nextText, reason = "Saved") {
+  try {
+    if (!filePath || NON_TEXT_HISTORY_RE.test(filePath)) return;
+    const full = toLongPath(filePath);
+    if (!fs.existsSync(full)) return;
+    const old = fs.readFileSync(full, "utf8");
+    if (old === nextText) return;
+    localHistory.recordSnapshotSync(full, old, reason);
+  } catch {}
+}
+
 ipcMain.handle("fs:writeFile", async (_e, { filePath, text }) => {
   try {
     const full = toLongPath(filePath);
+    snapshotBeforeWrite(filePath, text, "Saved");
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, text, "utf8");
     return { success: true };
@@ -1461,6 +1478,7 @@ ipcMain.handle("liveEdit:applyTextChange", async (_e, { projectRoot, url, oldTex
 
     const newContent = content.slice(0, pos) + newTrim + content.slice(pos + oldUsed.length);
     // safety: ensure file still valid? For html/jsx we could do light check, but skip
+    localHistory.recordSnapshotSync(targetPath, content, "Live edit");
     fs.writeFileSync(toLongPath(targetPath), newContent, "utf8");
     // clear cache
     try { global.__liveEditBestPos = null; } catch {}
@@ -1559,6 +1577,7 @@ ipcMain.handle("liveEdit:applyHtmlChange", async (_e, { projectRoot, url, oldHtm
       return { ok: false, error: `Element not found at expected location in ${path.basename(targetPath)}` };
     }
     const newContent = content.slice(0, pos) + n.trim() + content.slice(pos + oldUsed.length);
+    localHistory.recordSnapshotSync(targetPath, content, "Live edit");
     fs.writeFileSync(toLongPath(targetPath), newContent, "utf8");
     const root = projectRoot || lastProjectPath;
     const rel = root ? path.relative(root, targetPath).replace(/\\/g, "/") : path.basename(targetPath);
@@ -1589,6 +1608,7 @@ ipcMain.handle("liveEdit:revert", async (_e, { filePath, appliedText, originalTe
     }
     if (pos === -1) return { ok: false, error: "File changed since edit — revert manually in the editor" };
     content = content.slice(0, pos) + o + content.slice(pos + used.length);
+    localHistory.recordSnapshotSync(filePath, content, "Live edit revert");
     fs.writeFileSync(toLongPath(filePath), content, "utf8");
     try {
       for (const win of BrowserWindow.getAllWindows()) {
@@ -1610,6 +1630,7 @@ ipcMain.handle("fs:saveFileAs", async (event, { filePath, text }) => {
   });
   if (canceled || !newPath) return { canceled: true };
   try {
+    snapshotBeforeWrite(newPath, text, "Saved");
     fs.writeFileSync(toLongPath(newPath), text, "utf8");
     return { canceled: false, path: newPath };
   } catch (err) {
@@ -1932,6 +1953,34 @@ ipcMain.handle("fs:searchText", async (_e, rootPath, query, limit = 200) => {
 ipcMain.handle("search:project", (_e, payload) => projectSearch.searchProject(payload || {}));
 ipcMain.handle("search:replace", (_e, payload) => projectSearch.replaceProject(payload || {}));
 ipcMain.handle("search:undoReplace", (_e, payload) => projectSearch.undoReplace(payload || {}));
+
+// ─── Local history ────────────────────────────────────────────────────────────
+ipcMain.handle("history:list", (_e, filePath) => {
+  if (typeof filePath !== "string" || !filePath) return [];
+  return localHistory.listHistory(filePath);
+});
+ipcMain.handle("history:read", (_e, { filePath, id } = {}) => {
+  if (typeof filePath !== "string" || !filePath) return { ok: false, error: "No file" };
+  return localHistory.readHistory(filePath, String(id || ""));
+});
+ipcMain.handle("history:snapshot", (_e, { filePath, reason } = {}) => {
+  if (typeof filePath !== "string" || !filePath) return { ok: false, error: "No file" };
+  const entry = localHistory.recordDiskSnapshotSync(filePath, reason || "Manual snapshot");
+  return entry ? { ok: true, entry } : { ok: false, error: "No change to snapshot" };
+});
+ipcMain.handle("history:restore", (_e, { filePath, id } = {}) => {
+  if (typeof filePath !== "string" || !filePath) return { ok: false, error: "No file" };
+  return localHistory.restoreHistory(filePath, String(id || ""));
+});
+ipcMain.handle("history:delete", (_e, { filePath, id } = {}) => {
+  if (typeof filePath !== "string" || !filePath) return { ok: false, error: "No file" };
+  return localHistory.deleteHistory(filePath, String(id || ""));
+});
+ipcMain.handle("history:clear", (_e, filePath) => {
+  if (typeof filePath !== "string" || !filePath) return { ok: false, error: "No file" };
+  return localHistory.clearHistory(filePath);
+});
+ipcMain.handle("history:stats", () => localHistory.stats());
 
 // ─── Git helpers — lightweight async (non-blocking) ────────────────────────────
 function gitExec(args, cwd, timeout = 4000) {
