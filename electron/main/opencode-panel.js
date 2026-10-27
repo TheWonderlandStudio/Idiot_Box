@@ -24,15 +24,38 @@ function getCliPath() {
   return cliPath;
 }
 
-function getAvailablePort() {
+function reservePort(port) {
   return new Promise((resolve, reject) => {
     const listener = createServer();
     listener.once("error", reject);
-    listener.listen(0, "127.0.0.1", () => {
+    listener.listen(port, "127.0.0.1", () => {
       const address = listener.address();
       listener.close((error) => error ? reject(error) : resolve(address.port));
     });
   });
+}
+
+// OpenCode's web UI stores its open tabs, last session, theme and model in
+// localStorage, which is scoped to the origin — port included. A random port
+// per launch therefore threw that state away every time and the panel always
+// booted into a fresh "New session". Derive a stable port from the workspace
+// so each project keeps its own origin (and history) across restarts. The
+// 42000-43999 range sits below Windows' ephemeral ports (49152+); if the port
+// is busy we fall back to any free one, which only costs that run's state.
+function preferredPort(workspace) {
+  let hash = 0;
+  const key = String(workspace || "").toLowerCase();
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return 42000 + (hash % 2000);
+}
+
+async function getAvailablePort(workspace) {
+  const preferred = preferredPort(workspace);
+  try {
+    return await reservePort(preferred);
+  } catch {
+    return reservePort(0);
+  }
 }
 
 function delay(ms) {
@@ -105,9 +128,31 @@ async function waitForOpenCode(instance) {
   throw new Error(`OpenCode did not become ready in time${lastError ? `: ${lastError.message}` : "."}${tail}`);
 }
 
+// The panel used to open `/<project>/session`, which always creates a new
+// session — that is why every reopen looked like a fresh boot. Pick the most
+// recently updated session for this workspace so the panel resumes it, and
+// let the renderer fall back to a new session when there is none.
+async function latestSessionId(instance) {
+  try {
+    const headers = instance.credentials ? { Authorization: authorizationHeader(instance.credentials) } : undefined;
+    const response = await fetch(`${instance.url}/session`, { headers, signal: AbortSignal.timeout(2500) });
+    if (!response.ok) return null;
+    const sessions = await response.json();
+    if (!Array.isArray(sessions) || !sessions.length) return null;
+    const normalize = (value) => String(value || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+    const directory = normalize(instance.workspace);
+    const match = sessions
+      .filter((session) => normalize(session?.directory) === directory)
+      .sort((a, b) => (b?.time?.updated ?? 0) - (a?.time?.updated ?? 0))[0];
+    return match?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 async function startInstance(workspace, instance) {
   const cliPath = getCliPath();
-  const port = await getAvailablePort();
+  const port = await getAvailablePort(workspace);
   if (instance.stopping) throw new Error("OpenCode startup was cancelled.");
   instance.url = `http://127.0.0.1:${port}`;
   instance.port = String(port);
@@ -147,6 +192,7 @@ async function startInstance(workspace, instance) {
 
   try {
     await waitForOpenCode(instance);
+    instance.lastSessionId = await latestSessionId(instance);
   } catch (error) {
     await stopInstance(instance);
     const tail = instance.childLogs ? `\nOpenCode server log tail:\n${instance.childLogs.slice(-20).join("\n")}` : "";
@@ -220,7 +266,7 @@ async function acquireInstance(rootPath, sender, getActiveProjectPath) {
       }
     });
   }
-  return { url: instance.url, leaseId };
+  return { url: instance.url, leaseId, lastSessionId: instance.lastSessionId || null };
 }
 
 function registerOpenCodePanel(getActiveProjectPath) {

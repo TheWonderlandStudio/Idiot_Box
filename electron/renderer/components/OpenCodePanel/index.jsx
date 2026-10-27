@@ -156,7 +156,7 @@ export default function OpenCodePanel() {
       <webview
         ref={attachWebview}
         className="opencode-panel-webview"
-        src={`${server.url}/${encodeDirectory(rootPath)}/session`}
+        src={`${server.url}/${encodeDirectory(rootPath)}/session${server.lastSessionId ? `/${encodeURIComponent(server.lastSessionId)}` : ""}`}
         partition="persist:opencode-panel"
         webpreferences="contextIsolation=yes,nodeIntegration=no,sandbox=yes"
       />
