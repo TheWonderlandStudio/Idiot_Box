@@ -39,6 +39,9 @@ const COMMANDS = [
   { id: "add-git",         group: "Panels", title: "Add Git Panel",         run: ev("add-git-panel") },
   { id: "add-community",   group: "Panels", title: "Add Community Panel",   run: ev("add-community-panel") },
   { id: "add-extensions",  group: "Panels", title: "Add Extensions Panel",  run: ev("add-extensions-panel") },
+  { id: "add-debugger",    group: "Panels", title: "Show Debugger",         kw: "debug breakpoints call stack variables node python", run: ev("add-debug-panel") },
+  { id: "add-tests",       group: "Panels", title: "Show Test Explorer",    kw: "test jest vitest mocha pytest unittest", run: ev("add-test-explorer-panel") },
+  { id: "add-history",     group: "Panels", title: "Show Local History",    kw: "history snapshots revisions restore", run: ev("local-history:open") },
   // ── Edit ──
   { id: "undo",            group: "Edit", title: "Undo",                    run: ed("undo") },
   { id: "redo",            group: "Edit", title: "Redo",                    run: ed("redo") },

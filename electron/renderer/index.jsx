@@ -45,6 +45,10 @@ import AndroidEmulatorPanel from "./components/AndroidEmulator/index.jsx";
 import AIAgentPanel from "./components/OpenCodePanel/index.jsx";
 import ExtensionsPanel from "./components/Extensions/index.jsx";
 import ExtView from "./components/Extensions/ExtView.jsx";
+import LocalHistoryPanel from "./components/LocalHistory/index.jsx";
+import TestExplorer from "./components/TestExplorer/index.jsx";
+import DebuggerPanel from "./components/Debugger/index.jsx";
+import { getActiveEditorPath } from "./components/Editor/shared.js";
 import { ExtStatusItems, ExtToasts } from "./components/Extensions/Host.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 import {
@@ -305,6 +309,9 @@ const renderPanelContent = (json) => {
     case "aiAgent":           return <AIAgentPanel />;
     case "extensions":        return <ExtensionsPanel />;
     case "extView":           return <ExtView config={config} nodeId={nodeId} />;
+    case "localHistory":      return <LocalHistoryPanel config={config} nodeId={nodeId} />;
+    case "testExplorer":      return <TestExplorer config={config} nodeId={nodeId} />;
+    case "debugPanel":       return <DebuggerPanel config={config} nodeId={nodeId} />;
     default:                  return null;
   }
 };
@@ -1018,7 +1025,7 @@ const PROJECT_PANEL_COMPONENTS = new Set([
   "mediaViewer", "panel3", "projectPanel", "editor", "notebook", "terminal",
   "blank", "componentPreview", "community", "canvas", "problems", "output",
   "runDebug", "gitPanel", "ports", "androidEmulator", "openPencil", "aiAgent",
-  "extensions", "extView",
+  "extensions", "extView", "localHistory", "testExplorer", "debugPanel",
 ]);
 const sanitizeProjectPanels = (json) => {
   try {
@@ -1428,7 +1435,7 @@ const App = () => {
             // "notebook" stays allowed as a compat shim (interim builds saved
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs","openPencil","aiAgent"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs","openPencil","aiAgent","extensions","extView","localHistory","testExplorer","debugPanel"]);
             // Migrate old saved AI panel tabs (component "aiPanel") to the OpenCode-powered AI Agent tab
             // so pre-0.1.29 saved sessions render the AI Agent instead of a blank panel.
             if (node.component === "aiPanel") { node.component = "aiAgent"; node.name = "AI Agent"; node.config = node.config || {}; }
@@ -1774,6 +1781,20 @@ const App = () => {
       window.electronAPI.onMenuEvent("menu:splitTerminalDown", () => window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { location: "BOTTOM" } }))),
       window.electronAPI.onMenuEvent("menu:clearTerminal", () => window.dispatchEvent(new CustomEvent("terminal:command", { detail: { cmd: "clear" } }))),
       window.electronAPI.onMenuEvent("menu:killTerminal", () => window.dispatchEvent(new CustomEvent("terminal:command", { detail: { cmd: "kill" } }))),
+      window.electronAPI.onMenuEvent("menu:localHistory", () => window.dispatchEvent(new CustomEvent("local-history:open"))),
+      window.electronAPI.onMenuEvent("menu:testExplorer", () => window.dispatchEvent(new CustomEvent("add-test-explorer-panel"))),
+      window.electronAPI.onMenuEvent("menu:debugPanel", () => window.dispatchEvent(new CustomEvent("add-debug-panel"))),
+      window.electronAPI.onMenuEvent("menu:debugCurrent", () => {
+        const detail = {
+          requestId: `dbgcur_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          path: getActiveEditorPath() || "",
+        };
+        try { window.__pendingDebugFile = detail; } catch {}
+        window.dispatchEvent(new CustomEvent("add-debug-panel"));
+        setTimeout(() => {
+          try { window.dispatchEvent(new CustomEvent("debug:currentFile", { detail })); } catch {}
+        }, 150);
+      }),
     ];
     return () => handlers.forEach((u) => u());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2178,6 +2199,53 @@ const App = () => {
       }
       addPanel("openPencil", "OpenPencil", {});
     };
+    const onTestExplorer = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findTests = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "testExplorer") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findTests(c); if (r) return r; }
+          return null;
+        };
+        const existing = findTests(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("testExplorer", "Tests", {});
+    };
+    const onLocalHistory = (e) => {
+      const filePath = e?.detail?.filePath || getActiveEditorPath() || "";
+      const m = modelRef.current;
+      if (m) {
+        const findHistory = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "localHistory") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findHistory(c); if (r) return r; }
+          return null;
+        };
+        const existing = findHistory(m.getRoot());
+        if (existing) {
+          try { m.doAction(Actions.selectTab(existing.getId())); } catch {}
+          try { window.dispatchEvent(new CustomEvent("local-history:focus", { detail: { filePath } })); } catch {}
+          return;
+        }
+      }
+      addPanel("localHistory", "Local History", filePath ? { filePath } : {});
+    };
+    const onDebugPanel = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findDebug = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "debugPanel") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findDebug(c); if (r) return r; }
+          return null;
+        };
+        const existing = findDebug(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("debugPanel", "Debugger", {});
+    };
 
     window.addEventListener("add-browser-panel", onBrowser);
     window.addEventListener("add-ai-agent-panel", onAiAgent);
@@ -2193,6 +2261,10 @@ const App = () => {
     window.addEventListener("add-run-panel", onRunDebug);
     window.addEventListener("add-git-panel", onGit);
     window.addEventListener("add-android-panel", onAndroid);
+    window.addEventListener("add-local-history-panel", onLocalHistory);
+    window.addEventListener("local-history:open", onLocalHistory);
+    window.addEventListener("add-test-explorer-panel", onTestExplorer);
+    window.addEventListener("add-debug-panel", onDebugPanel);
     return () => {
       window.removeEventListener("add-browser-panel", onBrowser);
       window.removeEventListener("add-ai-agent-panel", onAiAgent);
@@ -2208,6 +2280,10 @@ const App = () => {
       window.removeEventListener("add-run-panel", onRunDebug);
       window.removeEventListener("add-git-panel", onGit);
       window.removeEventListener("add-android-panel", onAndroid);
+      window.removeEventListener("add-local-history-panel", onLocalHistory);
+      window.removeEventListener("local-history:open", onLocalHistory);
+      window.removeEventListener("add-test-explorer-panel", onTestExplorer);
+      window.removeEventListener("add-debug-panel", onDebugPanel);
       try { unExtFocus && unExtFocus(); } catch {}
     };
   }, []);

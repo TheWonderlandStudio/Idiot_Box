@@ -119,6 +119,31 @@ const I = {
       </g>
     </svg>
   ),
+  debugger: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" aria-hidden="true">
+      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="13.5" rx="5.5" ry="6" />
+        <path d="M12 7.5V4.5M9.5 5 12 7.5 14.5 5M6.5 11H3M6.5 14.5H3M7 18l-3 1.5M17.5 11H21M17.5 14.5H21M17 18l3 1.5" />
+      </g>
+      <path fill="currentColor" d="M10.8 11.3v4.4l3.7-2.2z" />
+    </svg>
+  ),
+  testExplorer: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" aria-hidden="true">
+      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 3h6M10 3v5l-5 9.5A2.5 2.5 0 0 0 7.2 21h9.6a2.5 2.5 0 0 0 2.2-3.5L14 8V3" />
+        <path d="M7.2 14h9.6M9.5 17.5h.01M13 17.5h1.5" />
+      </g>
+    </svg>
+  ),
+  localHistory: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" aria-hidden="true">
+      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3.5 12a8.5 8.5 0 1 0 2.4-5.9L3 8.5" />
+        <path d="M3 4v4.5h4.5M12 7.5V12l3 2" />
+      </g>
+    </svg>
+  ),
 };
 
 const PANEL_TYPES = [
@@ -228,6 +253,33 @@ const PANEL_TYPES = [
     description: "Run code with launch configs, runners & npm scripts",
     accent: "var(--success)",
     icon: I.runDebug,
+    config: {},
+  },
+  {
+    id: "debugger",
+    name: "Debugger",
+    component: "debugPanel",
+    description: "Breakpoints, call stack, variables and watches for Node & Python",
+    accent: "var(--danger)",
+    icon: I.debugger,
+    config: {},
+  },
+  {
+    id: "testExplorer",
+    name: "Test Explorer",
+    component: "testExplorer",
+    description: "Discover, run and debug Jest, Vitest, Mocha, node:test, pytest & unittest",
+    accent: "var(--success)",
+    icon: I.testExplorer,
+    config: {},
+  },
+  {
+    id: "localHistory",
+    name: "Local History",
+    component: "localHistory",
+    description: "Browse and restore snapshots of the active file",
+    accent: "var(--warn-gold)",
+    icon: I.localHistory,
     config: {},
   },
   {
