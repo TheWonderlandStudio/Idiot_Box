@@ -3,6 +3,40 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.29] - 2026-10-27
+
+### Added
+- **Project-wide search & replace** - `Ctrl+Shift+F` opens a search overlay with
+  literal/regex and case/whole-word toggles, include/exclude filters, results
+  grouped by file, replace across files and a one-step undo.
+- **Editable keybindings** - every command is listed under Settings →
+  Keybindings with shortcut recording, conflict detection and reset. Overrides
+  persist in `settings.json` and rebuild the native menu accelerators, so the
+  same binding works in the editor, terminal and menus.
+- **Local history** - per-file snapshots are written under userData on save,
+  live edit and replace, and can be previewed or restored from the Local
+  History panel without adding files to the project.
+- **Debugger** - Node.js (inspector/CDP) and Python (debugpy/DAP) sessions with
+  launch configurations, conditional breakpoints (gutter/`F9`), call stack,
+  scopes and variables, watches, evaluate console, output, and launch-current-
+  file/test handoff from the editor and Test Explorer.
+- **Test Explorer** - detects Jest, Vitest, Mocha, node:test, pytest and
+  unittest, collects tests into a tree, runs a file or a single test with
+  streamed output and pass/fail summaries, and hands tests to the debugger.
+- **SQLite database manager** - browse tables, run queries and edit rows from
+  an editor tab.
+- **Also in this release** - CSV/TSV preview, workspace layout presets,
+  multi-session terminal, browser URL persistence and clearer OpenCode server
+  errors.
+
+### Fixed
+- **Node debug sessions now end naturally** - when the program finishes, the
+  inspector is closed so Node no longer hangs at "Waiting for the debugger to
+  disconnect..."; the real exit code is reported and the session disappears
+  from the active list.
+- **Duplicate debug output** - console lines are no longer emitted twice from
+  the debuggee's stdout and the inspector's console event.
+
 ## [0.1.28] - 2026-10-21
 
 ### Added

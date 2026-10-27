@@ -17,6 +17,11 @@ Idiot Box is a modern, customizable desktop IDE designed to make development sim
 - **Extension Host** — runs VS Code-compatible extensions in a local web worker through `@codingame/monaco-vscode-api`, with built-in language extensions and a demo extension proving the pipeline.
 - **Live Component Preview** — shadow-DOM previews of components that sync instantly with the editor (no save needed).
 - **Terminal** — xterm.js + node-pty with split/new panel actions and working-directory-aware launch.
+- **Search & Replace** — project-wide literal or regex search with case/whole-word toggles and include/exclude filters, grouped file results, replace across files and one-step undo (`Ctrl+Shift+F`).
+- **Local History** — per-file snapshots on save, live edit and replace, stored under userData with preview and restore from the Local History panel.
+- **Test Explorer** — detects Jest, Vitest, Mocha, node:test, pytest and unittest, with a test tree, per-file/per-test runs, streamed output, pass/fail summaries and debug handoff.
+- **Debugger** — Node.js (inspector/CDP) and Python (debugpy/DAP) sessions with launch configurations, conditional breakpoints (gutter/`F9`), call stack, scopes/variables, watches, evaluate console and output.
+- **Editable Keybindings** — rebind any command from Settings with recording and conflict detection; overrides persist in `settings.json` and rebuild the native menu accelerators.
 - **Browser Panel** — webview-based tabs with port detection for your dev servers.
 - **Project Panel** — grid/list file manager with native drag-and-drop, multi-select, clipboard operations, undo/redo, renaming, duplicate, context menus (open in new editor tab, open with, reveal, terminal here), and sidebar tree. Delete moves files to the OS Recycle Bin (`shell.trashItem`); permanent delete bypasses it. There is no app-internal trash folder — restore deleted files from your OS Recycle Bin.
 - **Media Viewer** — zoom / rotate / flip / pan for images and videos.
