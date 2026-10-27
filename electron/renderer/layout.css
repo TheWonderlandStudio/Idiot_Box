@@ -248,17 +248,31 @@ body,
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
+/* ── Title bar right: Run button (left of the Layouts chip) ─────────────── */
+.tb-run {
+  /* order 1 → first item of the right cluster; auto margin starts the cluster */
+  order: 1;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 22px;
+  margin: 0 0 0 auto;
+  border-radius: 5px;
+  -webkit-app-region: no-drag;
+  z-index: 100;
+}
+
 /* ── Title bar right: Layouts button (Hub-style ghost chip) ─────────────── */
 .tb-workspaces {
-  /* flex order: box after the left cluster, before window controls */
-  order: 1;
+  /* flex order: after the Run button, before window controls */
+  order: 2;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
   height: 22px;
-  /* auto margin → the right cluster starts here, after the left cluster ends */
-  margin: 0 10px 0 auto;
+  margin: 0 10px 0 6px;
   padding: 0 10px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.09);
@@ -419,21 +433,20 @@ body,
 }
 .tb-layouts-row:hover .tb-layouts-del { opacity: 1; }
 .tb-layouts-del:hover { background: var(--bg-hover-strong); color: var(--text-primary); }
-/* Window controls go last (order 2); the auto-margin box pulls itself right —
-   otherwise CET's margin-left:auto leaves the box in the left cluster.
+/* Window controls go last (order 3); the Run button's auto margin pulls the
+   right cluster over — otherwise CET's margin-left:auto leaves it on the left.
    (macOS controls sit on the left — override on right-side platforms only.) */
 .cet-titlebar.cet-windows .cet-window-controls,
 .cet-titlebar.cet-linux .cet-window-controls,
 .cet-titlebar.cet-freebsd .cet-window-controls {
-  order: 2;
+  order: 3;
   margin-left: 0;
 }
-/* No Layouts button on the Hub (user request) — the tab right-shift pusher
-   must give the controls their auto margin itself, or they stick to the
-   menus on the left. Skip this rule when the button exists (as before). */
-.cet-titlebar.cet-windows:not(:has(.tb-workspaces)) .cet-window-controls,
-.cet-titlebar.cet-linux:not(:has(.tb-workspaces)) .cet-window-controls,
-.cet-titlebar.cet-freebsd:not(:has(.tb-workspaces)) .cet-window-controls {
+/* No Run button (defensive) — the controls must give themselves the auto
+   margin, or they stick to the menus on the left. */
+.cet-titlebar.cet-windows:not(:has(.tb-run)) .cet-window-controls,
+.cet-titlebar.cet-linux:not(:has(.tb-run)) .cet-window-controls,
+.cet-titlebar.cet-freebsd:not(:has(.tb-run)) .cet-window-controls {
   margin-left: auto;
 }
 
@@ -592,7 +605,7 @@ body,
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-8);
+  padding: var(--space-2) var(--space-6);
   background: var(--bg-surface);
   border-bottom: none;
   flex-shrink: 0;
@@ -608,10 +621,10 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 28px;
+  width: 26px;
+  height: 24px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -627,7 +640,7 @@ body,
   flex: 1;
   display: flex;
   align-items: center;
-  margin: 0 var(--space-4);
+  margin: 0 var(--space-3);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   background: var(--bg-app);
@@ -636,30 +649,30 @@ body,
 .browser__url-wrap--focused { border-color: var(--accent); }
 .browser__lock {
   flex-shrink: 0;
-  margin: 0 0 0 var(--space-8); padding: var(--space-3);
-  border-radius: var(--radius-md); cursor: pointer;
+  margin: 0 0 0 var(--space-6); padding: var(--space-2);
+  border-radius: var(--radius-sm); cursor: pointer;
   color: var(--icon); transition: color var(--t-normal), background var(--t-normal);
 }
 .browser__lock:hover { color: var(--text-bright); background: var(--bg-header); }
 .browser__url {
   width: 100%;
-  height: 28px;
-  padding: 0 var(--space-8);
+  height: 24px;
+  padding: 0 var(--space-6);
   border: none;
   border-radius: var(--radius-lg);
   background: transparent;
   color: var(--text-bright);
-  font-size: var(--fs-body-plus);
+  font-size: var(--fs-body);
   font-family: inherit;
   outline: none;
 }
 .browser__url::selection { background: var(--selection); }
 .browser__spinner {
   position: absolute;
-  right: 6px;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border);
+  right: 5px;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--border);
   border-top-color: var(--accent);
   border-radius: var(--radius-round);
   animation: browser-spin 0.6s linear infinite;
@@ -776,7 +789,7 @@ body,
   position: absolute;
   top: 0; right: 0;
   z-index: var(--z-popover);
-  width: 24px; height: 24px;
+  width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: 0 0 0 4px;
   background: var(--bg-surface);

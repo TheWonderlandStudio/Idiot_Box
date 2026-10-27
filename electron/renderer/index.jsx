@@ -399,6 +399,7 @@ const RunStatusButton = () => {
   const [hovered, setHovered] = React.useState(false);
   const [runOptions, setRunOptions] = React.useState([]);
   const wrapRef = React.useRef(null);
+  const menuRef = React.useRef(null);
 
   React.useEffect(() => {
     const onStatus = (event) => {
@@ -423,7 +424,11 @@ const RunStatusButton = () => {
   React.useEffect(() => {
     if (!open) return;
     const onDoc = (e) => {
-      try { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); } catch {}
+      try {
+        if (wrapRef.current?.contains(e.target)) return;
+        if (menuRef.current?.contains(e.target)) return;
+        setOpen(false);
+      } catch {}
     };
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     const onBlur = () => { setOpen(false); };
@@ -470,9 +475,9 @@ const RunStatusButton = () => {
 
   const base = {
     background: hovered ? "linear-gradient(180deg, #43c35b, #2fa349)" : "linear-gradient(180deg, #3cb454, #2f9e44)",
-    border: "1px solid rgba(255, 255, 255, 0.16)", color: "#fff", fontSize: 12, letterSpacing: 0.01,
+    border: "1px solid rgba(255, 255, 255, 0.16)", color: "#fff", fontSize: 11.5, letterSpacing: 0.01,
     fontFamily: "inherit", fontWeight: 600,
-    height: 26, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
+    height: 22, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
     transition: "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
     boxShadow: hovered
       ? "0 6px 16px rgba(47, 158, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.22)"
@@ -492,8 +497,18 @@ const RunStatusButton = () => {
     fontFamily: "inherit", WebkitAppRegion: "no-drag",
   };
 
+  const menuPos = (() => {
+    const r = wrapRef.current?.getBoundingClientRect?.();
+    if (!r) return { position: "fixed", top: 36, left: 12 };
+    return {
+      position: "fixed",
+      top: r.bottom + 6,
+      left: Math.max(8, Math.min(r.right - 250, window.innerWidth - 258)),
+    };
+  })();
+
   return (
-    <span ref={wrapRef} style={{ position: "absolute", left: "50%", top: 2, transform: "translateX(-50%)", display: "inline-flex", zIndex: 100, borderRadius: 5 }}>
+    <span ref={wrapRef} className="tb-run">
       <button
         onClick={() => dispatch("runAuto")}
         onMouseEnter={() => setHovered(true)}
@@ -504,10 +519,10 @@ const RunStatusButton = () => {
           ...stopBase,
           borderTopLeftRadius: 5, borderBottomLeftRadius: 5, borderRight: "none",
           display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "0 11px",
+          padding: "0 9px",
         }}
       >
-        {running ? <span style={{ width: 11, height: 11, background: "currentColor", borderRadius: 2 }} /> : <Play size={12} strokeWidth={2.4} fill="currentColor" />}
+        {running ? <span style={{ width: 9, height: 9, background: "currentColor", borderRadius: 2 }} /> : <Play size={11} strokeWidth={2.4} fill="currentColor" />}
         {running ? "Stop" : "Run"}
       </button>
       <button
@@ -520,14 +535,14 @@ const RunStatusButton = () => {
           ...stopBase,
           borderTopRightRadius: 5, borderBottomRightRadius: 5,
           borderLeft: "1px solid rgba(255, 255, 255, 0.18)",
-          display: "inline-flex", alignItems: "center", padding: "0 7px",
+          display: "inline-flex", alignItems: "center", padding: "0 6px",
         }}
       >
-        <ChevronDown size={12} strokeWidth={2} />
+        <ChevronDown size={11} strokeWidth={2} />
       </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 7px)", right: 0, zIndex: "var(--z-menu)",
+      {open && createPortal(
+        <div ref={menuRef} style={{
+          ...menuPos, zIndex: 100000,
           background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 6,
           boxShadow: "0 12px 35px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25)",
           minWidth: 250, maxWidth: 340, padding: 5, overflow: "hidden", display: "flex", flexDirection: "column",
@@ -570,7 +585,8 @@ const RunStatusButton = () => {
           <button onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent("add-run-panel")); }} style={menuItem} title="Run Configuration">
             <Settings2 size={15} strokeWidth={1.8} /> <span>Run Configuration</span>
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );
@@ -1188,7 +1204,6 @@ const App = () => {
   // are NOT persisted — only file content is edited + saved.
   const transientProjectRef = useRef(false);
   const [tick, setTick] = useState(0);
-  const [titlebarMenuHost, setTitlebarMenuHost] = useState(null);
   const [titlebarHost, setTitlebarHost] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -1208,14 +1223,12 @@ const App = () => {
   useEffect(() => {
     let attempts = 0;
     let timer = null;
-    const findTitlebarMenu = () => {
+    const findTitlebar = () => {
       const tb = document.querySelector(".cet-titlebar");
-      if (tb) setTitlebarHost(tb);
-      const host = document.querySelector(".cet-titlebar .cet-menubar");
-      if (host && tb) { setTitlebarMenuHost(host); return; }
-      if (attempts++ < 40) timer = setTimeout(findTitlebarMenu, 50);
+      if (tb) { setTitlebarHost(tb); return; }
+      if (attempts++ < 40) timer = setTimeout(findTitlebar, 50);
     };
-    findTitlebarMenu();
+    findTitlebar();
     return () => { if (timer) clearTimeout(timer); };
   }, []);
 
@@ -3176,9 +3189,11 @@ const App = () => {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
       <UpdaterBanner />
       <TitlebarLogoMenu hasProject={hasProject} />
-      {titlebarMenuHost && createPortal(<RunStatusButton />, titlebarMenuHost)}
       {titlebarHost && createPortal(
-        <LayoutsMenu hasProject={hasProject} getSnapshot={getLayoutSnapshot} onApply={applyLayoutPreset} />,
+        <>
+          <RunStatusButton />
+          <LayoutsMenu hasProject={hasProject} getSnapshot={getLayoutSnapshot} onApply={applyLayoutPreset} />
+        </>,
         titlebarHost
       )}
 

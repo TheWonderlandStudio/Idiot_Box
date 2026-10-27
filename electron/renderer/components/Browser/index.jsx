@@ -2009,7 +2009,7 @@ const BrowserPanel = (props) => {
               title="More options"
               style={editMode && !moreOpen ? { background: "var(--teal-a18)", color: "var(--teal)", border: "1px solid var(--teal-a35)" } : undefined}
             >
-              <MoreVertical size={15} />
+              <MoreVertical size={14} />
               {editMode && (
                 <span style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: "var(--radius-round)", background: "var(--teal)", pointerEvents: "none" }} />
               )}
