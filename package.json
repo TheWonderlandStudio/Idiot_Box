@@ -22,7 +22,7 @@
     "build:settings": "esbuild electron/renderer/settings-entry.jsx --bundle --outfile=electron/renderer/settings-bundle.js --platform=browser --loader:.css=css --loader:.jsx=jsx",
     "build:icons": "node build/generate-icons.cjs",
     "build": "npm run build:ai-css && npm run build:preload && npm run build:renderer && npm run build:settings",
-    "test": "echo \"No tests configured\"",
+    "test": "node --test tests/*.test.cjs",
     "lint": "echo \"No linter configured\"",
     "start": "npm run build && electron .",
     "pack": "electron-builder --dir",
@@ -42,6 +42,7 @@
     "dist:pacman": "npm run build && electron-builder --linux pacman",
     "dist:linux": "npm run build && electron-builder --linux",
     "dist:linux:dir": "npm run build && electron-builder --linux --dir",
+    "test:navigation": "electron tests/navigation.electron.cjs",
     "postinstall": "electron-builder install-app-deps && node build/generate-icons.cjs && node tools/stamp-dev-icon.cjs",
     "dev:icon": "node tools/stamp-dev-icon.cjs"
   },

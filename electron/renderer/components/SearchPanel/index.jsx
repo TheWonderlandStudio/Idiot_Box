@@ -9,6 +9,7 @@ import {
   Regex, AlertTriangle, Loader2, Undo2, SlidersHorizontal,
 } from "lucide-react";
 import "./search.css";
+import useDialogFocus from "../shared/useDialogFocus.js";
 
 const OPTIONS_KEY = "ibx.search.options";
 
@@ -55,38 +56,70 @@ const SearchPanel = () => {
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [undoToken, setUndoToken] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [projectPath, setProjectPath] = useState(() => window.__currentProjectPath || "");
 
   const inputRef = useRef(null);
   const replaceRef = useRef(null);
   const reqRef = useRef(0);
   const debounceRef = useRef(null);
+  const dialogRef = useRef(null);
+  const resultsRef = useRef(null);
+  const restoreFocusRef = useRef(true);
+  const completedRef = useRef(null);
+  const operationRef = useRef(false);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   const root = () => window.__currentProjectPath || "";
+  const keyFor = (folder, q, opts) => JSON.stringify([folder, q, opts]);
+  const currentKey = keyFor(root(), query, options);
+  const currentKeyRef = useRef(currentKey);
+  currentKeyRef.current = currentKey;
+  const invalidate = () => {
+    reqRef.current++;
+    completedRef.current = null;
+    setResults([]); setTruncated(false);
+  };
+  const close = () => { invalidate(); setOpen(false); };
+  useDialogFocus(open, dialogRef, mode === "replace" ? replaceRef : inputRef, close, restoreFocusRef);
+
+  useEffect(() => {
+    const changed = () => {
+      invalidate(); setProjectPath(root()); setUndoToken(null); setNotice(null); setLoading(false);
+    };
+    window.addEventListener("project:opened", changed);
+    window.addEventListener("project:closed", changed);
+    return () => { window.removeEventListener("project:opened", changed); window.removeEventListener("project:closed", changed); };
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem(OPTIONS_KEY, JSON.stringify(options)); } catch {}
   }, [options]);
 
-  const runSearch = useCallback(async (q, opts, requestRoot) => {
+  const runSearch = useCallback(async (q, opts, requestRoot, { explicit = false, preserveNotice = false } = {}) => {
     const projectRoot = requestRoot || root();
     const my = ++reqRef.current;
-    if (!projectRoot || !q || q.trim().length < 2) {
+    completedRef.current = null;
+    setResults([]);
+    if (!projectRoot || !q.trim() || (!explicit && q.trim().length < 2)) {
       setResults([]);
       setLoading(false);
       setTruncated(false);
       return;
     }
     setLoading(true);
-    setNotice(null);
+    if (!preserveNotice) setNotice(null);
     try {
       const res = await window.electronAPI.projectSearch({
         rootPath: projectRoot,
         query: q,
         options: { ...opts, maxResults: 2000 },
       });
-      if (my !== reqRef.current) return;
+      if (my !== reqRef.current || projectRoot !== root() || !openRef.current) return;
       if (res?.ok) {
-        setResults(Array.isArray(res.results) ? res.results : []);
+        const rows = Array.isArray(res.results) ? res.results : [];
+        completedRef.current = { root: projectRoot, query: q, options: opts, results: rows, key: keyFor(projectRoot, q, opts) };
+        setResults(rows);
         setTruncated(!!res.truncated);
         setEngine(res.engine || "");
       } else {
@@ -94,7 +127,7 @@ const SearchPanel = () => {
         setNotice({ kind: "error", text: res?.error || "Search failed" });
       }
     } catch (err) {
-      if (my !== reqRef.current) return;
+      if (my !== reqRef.current || projectRoot !== root() || !openRef.current) return;
       setResults([]);
       setNotice({ kind: "error", text: err?.message || "Search failed" });
     } finally {
@@ -107,22 +140,23 @@ const SearchPanel = () => {
     if (!open) return;
     try { clearTimeout(debounceRef.current); } catch {}
     if (!query.trim()) {
-      reqRef.current++;
-      setResults([]);
+      invalidate();
       setLoading(false);
       setTruncated(false);
       setNotice(null);
       return;
     }
     debounceRef.current = setTimeout(() => { runSearch(query, options); }, 320);
-    return () => { try { clearTimeout(debounceRef.current); } catch {} };
-  }, [open, query, options, runSearch]);
+    return () => { clearTimeout(debounceRef.current); reqRef.current++; completedRef.current = null; };
+  }, [open, query, options, projectPath, runSearch]);
 
   // Open/close wiring. Ctrl+Shift+F / Ctrl+Shift+H arrive from the global
   // keybinding manager as `search:open` with a mode.
   useEffect(() => {
     const show = (e) => {
       const nextMode = e?.detail?.mode === "replace" ? "replace" : "search";
+      if (!openRef.current) restoreFocusRef.current = true;
+      setProjectPath(root());
       setMode(nextMode);
       setOpen(true);
       setTimeout(() => {
@@ -134,26 +168,14 @@ const SearchPanel = () => {
     return () => window.removeEventListener("search:open", show);
   }, []);
 
-  // Esc closes; Ctrl+Enter replaces all while in replace mode.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
   const totalMatches = useMemo(
     () => results.reduce((n, f) => n + (f.matches?.length || 0), 0),
     [results]
   );
 
   const openResult = (file, match) => {
-    setOpen(false);
+    restoreFocusRef.current = false;
+    close();
     try {
       window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: file.path } }));
     } catch {}
@@ -177,7 +199,7 @@ const SearchPanel = () => {
 
   const submit = () => {
     if (!query.trim()) return;
-    runSearch(query, options);
+    runSearch(query, options, root(), { explicit: true });
   };
 
   const switchMode = (next) => {
@@ -187,66 +209,75 @@ const SearchPanel = () => {
   };
 
   const doReplace = async () => {
-    if (busy) return;
+    if (operationRef.current) return;
     if (!root()) { setNotice({ kind: "error", text: "Open a project folder first." }); return; }
     if (!query.trim()) { setNotice({ kind: "error", text: "Enter something to replace." }); return; }
-    if (!results.length) { setNotice({ kind: "error", text: "Nothing to replace — run a search first." }); return; }
-    const count = totalMatches;
-    const fileCount = results.length;
+    const search = completedRef.current;
+    if (!search?.results.length || search.key !== currentKeyRef.current) { setNotice({ kind: "error", text: "Wait for the current search to finish before replacing." }); return; }
+    const count = search.results.reduce((n, file) => n + file.matches.length, 0);
+    const fileCount = search.results.length;
     const message = `Replace ${count} match${count === 1 ? "" : "es"} in ${fileCount} file${fileCount === 1 ? "" : "s"}?\n\nA snapshot of each file is saved to Local History first.`;
-    let ok = true;
-    try {
-      ok = window.electronAPI?.confirmDialog ? await window.electronAPI.confirmDialog(message) : window.confirm(message);
-    } catch { ok = false; }
-    if (!ok) return;
-
+    operationRef.current = true;
     setBusy(true);
     setNotice(null);
     try {
+      const ok = window.electronAPI?.confirmDialog ? await window.electronAPI.confirmDialog(message) : window.confirm(message);
+      if (!ok) return;
+      if (search.root !== root()) return;
+      if (search !== completedRef.current || search.root !== root() || search.key !== currentKeyRef.current || !openRef.current) {
+        setNotice({ kind: "error", text: "The search changed. Search again before replacing." });
+        return;
+      }
       const res = await window.electronAPI.projectReplace({
-        rootPath: root(),
-        query,
+        rootPath: search.root,
+        query: search.query,
         replacement,
-        options,
-        files: results.map((f) => f.path),
+        options: search.options,
+        files: search.results.map((f) => f.path),
       });
+      if (search.root !== root() || !openRef.current) return;
       if (!res?.ok) {
         setNotice({ kind: "error", text: res?.error || "Replace failed" });
       } else {
-        setUndoToken(res.undoToken || null);
+        setUndoToken(res.undoToken ? { token: res.undoToken, root: search.root } : null);
         setNotice({
           kind: "ok",
           text: `Replaced ${res.replaced} match${res.replaced === 1 ? "" : "es"} in ${res.fileCount} file${res.fileCount === 1 ? "" : "s"}${res.skipped ? ` · ${res.skipped} skipped` : ""}.`,
         });
-        runSearch(query, options);
+        await runSearch(search.query, search.options, search.root, { explicit: true, preserveNotice: true });
       }
     } catch (err) {
-      setNotice({ kind: "error", text: err?.message || "Replace failed" });
+      if (search.root === root() && openRef.current) setNotice({ kind: "error", text: err?.message || "Replace failed" });
     } finally {
+      operationRef.current = false;
       setBusy(false);
     }
   };
 
   const undoReplace = async () => {
-    if (!undoToken || busy) return;
+    if (!undoToken || operationRef.current || undoToken.root !== root()) return;
+    operationRef.current = true;
     setBusy(true);
     try {
-      const res = await window.electronAPI.projectReplaceUndo({ token: undoToken });
+      const res = await window.electronAPI.projectReplaceUndo({ token: undoToken.token });
+      if (undoToken.root !== root()) return;
       if (!res?.ok) {
         setNotice({ kind: "error", text: res?.error || "Undo failed" });
       } else {
         setUndoToken(null);
         setNotice({ kind: "ok", text: `Restored ${res.restored} file${res.restored === 1 ? "" : "s"}.` });
-        runSearch(query, options);
+        await runSearch(query, options, undoToken.root, { explicit: true, preserveNotice: true });
       }
     } catch (err) {
       setNotice({ kind: "error", text: err?.message || "Undo failed" });
     } finally {
+      operationRef.current = false;
       setBusy(false);
     }
   };
 
-  const toggleOption = (key) => setOptions((o) => ({ ...o, [key]: !o[key] }));
+  const updateOptions = (update) => { invalidate(); setOptions(update); };
+  const toggleOption = (key) => updateOptions((o) => ({ ...o, [key]: !o[key] }));
 
   if (!open) return null;
 
@@ -255,8 +286,9 @@ const SearchPanel = () => {
   const showReplace = mode === "replace";
 
   return (
-    <div className="ibx-search-overlay" onClick={() => setOpen(false)}>
+    <div className="ibx-search-overlay" onClick={close}>
       <div
+        ref={dialogRef}
         className="ibx-search-dialog"
         role="dialog"
         aria-modal="true"
@@ -275,7 +307,7 @@ const SearchPanel = () => {
           >
             <Replace size={14} />
           </button>
-          <button className="ibx-search-close" onClick={() => setOpen(false)} title="Close (Esc)" aria-label="Close search">
+          <button className="ibx-search-close" onClick={close} title="Close (Esc)" aria-label="Close search">
             <X size={16} />
           </button>
         </div>
@@ -286,9 +318,11 @@ const SearchPanel = () => {
               ref={inputRef}
               className="ibx-search-input"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              disabled={busy}
+              onChange={(e) => { invalidate(); setNotice(null); setLoading(!!root() && e.target.value.trim().length >= 2); setQuery(e.target.value); }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") { e.preventDefault(); submit(); }
+                if (e.key === "ArrowDown" && !loading) { e.preventDefault(); resultsRef.current?.querySelector('.ibx-search-match')?.focus(); }
               }}
               placeholder="Search in project…"
               aria-label="Search query"
@@ -301,6 +335,7 @@ const SearchPanel = () => {
               title="Match case"
               aria-label="Match case"
               aria-pressed={options.caseSensitive}
+              disabled={busy}
               onClick={() => toggleOption("caseSensitive")}
             >
               <CaseSensitive size={15} />
@@ -311,6 +346,7 @@ const SearchPanel = () => {
               title="Match whole word"
               aria-label="Match whole word"
               aria-pressed={options.wholeWord}
+              disabled={busy}
               onClick={() => toggleOption("wholeWord")}
             >
               <WholeWord size={15} />
@@ -321,11 +357,12 @@ const SearchPanel = () => {
               title="Use regular expression"
               aria-label="Use regular expression"
               aria-pressed={options.regex}
+              disabled={busy}
               onClick={() => toggleOption("regex")}
             >
               <Regex size={15} />
             </button>
-            <button className="ibx-search-primary" onClick={submit} disabled={!query.trim() || loading}>
+            <button className="ibx-search-primary" onClick={submit} disabled={!query.trim() || loading || busy}>
               {loading ? <Loader2 size={13} className="spin" /> : <Search size={13} />} Search
             </button>
           </div>
@@ -336,11 +373,12 @@ const SearchPanel = () => {
                 ref={replaceRef}
                 className="ibx-search-input"
                 value={replacement}
+                disabled={busy}
                 onChange={(e) => setReplacement(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); doReplace(); }
                   else if (e.key === "Enter") { e.preventDefault(); doReplace(); }
-                  else if (e.key === "Escape") setOpen(false);
+                  else if (e.key === "Escape") close();
                 }}
                 placeholder="Replace with…"
                 aria-label="Replacement text"
@@ -351,7 +389,7 @@ const SearchPanel = () => {
                 className="ibx-search-primary"
                 data-tone="accent"
                 onClick={doReplace}
-                disabled={!query.trim() || !results.length || busy}
+                disabled={!query.trim() || !results.length || loading || busy || completedRef.current?.key !== currentKey}
                 title="Replace all matches in the listed files (Ctrl+Enter)"
               >
                 {busy ? <Loader2 size={13} className="spin" /> : <Replace size={13} />} Replace All
@@ -376,7 +414,8 @@ const SearchPanel = () => {
               <input
                 id="ibx-search-include"
                 value={options.include}
-                onChange={(e) => setOptions((o) => ({ ...o, include: e.target.value }))}
+                disabled={busy}
+                onChange={(e) => updateOptions((o) => ({ ...o, include: e.target.value }))}
                 placeholder="e.g. src/**/*.js, *.tsx (comma separated)"
                 spellCheck={false}
               />
@@ -384,7 +423,8 @@ const SearchPanel = () => {
               <input
                 id="ibx-search-exclude"
                 value={options.exclude}
-                onChange={(e) => setOptions((o) => ({ ...o, exclude: e.target.value }))}
+                disabled={busy}
+                onChange={(e) => updateOptions((o) => ({ ...o, exclude: e.target.value }))}
                 placeholder="e.g. dist/**, *.min.js"
                 spellCheck={false}
               />
@@ -392,13 +432,24 @@ const SearchPanel = () => {
           )}
         </div>
 
-        <div className="ibx-search-results">
+        <div className="ibx-search-results" ref={resultsRef} aria-busy={loading} onKeyDown={(e) => {
+          if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+          const buttons = [...resultsRef.current.querySelectorAll('.ibx-search-match')];
+          const index = buttons.indexOf(document.activeElement);
+          if (index < 0) return;
+          e.preventDefault();
+          if (index === 0 && e.key === "ArrowUp") inputRef.current?.focus();
+          else buttons[Math.max(0, Math.min(buttons.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)))]?.focus();
+        }}>
           {loading && <div className="ibx-search-empty"><Loader2 size={16} className="spin" /> Searching…</div>}
           {!loading && !projectRoot && <div className="ibx-search-empty">Open a project folder to search its files.</div>}
           {!loading && projectRoot && !query.trim() && (
-            <div className="ibx-search-empty">Type at least 2 characters. Results update as you type.</div>
+            <div className="ibx-search-empty">Type to search. Results update as you type.</div>
           )}
-          {!loading && projectRoot && query.trim() && results.length === 0 && (
+          {!loading && projectRoot && query.trim().length === 1 && !completedRef.current && (
+            <div className="ibx-search-empty">Press Enter to search for one character.</div>
+          )}
+          {!loading && projectRoot && query.trim() && completedRef.current && results.length === 0 && (
             <div className="ibx-search-empty">
               No results for <strong>{query}</strong>
               {options.include ? ` in ${options.include}` : ""}.
@@ -442,16 +493,16 @@ const SearchPanel = () => {
               ? "Searching…"
               : results.length
                 ? `${totalMatches} match${totalMatches === 1 ? "" : "es"} in ${results.length} file${results.length === 1 ? "" : "s"} · ${engine === "rg" ? "ripgrep" : "index"}`
-                : "Enter Search · Click a result to open · Esc to close"}
+                : "Enter Search · ↓ Results · Enter Open · Esc Close"}
             {truncated && <span className="ibx-search-note" style={{ marginLeft: 8 }}><AlertTriangle size={11} /> showing the first 2000 matches</span>}
           </span>
           <span className="ibx-search-foot-actions">
             {notice && (
-              <span className="ibx-search-note" style={{ color: notice.kind === "error" ? "var(--danger)" : "var(--success)" }}>
+              <span className="ibx-search-note" role={notice.kind === "error" ? "alert" : "status"} style={{ color: notice.kind === "error" ? "var(--danger)" : "var(--success)" }}>
                 {notice.text}
               </span>
             )}
-            {undoToken && (
+            {undoToken?.root === projectRoot && (
               <button className="ibx-search-primary" onClick={undoReplace} disabled={busy} title="Undo the last Replace All">
                 <Undo2 size={12} /> Undo replace
               </button>

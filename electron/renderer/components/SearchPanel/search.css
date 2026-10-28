@@ -23,6 +23,7 @@
 }
 
 .ibx-search-head {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -52,6 +53,7 @@
 .ibx-search-close:hover { background: var(--bg-hover-strong, var(--bg-hover)); color: var(--text-hover); }
 
 .ibx-search-rows {
+  flex-shrink: 0;
   padding: var(--space-10) var(--space-14);
   display: flex;
   flex-direction: column;
@@ -157,7 +159,7 @@
 .ibx-search-results {
   flex: 1;
   overflow: auto;
-  min-height: 180px;
+  min-height: 0;
   max-height: 50vh;
 }
 
@@ -212,7 +214,8 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.ibx-search-match:hover { background: var(--bg-hover-strong, var(--bg-hover)); border-left-color: var(--accent); }
+.ibx-search-match:hover,
+.ibx-search-match:focus-visible { background: var(--bg-hover-strong, var(--bg-hover)); border-left-color: var(--accent); }
 .ibx-search-line-no { flex-shrink: 0; width: 42px; color: var(--text-placeholder); text-align: right; }
 .ibx-search-match-text { overflow: hidden; text-overflow: ellipsis; }
 .ibx-search-hit { background: var(--accent-soft-a18, rgba(64, 132, 214, 0.28)); color: var(--text-inverse, #fff); border-radius: 2px; }
@@ -226,6 +229,8 @@
 }
 
 .ibx-search-foot {
+  flex-shrink: 0;
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: var(--space-10);
@@ -237,6 +242,7 @@
 }
 .ibx-search-foot-actions { display: flex; align-items: center; gap: var(--space-8); }
 .ibx-search-note {
+  overflow-wrap: anywhere;
   display: inline-flex;
   align-items: center;
   gap: var(--space-4);
