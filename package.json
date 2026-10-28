@@ -33,6 +33,7 @@
     "dist:msix-store": "npm run build && electron-builder --win msix --publish never",
     "dist:win": "npm run build && electron-builder --win nsis msi msix",
     "dist:win:dir": "npm run build && electron-builder --win nsis --dir",
+    "test:browser": "node --test tests/browser-address.test.cjs && electron tests/browser.electron.cjs && electron tests/browser-page.electron.cjs",
     "dist:dmg": "npm run build && electron-builder --mac dmg",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:mac:dir": "npm run build && electron-builder --mac --dir",

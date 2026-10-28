@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
 import { EDIT_HELPER_SOURCE } from "./editHelper.js";
+import { resolveAddress } from "./address.cjs";
 import {
   ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
   Search, ChevronUp, ChevronDown,   Pencil, PencilOff, MoreVertical,
@@ -319,6 +320,8 @@ const BrowserPanel = (props) => {
   const [navUrl,       setNavUrl]       = useState(initialUrl);
   const [inputValue,   setInputValue]   = useState(initialUrl);
   const [displayUrl,   setDisplayUrl]   = useState(initialUrl);
+  const liveUrlRef = useRef(initialUrl);
+  const addressDraftRef = useRef(false);
   const [canGoBack,    setCanGoBack]    = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [isLoading,    setIsLoading]    = useState(false);
@@ -351,6 +354,10 @@ const BrowserPanel = (props) => {
   const [findActive,   setFindActive]   = useState(0);
   const [findMatches,  setFindMatches]  = useState(0);
   const [findMatchCase, setFindMatchCase] = useState(false);
+  const [findPending, setFindPending] = useState(false);
+  const findRequestRef = useRef(null);
+  const findSessionRef = useRef(null);
+  const findOpenRef = useRef(false);
   const findInputRef   = useRef(null);
   const findDebounceRef = useRef(null);
   const closeFindRef   = useRef(null);
@@ -401,35 +408,53 @@ const BrowserPanel = (props) => {
   bumpZoomRef.current = bumpZoom;
 
   // ── Find in page helpers (Electron webview.findInPage) ────────────────
-  const runFind = useCallback((text, { forward = true, findNext = false, matchCase = findMatchCase } = {}) => {
+  const runFind = useCallback((text, { forward = true, findNext = true, matchCase = findMatchCase } = {}) => {
+    clearTimeout(findDebounceRef.current);
     const wv = webviewRef.current;
-    if (!wv || !text) return;
+    if (!wv || !text || !findOpenRef.current) return;
+    setFindPending(true);
     try {
-      const r = wv.findInPage(text, { forward, findNext, matchCase });
-      if (r && typeof r.catch === "function") r.catch(() => {});
-    } catch {}
+      const session = JSON.stringify([text, matchCase]);
+      // Electron uses true to start a session and false to move within it.
+      findRequestRef.current = wv.findInPage(text, { forward, findNext: findNext || findSessionRef.current !== session, matchCase });
+      findSessionRef.current = session;
+    } catch { findRequestRef.current = null; setFindPending(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [findMatchCase]);
-  const closeFind = useCallback(() => {
+  const closeFind = useCallback((restoreFocus = false) => {
+    clearTimeout(findDebounceRef.current);
+    findRequestRef.current = null;
+    findSessionRef.current = null;
+    findOpenRef.current = false;
     try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
-    setFindOpen(false); setFindText(""); setFindActive(0); setFindMatches(0);
+    setFindOpen(false); setFindText(""); setFindActive(0); setFindMatches(0); setFindPending(false);
+    if (restoreFocus) webviewRef.current?.focus();
   }, []);
   closeFindRef.current = closeFind;
   const openFind = useCallback(() => {
+    findOpenRef.current = true;
     setFindOpen(true);
     setTimeout(() => { try { findInputRef.current?.focus(); findInputRef.current?.select(); } catch {} }, 60);
   }, []);
   const onFindChange = useCallback((text) => {
+    findRequestRef.current = null;
     setFindText(text);
+    setFindPending(!!text);
     setFindActive(0); setFindMatches(0);
     clearTimeout(findDebounceRef.current);
     if (!text) {
+      findSessionRef.current = null;
       try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
       return;
     }
-    findDebounceRef.current = setTimeout(() => runFind(text, { forward: true, findNext: false }), 120);
+    findDebounceRef.current = setTimeout(() => runFind(text, { forward: true, findNext: true }), 120);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runFind]);
+
+  const focusAddress = useCallback(() => {
+    setBarHidden(false);
+    requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.select(); });
+  }, []);
 
   // ── Shortcut actions (both guest IPC + host keys arrive here) ───
   const runBrowserAction = useCallback((action) => {
@@ -438,7 +463,7 @@ const BrowserPanel = (props) => {
       case "reload":   if (handleReloadRef.current) handleReloadRef.current(); else { try { wv?.reload(); } catch {} } break;
       case "find":     openFind(); break;
       case "focusUrl":
-        try { inputRef.current?.focus(); inputRef.current?.select(); } catch {}
+        focusAddress();
         break;
       case "back":     try { if (wv?.canGoBack()) wv.goBack(); } catch {} break;
       case "forward":  try { if (wv?.canGoForward()) wv.goForward(); } catch {} break;
@@ -459,7 +484,7 @@ const BrowserPanel = (props) => {
         break;
       default: break;
     }
-  }, [openFind]);
+  }, [openFind, focusAddress]);
 
   const syncActionTab = useCallback(() => {
     try {
@@ -819,17 +844,10 @@ const BrowserPanel = (props) => {
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const goToUrl = useCallback((u) => {
-    let fixed = u.trim();
+    const fixed = resolveAddress(u);
     if (!fixed) return;
-    if (/^https?:\/\//i.test(fixed) || fixed.startsWith("ibx-file://") || fixed.startsWith("idiotbox://") || fixed.startsWith("file://") || fixed.startsWith("view-source:")) {
-      // already has scheme
-    } else if (fixed.startsWith("localhost") || fixed.startsWith("127.0.0.1") || /^\d+\.\d+\.\d+\.\d+/.test(fixed)) {
-      fixed = "http://" + fixed;
-    } else if (/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(:\d+)?(\/.*)?$/.test(fixed) || /^[^\s]+\.[^\s]+/.test(fixed)) {
-      fixed = "https://" + fixed;
-    } else {
-      fixed = "https://www.google.com/search?q=" + encodeURIComponent(fixed);
-    }
+    addressDraftRef.current = false;
+    liveUrlRef.current = fixed;
     setNavUrl(fixed); setInputValue(fixed); setDisplayUrl(fixed); setLockOpen(false);
     setLoadError(null); setCrashed(false);
     httpsFallbackAttemptedRef.current = false;
@@ -877,10 +895,17 @@ const BrowserPanel = (props) => {
   }, [goToUrl, displayUrl, navUrl]);
 
   const handleKeyDown = useCallback((e) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter") {
-      goToUrl(inputValue);
+      e.preventDefault();
+      if (e.altKey) {
+        const url = resolveAddress(inputValue);
+        if (url) window.dispatchEvent(new CustomEvent("add-browser-panel", { detail: { url, config: { type: "browser", title: "Browser", url } } }));
+      } else goToUrl(inputValue);
     } else if (e.key === "Escape") {
-      setInputValue(displayUrl);
+      e.preventDefault();
+      addressDraftRef.current = false;
+      setInputValue(liveUrlRef.current);
       inputRef.current?.blur();
     }
   }, [inputValue, displayUrl, goToUrl]);
@@ -1004,8 +1029,10 @@ const BrowserPanel = (props) => {
     wv.addEventListener("found-in-page", (e) => {
       try {
         const r = e.result || {};
+        if (!findOpenRef.current || r.requestId !== findRequestRef.current) return;
         if (typeof r.activeMatchOrdinal === "number") setFindActive(r.activeMatchOrdinal);
         if (typeof r.matches === "number") setFindMatches(r.matches);
+        if (r.finalUpdate) setFindPending(false);
       } catch {}
     });
 
@@ -1031,7 +1058,8 @@ const BrowserPanel = (props) => {
       try { closeFindRef.current?.(); } catch {}
       const cur = wv.getURL();
       if (cur && !cur.startsWith("data:text/html")) {
-        setInputValue(cur);
+        liveUrlRef.current = cur;
+        if (!addressDraftRef.current) setInputValue(cur);
         setDisplayUrl(cur);
         setLoadError(null);
         setCrashed(false);
@@ -1055,7 +1083,8 @@ const BrowserPanel = (props) => {
     wv.addEventListener("did-navigate-in-page", () => {
       const cur = wv.getURL();
       if (cur && !cur.startsWith("data:text/html")) {
-        setInputValue(cur);
+        liveUrlRef.current = cur;
+        if (!addressDraftRef.current) setInputValue(cur);
         setDisplayUrl(cur);
         setLoadError(null);
         setCrashed(false);
@@ -1561,6 +1590,7 @@ const BrowserPanel = (props) => {
   // Cancel shows its own "Cancelled — reverted" toast; the generic
   // "Edit mode OFF" must not overwrite it, hence the flag.
   const skipOffToastRef = useRef(false);
+  const previousEditModeRef = useRef(false);
   useEffect(() => {
     const wv = webviewRef.current;
     const js = `window.__ibxSetEditMode && window.__ibxSetEditMode(${editMode ? "true" : "false"})`;
@@ -1570,7 +1600,8 @@ const BrowserPanel = (props) => {
       try { wv.executeJavaScript(`window.__ibxPendingEditMode=${editMode?"true":"false"}`).catch(()=>{}); } catch {}
     }
     if (editMode) showToast("Edit mode ON — " + EDIT_HINTS, "info");
-    else if (attachedRef.current && !skipOffToastRef.current) showToast("Edit mode OFF", "info");
+    else if (previousEditModeRef.current && attachedRef.current && !skipOffToastRef.current) showToast("Edit mode OFF", "info");
+    previousEditModeRef.current = editMode;
     skipOffToastRef.current = false;
   }, [editMode, showToast]);
 
@@ -1679,6 +1710,7 @@ const BrowserPanel = (props) => {
       } catch { return false; }
     };
     const handler = (e) => {
+      if (e.defaultPrevented || e.isComposing) return;
       if (!isActiveBrowser()) return;
       const wv = webviewRef.current;
       // F12 → Inspect Element / DevTools for this Browser tab
@@ -1688,7 +1720,7 @@ const BrowserPanel = (props) => {
         return;
       }
       // F5 or Ctrl+R → reload (or retry failed URL if error page)
-      if (e.key === "F5" || ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "r")) {
+      if ((e.key === "F5" && !e.ctrlKey && !e.metaKey && !e.shiftKey) || ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "r")) {
         e.preventDefault();
         handleReload();
         return;
@@ -1713,7 +1745,7 @@ const BrowserPanel = (props) => {
       // Ctrl+L / Alt+D → focus URL bar
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l" || (e.altKey && e.key.toLowerCase() === "d")) {
         e.preventDefault();
-        try { inputRef.current?.focus(); inputRef.current?.select(); } catch {}
+        focusAddress();
         return;
       }
       // Escape → stop loading (skip while edit mode is on so guest Esc-cancel wins)
@@ -1742,7 +1774,7 @@ const BrowserPanel = (props) => {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isLoading, setZoomExact, handleReload, handleHardReload, runBrowserAction]);
+  }, [isLoading, setZoomExact, handleReload, handleHardReload, runBrowserAction, focusAddress]);
 
   // ── Lock popup ─────────────────────────────────────────────────────────────
   const handleLockClick = useCallback((e) => {
@@ -1989,14 +2021,17 @@ const BrowserPanel = (props) => {
               ref={inputRef}
               className="browser__url"
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              aria-label="Browser address"
+              placeholder="Search or enter address"
+              title="Enter to open · Alt+Enter for a new tab · :3000 for localhost"
+              onChange={(e) => { addressDraftRef.current = true; setInputValue(e.target.value); }}
               onKeyDown={handleKeyDown}
               spellCheck={false}
               onFocus={(e) => {
                 setFocused(true);
                 try { e.target.select(); } catch {}
               }}
-              onBlur={() => { setFocused(false); setLockOpen(false); }}
+              onBlur={() => { addressDraftRef.current = false; setInputValue(liveUrlRef.current); setFocused(false); setLockOpen(false); }}
             />
           </div>
 
@@ -2159,51 +2194,53 @@ const BrowserPanel = (props) => {
           <div
             className="browser__findbar"
             style={{
-              display: "flex", alignItems: "center", gap: 4,
+              display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4,
               background: "var(--bg-vscode)", border: "1px solid var(--border-strong)",
               borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-pop)",
-              padding: "4px 6px", maxWidth: "min(360px, 80%)",
+              padding: "4px 6px", width: 360, maxWidth: "calc(100% - 16px)", right: 8,
             }}
-            onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); closeFind(); } }}
+            onKeyDown={(e) => { if (e.key === "Escape" && !e.nativeEvent.isComposing) { e.preventDefault(); e.stopPropagation(); closeFind(true); } }}
           >
             <input
               ref={findInputRef}
               value={findText}
               onChange={(e) => onFindChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); runFind(findText, { forward: !e.shiftKey, findNext: true }); }
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); runFind(findText, { forward: !e.shiftKey, findNext: false }); }
               }}
               placeholder="Find in page"
               spellCheck={false}
               style={{
-                flex: 1, minWidth: 0,
+                flex: "1 1 90px", minWidth: 60,
                 background: "var(--bg-surface)", border: "1px solid var(--border-strong)",
                 borderRadius: "var(--radius-sm)", color: "var(--text-hover)",
                 fontSize: "var(--fs-body)", padding: "4px 8px", outline: "none",
               }}
               aria-label="Find in page"
             />
-            <span style={{ fontSize: "var(--fs-small)", color: "var(--text-disabled)", minWidth: 40, textAlign: "right", userSelect: "none" }}>
-              {findText ? `${findActive}/${findMatches}` : ""}
+            <span role="status" style={{ fontSize: "var(--fs-small)", color: "var(--text-secondary)", minWidth: 54, textAlign: "right", userSelect: "none" }}>
+              {findText ? findPending ? "Searching…" : findMatches ? `${findActive}/${findMatches}` : "No matches" : ""}
             </span>
             <button
               className="browser__btn" title={findMatchCase ? "Match case: on" : "Match case: off"}
+              aria-label="Match case"
+              aria-pressed={findMatchCase}
               onClick={() => {
                 const next = !findMatchCase;
                 setFindMatchCase(next);
-                if (findText) runFind(findText, { forward: true, findNext: false, matchCase: next });
+                if (findText) runFind(findText, { forward: true, findNext: true, matchCase: next });
               }}
               style={findMatchCase ? { background: "var(--select-blue)", color: "var(--text-inverse)" } : undefined}
             >
               <span style={{ fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)" }}>Aa</span>
             </button>
-            <button className="browser__btn" title="Previous (Shift+Enter)" onClick={() => runFind(findText, { forward: false, findNext: true })}>
+            <button className="browser__btn" title="Previous (Shift+Enter)" aria-label="Previous match" disabled={!findText || findPending || !findMatches} onClick={() => runFind(findText, { forward: false, findNext: false })}>
               <ChevronUp size={14} />
             </button>
-            <button className="browser__btn" title="Next (Enter)" onClick={() => runFind(findText, { forward: true, findNext: true })}>
+            <button className="browser__btn" title="Next (Enter)" aria-label="Next match" disabled={!findText || findPending || !findMatches} onClick={() => runFind(findText, { forward: true, findNext: false })}>
               <ChevronDown size={14} />
             </button>
-            <button className="browser__btn" title="Close (Esc)" onClick={closeFind}>✕</button>
+            <button className="browser__btn" title="Close (Esc)" aria-label="Close find" onClick={() => closeFind(true)}>✕</button>
           </div>
         )}
         {/* Edit mode overlay hint when bar hidden */}
