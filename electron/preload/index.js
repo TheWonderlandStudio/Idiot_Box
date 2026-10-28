@@ -82,7 +82,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDefaultLocation: () => ipcRenderer.invoke("dialog:getDefaultLocation"),
   showAppMenu: (id)    => ipcRenderer.invoke("menu:popup", id),
   readDir:     (dir)   => ipcRenderer.invoke("fs:readDir",    dir),
-  readDirAll:  (dir)   => ipcRenderer.invoke("fs:readDirAll", dir),
+  readDirAll:  (dir, options) => ipcRenderer.invoke("fs:readDirAll", dir, options),
   stat:        (p)     => ipcRenderer.invoke("fs:stat",       p),
   findFiles:   (rootPath, query, limit) => ipcRenderer.invoke("fs:findFiles", rootPath, query, limit),
   searchText:  (rootPath, query, limit) => ipcRenderer.invoke("fs:searchText", rootPath, query, limit),

@@ -25,6 +25,7 @@
     "test": "echo \"No tests configured\"",
     "lint": "echo \"No linter configured\"",
     "start": "npm run build && electron .",
+    "test:project-files": "electron tests/project-files.electron.cjs",
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:exe": "npm run build && electron-builder --win nsis",
