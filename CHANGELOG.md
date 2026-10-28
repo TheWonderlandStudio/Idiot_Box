@@ -3,7 +3,7 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
-## [0.1.29] - 2026-10-27
+## [0.1.30] - 2026-10-28
 
 ### Added
 - **Project-wide search & replace** - `Ctrl+Shift+F` opens a search overlay with
@@ -12,7 +12,7 @@ Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idi
 - **Editable keybindings** - every command is listed under Settings →
   Keybindings with shortcut recording, conflict detection and reset. Overrides
   persist in `settings.json` and rebuild the native menu accelerators, so the
-  same binding works in the editor, terminal and menus.
+  same binding works in the editor, terminal, Git menu commands and menus.
 - **Local history** - per-file snapshots are written under userData on save,
   live edit and replace, and can be previewed or restored from the Local
   History panel without adding files to the project.
@@ -25,11 +25,33 @@ Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idi
   streamed output and pass/fail summaries, and hands tests to the debugger.
 - **SQLite database manager** - browse tables, run queries and edit rows from
   an editor tab.
+- **Taskbar jump list** - right-click the Windows taskbar button for New
+  Window, New Project, Open Project and Close Current Project; the task is
+  handled by the running window (or queued until the renderer is ready).
+- **Browser panel for MCP clients** - MCP clients can list, open and drive the
+  IDE browser panel.
 - **Also in this release** - CSV/TSV preview, workspace layout presets,
-  multi-session terminal, browser URL persistence and clearer OpenCode server
-  errors.
+  multi-session terminal, browser URL persistence and F12 devtools, project
+  sidebar multi-select, and clearer OpenCode server errors with last-session
+  resume on a stable port.
+
+### Changed
+- **Titlebar polish** - the Run/Stop control is aligned with the titlebar, the
+  browser bar is more compact, and the Run dropdown renders in a portal so it
+  is no longer clipped.
+- **Dev profile isolation** - `npm start` uses a separate Chromium session
+  folder, so a dev build and an installed build can run at the same time
+  without cache/service-worker corruption. Settings, projects and layouts stay
+  shared.
 
 ### Fixed
+- **Run button reliability** - Run/Stop now reflects live runs even when the
+  Run panel is closed, rehydrates running PTYs after the panel remounts, waits
+  for project config detection before auto-run, stays bound to the active
+  project and stops the newest PTY. Chained setup runs also clear the Stop
+  state.
+- **Stale editor tab icons** - switching files in a reused tab no longer shows
+  the previous file's icon, and icon fetches are cancellation-safe.
 - **Node debug sessions now end naturally** - when the program finishes, the
   inspector is closed so Node no longer hangs at "Waiting for the debugger to
   disconnect..."; the real exit code is reported and the session disappears
