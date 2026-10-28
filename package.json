@@ -20,6 +20,7 @@
     "build:preload": "node build/build-preload.cjs",
     "build:renderer": "node build/build-renderer.cjs",
     "build:settings": "esbuild electron/renderer/settings-entry.jsx --bundle --outfile=electron/renderer/settings-bundle.js --platform=browser --loader:.css=css --loader:.jsx=jsx",
+    "test:output": "electron tests/output.electron.cjs",
     "build:icons": "node build/generate-icons.cjs",
     "build": "npm run build:ai-css && npm run build:preload && npm run build:renderer && npm run build:settings",
     "test": "echo \"No tests configured\"",
