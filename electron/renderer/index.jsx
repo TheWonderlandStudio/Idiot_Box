@@ -49,6 +49,7 @@ import LocalHistoryPanel from "./components/LocalHistory/index.jsx";
 import TestExplorer from "./components/TestExplorer/index.jsx";
 import DebuggerPanel from "./components/Debugger/index.jsx";
 import { getActiveEditorPath } from "./components/Editor/shared.js";
+import { createClosedEditorHistory, closedEditorSnapshot, relativeProjectPath, findOpenEditor } from "./components/shared/editorTabs.cjs";
 import { ExtStatusItems, ExtToasts } from "./components/Extensions/Host.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 import {
@@ -1257,6 +1258,9 @@ const App = () => {
   const currentProjectRef = useRef(null);
   const saveTabsTimer     = useRef(null);
   const lastBrowserTabsetRef = useRef(null);
+  const closedEditorsRef = useRef(createClosedEditorHistory());
+  const reopeningEditorRef = useRef(false);
+  const requestEditorCloseRef = useRef(null);
   const [hasProject, setHasProject] = useState(false);
   // Current project's layout mode — "blank" (one of Create Project's 2 buttons)
   const projectLayoutRef = useRef(null);
@@ -1423,6 +1427,74 @@ const App = () => {
     clearTimeout(saveTabsTimer.current);
     saveTabsTimer.current = setTimeout(doSaveProjectTabs, 600);
   };
+
+  // Observe actual deletions, including context-menu closes. A cancelled
+  // close never removes a model node and must never enter the recovery history.
+  useEffect(() => {
+    const root = currentProjectRef.current;
+    const history = closedEditorsRef.current;
+    history.setProject(root);
+    const m = modelRef.current;
+    if (!m || !hasProject) return;
+    const pending = new Map();
+    const listener = {
+      onBeforeAction(action) {
+        if (action.type !== Actions.DELETE_TAB) return;
+        const snapshot = closedEditorSnapshot(m.getNodeById(action.data.node));
+        if (snapshot) pending.set(action, snapshot);
+      },
+      onAfterAction(action) {
+        const snapshot = pending.get(action);
+        pending.delete(action);
+        if (snapshot && currentProjectRef.current === root && !m.getNodeById(action.data.node)) {
+          history.remember(snapshot);
+          scheduleSaveProjectTabs();
+        }
+      },
+    };
+    m.addChangeListener(listener);
+    return () => m.removeChangeListener(listener);
+  }, [tick, hasProject]);
+
+  useEffect(() => {
+    const reopen = async () => {
+      if (reopeningEditorRef.current) return;
+      const m = modelRef.current;
+      const root = currentProjectRef.current;
+      const history = closedEditorsRef.current;
+      const entry = history.peek();
+      if (!root || !m || !entry) { showLayoutToast("No recently closed editors in this project."); return; }
+      reopeningEditorRef.current = true;
+      try {
+        const filePath = entry.tab.config.filePath;
+        const stat = await window.electronAPI.stat(filePath);
+        // A project switch while stat is pending must not open a tab there.
+        if (modelRef.current !== m || currentProjectRef.current !== root) return;
+        if (!stat?.exists || stat.isDir) {
+          history.remove(entry);
+          showLayoutToast("The closed file is no longer available.");
+          return;
+        }
+        const existing = findOpenEditor(m, filePath);
+        if (existing) m.doAction(Actions.selectTab(existing.getId()));
+        else {
+          const previous = m.getNodeById(entry.parentId);
+          const parent = ["tabset", "border"].includes(previous?.getType?.())
+            ? previous : findEditorTabset(m.getRoot()) || m.getActiveTabset() || m.getFirstTabSet();
+          if (!parent) return;
+          const tab = m.doAction(Actions.addNode(entry.tab, parent.getId(), DockLocation.CENTER, entry.index, true));
+          if (!tab) return;
+        }
+        history.remove(entry);
+        forceLayoutRedraw(m);
+        scheduleSaveProjectTabs();
+      } catch { showLayoutToast("Could not reopen the closed editor."); }
+      finally { reopeningEditorRef.current = false; }
+    };
+    const off = window.electronAPI.onMenuEvent("menu:reopenClosedEditor", reopen);
+    window.addEventListener("editor:reopenClosed", reopen);
+    return () => { off(); window.removeEventListener("editor:reopenClosed", reopen); };
+  }, []);
 
   // Save the current project's layout/tab data immediately when the window closes
   // (the 600ms debounce is a best-effort backup).
@@ -2579,26 +2651,28 @@ const App = () => {
     };
   }, []);
 
-  // ── Fix Ctrl+W: only close project, never close window/app ───
+  // Native Close Editor uses the same unsaved-change guard as the tab button.
   useEffect(() => {
+    const closeEditor = () => {
+      const m = modelRef.current;
+      const tab = m?.getActiveTabset?.()?.getSelectedNode?.();
+      if (tab && ["editor", "notebook"].includes(tab.getComponent?.())) requestEditorCloseRef.current?.(tab.getId());
+    };
+    const off = window.electronAPI.onMenuEvent("menu:closeEditor", closeEditor);
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && String(e.key || "").toLowerCase() === "w" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         e.stopPropagation();
         if (typeof e.stopImmediatePropagation === "function") try { e.stopImmediatePropagation(); } catch {}
-        try {
-          // Mimic handleClose: clear current project and notify
-          currentProjectRef.current = null;
-          window.__currentProjectPath = null;
-          setHasProject(false);
-          window.dispatchEvent(new CustomEvent("project:closed"));
-        } catch {}
+        // Electron's menu accelerator performs the close. Suppress Chromium's
+        // window-close fallback without dispatching a second tab close.
         return false;
       }
     };
     window.addEventListener("keydown", handler, true);
     document.addEventListener("keydown", handler, true);
     return () => {
+      off();
       window.removeEventListener("keydown", handler, true);
       document.removeEventListener("keydown", handler, true);
     };
@@ -3197,6 +3271,11 @@ const App = () => {
     return action;
   };
 
+  requestEditorCloseRef.current = (nodeId) => {
+    const action = handleLayoutAction(Actions.deleteTab(nodeId));
+    if (action) modelRef.current?.doAction(action);
+  };
+
   // Layouts dropdown: deep-copy snapshot of the current panel arrangement.
   const getLayoutSnapshot = () => {
     try {
@@ -3356,6 +3435,10 @@ const App = () => {
               try { m.doAction(Actions.popoutTab(tabId, "float")); } catch {}
             }
             else if (action === "copyPath" && filePath) window.electronAPI?.clipboardWrite?.(filePath);
+            else if (action === "copyRelativePath" && filePath) {
+              const relative = relativeProjectPath(filePath, currentProjectRef.current);
+              if (relative) window.electronAPI?.clipboardWrite?.(relative);
+            }
             else if (action === "reveal" && filePath) window.electronAPI?.revealInExplorer?.(filePath);
             else if (action === "moveCenter") {
               // Border tab → back into the main layout (editor tabset).
@@ -3420,6 +3503,7 @@ const App = () => {
               canFloat: node.isEnableFloat?.() !== false,
               inBorder: node.getParent?.()?.getType?.() === "border",
               filePath,
+              canCopyRelativePath: !!relativeProjectPath(filePath, currentProjectRef.current),
             });
             if (result?.action === "refresh") {
               const evt = isOpenPencil ? "openpencil:refresh" : "browser:refresh";

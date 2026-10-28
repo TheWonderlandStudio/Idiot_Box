@@ -3867,7 +3867,7 @@ ipcMain.handle("browser:tabContextMenu", (event) => {
 });
 
 // ─── FlexLayout tab context menu ────────────────────────────────────────────
-ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, canPopout = false, canFloat = false, inBorder = false, filePath = null } = {}) => {
+ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = false, isBrowser = false, canRefresh = false, canPopout = false, canFloat = false, inBorder = false, filePath = null, canCopyRelativePath = false } = {}) => {
   return new Promise((resolve) => {
     const act = (action) => resolve({ action });
     const sep = { type: "separator" };
@@ -3900,6 +3900,7 @@ ipcMain.handle("tab:contextMenu", (event, { canClose = true, canDuplicate = fals
     if (filePath) {
       items.push(sep);
       items.push({ label: "Copy Path", click: () => act("copyPath") });
+      if (canCopyRelativePath) items.push({ label: "Copy Relative Path", click: () => act("copyRelativePath") });
       items.push({ label: "Reveal in File Explorer", click: () => act("reveal") });
     }
     try {
@@ -6592,7 +6593,8 @@ function buildMenu() {
         { label: "Save All",        accelerator: kb("saveAll", "CmdOrCtrl+Alt+S"),      click: () => sendToRenderer("menu:saveFile", null) },
         { label: "Auto Save", type: "checkbox", checked: autoSaveEnabled, click: (item) => { autoSaveEnabled = item.checked; sendToRenderer("menu:toggleAutoSave", item.checked); } },
         { type: "separator" },
-        { label: "Close Editor",    accelerator: kb("closeEditor", "CmdOrCtrl+W"), click: () => sendToRenderer("menu:closeProject", null) },
+        { label: "Close Editor",    accelerator: kb("closeEditor", "CmdOrCtrl+W"), click: () => sendToRenderer("menu:closeEditor", null) },
+        { label: "Reopen Closed Editor", accelerator: kb("reopenClosedEditor", "CmdOrCtrl+Shift+T"), click: () => sendToRenderer("menu:reopenClosedEditor", null) },
         { label: "Close Project", click: () => { lastProjectPath = null; sendToRenderer("menu:closeProject", null); } },
         { type: "separator" },
         { label: "New Window", accelerator: kb("newWindow", "CmdOrCtrl+Shift+N"), click: () => createWindow() },
