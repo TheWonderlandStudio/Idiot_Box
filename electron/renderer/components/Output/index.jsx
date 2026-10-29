@@ -9,6 +9,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Copy } from "lucide-react";
 import "@xterm/xterm/css/xterm.css";
 import { cssVar } from "../shared/theme.js";
 
@@ -175,6 +176,34 @@ if (typeof window !== "undefined" && !window.__outputLog) {
   hookErrors();
 }
 
+// Keep one bridge for the renderer's lifetime, including while the view is closed.
+if (typeof window !== "undefined" && !window.__outputBridgeInstalled && window.electronAPI?.onOutputLog) {
+  try {
+    window.electronAPI.onOutputLog((entry) => {
+      if (!entry?.channel) return;
+      if (entry.clear) window.__outputClear(entry.channel);
+      else if (typeof entry.message !== "undefined") window.__outputLog(entry.channel, entry.message, entry.level || "info", {
+        extName: entry.extName || entry.label || "", label: entry.label || entry.extName || "",
+        reveal: !!entry.reveal, ensureOnly: !!entry.ensureOnly,
+      });
+    });
+    window.__outputBridgeInstalled = true;
+  } catch {}
+}
+
+const terminalText = (term) => {
+  const buffer = term.buffer.active;
+  const rows = [];
+  for (let i = 0; i < buffer.length; i++) {
+    const line = buffer.getLine(i);
+    const text = line.translateToString(!buffer.getLine(i + 1)?.isWrapped);
+    if (line.isWrapped && rows.length) rows[rows.length - 1] += text;
+    else rows.push(text);
+  }
+  while (rows.at(-1) === "") rows.pop();
+  return rows.join("\n");
+};
+
 const fmtTime = (ts) => {
   try {
     const d = new Date(ts);
@@ -256,8 +285,13 @@ const OutputPanel = () => {
   });
   const [extList, setExtList] = useState([]);
   const extListRef = useRef([]);
-  useEffect(() => { extListRef.current = extList; }, [extList]);
   const [stick, setStick] = useState(true); // autoscroll lock
+  const manualPauseRef = useRef(false);
+  const [copying, setCopying] = useState(false);
+  const [copyNotice, setCopyNotice] = useState("");
+  const noticeTimerRef = useRef(null);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; clearTimeout(noticeTimerRef.current); }; }, []);
   const channelRef = useRef(channel);
   useEffect(() => { channelRef.current = channel; }, [channel]);
   // ── xterm refs ──
@@ -295,6 +329,8 @@ const OutputPanel = () => {
     } catch {}
   }, []);
 
+  useEffect(() => { extListRef.current = extList; refreshChannels(); }, [extList, refreshChannels]);
+
   // Drain buffer on mount + live updates (local event + main bridge)
   useEffect(() => {
     const normWant = (w) => {
@@ -311,6 +347,8 @@ const OutputPanel = () => {
       if (want && channelRef.current !== want) {
         channelRef.current = want;
         setChannel(want);
+        manualPauseRef.current = false;
+        stickRef.current = true;
         setStick(true);
         setLines([...(window.__outputBuffer?.[want] || [])]);
       } else {
@@ -326,6 +364,8 @@ const OutputPanel = () => {
           window.__outputWantChannel = want;
           channelRef.current = want;
           setChannel(want);
+          manualPauseRef.current = false;
+          stickRef.current = true;
           setStick(true);
           setLines([...(window.__outputBuffer?.[want] || [])]);
           refreshChannels();
@@ -342,7 +382,8 @@ const OutputPanel = () => {
     };
     const refresh = (e) => {
       try {
-        // reset the rendered cursor if cleared (handled by the sync effect below)
+        if (!window.__outputBuffer?.[channelRef.current]?.length ||
+            (e?.detail?.cleared && e.detail.channel === channelRef.current)) renderedRef.current.needsReset = true;
         setLines([...(window.__outputBuffer?.[channelRef.current] || [])]);
       } catch {}
       refreshChannels();
@@ -369,39 +410,11 @@ const OutputPanel = () => {
     window.addEventListener("add-output-panel", onAdd);
     let unExt = null;
     try { unExt = window.electronAPI?.onExtChanged?.(() => loadExts()); } catch {}
-    let unsub = null;
-    try {
-      unsub = window.electronAPI?.onOutputLog?.((entry) => {
-        try {
-          if (!entry || !entry.channel) return;
-          // clear request (createOutputChannel().clear() from main)
-          if (entry.clear) {
-            try { window.__outputLog(entry.channel, "", "info", { clear: true }); } catch {}
-            if (entry.channel === channelRef.current) {
-              renderedRef.current = { channel: entry.channel, lastId: 0, crLen: 0 };
-              try { termRef.current?.clear(); } catch {}
-            }
-            refreshChannels();
-            return;
-          }
-          if (typeof entry.message !== "undefined") {
-            window.__outputLog(entry.channel, entry.message, entry.level || "info", {
-              extId: entry.extId || "",
-              extName: entry.extName || entry.label || "",
-              label: entry.label || entry.extName || "",
-              reveal: !!entry.reveal,
-              ensureOnly: !!entry.ensureOnly,
-            });
-          }
-        } catch {}
-      });
-    } catch {}
     return () => {
       window.removeEventListener("output:log", refresh);
       window.removeEventListener("output:switchChannel", onSwitch);
       window.removeEventListener("add-output-panel", onAdd);
       try { unExt?.(); } catch {}
-      try { unsub?.(); } catch {}
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -416,6 +429,7 @@ const OutputPanel = () => {
     try {
       term = new Terminal({
         cursorBlink: false,
+        disableStdin: true,
         fontFamily: "Consolas, 'Courier New', Courier, monospace",
         fontSize: 12,
         lineHeight: 1.2,
@@ -453,7 +467,7 @@ const OutputPanel = () => {
       term.onScroll(() => {
         try {
           const buf = term.buffer.active;
-          const atBottom = buf.viewportY >= buf.baseY;
+          const atBottom = buf.viewportY >= buf.baseY && !manualPauseRef.current;
           if (stickRef.current !== atBottom) {
             stickRef.current = atBottom;
             setStick(atBottom);
@@ -521,11 +535,19 @@ const OutputPanel = () => {
     try {
       const r = renderedRef.current;
       const list = lines.slice(-MAX_LINES);
-      if (r.channel !== channel) {
-        try { term.clear(); } catch {}
+      if (r.channel !== channel || r.needsReset || (!list.length && r.lastId)) {
+        // Queue a full reset with the writes so earlier pending output cannot reappear.
+        term.write("\x1bc");
+        if (r.channel !== channel) {
+          manualPauseRef.current = false;
+          stickRef.current = true;
+          setStick(true);
+          setCopyNotice("");
+        }
         r.channel = channel;
         r.lastId = 0;
         r.crLen = 0;
+        r.needsReset = false;
       }
       for (const l of list) {
         if (!l || typeof l.id !== "number" || l.id <= r.lastId) continue;
@@ -556,7 +578,10 @@ const OutputPanel = () => {
     try {
       const fn = window.__normalizeOutputChannel;
       const norm = fn ? fn(ch) : ch;
+      channelRef.current = norm;
       setChannel(norm);
+      manualPauseRef.current = false;
+      stickRef.current = true;
       setStick(true);
       try { setLines([...(window.__outputBuffer?.[norm] || [])]); } catch { setLines([]); }
       // Show a newly opened ext channel in the dropdown immediately.
@@ -568,26 +593,53 @@ const OutputPanel = () => {
         setAllChannels((prev) => (prev.includes(norm) ? prev : [...prev, norm]));
       } catch {}
     } catch {
+      channelRef.current = ch;
       setChannel(ch);
+      manualPauseRef.current = false;
+      stickRef.current = true;
       setStick(true);
     }
   }, []);
 
   const clearChannel = useCallback(() => {
-    try {
-      if (window.__outputBuffer) window.__outputBuffer[channel] = [];
-      setLines([]);
-      renderedRef.current = { channel, lastId: 0, crLen: 0 };
-      try { termRef.current?.clear(); } catch {}
-    } catch {}
+    window.__outputClear(channel);
   }, [channel]);
+
+  const toggleFollow = () => {
+    const next = !stickRef.current;
+    manualPauseRef.current = !next;
+    stickRef.current = next;
+    setStick(next);
+    if (next) termRef.current?.scrollToBottom();
+  };
+
+  const copyOutput = async () => {
+    const term = termRef.current, selectedChannel = channelRef.current;
+    if (!term || copying) return;
+    setCopying(true);
+    try {
+      const text = await new Promise((resolve) => term.write("", () => resolve(terminalText(term))));
+      if (!mountedRef.current || channelRef.current !== selectedChannel) return;
+      if (window.electronAPI?.clipboardWrite) await window.electronAPI.clipboardWrite(text);
+      else await navigator.clipboard.writeText(text);
+      if (mountedRef.current && channelRef.current === selectedChannel) setCopyNotice("Copied output.");
+    } catch {
+      if (mountedRef.current && channelRef.current === selectedChannel) setCopyNotice("Could not copy output. Select the text and try again.");
+    } finally {
+      if (mountedRef.current) {
+        setCopying(false);
+        clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = setTimeout(() => setCopyNotice(""), 2500);
+      }
+    }
+  };
 
   const errCount = lines.filter((l) => l.level === "error").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-surface)", color: "var(--text-bright)", fontFamily: "sans-serif", overflow: "hidden" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-12)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-12)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0 }}>
         <span style={{ display: "flex", alignItems: "center", color: "var(--icon)" }}>
           <OutputIcon size={14} />
         </span>
@@ -595,6 +647,7 @@ const OutputPanel = () => {
         <select
           className="output-panel-select"
           value={channel}
+          aria-label="Output channel"
           onChange={(e) => switchChannel(e.target.value)}
           title="Channel — each extension has its own output"
           style={{
@@ -602,6 +655,7 @@ const OutputPanel = () => {
             border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)",
             fontSize: "var(--fs-small)", padding: "var(--space-2) var(--space-6)", cursor: "pointer",
             maxWidth: 200,
+            minWidth: 60, flex: "1 1 100px",
           }}
         >
           <optgroup label="Core">
@@ -627,9 +681,11 @@ const OutputPanel = () => {
         <span style={{ fontSize: "var(--fs-tiny)", background: "var(--bg-active)", color: "var(--icon)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)" }}>
           {lines.length}{lines.length >= MAX_LINES ? "+" : ""}
         </span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-4)" }}>
+        <div style={{ marginLeft: "auto", display: "flex", flexShrink: 0, gap: "var(--space-4)" }}>
           <button
-            onClick={() => setStick((v) => !v)}
+            onClick={toggleFollow}
+            aria-label="Follow output"
+            aria-pressed={stick}
             title={stick ? "Autoscroll on — click to lock" : "Autoscroll off — click to follow"}
             style={{
               background: stick ? "var(--select-blue)" : "transparent",
@@ -639,6 +695,10 @@ const OutputPanel = () => {
             }}
           >
             Follow
+          </button>
+          <button onClick={copyOutput} disabled={!lines.length || copying} aria-label={`Copy ${channel} output`} title={`Copy ${channel} output`}
+            style={{ display: "flex", alignItems: "center", background: "transparent", border: "1px solid var(--border-light)", color: "var(--icon)", padding: "var(--space-2) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer", opacity: !lines.length || copying ? 0.5 : 1 }}>
+            <Copy size={13} />
           </button>
           <button
             onClick={clearChannel}
@@ -652,6 +712,7 @@ const OutputPanel = () => {
           </button>
         </div>
       </div>
+      {copyNotice && <div role="status" style={{ padding: "var(--space-4) var(--space-12)", fontSize: "var(--fs-small)", color: "var(--text-secondary)", flexShrink: 0 }}>{copyNotice}</div>}
 
       {/* Body — xterm.js log view */}
       <div style={{ flex: 1, minHeight: 0, position: "relative", background: "var(--bg-surface)" }}>
@@ -661,7 +722,7 @@ const OutputPanel = () => {
             <div>
               No output yet — {(() => { try { return window.__outputChannelLabel ? window.__outputChannelLabel(channel) : channel; } catch { return channel; } })()}
               <div style={{ fontSize: "var(--fs-small)", marginTop: "var(--space-8)", color: "var(--text-placeholder)" }}>
-                Core + a separate channel per extension — pick an extension from the dropdown. Log from an extension: ibox.log() / createOutputChannel()
+                Choose a channel to view its logs. New messages appear here automatically.
               </div>
             </div>
           </div>
