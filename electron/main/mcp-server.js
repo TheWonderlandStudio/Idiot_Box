@@ -3,17 +3,38 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
+const { parse, modify, applyEdits } = require("jsonc-parser");
 
-function setMcpServer(config, name, entry) {
-  if (!config.mcp || typeof config.mcp !== "object" || Array.isArray(config.mcp)) config.mcp = {};
-  if (!config.mcp.servers || typeof config.mcp.servers !== "object" || Array.isArray(config.mcp.servers)) {
-    config.mcp.servers = {};
+const isConfigObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
+function updateOpenCodeConfig(file, entry, instructions) {
+  const raw = fs.existsSync(file)
+    ? fs.readFileSync(file, "utf8")
+    : JSON.stringify({ "$schema": "https://opencode.ai/config.json" }, null, 2);
+  const errors = [];
+  const config = parse(raw, errors, { allowTrailingComma: true });
+  if (errors.length || !isConfigObject(config)) {
+    throw new Error("Existing configuration is not a valid JSONC object; left unchanged.");
   }
-  config.mcp.servers[name] = entry;
-  // OpenCode 1.19+ reads mcp.servers. Remove the deprecated V1 shape for this
-  // server so the same endpoint is not registered twice.
-  if (config.mcp[name]) delete config.mcp[name];
-  return config;
+  if ((config.mcp !== undefined && !isConfigObject(config.mcp)) ||
+      (config.mcp?.servers !== undefined && !isConfigObject(config.mcp.servers)) ||
+      (instructions && config.instructions !== undefined &&
+        (!Array.isArray(config.instructions) || config.instructions.some((item) => typeof item !== "string")))) {
+    throw new Error("Existing connection or instruction settings have an invalid shape; left unchanged.");
+  }
+
+  // Edit only the integration's keys; preserve comments and unrelated settings.
+  let next = raw;
+  const set = (keys, value) => {
+    next = applyEdits(next, modify(next, keys, value, {
+      formattingOptions: { insertSpaces: true, tabSize: 2, eol: raw.includes("\r\n") ? "\r\n" : "\n" },
+    }));
+  };
+  set(["mcp", "servers", "idiot-box"], entry);
+  // Remove only this integration's deprecated V1 entry.
+  if (Object.prototype.hasOwnProperty.call(config.mcp || {}, "idiot-box")) set(["mcp", "idiot-box"], undefined);
+  if (instructions) set(["instructions"], [...new Set([...(config.instructions || []), ...instructions])]);
+  if (next !== raw) fs.writeFileSync(file, next, "utf8");
 }
 
 function syncOpenCodeConfig(mcpUrl, workspace) {
@@ -40,18 +61,7 @@ function syncOpenCodeConfig(mcpUrl, workspace) {
     const jsonPath = path.join(configDir, "opencode.json");
     const targetFile = fs.existsSync(jsonPath) && !fs.existsSync(jsoncPath) ? jsonPath : jsoncPath;
 
-    let config = { "$schema": "https://opencode.ai/config.json" };
-    if (fs.existsSync(targetFile)) {
-      try {
-        const raw = fs.readFileSync(targetFile, "utf8");
-        const stripped = raw.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
-        config = JSON.parse(stripped);
-      } catch {}
-    }
-    config.mcp = config.mcp || {};
-    setMcpServer(config, "idiot-box", mcpEntry);
-    config.instructions = instructions;
-    fs.writeFileSync(targetFile, JSON.stringify(config, null, 2), "utf8");
+    updateOpenCodeConfig(targetFile, mcpEntry, instructions);
   } catch (err) {
     console.warn("[mcp] global OpenCode config sync failed:", err && err.message);
   }
@@ -61,15 +71,9 @@ function syncOpenCodeConfig(mcpUrl, workspace) {
       const opencodeDir = path.join(workspace, ".opencode");
       if (fs.existsSync(opencodeDir)) {
         const projConfigPath = path.join(opencodeDir, "opencode.json");
-        let projConfig = {};
-        if (fs.existsSync(projConfigPath)) {
-          try { projConfig = JSON.parse(fs.readFileSync(projConfigPath, "utf8")); } catch {}
-        }
-        projConfig.mcp = projConfig.mcp || {};
-        setMcpServer(projConfig, "idiot-box", mcpEntry);
-        fs.writeFileSync(projConfigPath, JSON.stringify(projConfig, null, 2), "utf8");
+        updateOpenCodeConfig(projConfigPath, mcpEntry);
       }
-    } catch {}
+    } catch (err) { console.warn("[mcp] project OpenCode config sync failed:", err && err.message); }
   }
 }
 
