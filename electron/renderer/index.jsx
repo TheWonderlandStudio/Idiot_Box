@@ -3233,7 +3233,7 @@ const App = () => {
 
   if (!hasProject) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
+      <div className="app-shell">
         <UpdaterBanner />
         <TitlebarLogoMenu hasProject={false} />
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
@@ -3246,7 +3246,7 @@ const App = () => {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw", background: "var(--bg-app)" }}>
+    <div className="app-shell">
       <UpdaterBanner />
       <TitlebarLogoMenu hasProject={hasProject} />
       {titlebarHost && createPortal(
@@ -3257,7 +3257,7 @@ const App = () => {
         titlebarHost
       )}
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div className="app-workspace">
         <Layout
       ref={layoutRef}
       model={modelRef.current}

@@ -16,6 +16,30 @@ body,
   background: var(--bg-app);
 }
 
+/* Fit the space below the native titlebar, including its platform height. */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+/* FlexLayout is absolutely positioned. Keep its panels and drag overlays
+   inside the workspace rather than the titlebar container or status bar. */
+.app-workspace {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  -webkit-app-region: no-drag;
+}
+
 /* ── App-wide custom scrollbars (single UI everywhere) ────────────────── */
 * {
   scrollbar-width: thin;
@@ -193,13 +217,8 @@ body,
   pointer-events: auto !important;
   cursor: pointer !important;
 }
-/* CET titlebar is an absolute overlay (top 30px) while .cet-container takes
-   full-viewport height with no top offset — result: the titlebar sits over
-   the content and the layout shifts down, clipping at the bottom. Start the
-   container below the titlebar so the app takes exactly the remaining height. */
-.cet-container {
-  top: 30px !important;
-}
+/* The titlebar library owns .cet-container's top offset, including fullscreen
+   and platform-specific titlebar heights. */
 .cet-menubar-menu-button:hover {
   background: var(--bg-hover) !important;
 }

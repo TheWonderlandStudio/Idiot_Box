@@ -4,7 +4,7 @@ if (!window.location.pathname.toLowerCase().endsWith("/popout.html")) {
   try {
     const { createTitlebarOnDOMContentLoaded, TitlebarColor } = require("custom-electron-titlebar");
     const _tbPromise = createTitlebarOnDOMContentLoaded({
-      containerOverflow: "visible",
+      containerOverflow: "hidden",
       backgroundColor: TitlebarColor.fromHex("#171717"),
       menuBarBackgroundColor: TitlebarColor.fromHex("#171717"),
       itemBackgroundColor: TitlebarColor.fromHex("#2a2d2e"),

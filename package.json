@@ -24,6 +24,7 @@
     "build": "npm run build:ai-css && npm run build:preload && npm run build:renderer && npm run build:settings",
     "test": "node --test tests/*.test.cjs",
     "lint": "echo \"No linter configured\"",
+    "test:layout": "npm run build && electron tests/layout.electron.cjs",
     "start": "npm run build && electron .",
     "pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
