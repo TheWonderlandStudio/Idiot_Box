@@ -19,6 +19,7 @@ const COMMANDS = [
   { id: "new-project",     group: "File", title: "New Project…",            run: act("newProject") },
   { id: "save-project",    group: "File", title: "Save Project Layout",     run: act("saveProject") },
   { id: "close-project",   group: "File", title: "Close Project",           run: act("closeProject") },
+  { id: "reopen-closed-editor", group: "File", title: "Reopen Closed Editor", run: ev("editor:reopenClosed") },
   { id: "save-file",       group: "File", title: "Save File",               run: ed("save") },
   { id: "save-file-as",    group: "File", title: "Save File As…",           run: ed("saveAs") },
   { id: "toggle-autosave", group: "File", title: "Toggle Auto Save",        run: act("toggleAutoSave") },

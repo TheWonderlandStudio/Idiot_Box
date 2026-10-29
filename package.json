@@ -46,6 +46,7 @@
     "dist:linux:dir": "npm run build && electron-builder --linux --dir",
     "test:navigation": "electron tests/navigation.electron.cjs",
     "postinstall": "electron-builder install-app-deps && node build/generate-icons.cjs && node tools/stamp-dev-icon.cjs",
+    "test:editor-tabs": "npm run build && electron tests/editor-tabs.electron.cjs",
     "dev:icon": "node tools/stamp-dev-icon.cjs"
   },
   "dependencies": {
