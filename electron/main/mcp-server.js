@@ -3,11 +3,17 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
-const { parse, modify, applyEdits } = require("jsonc-parser");
+let jsoncParser = null;
+try { jsoncParser = require("jsonc-parser"); } catch (e) { console.warn("[mcp] jsonc-parser not available:", e.message); }
 
 const isConfigObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 function updateOpenCodeConfig(file, entry, instructions) {
+  if (!jsoncParser) {
+    console.warn("[mcp] jsonc-parser not available, skipping OpenCode config update");
+    return;
+  }
+  const { parse, modify, applyEdits } = jsoncParser;
   const raw = fs.existsSync(file)
     ? fs.readFileSync(file, "utf8")
     : JSON.stringify({ "$schema": "https://opencode.ai/config.json" }, null, 2);

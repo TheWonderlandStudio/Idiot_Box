@@ -146,6 +146,8 @@ let tracking = null;
 try { tracking = require("./tracking"); } catch (e) { console.warn("[main] tracking not available:", e.message); }
 // Hub chat → Pollinations free AI (fetched from the main process, not the renderer)
 try { require("./ai-chat").registerAiChat(); } catch (e) { console.warn("[main] ai-chat not available:", e.message); }
+// ─── Project path tracking ───────────────────────────────────────────────────────
+let lastProjectPath = null;
 try { require("./opencode-panel").registerOpenCodePanel(() => lastProjectPath); } catch (e) { console.warn("[main] OpenCode panel not available:", e.message); }
 // App extension host — local folder installs, vscode-shim activation.
 let extHost = null;
@@ -4115,7 +4117,6 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
 
 // ─── Terminal ─────────────────────────────────────────────────────────────────
 const termProcesses = new Map();
-let lastProjectPath = null;
 
 function detectShell() {
   if (process.platform !== "win32") return process.env.SHELL || "/bin/bash";
