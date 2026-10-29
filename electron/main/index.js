@@ -1862,14 +1862,17 @@ ipcMain.handle("fs:readDir", async (_e, dirPath) => {
   } catch { return []; }
 });
 
-ipcMain.handle("fs:readDirAll", async (_e, dirPath) => {
+ipcMain.handle("fs:readDirAll", async (_e, dirPath, options) => {
   try {
     const entries = fs.readdirSync(toLongPath(dirPath), { withFileTypes: true }).filter((e) => e.name !== ".bin" && e.name !== ".trash");
     return [
       ...sortByName(entries.filter((e) => e.isDirectory()).map((e) => ({ name: e.name, path: path.join(dirPath, e.name), isDir: true }))),
       ...sortByName(entries.filter((e) => e.isFile()).map((e)      => ({ name: e.name, path: path.join(dirPath, e.name), isDir: false }))),
     ];
-  } catch { return []; }
+  } catch (err) {
+    if (options?.reportErrors) throw err;
+    return [];
+  }
 });
 
 // ─── File finder (Ctrl+P) and text search (Ctrl+Shift+F) ───────────────────────

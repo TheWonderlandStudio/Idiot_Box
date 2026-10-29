@@ -65,30 +65,40 @@ const PreviewIcon = ({ entry, showPreview, size }) => {
 };
 
 // ── Inline rename input ───────────────────────────────────────────────────────
-const RenameInput = ({ initialValue, onCommit, onCancel }) => {
+const RenameInput = ({ initialValue, isDir, onCommit, onCancel }) => {
   const [val, setVal] = useState(initialValue);
   const ref = useRef(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
   const blurTimer = useRef(null);
-  const commit = () => {
-    if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
+  const finished = useRef(false);
+  useEffect(() => {
+    finished.current = false;
+    ref.current?.focus();
+    const dot = initialValue.lastIndexOf(".");
+    ref.current?.setSelectionRange(0, !isDir && dot > 0 ? dot : initialValue.length);
+    return () => { finished.current = true; clearTimeout(blurTimer.current); };
+  }, []);
+  const commit = (restoreFocus = false) => {
+    if (finished.current) return;
+    finished.current = true;
+    clearTimeout(blurTimer.current);
     const v = val.trim();
-    if (v && v !== initialValue) onCommit(v); else onCancel();
+    if (v && v !== initialValue) onCommit(v, restoreFocus); else onCancel(restoreFocus);
   };
   return (
     <input
       ref={ref}
       className="pw-rename-input"
+      aria-label={isDir ? "Folder name" : "File name"}
       value={val}
       onChange={(e) => setVal(e.target.value)}
-      onBlur={() => { blurTimer.current = setTimeout(commit, 150); }}
+      onBlur={() => { clearTimeout(blurTimer.current); blurTimer.current = setTimeout(() => commit(), 150); }}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === "Enter")  commit();
-        if (e.key === "Escape") onCancel();
+        if (e.nativeEvent.isComposing) return;
+        if (e.key === "Enter") { e.preventDefault(); commit(true); }
+        if (e.key === "Escape") {
+          e.preventDefault(); finished.current = true; clearTimeout(blurTimer.current); onCancel(true);
+        }
       }}
       onClick={(e) => e.stopPropagation()}
     />
@@ -97,6 +107,7 @@ const RenameInput = ({ initialValue, onCommit, onCancel }) => {
 
 // ── Toolbar bar ───────────────────────────────────────────────────────────────
 const Bar = ({ rootPath, currentPath, onNavigate, query, onQuery, showFolders, onToggleFolders, showFiles, onToggleFiles, showHidden, onToggleHidden, showPreview, onTogglePreview, itemCount, selectedCount, onCrumbsDragOver, onCrumbsDragLeave, onCrumbsDrop }) => {
+  const filterRef = useRef(null);
   const crumbs = [];
   if (rootPath && currentPath) {
     const rootName = rootPath.split(/[\\/]/).filter(Boolean).pop();
@@ -126,9 +137,11 @@ const Bar = ({ rootPath, currentPath, onNavigate, query, onQuery, showFolders, o
       <div className="pw-bar__actions">
         <div className="pw-bar__search">
           <Search size={11} className="pw-bar__search-ico" />
-          <input className="pw-bar__search-input" type="text" placeholder="Search" value={query}
+          <input ref={filterRef} className="pw-bar__search-input" type="text" placeholder="Filter files" value={query}
+            aria-label="Filter files in this folder"
+            onKeyDown={(e) => { if (e.key === "Escape" && !e.nativeEvent.isComposing) { e.preventDefault(); e.stopPropagation(); onQuery(""); } }}
             onChange={(e) => onQuery(e.target.value)} spellCheck={false}/>
-          {query && <button className="pw-bar__search-clear" onClick={() => onQuery("")}>×</button>}
+          {query && <button className="pw-bar__search-clear" aria-label="Clear file filter" onClick={() => { onQuery(""); filterRef.current?.focus(); }}>×</button>}
         </div>
         <div className="pw-bar__divider"/>
         <IconBtn title="Show folders" active={showFolders} onClick={onToggleFolders}><IcoFolder/></IconBtn>
@@ -160,12 +173,15 @@ const ContentArea = ({
 }) => {
   const [entries,     setEntries]     = useState([]);
   const [loading,     setLoading]     = useState(false);
+  const [loadError,   setLoadError]   = useState(false);
   const [query,       setQuery]       = useState("");
   // showFolders, showFiles, showPreview, showHidden — managed in ProjectWindow
   const [band,        setBand]        = useState(null);
   const [renamingPath, setRenamingPath] = useState(null);
 
   const gridRef    = useRef(null);
+  const panelRef   = useRef(null);
+  const loadRequestRef = useRef(0);
   const contentRef = useRef(null);
   const bandOrigin = useRef(null);
   const bandMoved  = useRef(false);
@@ -184,8 +200,8 @@ const ContentArea = ({
 
   useEffect(() => { selectedItemsRef.current = selectedItems; }, [selectedItems]);
   useEffect(() => { clipboardRef.current     = clipboard; },     [clipboard]);
-  useEffect(() => { currentPathRef.current   = currentPath; },   [currentPath]);
-  useEffect(() => { rootPathRef.current      = rootPath; },      [rootPath]);
+  currentPathRef.current = currentPath;
+  rootPathRef.current = rootPath;
   useEffect(() => { pushUndoRef.current      = pushUndo; },      [pushUndo]);
   useEffect(() => { performUndoRef.current   = performUndo; },   [performUndo]);
   useEffect(() => { performRedoRef.current   = performRedo; },   [performRedo]);
@@ -213,16 +229,22 @@ const ContentArea = ({
   // ── Load entries ─────────────────────────────────────────────────────────
   const loadEntries = useCallback(() => {
     const cp = currentPathRef.current;
-    if (!cp) { setEntries([]); return Promise.resolve(); }
+    const rp = rootPathRef.current;
+    const request = ++loadRequestRef.current;
+    const current = () => request === loadRequestRef.current && cp === currentPathRef.current && rp === rootPathRef.current;
+    setEntries([]);
+    setLoadError(false);
+    onItemsLoaded?.(0);
+    if (!cp) { setLoading(false); return Promise.resolve(); }
     setLoading(true);
-    return window.electronAPI.readDirAll(cp)
-      .then((data) => { setEntries(data); if (onItemsLoaded) onItemsLoaded(data.length); })
-      .finally(() => setLoading(false));
+    return window.electronAPI.readDirAll(cp, { reportErrors: true })
+      .then((data) => { if (current()) { setEntries(data); onItemsLoaded?.(data.length); } })
+      .catch(() => { if (current()) setLoadError(true); })
+      .finally(() => { if (current()) setLoading(false); });
   }, [onItemsLoaded]);
 
-  useEffect(() => { loadEntries(); }, [currentPath]);
-  useEffect(() => { if (refreshToken > 0) loadEntries(); }, [refreshToken]);
-  useEffect(() => { setQuery(""); setRenamingPath(null); }, [currentPath]);
+  useEffect(() => { loadEntries(); return () => { loadRequestRef.current++; }; }, [currentPath, rootPath, refreshToken, loadEntries]);
+  useEffect(() => { setQuery(""); setRenamingPath(null); anchorRef.current = null; }, [currentPath, rootPath]);
 
   const visible = useMemo(() => {
     let r = entries;
@@ -474,27 +496,40 @@ const ContentArea = ({
   }, [onNavigate, onSetSelectedItems, onClipboardChange, invalidateCache, loadEntries]);
 
   // ── Rename commit ─────────────────────────────────────────────────────────
-  const handleRenameCommit = useCallback(async (oldPath, newName) => {
+  const handleRenameCommit = useCallback(async (oldPath, newName, restoreFocus) => {
     setRenamingPath(null);
+    if (restoreFocus) panelRef.current?.focus({ preventScroll: true });
     if (!oldPath || !newName) return;
+    const rp = rootPathRef.current;
+    const cp = currentPathRef.current;
     const parentDir = oldPath.replace(/[\\/][^\\/]+$/, "") || oldPath;
     const oldName = oldPath.split(/[\\/]/).pop();
     try {
       const result = await window.electronAPI.rename(oldPath, newName);
       const newPath = result || parentDir + (parentDir.includes("\\") ? "\\" : "/") + newName;
+      if (rp !== rootPathRef.current) return;
       pushUndoRef.current?.({ type: "rename", oldPath, oldName, newPath, newName, parentDir });
       invalidateCache(parentDir);
+      if (cp !== currentPathRef.current) return;
+      const next = new Set(selectedItemsRef.current);
+      if (next.delete(oldPath)) next.add(newPath);
+      onSetSelectedItems(next);
+      if (anchorRef.current === oldPath) anchorRef.current = newPath;
       await loadEntries();
     } catch (err) {
       await alertErr("Rename failed", err);
       invalidateCache(parentDir);
     }
-  }, [invalidateCache, alertErr, loadEntries]);
+  }, [invalidateCache, alertErr, loadEntries, onSetSelectedItems]);
+
+  const cancelRename = (restoreFocus) => { setRenamingPath(null); if (restoreFocus) panelRef.current?.focus({ preventScroll: true }); };
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   const handleKeyDown = useCallback((e) => {
-    // Don't fire if rename input is active
-    if (renamingPath) return;
+    // Typing in a nested control must never become a file operation.
+    if (renamingPath || e.defaultPrevented || e.nativeEvent.isComposing ||
+        e.target.closest('input,textarea,select,button,a,[role="textbox"],[contenteditable]:not([contenteditable="false"])')) return;
+    const key = e.key.toLowerCase();
     const sel = selectedItemsRef.current;
     const vis = visibleRef.current;
     const cp  = currentPathRef.current;
@@ -520,42 +555,42 @@ const ContentArea = ({
       execAction("copyRelativePath", paths, cp);
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "c") {
+    if ((e.ctrlKey || e.metaKey) && key === "c") {
       e.preventDefault();
       if (paths.length) execAction("copy", paths, cp);
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "x") {
+    if ((e.ctrlKey || e.metaKey) && key === "x") {
       e.preventDefault();
       if (paths.length) execAction("cut", paths, cp);
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "v") {
+    if ((e.ctrlKey || e.metaKey) && key === "v") {
       e.preventDefault();
       execAction("paste", [], cp);
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "d") {
+    if ((e.ctrlKey || e.metaKey) && key === "d") {
       e.preventDefault();
       if (paths.length) execAction("duplicate", paths, cp);
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+    if ((e.ctrlKey || e.metaKey) && key === "a") {
       e.preventDefault();
       onSetSelectedItems(new Set(vis.map((v) => v.path)));
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "h") {
+    if ((e.ctrlKey || e.metaKey) && key === "h") {
       e.preventDefault();
       onToggleHidden();
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+    if ((e.ctrlKey || e.metaKey) && key === "z" && !e.shiftKey) {
       e.preventDefault();
       performUndoRef.current?.();
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || ((e.shiftKey || e.metaKey) && e.key === "z"))) {
+    if ((e.ctrlKey || e.metaKey) && (key === "y" || (e.shiftKey && key === "z"))) {
       e.preventDefault();
       performRedoRef.current?.();
       return;
@@ -594,6 +629,7 @@ const ContentArea = ({
   const handleItemClick = useCallback((e, entry) => {
     e.stopPropagation();
     if (renamingPath === entry.path) return; // clicking renaming item does nothing
+    panelRef.current?.focus({ preventScroll: true });
     if (e.ctrlKey || e.metaKey) {
       const next = new Set(selectedItemsRef.current);
       next.has(entry.path) ? next.delete(entry.path) : next.add(entry.path);
@@ -616,6 +652,7 @@ const ContentArea = ({
 
   const handleGridClick = useCallback((e) => {
     if (e.target === gridRef.current || e.target === contentRef.current) {
+      panelRef.current?.focus({ preventScroll: true });
       onSetSelectedItems(new Set()); anchorRef.current = null; setRenamingPath(null);
     }
   }, [onSetSelectedItems]);
@@ -1007,6 +1044,9 @@ const ContentArea = ({
   return (
     <div
       className="pw-right"
+      ref={panelRef}
+      role="region"
+      aria-label="Project files"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       style={{ outline: "none" }}
@@ -1030,9 +1070,25 @@ const ContentArea = ({
         onDrop={handleContentAreaDrop}
       >
         {loading && <div className="pw-content__empty">Loading...</div>}
-        {!loading && visible.length === 0 && (
+        {!loading && loadError && (
           <div className="pw-content__empty">
-            {query || !showFolders || !showFiles ? "No items match" : "Folder is empty"}
+            <span role="alert">Could not load this folder. Check that it is still available.</span>
+            <button className="pw-content__recover" onClick={loadEntries}>Retry</button>
+          </div>
+        )}
+        {!loading && !loadError && visible.length === 0 && (
+          <div className="pw-content__empty">
+            {query.trim() ? <>
+              <span>No files match “{query.trim()}”.</span>
+              <button className="pw-content__recover" onClick={() => { setQuery(""); panelRef.current?.querySelector('.pw-bar__search-input')?.focus(); }}>Clear filter</button>
+            </> : entries.length ? <>
+              <span>Items are hidden by the current view filters.</span>
+              <button className="pw-content__recover" onClick={() => {
+                if (!showFolders) onToggleFolders();
+                if (!showFiles) onToggleFiles();
+                if (!showHidden) onToggleHidden();
+              }}>Show all items</button>
+            </> : "Folder is empty"}
           </div>
         )}
         {!loading && visible.length > 0 && (
@@ -1079,8 +1135,9 @@ const ContentArea = ({
                       {isRenaming ? (
                         <RenameInput
                           initialValue={entry.name}
-                          onCommit={(newName) => handleRenameCommit(entry.path, newName)}
-                          onCancel={() => setRenamingPath(null)}
+                          isDir={entry.isDir}
+                          onCommit={(newName, restoreFocus) => handleRenameCommit(entry.path, newName, restoreFocus)}
+                          onCancel={cancelRename}
                         />
                       ) : (
                         <span className="pw-item-list__label">{entry.name}</span>
@@ -1094,8 +1151,9 @@ const ContentArea = ({
                       {isRenaming ? (
                         <RenameInput
                           initialValue={entry.name}
-                          onCommit={(newName) => handleRenameCommit(entry.path, newName)}
-                          onCancel={() => setRenamingPath(null)}
+                          isDir={entry.isDir}
+                          onCommit={(newName, restoreFocus) => handleRenameCommit(entry.path, newName, restoreFocus)}
+                          onCancel={cancelRename}
                         />
                       ) : (
                         <span className="pw-item__label">{entry.name}</span>
