@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { NAV } from "../Settings/nav.js";
 import { SETTINGS_INDEX } from "../Settings/searchIndex.js";
+import useDialogFocus from "../shared/useDialogFocus.js";
+import { readRecentFiles, updateRecentFiles, mergeRecentFiles } from "./recentFiles.cjs";
 
 const ed = (c) => () => window.dispatchEvent(new CustomEvent("editor:command", { detail: { cmd: c } }));
 const act = (c) => () => window.dispatchEvent(new CustomEvent("menu:action", { detail: { cmd: c } }));
@@ -101,9 +103,39 @@ const CommandPalette = () => {
   const [idx, setIdx] = useState(0);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [project, setProject] = useState(() => window.__currentProjectPath || "");
+  const [recent, setRecent] = useState(() => readRecentFiles(localStorage, window.__currentProjectPath));
   const inputRef = useRef(null);
+  const dialogRef = useRef(null);
   const listRef = useRef(null);
   const debounceRef = useRef(null);
+  const requestRef = useRef(0);
+  const openRef = useRef(open);
+  const restoreFocusRef = useRef(true);
+  openRef.current = open;
+  const close = () => { requestRef.current++; setOpen(false); };
+  useDialogFocus(open, dialogRef, inputRef, close, restoreFocusRef);
+
+  useEffect(() => {
+    const changed = () => {
+      requestRef.current++;
+      const root = window.__currentProjectPath || "";
+      setProject(root); setFiles([]); setRecent(readRecentFiles(localStorage, root)); setError("");
+    };
+    const activated = (event) => {
+      const root = window.__currentProjectPath;
+      if (root && event.detail?.path) setRecent(updateRecentFiles(localStorage, root, event.detail.path));
+    };
+    window.addEventListener("project:opened", changed);
+    window.addEventListener("project:closed", changed);
+    window.addEventListener("editor:fileActivated", activated);
+    return () => {
+      window.removeEventListener("project:opened", changed);
+      window.removeEventListener("project:closed", changed);
+      window.removeEventListener("editor:fileActivated", activated);
+    };
+  }, []);
 
   // ── App extension commands (live from the host) ──
   const [extCmds, setExtCmds] = useState([]);
@@ -126,20 +158,21 @@ const CommandPalette = () => {
 
   // ── Files (IPC fuzzy search; off in ">" mode) ──
   useEffect(() => {
-    if (!open) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (cmdOnly) { setFiles([]); return; }
+    const request = ++requestRef.current;
+    clearTimeout(debounceRef.current);
+    setFiles([]); setError(""); setLoading(false);
+    if (!open || cmdOnly || !project) return;
+    setLoading(true);
     debounceRef.current = setTimeout(async () => {
-      const root = window.__currentProjectPath;
-      if (!root) { setFiles([]); return; }
-      setLoading(true);
+      const current = () => request === requestRef.current && openRef.current && project === window.__currentProjectPath;
       try {
-        const res = await window.electronAPI.findFiles(root, q, 30);
-        setFiles(Array.isArray(res) ? res : []);
-      } catch { setFiles([]); } finally { setLoading(false); }
+        const res = await window.electronAPI.findFiles(project, q, 30);
+        if (current()) setFiles(Array.isArray(res) ? res : []);
+      } catch { if (current()) setError("Could not load files. Try searching again."); }
+      finally { if (current()) setLoading(false); }
     }, q ? 120 : 60);
-    return () => clearTimeout(debounceRef.current);
-  }, [q, open, cmdOnly]);
+    return () => { clearTimeout(debounceRef.current); requestRef.current++; };
+  }, [q, open, cmdOnly, project]);
 
   // ── Commands (local fuzzy) + Settings (pages + rows) ──
   const cmds = useMemo(() => {
@@ -174,25 +207,35 @@ const CommandPalette = () => {
   // ── Rows: Files section + grouped Commands (heads are not selectable) ──
   const rows = useMemo(() => {
     const out = [];
-    if (files.length) {
-      out.push({ type: "head", key: "h-files", label: "Files" });
-      files.forEach((f) => out.push({ type: "file", key: f.path, f }));
+    const visibleFiles = cmdOnly ? [] : q ? files : mergeRecentFiles(recent, files);
+    for (const [label, group] of [["Recent files", visibleFiles.filter((f) => f.recent)], ["Files", visibleFiles.filter((f) => !f.recent)]]) {
+      if (!group.length) continue;
+      out.push({ type: "head", key: "h-" + label, label });
+      group.forEach((f) => out.push({ type: "file", key: f.path, f }));
     }
-    let g = null;
+    const groups = new Map();
     cmds.forEach((c) => {
-      if (c.group !== g) { g = c.group; out.push({ type: "head", key: "h-" + g, label: c.group }); }
-      out.push({ type: "cmd", key: c.id, c });
+      if (!groups.has(c.group)) groups.set(c.group, []);
+      groups.get(c.group).push(c);
+    });
+    groups.forEach((commands, group) => {
+      out.push({ type: "head", key: "h-command-" + group, label: group });
+      commands.forEach((c) => out.push({ type: "cmd", key: c.id, c }));
     });
     let ai = 0;
     out.forEach((r) => { r.ai = r.type === "head" ? -1 : ai++; });
     return out;
-  }, [files, cmds]);
+  }, [files, cmds, recent, cmdOnly, q]);
 
   const total = rows.length ? rows[rows.length - 1].ai + 1 : 0;
   const sel = total ? rows.find((r) => r.ai === Math.min(idx, total - 1)) : null;
   const hasProject = !!window.__currentProjectPath;
 
   const show = (commandsMode) => {
+    if (!openRef.current) restoreFocusRef.current = true;
+    requestRef.current++;
+    const root = window.__currentProjectPath || "";
+    setProject(root); setRecent(readRecentFiles(localStorage, root));
     setQuery(commandsMode ? ">" : "");
     setIdx(0);
     setFiles([]);
@@ -239,13 +282,25 @@ const CommandPalette = () => {
     try { listRef.current?.querySelector(`[data-ai="${Math.min(idx, Math.max(total - 1, 0))}"]`)?.scrollIntoView({ block: "nearest" }); } catch {}
   }, [idx, open, total]);
 
-  const runRow = (r) => {
-    if (!r) return;
-    setOpen(false);
+  const runRow = async (r) => {
+    if (!r || (loading && !cmdOnly && !r.f?.recent)) return;
+    const root = window.__currentProjectPath;
+    const request = requestRef.current;
     try {
-      if (r.type === "file") window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: r.f.path } }));
-      else r.c.run();
-    } catch {}
+      if (r.type === "file") {
+        const stat = await window.electronAPI.stat(r.f.path);
+        if (request !== requestRef.current || root !== window.__currentProjectPath || !openRef.current) return;
+        if (!stat?.exists || stat.isDir) {
+          setRecent(updateRecentFiles(localStorage, root, r.f.path, true));
+          setFiles((items) => items.filter((item) => item.path !== r.f.path));
+          setError("That file is no longer available. Choose another result.");
+          inputRef.current?.focus();
+          return;
+        }
+        restoreFocusRef.current = false; close();
+        window.dispatchEvent(new CustomEvent("open-file-in-editor", { detail: { path: r.f.path } }));
+      } else { restoreFocusRef.current = false; close(); r.c.run(); }
+    } catch { setError("Could not open that file. Try again."); }
   };
 
   if (!open) return null;
@@ -255,16 +310,21 @@ const CommandPalette = () => {
       <div
         className="ui-scrim"
         style={{ position: "fixed", inset: 0, zIndex: "var(--z-palette)", background: "var(--overlay)" }}
-        onClick={() => setOpen(false)}
+        onClick={close}
       />
       <div
         className="ui-pop"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={cmdOnly ? "Command Palette" : "Quick Open"}
         style={{
           position: "fixed", top: "12%", left: "50%", transform: "translateX(-50%)",
           width: 640, maxWidth: "92vw", zIndex: "var(--z-palette-top)",
           background: "var(--bg-vscode)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)",
           boxShadow: "var(--shadow-float)", overflow: "hidden",
           display: "flex", flexDirection: "column",
+          maxHeight: "80vh",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -273,12 +333,17 @@ const CommandPalette = () => {
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setIdx(0); }}
+            role="combobox"
+            aria-label="File or command"
+            aria-expanded="true"
+            aria-controls="quick-open-results"
+            aria-activedescendant={sel ? `quick-open-option-${sel.ai}` : undefined}
+            onChange={(e) => { requestRef.current++; setFiles([]); setQuery(e.target.value); setIdx(0); }}
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") { e.preventDefault(); setIdx((i) => Math.min(i + 1, Math.max(total - 1, 0))); }
               else if (e.key === "ArrowUp") { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
               else if (e.key === "Enter") { e.preventDefault(); runRow(sel); }
-              else if (e.key === "Escape") { e.preventDefault(); setOpen(false); }
+              else if (e.key === "Escape") { e.preventDefault(); close(); }
             }}
             placeholder={cmdOnly ? "Type a command…  (Ctrl+Shift+P)" : "Type a file name or command…  (Ctrl+P)"}
             spellCheck={false}
@@ -290,10 +355,10 @@ const CommandPalette = () => {
           {loading && <span style={{ fontSize: "var(--fs-small)", color: "var(--text-muted)" }}>…</span>}
         </div>
 
-        <div ref={listRef} style={{ maxHeight: 380, overflowY: "auto" }}>
+        <div id="quick-open-results" role="listbox" aria-label="Files and commands" aria-busy={loading && !cmdOnly} ref={listRef} style={{ maxHeight: "min(380px,55vh)", minHeight: 0, overflowY: "auto" }}>
           {total === 0 && (
             <div style={{ padding: "var(--space-16)", fontSize: "var(--fs-body)", color: "var(--text-muted)", textAlign: "center" }}>
-              {cmdOnly ? "No matching commands." : "No matching files or commands."}
+              {loading ? "Searching files…" : cmdOnly ? "No matching commands." : "No matching files or commands."}
             </div>
           )}
           {rows.map((r) => {
@@ -313,6 +378,9 @@ const CommandPalette = () => {
               <div
                 key={r.key}
                 data-ai={r.ai}
+                id={`quick-open-option-${r.ai}`}
+                role="option"
+                aria-selected={on}
                 onClick={() => runRow(r)}
                 onMouseEnter={() => setIdx(r.ai)}
                 style={base}
@@ -333,8 +401,8 @@ const CommandPalette = () => {
           })}
         </div>
 
-        <div style={{ padding: "var(--space-4) var(--space-12)", fontSize: "var(--fs-tiny)", color: "var(--text-muted)", borderTop: "1px solid var(--bg-active)", display: "flex", justifyContent: "space-between", gap: "var(--space-10)" }}>
-          <span>↑↓ Navigate • Enter Open • Esc Close • &gt; = commands only</span>
+        <div style={{ padding: "var(--space-4) var(--space-12)", fontSize: "var(--fs-tiny)", color: "var(--text-muted)", borderTop: "1px solid var(--bg-active)", display: "flex", justifyContent: "space-between", gap: "var(--space-10)", flexShrink: 0, flexWrap: "wrap" }}>
+          <span role={error ? "alert" : undefined}>{error || "↑↓ Navigate • Enter Open • Esc Close • > = commands only"}</span>
           <span style={{ flexShrink: 0 }}>
             {files.length} files • {cmds.length} commands
             {!hasProject && !cmdOnly ? "  ·  open a project to search files" : ""}
