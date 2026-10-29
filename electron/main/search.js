@@ -6,6 +6,7 @@
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
+const { createHash } = require("crypto");
 const { spawn, execFile } = require("child_process");
 const { BrowserWindow } = require("electron");
 
@@ -225,15 +226,19 @@ async function ripgrepSearch(root, query, options, maxResults) {
     }
     let buf = "";
     let settled = false;
+    let timer;
     const finish = (value) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       try { proc.kill(); } catch {}
       resolve(value);
     };
-    const timer = setTimeout(() => finish(null), 15000);
+    timer = setTimeout(() => finish(null), 15000);
+    proc.stdout.setEncoding("utf8");
     proc.stdout.on("data", (chunk) => {
-      buf += chunk.toString();
+      if (settled) return;
+      buf += chunk;
       let nl;
       while ((nl = buf.indexOf("\n")) !== -1) {
         const line = buf.slice(0, nl);
@@ -248,17 +253,21 @@ async function ripgrepSearch(root, query, options, maxResults) {
         const rel = path.relative(root, full).split(path.sep).join("/");
         const lineNo = Number(data.line_number) || 1;
         const text = (data.lines?.text || "").replace(/\r?\n$/, "");
-        if (!byFile.has(full)) byFile.set(full, { path: full, rel, matches: [] });
-        byFile.get(full).matches.push({
-          line: lineNo,
-          // Column 0 keeps rg results engine-neutral; the panel highlights
-          // matches by re-applying the query to the returned line text.
-          column: 0,
-          length: 1,
-          lineText: text.length > MAX_LINE_PREVIEW ? text.slice(0, MAX_LINE_PREVIEW) + "…" : text,
-        });
-        count++;
-        if (count >= maxResults) { truncated = true; finish([...byFile.values()]); return; }
+        const bytes = Buffer.from(data.lines?.text || "", "utf8");
+        for (const match of data.submatches || []) {
+          // Ripgrep uses UTF-8 byte offsets; the editor uses UTF-16 columns.
+          const column = bytes.subarray(0, match.start).toString("utf8").length;
+          const end = bytes.subarray(0, match.end).toString("utf8").length;
+          if (!byFile.has(full)) byFile.set(full, { path: full, rel, matches: [] });
+          byFile.get(full).matches.push({
+            line: lineNo,
+            column,
+            length: Math.max(1, end - column),
+            lineText: text.length > MAX_LINE_PREVIEW ? text.slice(0, MAX_LINE_PREVIEW) + "…" : text,
+          });
+          count++;
+          if (count >= maxResults) { truncated = true; finish([...byFile.values()]); return; }
+        }
       }
     });
     proc.on("error", () => { clearTimeout(timer); finish(null); });
@@ -345,6 +354,7 @@ async function searchProject(payload = {}) {
 // ── Replace / undo ─────────────────────────────────────────────────────────
 
 const undoStore = new Map();
+const contentHash = (content) => createHash("sha256").update(content).digest("hex");
 
 function rememberUndo(root, entries) {
   const token = `rep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -385,17 +395,30 @@ function undoReplace(payload = {}) {
   if (!record) return { ok: false, error: "This replace can no longer be undone." };
   let restored = 0;
   const failures = [];
+  const pending = [];
   for (const entry of record.entries) {
     try {
+      // Only undo our own write. A later save belongs to the user.
+      if (contentHash(fs.readFileSync(entry.path)) !== entry.afterHash) {
+        failures.push(`${path.basename(entry.path)} changed since Replace All; left untouched`);
+        pending.push(entry);
+        continue;
+      }
       fs.writeFileSync(entry.path, entry.before, "utf8");
       broadcastChanged(record.root, entry.path);
       restored++;
     } catch (err) {
       failures.push(`${path.basename(entry.path)}: ${err.message}`);
+      pending.push(entry);
     }
   }
-  undoStore.delete(token);
-  return { ok: failures.length === 0, restored, error: failures.join("; ") || undefined };
+  if (pending.length) record.entries = pending;
+  else undoStore.delete(token);
+  return {
+    ok: failures.length === 0,
+    restored,
+    error: failures.length ? `Restored ${restored} file${restored === 1 ? "" : "s"}. ${failures.join("; ")}` : undefined,
+  };
 }
 
 async function replaceProject(payload = {}) {
@@ -439,7 +462,7 @@ async function replaceProject(payload = {}) {
       // Local history snapshot is best-effort; never block the replace.
       try { require("./local-history").recordSnapshotSync(file.full, text, "Replace in Files"); } catch {}
       fs.writeFileSync(file.full, next, "utf8");
-      entries.push({ path: file.full, before: text });
+      entries.push({ path: file.full, before: text, afterHash: contentHash(Buffer.from(next, "utf8")) });
       changedFiles.push({ path: file.full, rel: file.rel, matches: hits });
       totalHits += hits;
       broadcastChanged(root, file.full);
