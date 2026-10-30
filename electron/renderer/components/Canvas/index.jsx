@@ -697,6 +697,17 @@ const CanvasPanel = ({ config }) => {
   const [compLoading, setCompLoading] = useState(false);
   const [compQuery, setCompQuery] = useState("");
   const [showComps, setShowComps] = useState(true);
+  const panelRef = useRef(null);
+  useEffect(() => {
+    let narrow = false;
+    const observer = new ResizeObserver(() => {
+      const next = panelRef.current.clientWidth < 600;
+      if (next && !narrow) setShowComps(false);
+      narrow = next;
+    });
+    observer.observe(panelRef.current);
+    return () => observer.disconnect();
+  }, []);
   const insertCountRef = useRef(0);
 
   // Live drawing lives in refs (updated on every stroke without re-render).
@@ -1113,7 +1124,7 @@ const CanvasPanel = ({ config }) => {
   const statusColor = loading || saving ? "var(--icon)" : corrupt ? "var(--error-soft)" : dirty ? "var(--warning)" : "var(--teal)";
 
   return (
-    <div className="excalidraw-panel">
+    <div className="excalidraw-panel" ref={panelRef}>
       <div className="excalidraw-toolbar">
         <span className="excalidraw-toolbar__title">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">

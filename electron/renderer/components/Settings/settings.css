@@ -215,6 +215,7 @@ html, body, #settings-root {
 
 /* ── Content ───────────────────────────────────────────────────────────── */
 .sw-content {
+  container: settings-content / inline-size;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -576,4 +577,23 @@ html, body, #settings-root {
   text-align: center;
   white-space: nowrap;
   justify-self: end;
+}
+
+@media (max-width: 800px) {
+  .sw-sidebar { width: 190px; padding-inline: var(--space-8); }
+  .sw-nav-item { white-space: normal; height: auto; min-height: 44px; flex-shrink: 0; }
+  .sw-content__header { padding: var(--space-16); }
+  .sw-content__body { padding: var(--space-16) var(--space-12) 48px; }
+  .sw-gs { max-width: calc(100vw - 16px); }
+}
+@media (max-width: 520px) { .sw-sidebar { width: 154px; } }
+@container settings-content (max-width: 560px) {
+  .sw-row:has(> :nth-child(3)) { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-6); }
+  .sw-row:has(> :nth-child(3)) > :nth-child(n+3) { grid-column: 1; grid-row: auto; justify-self: stretch; max-width: 100%; }
+  .sw-row--actions { flex-wrap: wrap; }
+  .sw-row__label, .sw-row__desc { overflow-wrap: anywhere; }
+  .sw-input, .sw-select, .sw-row input, .sw-row select, .sw-row textarea { max-width: 100%; min-width: 0; }
+  .sw-kb-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); padding: var(--space-10); }
+  .sw-kb-command { white-space: normal; overflow-wrap: anywhere; }
+  .sw-btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; height: auto; min-height: 32px; }
 }

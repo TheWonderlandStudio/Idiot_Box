@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { ArrowDownToLine, ArrowUpFromLine, Check, ChevronDown, ChevronRight, CircleSlash, Copy, Ellipsis, FileDiff, Folder, GitBranch, List, LoaderCircle, Minus, Pencil, Plus, RefreshCw, RotateCcw, Search, Sparkles, Target, Trash2, TriangleAlert, X } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import GitGraph from "./GitGraph.jsx";
+import "./git.css";
 
 // ── helpers ──────────────────────────────────────────────────────────
 function statusColor(st, x, y) {
@@ -611,7 +612,7 @@ export default function GitPanel({ nodeId }){
   ];
 
   return (
-    <div style={s.wrap} onKeyDown={onListKeyDown} tabIndex={0} onContextMenu={(e)=> e.preventDefault()}>
+    <div className="git-panel" style={{...s.wrap,overflowY:"auto"}} onKeyDown={onListKeyDown} tabIndex={0} onContextMenu={(e)=> e.preventDefault()}>
       {/* Header */}
       <div style={s.header}>
         <div style={{display:"flex",alignItems:"center",gap:"var(--space-6)",flex:1,minWidth:0}}>
@@ -625,7 +626,7 @@ export default function GitPanel({ nodeId }){
         </div>
       </div>
 
-      {gitMenuOpen && <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:8,top:36,zIndex:"var(--z-toast-top)",width:260,maxHeight:"calc(100% - 48px)",overflowY:"auto",padding:"var(--space-4)",background:"var(--bg-vscode)",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-pop)"}}>
+      {gitMenuOpen && <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:8,top:36,zIndex:"var(--z-toast-top)",width:260,maxWidth:"calc(100% - 16px)",maxHeight:"calc(100% - 48px)",overflowY:"auto",padding:"var(--space-4)",background:"var(--bg-vscode)",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-pop)"}}>
         {gitMenuEntries.map(({label,onClick,section},index)=>(
           <React.Fragment key={label}>
             {index===7&&<div style={{height:1,background:"var(--border-light)",margin:"var(--space-4) 0"}}/>}
@@ -776,8 +777,8 @@ export default function GitPanel({ nodeId }){
           <button onClick={()=>setShowLog(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,padding:0,background:"transparent",border:0,color:"inherit",font:"inherit",cursor:"pointer"}}>
             {showLog?<ChevronDown size={13}/>:<ChevronRight size={13}/>}Graph
           </button>
-          <span style={{display:"flex",gap:"var(--space-5)",alignItems:"center",fontWeight:"var(--fw-regular)",minWidth:0}}>
-            <span style={{display:"flex",alignItems:"center",gap:"var(--space-4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"var(--text-muted)"}}>Outgoing Changes <button onClick={()=>setBranchPickerOpen(v=>!v)} style={s.branchBtn} title="Switch branch"><GitBranch size={13}/>{branchInfo.branch||"HEAD"}</button></span>
+          <span className="git-graph-tools" style={{display:"flex",gap:"var(--space-5)",alignItems:"center",fontWeight:"var(--fw-regular)",minWidth:0}}>
+            <span style={{display:"flex",minWidth:0,alignItems:"center",gap:"var(--space-4)",color:"var(--text-muted)"}}><span className="git-graph-caption">Outgoing Changes</span><button onClick={()=>setBranchPickerOpen(v=>!v)} style={{...s.branchBtn,minWidth:0}} title="Switch branch"><GitBranch size={13}/><span className="git-branch-name" title={branchInfo.branch}>{branchInfo.branch||"HEAD"}</span></button></span>
             <button onClick={(e)=>{e.stopPropagation();setGraphMenuOpen(v=>!v);}} title={`Graph options; auto-scroll ${autoFollow?"on":"off"}`} aria-label="Graph options" aria-expanded={graphMenuOpen} style={{...s.iconBtn,width:58,fontSize:"var(--fs-tiny)",gap:"var(--space-3)",fontWeight:"var(--fw-semibold)"}}><GitBranch size={13}/>Auto<ChevronDown size={12}/></button>
             <button onClick={()=>{if(graphListRef.current)graphListRef.current.scrollTop=0;}} title="Go to latest commit" aria-label="Go to latest commit" style={s.iconBtn}><Target size={15}/></button>
             <button onClick={doFetch} disabled={!!busy || branchInfo.hasRemote===false} title="Fetch" aria-label="Fetch" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="fetch"?<LoaderCircle size={15} className="git-icon-spin"/>:<RefreshCw size={15}/>}</button>

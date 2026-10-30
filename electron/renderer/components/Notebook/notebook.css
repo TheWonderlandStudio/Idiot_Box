@@ -1,5 +1,5 @@
 /* ── Notebook (Jupyter-like .ipynb cells) ─────────────────────────────── */
-.nb-panel { display: flex; flex-direction: column; height: 100%; width: 100%; background: var(--bg-surface); color: var(--text-highlight); overflow: hidden; position: relative; font-family: var(--font-system); }
+.nb-panel { display: flex; flex-direction: column; height: 100%; width: 100%; background: var(--bg-surface); color: var(--text-highlight); overflow: hidden auto; position: relative; font-family: var(--font-system); container: notebook-panel / size; }
 .nb-toolbar { display: flex; align-items: center; gap: var(--space-6); padding: var(--space-6) var(--space-10); background: var(--bg-vscode); border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
 .nb-toolbar__title { font-weight: var(--fw-semibold); font-size: var(--fs-body); color: var(--text-input); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
 .nb-toolbar__spacer { flex: 1; }
@@ -23,17 +23,24 @@
 .nb-banner--info { background: var(--info-bg); border-color: var(--info-border); color: var(--code-cyan); }
 .nb-cells { flex: 1; overflow-y: auto; padding: var(--space-14) var(--space-18) 60px; display: flex; flex-direction: column; gap: var(--space-10); }
 .nb-cells::-webkit-scrollbar { width: 10px; }
+@container notebook-panel (max-height: 240px) {
+  .nb-toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .nb-toolbar > * { flex-shrink: 0; }
+  .nb-toolbar__title { max-width: 120px; }
+  .nb-banner { max-height: 30%; overflow-y: auto; min-height: 0; }
+  .nb-cells { min-height: 0; padding: var(--space-8) var(--space-8) var(--space-24); }
+}
 .nb-cells::-webkit-scrollbar-thumb { background: var(--bg-input-strong); border-radius: var(--radius-5); }
 .nb-cell { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-header); flex-shrink: 0; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
 .nb-cell:hover { border-color: var(--border-strong); }
 .nb-cell--selected { border-color: var(--editor-blue); box-shadow: 0 0 0 1px var(--editor-blue); }
 .nb-cell--running { border-color: var(--warning); box-shadow: 0 0 0 1px var(--warning); animation: nb-cell-running 2s infinite; }
 @keyframes nb-cell-running { 0%, 100% { box-shadow: 0 0 0 1px var(--warning); } 50% { box-shadow: 0 0 0 2px var(--warning); } }
-.nb-cell__bar { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-8); background: var(--bg-header-dark); border-bottom: 1px solid var(--bg-active); font-size: var(--fs-small); }
+.nb-cell__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-8); background: var(--bg-header-dark); border-bottom: 1px solid var(--bg-active); font-size: var(--fs-small); }
 .nb-cell__prompt { font-family: var(--font-code); color: var(--accent-light); min-width: 64px; user-select: none; }
 .nb-cell__prompt--md { color: var(--teal); }
 .nb-cell__type { background: var(--bg-surface); border: 1px solid var(--border-strong); color: var(--text-soft); border-radius: var(--radius-sm); font-size: var(--fs-small); padding: var(--space-1) var(--space-5); outline: none; cursor: pointer; }
-.nb-cell__actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+.nb-cell__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-left: auto; max-width: 100%; }
 .nb-iconbtn { background: transparent; border: 1px solid transparent; color: var(--text-secondary); border-radius: var(--radius-sm); font-size: var(--fs-body); padding: var(--space-1) var(--space-6); cursor: pointer; line-height: var(--lh-body); transition: all 0.12s ease; }
 .nb-iconbtn:hover:not(:disabled) { background: var(--bg-thumb); color: var(--text-inverse); }
 .nb-iconbtn:disabled { opacity: 0.35; cursor: default; }

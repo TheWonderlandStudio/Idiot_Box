@@ -374,11 +374,11 @@ const InstalledTab = ({ onChanged }) => {
         </div>
       )}
       {list.map((ext) => (
-        <div key={ext.id} style={{ ...s.row, opacity: ext.enabled ? 1 : 0.6 }}>
+        <div key={ext.id} style={{ ...s.row, flexWrap: "wrap", opacity: ext.enabled ? 1 : 0.6 }}>
           <div style={{ flex: "0 0 auto", color: ext.enabled ? "var(--teal)" : "var(--icon-muted)", marginTop: 2 }}>
             <Puzzle size={16} />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", flexWrap: "wrap" }}>
               <span style={{ ...s.name, cursor: "pointer", textDecoration: "underline", textDecorationColor: "var(--border-light)" }} onClick={() => setSelected(ext.id)} title="Details, features & README">{ext.name}</span>
               <span style={s.chip}>v{ext.version}</span>
@@ -402,7 +402,7 @@ const InstalledTab = ({ onChanged }) => {
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", flexShrink: 0, marginTop: 2 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-8)", maxWidth: "100%", marginTop: 2 }}>
             {!ext.builtIn && (
               <label style={s.toggle} title={ext.enabled ? "Enabled — click to disable" : "Disabled — click to enable"}>
                 <span style={{ minWidth: 52, textAlign: "right" }}>{busyId === ext.id ? "…" : ext.enabled ? "Enabled" : "Disabled"}</span>

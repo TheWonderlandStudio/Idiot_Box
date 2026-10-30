@@ -132,7 +132,7 @@ const KeybindingsPage = () => {
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", marginBottom: "var(--space-8)", flexWrap: "wrap" }}>
         <input
           className="sw-input"
-          style={{ flex: 1, minWidth: 220 }}
+          style={{ flex: "1 1 220px", minWidth: 0, maxWidth: "100%" }}
           placeholder="Filter keybindings…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -201,7 +201,7 @@ const KeybindingsPage = () => {
                     <span className="sw-kb-desc" title={conflict ? "This shortcut is also used by another command" : (b.desc || "")}>
                       {conflict ? <span style={{ color: "var(--warn-gold)", display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={11} /> Conflict</span> : (b.desc || "")}
                     </span>
-                    <span className="sw-kb-key" style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 190, justifyContent: "flex-end" }}>
+                    <span className="sw-kb-key" style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 4, minWidth: 0, justifyContent: "flex-end" }}>
                       {recording ? (
                         <>
                           <span style={{
