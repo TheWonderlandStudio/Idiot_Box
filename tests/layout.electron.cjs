@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
     const layout = document.querySelector('.flexlayout__layout');
     return { titlebar: rect(document.querySelector('.cet-titlebar')), container: rect(document.querySelector('.cet-container')),
       app: rect(document.querySelector('#root').firstElementChild), workspace: rect(layout.parentElement), layout: rect(layout),
-      sidebar: rect(document.querySelector('.pw-sidebar')), status: rect(document.querySelector('#pw-hostbar-left').parentElement.parentElement),
+      sidebar: rect(document.querySelector('.pw-sidebar')),
       viewportHeight: innerHeight };
   })()`);
   const checkBounds = async (stable) => {
@@ -75,8 +75,6 @@ app.whenReady().then(async () => {
     near(g.app.height, g.container.height, "App fits the titlebar container");
     near(g.layout.y, g.workspace.y, "Docking layout starts at its host");
     near(g.layout.bottom, g.workspace.bottom, "Docking layout ends at its host");
-    assert.ok(g.layout.bottom <= g.status.y + 1, "Docking layout must not cover the status bar");
-    assert.ok(g.status.bottom <= g.viewportHeight + 1, "Status bar stays in the viewport");
     if (stable) {
       assert.deepEqual(g.titlebar, stable.titlebar, "Dragging must not change titlebar geometry");
       assert.deepEqual(g.sidebar, stable.sidebar, "Dragging between editor tabsets must not change sidebar geometry");
@@ -89,6 +87,7 @@ app.whenReady().then(async () => {
     win.webContents.send("menu:openProject", fixture);
     await waitFor("!!document.querySelector('.pw-sidebar') && !!document.getElementById('flexlayout-tabbutton-file1')");
     await delay(500);
+    assert.equal(await run("!!document.querySelector('#pw-hostbar-left')"), false, "App status bar should not be rendered");
     const initial = await checkBounds();
     await run(`window.testDrag = async (targetId, reorder = false, cancel = false) => {
       const source = document.getElementById('flexlayout-tabbutton-file1');

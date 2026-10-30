@@ -31,14 +31,6 @@
   /* Keep the edit sidebar narrow on small windows */
   .browser { --edit-sb-w: 200px !important; }
   .eb-hint { display: none !important; }
-  /* Top IDE bar: allow wrap */
-  #root > div > div:last-child { /* status bar */
-    flex-wrap: wrap !important;
-    height: auto !important;
-    min-height: var(--bar-h-sm) !important;
-    padding: var(--space-2) var(--space-8) !important;
-    gap: var(--space-6) !important;
-  }
   /* FlexLayout: allow horizontal scroll instead of crushing to 30px */
   .flexlayout__layout {
     overflow-x: auto !important;

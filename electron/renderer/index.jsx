@@ -38,7 +38,7 @@ import OnboardingPage from "./components/Onboarding/index.jsx";
 import SearchPanel from "./components/SearchPanel/index.jsx";
 import ProblemsPanel from "./components/Problems/index.jsx";
 import RunPanel from "./components/RunPanel/index.jsx";
-import OutputPanel, { OutputIcon } from "./components/Output/index.jsx";
+import OutputPanel from "./components/Output/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
 import AndroidEmulatorPanel from "./components/AndroidEmulator/index.jsx";
@@ -50,7 +50,7 @@ import TestExplorer from "./components/TestExplorer/index.jsx";
 import DebuggerPanel from "./components/Debugger/index.jsx";
 import { getActiveEditorPath } from "./components/Editor/shared.js";
 import { createClosedEditorHistory, closedEditorSnapshot, relativeProjectPath, findOpenEditor } from "./components/shared/editorTabs.cjs";
-import { ExtStatusItems, ExtToasts } from "./components/Extensions/Host.jsx";
+import { ExtToasts } from "./components/Extensions/Host.jsx";
 import UpdaterBanner from "./components/UpdaterBanner/index.jsx";
 import {
   COMMANDS, effectiveBinding, eventToKey, isSafeBareKey,
@@ -356,38 +356,6 @@ class CrashSafeWrapper extends React.Component {
     return this.props.children;
   }
 }
-
-// ── Updater nav button — bottom bar with proper cycle & progress bar ──
-const UpdaterNavButton = () => {
-  const [state, setState] = React.useState("idle");
-  const [info, setInfo] = React.useState(null);
-  const [progress, setProgress] = React.useState(null);
-  React.useEffect(() => {
-    const unsubs = [];
-    if (window.electronAPI?.onUpdaterAvailable) unsubs.push(window.electronAPI.onUpdaterAvailable((i)=>{ setInfo(i); setState("available"); setProgress(null); }));
-    if (window.electronAPI?.onUpdaterChecking) unsubs.push(window.electronAPI.onUpdaterChecking(()=> setState(prev=> prev==="available"||prev==="downloaded"||prev==="downloading"?prev:"checking")));
-    if (window.electronAPI?.onUpdaterNotAvailable) unsubs.push(window.electronAPI.onUpdaterNotAvailable(()=> setState(prev=> prev==="available"||prev==="downloading"||prev==="downloaded"?prev:"idle")));
-    if (window.electronAPI?.onUpdaterDownloaded) unsubs.push(window.electronAPI.onUpdaterDownloaded((i)=>{ setInfo(i); setState("downloaded"); setProgress(null); }));
-    if (window.electronAPI?.onUpdaterProgress) unsubs.push(window.electronAPI.onUpdaterProgress((p)=>{ setProgress(p); setState("downloading"); }));
-    if (window.electronAPI?.onUpdaterError) unsubs.push(window.electronAPI.onUpdaterError(()=> { setState("idle"); setProgress(null); }));
-    return ()=> unsubs.forEach(u=>{try{u()}catch{}});
-  }, []);
-  if (state === "checking") return <span title="Checking for updates…" style={{background:"var(--info-blue-a12)", color:"var(--info-blue)", border:"1px solid var(--info-blue-a18)", fontSize:"var(--fs-mini)", padding:"var(--space-2) var(--space-8)", borderRadius:"var(--radius-sm)", display:"flex", alignItems:"center", gap:"var(--space-4)"}}>↻ Checking…</span>;
-  if (state === "downloading") {
-    const pct = Math.round(progress?.percent || 0);
-    const mb = progress?.transferred ? `${(progress.transferred/1024/1024).toFixed(1)} MB` : "";
-    return (
-      <span title={`Downloading v${info?.version||""} ${pct}% ${mb} • ${progress?.bytesPerSecond ? (progress.bytesPerSecond/1024/1024).toFixed(1)+' MB/s' : ''}`} style={{background:"var(--grad-teal-soft)", color:"var(--teal)", border:"1px solid var(--teal-border-soft)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-8)", borderRadius:"var(--radius-md)", display:"flex", alignItems:"center", gap:"var(--space-6)", minWidth:120, position:"relative", overflow:"hidden"}}>
-        <span style={{position:"absolute", left:0, top:0, bottom:0, width:`${pct}%`, background:"var(--teal-a22)", transition:"width var(--t-progress)", borderRadius:"var(--radius-sm)"}} />
-        <span style={{position:"relative", display:"flex", alignItems:"center", gap:"var(--space-4)", fontWeight:"var(--fw-bold)"}}><span style={{display:"inline-block", width:8, height:8, border:"1.5px solid var(--teal)", borderTopColor:"transparent", borderRadius:"var(--radius-round)", animation:"spin 0.9s linear infinite"}} /> {pct}%</span>
-        <span style={{position:"relative", opacity:0.8, fontSize:"var(--fs-tiny)"}}>{mb}</span>
-      </span>
-    );
-  }
-  if (state === "downloaded") return <button onClick={()=>{ try{window.electronAPI.updaterInstall()}catch{} }} title="Restart to install update" style={{background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", border:"none", borderRadius:"var(--radius-md)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-10)", cursor:"pointer", boxShadow:"0 var(--space-2) var(--space-8) var(--teal-a30)"}}>↻ Restart v{info?.version||""}</button>;
-  if (state !== "available") return null;
-  return <button onClick={async()=>{ try{ await window.electronAPI.updaterDownload(); }catch{ try{window.electronAPI.openUrl("https://github.com/TheWonderlandStudio/Idiot_Box/releases/latest")}catch{} } }} title={`Update available v${info?.version||""} — click to download`} style={{background:"var(--grad-teal)", color:"var(--ink-on-teal)", fontWeight:"var(--fw-extrabold)", border:"none", borderRadius:"var(--radius-md)", fontSize:"var(--fs-mini)", padding:"var(--space-3) var(--space-10)", cursor:"pointer", display:"flex", alignItems:"center", gap:"var(--space-4)", animation:"pulse 1.5s infinite", boxShadow:"0 var(--space-2) var(--space-8) var(--teal-a32)"}}>⬇ Update v{info?.version||"new"}</button>;
-};
 
 // Stop the current run no matter where it was started. The Run panel (when
 // mounted) handles run:stopCurrent; if it is closed/hidden — or was just
@@ -3622,77 +3590,6 @@ const App = () => {
         );
       }}
         />
-      </div>
-
-      {/* ── IDE status bar ─────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex", alignItems: "center", gap: "var(--space-14)",
-          padding: "var(--space-1) var(--space-10)", background: "var(--accent)", color: "var(--text-inverse)",
-          fontSize: "var(--fs-small)", height: "var(--bar-h-sm)", flexShrink: 0, userSelect: "none",
-          overflow: "hidden", whiteSpace: "nowrap",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)", flex: 1, minWidth: 0, overflow: "hidden" }}>
-          <span id="pw-hostbar-left" style={{ display: "flex", alignItems: "center", gap: "var(--space-10)", minWidth: 0, overflow: "hidden" }} />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)" }}>
-          <div id="pw-hostbar-right" style={{ display: "flex", alignItems: "center", gap: "var(--space-10)" }} />
-          <ExtStatusItems />
-          <UpdaterNavButton />
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent("add-ports-panel"))}
-            title="Open Ports — forwarded & running dev servers"
-            style={{
-              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
-              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
-            }}
-          >
-            Ports
-          </button>
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent("add-output-panel"))}
-            title="Open Output — Git, Updater & Live Server logs"
-            style={{
-              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
-              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: "var(--space-4)",
-            }}
-          >
-            <OutputIcon size={12} />
-            Output
-          </button>
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent("add-android-panel"))}
-            title="Open Android Emulator — SDK in .appdata/android"
-            style={{
-              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
-              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
-            }}
-          >
-            Emulator
-          </button>
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent("add-canvas-panel"))}
-            title="Open Canvas — visual project map of every page & component"
-            style={{
-              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
-              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
-            }}
-          >
-            Canvas
-          </button>
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
-            title="Command Palette (Ctrl+Shift+P / F1) · Quick Open (Ctrl+P)"
-            style={{
-              background: "var(--white-a12)", border: "none", borderRadius: "var(--radius-sm)",
-              color: "var(--text-inverse)", fontSize: "var(--fs-mini)", letterSpacing: "0.02em", padding: "var(--space-2) var(--space-8)", cursor: "pointer",
-            }}
-          >
-            Palette
-          </button>
-        </div>
       </div>
 
       <CommandPalette />
