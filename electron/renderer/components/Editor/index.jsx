@@ -23,7 +23,8 @@ import { openSearchPanel, findNext, findPrevious, gotoLine } from "@codemirror/s
 import { foldAll, unfoldAll } from "@codemirror/language";
 import { unifiedMergeView } from "@codemirror/merge";
 import NotebookPanel from "../Notebook/index.jsx";
-import { Play, Sparkles, Square } from "lucide-react";
+import { Play, Square } from "lucide-react";
+import EditorStatusBar from "./StatusBar.jsx";
 import { MarkdownPreview, MdxPreview, CsvPreview, DbPreview } from "./preview.jsx";
 import "./editor.css";
 // Shared editor state (dirty flags, settings sync) — engine-agnostic.
@@ -35,7 +36,7 @@ import {
   getEditorSettings, settingsListeners,
 } from "./shared.js";
 import { normalizeCmSettings, DEFAULT_CM_SETTINGS } from "./cm/settings.js";
-import { resolveCmLanguage, getLanguageSupport, displayNameFor, CM_LANG_IDS } from "./cm/languages.js";
+import { resolveCmLanguage, getLanguageSupport } from "./cm/languages.js";
 import { collectSyntaxDiagnostics, publishDiagnostics } from "./cm/diagnostics.js";
 import { buildCmExtensions } from "./cm/extensions.js";
 import { createCmBridge, offsetToPos } from "./cm/bridge.js";
@@ -115,8 +116,6 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   const [cmSettings, setCmSettings] = useState(() => ({ ...DEFAULT_CM_SETTINGS }));
   const [autoSave, setAutoSave] = useState(false);
   const [formatBusy, setFormatBusy] = useState(false);
-  const [showLangMenu, setShowLangMenu] = useState(false);
-  const [langQuery, setLangQuery] = useState("");
   const [binaryFile, setBinaryFile] = useState(false);
   // ── Editor chrome state (status bar / breadcrumbs / overlays) ──
   const [eol, setEol] = useState("LF");
@@ -920,10 +919,10 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
   }, [patchSetting]);
 
   const tabSize = Number.isFinite(cmSettings.tabSize) ? cmSettings.tabSize : 2;
-  const displayName = displayNameFor(languageId);
 
   return (
     <div
+      className="ed-panel"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -1077,177 +1076,19 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
           </div>
 
           {!zen && filePath && !isIpynb && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "var(--space-2) var(--space-10)",
-                background: "var(--accent)",
-                color: "var(--text-inverse)",
-                fontSize: "var(--fs-small)",
-                height: "var(--bar-h-sm)",
-                flexShrink: 0,
-                userSelect: "none",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
-                <span>{statusMsg || (isDbFile ? "SQLite database · data / schema / SQL" : `Ln ${cursorPos.line}, Col ${cursorPos.col} (${cursorPos.totalLines} lines)`)}</span>
-                {!isDbFile && !binaryFile && (
-                  <>
-                    <span
-                      title="Problems (F8)"
-                      onClick={() => gotoProblem(1)}
-                      style={{ cursor: "pointer", opacity: problemCount ? 1 : 0.6 }}
-                    >
-                      ⚠ {problemCount}
-                    </span>
-                    {blame && cmSettings.gitBlame && (
-                      <span className="ed-blame" title={`${blame.author} · ${blame.hash.slice(0, 7)}`}>
-                        {blame.author} · {formatRelTime(blame.time)} · {blame.summary}
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
-                {canPreview && (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewOpen((v) => !v)}
-                    title={previewOpen ? "Back to editor" : (previewKind ? `Preview ${previewKind}` : "Preview Document")}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: "var(--space-4)",
-                      padding: "0 var(--space-6)", border: "1px solid var(--border-subtle, rgba(255,255,255,0.15))",
-                      borderRadius: "var(--radius-xs)", background: previewOpen ? "var(--accent)" : "var(--bg-hover)",
-                      color: "inherit", font: "inherit", cursor: "pointer",
-                      height: 18, lineHeight: "16px", fontSize: "11px",
-                    }}
-                  >
-                    {previewOpen ? <Square size={10} /> : <Play size={10} />}
-                    <span>{previewOpen ? "Editor" : (previewKind ? `${previewKind} Preview` : "Preview")}</span>
-                  </button>
-                )}
-                {!isDbFile && !binaryFile && (
-                  <button
-                    type="button"
-                    onClick={formatDocument}
-                    disabled={formatBusy}
-                    title="Format Document"
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: "var(--space-4)",
-                      padding: "0 var(--space-4)", border: 0, background: "transparent",
-                      color: "inherit", font: "inherit", cursor: formatBusy ? "wait" : "pointer",
-                      opacity: formatBusy ? 0.65 : 1,
-                    }}
-                  >
-                    <Sparkles size={11} /> {formatBusy ? "Formatting…" : "Format"}
-                  </button>
-                )}
-                {(autoSave || isAutoSaveEnabled()) && <span>AutoSave: On</span>}
-                <span
-                  title="Indentation — click to cycle 2 / 4 / Tab"
-                  onClick={() => {
-                    const unit = cmSettings.indentUnit === "\t" ? 2 : (tabSize === 2 ? 4 : "tab");
-                    changeIndent(unit);
-                  }}
-                  style={{ cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)" }}
-                >
-                  {cmSettings.indentUnit === "\t" ? "Tab" : `Spaces: ${tabSize}`}
-                </span>
-                <span
-                  title="End of line — click to toggle LF / CRLF"
-                  onClick={() => {
-                    const next = eol === "CRLF" ? "LF" : "CRLF";
-                    setEol(next);
-                    setDirty(nodeId, filePath, true);
-                  }}
-                  style={{ cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)" }}
-                >
-                  {eol}
-                </span>
-                <span title="File encoding" style={{ opacity: 0.9 }}>{encoding}</span>
-                <span
-                  title="Toggle word wrap"
-                  onClick={() => patchSetting({ lineWrapping: cmSettings.lineWrapping === false })}
-                  style={{
-                    cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)",
-                    opacity: cmSettings.lineWrapping === false ? 0.55 : 1,
-                  }}
-                >
-                  Wrap: {cmSettings.lineWrapping === false ? "Off" : "On"}
-                </span>
-                <span
-                  title="Toggle minimap"
-                  onClick={() => patchSetting({ minimap: cmSettings.minimap === false })}
-                  style={{
-                    cursor: "pointer", padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)",
-                    opacity: cmSettings.minimap === false ? 0.55 : 1,
-                  }}
-                >
-                  Minimap
-                </span>
-                <span
-                  onClick={() => { setShowLangMenu((v) => !v); setLangQuery(""); }}
-                  title="Change language mode"
-                  style={{
-                    textTransform: "uppercase", fontWeight: "var(--fw-semibold)", cursor: "pointer",
-                    padding: "0 var(--space-5)", borderRadius: "var(--radius-xs)",
-                    background: showLangMenu ? "var(--white-a25)" : "transparent",
-                  }}
-                >
-                  {displayName}
-                </span>
-              </div>
-            </div>
+            <EditorStatusBar
+              cursorPos={cursorPos} statusMsg={statusMsg} database={isDbFile} editable={!isDbFile && !binaryFile}
+              problemCount={problemCount} blame={blame && cmSettings.gitBlame ? { ...blame, when: formatRelTime(blame.time) } : null}
+              canPreview={canPreview} previewOpen={previewOpen} previewKind={previewKind} formatBusy={formatBusy}
+              autoSave={autoSave || isAutoSaveEnabled()} settings={cmSettings} eol={eol} encoding={encoding} languageId={languageId}
+              onPreview={() => setPreviewOpen(value => !value)} onFormat={formatDocument} onProblems={() => gotoProblem(1)}
+              onIndent={() => changeIndent(cmSettings.indentUnit === "\t" ? 2 : (tabSize === 2 ? 4 : "tab"))}
+              onEol={() => { setEol(eol === "CRLF" ? "LF" : "CRLF"); setDirty(nodeId, filePath, true); }}
+              onWrap={() => patchSetting({ lineWrapping: cmSettings.lineWrapping === false })}
+              onMinimap={() => patchSetting({ minimap: cmSettings.minimap === false })}
+              onLanguage={setLanguageId}
+            />
           )}
-
-          {showLangMenu && filePath && !isIpynb && (
-            <>
-              <div
-                onClick={() => setShowLangMenu(false)}
-                style={{ position: "absolute", inset: 0, zIndex: "var(--z-menu)" }}
-              />
-              <div
-                style={{
-                  position: "absolute", right: 8, bottom: 26, zIndex: "var(--z-menu-top)",
-                  background: "var(--bg-vscode)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-md)",
-                  boxShadow: "var(--shadow-pop)",
-                  maxHeight: 300, overflowY: "auto", minWidth: 220, padding: "var(--space-4)",
-                }}
-              >
-                <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon)", padding: "var(--space-4) var(--space-8)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Language mode
-                </div>
-                <input
-                  autoFocus
-                  value={langQuery}
-                  onChange={(e) => setLangQuery(e.target.value)}
-                  placeholder="Search languages…"
-                  style={{
-                    width: "100%", boxSizing: "border-box", margin: "0 0 var(--space-4)",
-                    background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)",
-                    color: "var(--text-hover)", fontSize: "var(--fs-body)", padding: "var(--space-5) var(--space-8)", outline: "none",
-                  }}
-                />
-                {CM_LANG_IDS.filter((id) => (displayNameFor(id) + " " + id).toLowerCase().includes(langQuery.trim().toLowerCase())).map((id) => (
-                  <div
-                    key={id}
-                    onClick={() => { setShowLangMenu(false); setLangQuery(""); if (id) setLanguageId(id); }}
-                    style={{
-                      fontSize: "var(--fs-body)", padding: "var(--space-3) var(--space-8)", borderRadius: "var(--radius-sm)", cursor: "pointer",
-                      color: id === languageId ? "var(--text-inverse)" : "var(--text-bright)",
-                      background: id === languageId ? "var(--select-blue)" : "transparent",
-                    }}
-                  >
-                    {displayNameFor(id)}
-                    <span style={{ opacity: 0.6, fontSize: "var(--fs-small)" }}> — {id}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
           {showOutline && filePath && !isIpynb && (
             <>
               <div
@@ -1255,11 +1096,12 @@ const CodeMirrorEditorPanel = ({ config, nodeId }) => {
                 style={{ position: "absolute", inset: 0, zIndex: "var(--z-menu)" }}
               />
               <div
+                className="ed-outline"
                 style={{
                   position: "absolute", left: 8, top: 30, zIndex: "var(--z-menu-top)",
                   background: "var(--bg-vscode)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-md)",
                   boxShadow: "var(--shadow-pop)",
-                  maxHeight: "60%", overflowY: "auto", minWidth: 260, maxWidth: 420, padding: "var(--space-4)",
+                  maxHeight: "60%", overflowY: "auto", width: 300, maxWidth: "calc(100% - 16px)", padding: "var(--space-4)",
                 }}
               >
                 <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon)", padding: "var(--space-4) var(--space-8)", textTransform: "uppercase", letterSpacing: 0.5 }}>
