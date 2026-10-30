@@ -81,6 +81,22 @@ app.whenReady().then(async () => {
     assert.equal(await run("testFiles('file1.js')[0].getParent().getId()"), "editors");
     assert.equal(await run("window.__flexModel.current.getNodeById('editors').getChildren()[0].getConfig().filePath.endsWith('file1.js')"), true);
     assert.equal(await run("testFiles('file1.js')[0].getConfig().forceText"), true);
+    // Ctrl+T opens a blank editor tab; Ctrl+W closes the active tab again.
+    const press = async (keyCode, modifiers) => {
+      win.webContents.sendInputEvent({ type: "keyDown", keyCode, modifiers });
+      win.webContents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
+      await delay(120);
+    };
+    await press("T", ["control"]);
+    await waitFor("window.__flexModel.current.getNodeById('editors').getChildren().some(n => n.getComponent() === 'editor' && !n.getConfig().filePath)");
+    assert.equal(await run("window.__flexModel.current.getNodeById('editors').getSelectedNode().getName()"), "Untitled-1");
+    await press("W", ["control"]);
+    await waitFor("!window.__flexModel.current.getNodeById('editors').getChildren().some(n => n.getComponent() === 'editor' && !n.getConfig().filePath)");
+    assert.equal(await run("window.__currentProjectPath"), fixture);
+    // Ctrl+Shift+T restores the most recently closed file tab.
+    await close("file1");
+    await press("T", ["control", "shift"]);
+    await waitFor("testFiles('file1.js').length === 1");
     // The same command is discoverable and executable in the palette.
     await close("file1");
     win.webContents.send("menu:commandPalette");
@@ -121,7 +137,10 @@ app.whenReady().then(async () => {
     assert.equal(await run(`testFiles('file3.js')[0].getConfig().filePath.startsWith(${JSON.stringify(second)})`), true);
     reopen();
     await waitFor("document.getElementById('ibx-layout-toast')?.textContent.includes('No recently closed')");
+    // Ctrl+Shift+W closes the project (and leaves the app running).
+    await press("W", ["control", "shift"]);
+    await waitFor("window.__currentProjectPath === null && !!document.querySelector('.phub')");
     assert.deepEqual(errors, [], "No renderer errors");
-    console.log("PASS: cancelled close, native file close, menu/palette recovery, tab options, deduplication, missing files, relative clipboard path, and project-switch race");
+    console.log("PASS: cancelled close, native file close, menu/palette recovery, tab options, deduplication, missing files, relative clipboard path, project-switch race, and tab/project shortcuts");
   } finally { win.destroy(); app.quit(); }
 }).catch((error) => { console.error(error); app.exit(1); });

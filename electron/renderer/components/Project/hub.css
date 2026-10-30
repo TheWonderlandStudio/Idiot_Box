@@ -4,8 +4,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  /* toolbar (30px) worth of bottom gap — frame ends above the screen bottom */
-  height: calc(100% - 30px);
+  height: 100%;
   background: var(--bg-workspace);
   font-family: var(--font-ui);
   font-size: var(--fs-body);

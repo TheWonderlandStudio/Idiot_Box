@@ -232,7 +232,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const valid = [
       "menu:openProject","menu:newProject","menu:saveProject","menu:closeProject",
       "menu:resetLayout","menu:saveFile","menu:saveFileAs","menu:toggleAutoSave",
-      "menu:closeEditor","menu:reopenClosedEditor",
+      "menu:newTab","menu:closeEditor","menu:reopenClosedEditor",
       "menu:commandPalette","menu:quickOpen","menu:loadExtension",
       "menu:undo","menu:redo","menu:cut","menu:copy","menu:paste","menu:selectAll",
       "menu:find","menu:findNext","menu:findPrevious","menu:replace",

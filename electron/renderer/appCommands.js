@@ -63,6 +63,11 @@ export const runAppCommand = (id) => {
   switch (id) {
     case "searchInFiles":  ev("search:open", { mode: "search" }); return true;
     case "replaceInFiles": ev("search:open", { mode: "replace" }); return true;
+    case "newTab": ev("editor:newTab"); return true;
+    case "closeEditor": ev("editor:closeTab"); return true;
+    case "closeProject":
+      try { window.__ibxCloseProject?.(); } catch {}
+      return true;
     case "reopenClosedEditor": ev("editor:reopenClosed"); return true;
     case "localHistory":   ev("local-history:open"); return true;
     case "testExplorer":   ev("add-test-explorer-panel"); return true;

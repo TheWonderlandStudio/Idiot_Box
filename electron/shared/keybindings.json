@@ -17,8 +17,10 @@
   { "id": "saveFile", "title": "Save", "category": "File", "default": "Ctrl+S", "scope": "global", "native": true, "desc": "Save the current file" },
   { "id": "saveFileAs", "title": "Save As", "category": "File", "default": "Ctrl+Shift+S", "scope": "global", "native": true, "desc": "Save the current file as…" },
   { "id": "saveAll", "title": "Save All", "category": "File", "default": "Ctrl+Alt+S", "scope": "global", "native": true, "desc": "Save all dirty files" },
-  { "id": "closeEditor", "title": "Close Editor", "category": "File", "default": "Ctrl+W", "scope": "global", "native": true, "desc": "Close the current editor" },
-  { "id": "reopenClosedEditor", "title": "Reopen Closed Editor", "category": "File", "default": "Ctrl+Shift+T", "scope": "global", "native": true, "desc": "Restore the most recently closed file tab in this project" },
+  { "id": "newTab", "title": "New Tab", "category": "File", "default": "Ctrl+T", "scope": "global", "native": false, "desc": "Open a new editor tab" },
+  { "id": "closeEditor", "title": "Close Tab", "category": "File", "default": "Ctrl+W", "scope": "global", "native": false, "desc": "Close the active tab" },
+  { "id": "reopenClosedEditor", "title": "Reopen Closed Editor", "category": "File", "default": "Ctrl+Shift+T", "scope": "global", "native": false, "desc": "Restore the most recently closed file tab in this project" },
+  { "id": "closeProject", "title": "Close Project", "category": "File", "default": "Ctrl+Shift+W", "scope": "global", "native": false, "desc": "Close the current project" },
   { "id": "newWindow", "title": "New Window", "category": "File", "default": "Ctrl+Shift+N", "scope": "global", "native": true, "desc": "Open a new Idiot Box window" },
 
   { "id": "undo", "title": "Undo", "category": "Edit", "default": "Ctrl+Z", "scope": "global", "native": true, "desc": "Undo the last change" },

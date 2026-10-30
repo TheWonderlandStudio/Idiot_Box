@@ -83,9 +83,13 @@ test("already-open editors are found across the model with Windows path equivale
   assert.equal(findOpenEditor(model, "C:/Work/missing.js"), null);
 });
 
-test("the reopen shortcut is registered and respects keybinding overrides", () => {
+test("tab shortcuts are registered and respect keybinding overrides", () => {
   const { acceleratorFor } = require("../electron/main/keybindings.js");
+  assert.equal(acceleratorFor({}, "newTab"), "CmdOrCtrl+T");
+  assert.equal(acceleratorFor({}, "closeEditor"), "CmdOrCtrl+W");
   assert.equal(acceleratorFor({}, "reopenClosedEditor"), "CmdOrCtrl+Shift+T");
+  assert.equal(acceleratorFor({}, "closeProject"), "CmdOrCtrl+Shift+W");
   assert.equal(acceleratorFor({ keybindings: { reopenClosedEditor: "Alt+T" } }, "reopenClosedEditor"), "Alt+T");
   assert.equal(acceleratorFor({ keybindings: { reopenClosedEditor: "" } }, "reopenClosedEditor"), undefined);
+  assert.notEqual(acceleratorFor({}, "closeEditor"), acceleratorFor({}, "closeProject"));
 });

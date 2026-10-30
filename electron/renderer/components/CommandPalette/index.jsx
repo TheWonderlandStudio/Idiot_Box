@@ -17,6 +17,8 @@ const COMMANDS = [
   // ── File ──
   { id: "open-project",    group: "File", title: "Open Project…",           run: () => window.electronAPI.openFolder() },
   { id: "new-project",     group: "File", title: "New Project…",            run: act("newProject") },
+  { id: "new-tab",         group: "File", title: "New Tab",                 run: ev("editor:newTab") },
+  { id: "close-tab",       group: "File", title: "Close Tab",               run: ev("editor:closeTab") },
   { id: "save-project",    group: "File", title: "Save Project Layout",     run: act("saveProject") },
   { id: "close-project",   group: "File", title: "Close Project",           run: act("closeProject") },
   { id: "reopen-closed-editor", group: "File", title: "Reopen Closed Editor", run: ev("editor:reopenClosed") },

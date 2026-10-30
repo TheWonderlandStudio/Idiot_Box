@@ -1893,7 +1893,6 @@ const BrowserPanel = (props) => {
         if (key === "r") action = "reload";
         else if (key === "f") action = "find";
         else if (key === "l") action = "focusUrl";
-        else if (key === "t") action = "newTab";
       } else if (!mod && !e.shiftKey && e.altKey) {
         if (key === "arrowleft") action = "back";
         else if (key === "arrowright") action = "forward";
@@ -2053,10 +2052,9 @@ const BrowserPanel = (props) => {
                   <span className="browser__more-icon"><Search size={14} /></span>
                   <span className="browser__more-label">Inspect element</span>
                 </button>
-                <button className="browser__more-item" onClick={() => { setMoreOpen(false); runBrowserAction("newTab"); }} title="New browser tab (Ctrl+T)">
+                <button className="browser__more-item" onClick={() => { setMoreOpen(false); runBrowserAction("newTab"); }} title="New browser tab">
                   <span className="browser__more-icon"><span style={{ fontSize: 14, fontWeight: "bold" }}>+</span></span>
                   <span className="browser__more-label">New tab</span>
-                  <span className="browser__more-hint">Ctrl+T</span>
                 </button>
                 <button className="browser__more-item" onClick={handleManageExtensions} title="Manage extensions">
                   <span className="browser__more-icon"><Puzzle size={14} /></span>

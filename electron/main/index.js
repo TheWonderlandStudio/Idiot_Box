@@ -6597,9 +6597,10 @@ function buildMenu() {
         { label: "Save All",        accelerator: kb("saveAll", "CmdOrCtrl+Alt+S"),      click: () => sendToRenderer("menu:saveFile", null) },
         { label: "Auto Save", type: "checkbox", checked: autoSaveEnabled, click: (item) => { autoSaveEnabled = item.checked; sendToRenderer("menu:toggleAutoSave", item.checked); } },
         { type: "separator" },
-        { label: "Close Editor",    accelerator: kb("closeEditor", "CmdOrCtrl+W"), click: () => sendToRenderer("menu:closeEditor", null) },
+        { label: "New Tab",         accelerator: kb("newTab", "CmdOrCtrl+T"), click: () => sendToRenderer("menu:newTab", null) },
+        { label: "Close Tab",       accelerator: kb("closeEditor", "CmdOrCtrl+W"), click: () => sendToRenderer("menu:closeEditor", null) },
         { label: "Reopen Closed Editor", accelerator: kb("reopenClosedEditor", "CmdOrCtrl+Shift+T"), click: () => sendToRenderer("menu:reopenClosedEditor", null) },
-        { label: "Close Project", click: () => { lastProjectPath = null; sendToRenderer("menu:closeProject", null); } },
+        { label: "Close Project",   accelerator: kb("closeProject", "CmdOrCtrl+Shift+W"), click: () => { lastProjectPath = null; sendToRenderer("menu:closeProject", null); } },
         { type: "separator" },
         { label: "New Window", accelerator: kb("newWindow", "CmdOrCtrl+Shift+N"), click: () => createWindow() },
         { type: "separator" },
@@ -6824,7 +6825,7 @@ function buildMenu() {
         { type: "separator" },
         { label: "Reset Window Layout", click: () => sendToRenderer("menu:resetLayout", null) },
         { type: "separator" },
-        { label: "Close Window", accelerator: "CmdOrCtrl+Shift+W", role: "close" },
+        { label: "Close Window", role: "close" },
       ],
     },
     {
@@ -7004,36 +7005,12 @@ function createWindow() {
     if (iz !== 1) win.webContents.setZoomFactor(iz);
   } catch {}
 
-  // ── Fix Ctrl+W: only close project, never close window/app ───
-  // ── + Global Zoom shortcuts: Ctrl + + / Ctrl + = / Ctrl + numadd  → Zoom In
-  // ──                        Ctrl + - / Ctrl + numsub → Zoom Out, Ctrl + 0 → Reset
-  const handleGlobalShortcuts = (event, input) => {
-    try {
-      const isCtrl = !!(input.control || input.meta);
-      const key = String(input.key || "").toLowerCase();
-      const typeDown = input.type === "keyDown";
-      // Ctrl+W — close project only (handle for both main and guest)
-      if (isCtrl && key === "w" && typeDown && !input.shift && !input.alt) {
-        try { event.preventDefault(); } catch {}
-        lastProjectPath = null;
-        sendToRenderer("menu:closeProject", null);
-        return;
-      }
-      // Zoom shortcuts are handled by Menu accelerators (View → UI Size) and
-      // renderer fallback (window keydown + Ctrl+Wheel) for Monaco/webview
-      // focus cases. No main-process before-input zoom handling needed here
-      // to avoid double-step and conflict with Browser webview's own Ctrl+Plus
-      // content-zoom. See View menu and renderer/index.jsx zoom overlay.
-    } catch {}
-  };
-  win.webContents.on("before-input-event", handleGlobalShortcuts);
-
   // ── Browser guest shortcuts → forward to the owning tab ────────────────────
   // Guest page keys never reach the host, so webview shortcuts are
   // captured here and sent to the host window. The renderer (BrowserPanel)
   // matches wcId and runs it only in that tab (other tabs ignore it).
-  // Zoom keys are NOT forwarded — View menu accelerators + guest content-zoom
-  // would double-step (see the zoom note above).
+  // Zoom keys are NOT forwarded — View menu accelerators handle UI zoom while
+  // the guest keeps its own content zoom.
   const handleGuestBrowserShortcuts = (guestWc, hostWin) => (event, input) => {
     try {
       if (!input || input.type !== "keyDown") return;
@@ -7046,7 +7023,6 @@ function createWindow() {
         if (key === "r") action = "reload";
         else if (key === "f") action = "find";
         else if (key === "l") action = "focusUrl";
-        else if (key === "t") action = "newTab";
       } else if (!isCtrl && !input.shift && input.alt) {
         if (key === "arrowleft" || key === "left") action = "back";
         else if (key === "arrowright" || key === "right") action = "forward";
@@ -7067,7 +7043,6 @@ function createWindow() {
     try { chromeExt?.addTab(wc, win); } catch {}
     wc.on("did-navigate", () => { try { chromeExt?.selectTab(wc); } catch {} });
     wc.on("focus",       () => { try { chromeExt?.selectTab(wc); } catch {} });
-    try { wc.on("before-input-event", handleGlobalShortcuts); } catch {}
     try { wc.on("before-input-event", handleGuestBrowserShortcuts(wc, win)); } catch {}
     const pending = pendingCreateTabs.shift();
     if (pending) pending.resolve([wc, win]);

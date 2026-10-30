@@ -2619,30 +2619,60 @@ const App = () => {
     };
   }, []);
 
-  // Native Close Editor uses the same unsaved-change guard as the tab button.
+  // Global tab commands: Ctrl+T opens a tab, Ctrl+W closes the active tab.
+  // The renderer keybinding dispatcher filters the shortcut (so user overrides
+  // win); the native menu accelerator is the fallback when a webview has focus.
   useEffect(() => {
-    const closeEditor = () => {
-      const m = modelRef.current;
-      const tab = m?.getActiveTabset?.()?.getSelectedNode?.();
-      if (tab && ["editor", "notebook"].includes(tab.getComponent?.())) requestEditorCloseRef.current?.(tab.getId());
+    // The renderer-level keybinding dispatcher (Ctrl+W / Ctrl+T) and the
+    // native accelerator can both deliver the same chord on some platforms.
+    // Ignore the second delivery of one physical key press.
+    let lastCloseAt = 0;
+    let lastNewAt = 0;
+    const closeActiveTab = () => {
+      try {
+        const now = Date.now();
+        if (now - lastCloseAt < 150) return;
+        lastCloseAt = now;
+        const m = modelRef.current;
+        const tab = m?.getActiveTabset?.()?.getSelectedNode?.();
+        if (tab?.getId) requestEditorCloseRef.current?.(tab.getId());
+      } catch {}
     };
-    const off = window.electronAPI.onMenuEvent("menu:closeEditor", closeEditor);
-    const handler = (e) => {
-      if ((e.ctrlKey || e.metaKey) && String(e.key || "").toLowerCase() === "w" && !e.shiftKey && !e.altKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (typeof e.stopImmediatePropagation === "function") try { e.stopImmediatePropagation(); } catch {}
-        // Electron's menu accelerator performs the close. Suppress Chromium's
-        // window-close fallback without dispatching a second tab close.
-        return false;
-      }
+    const newTab = () => {
+      try {
+        const now = Date.now();
+        if (now - lastNewAt < 150) return;
+        lastNewAt = now;
+        const m = modelRef.current;
+        if (!m || !currentProjectRef.current) return;
+        const activeTabset = m.getActiveTabset?.();
+        const activeTab = activeTabset?.getSelectedNode?.();
+        const isEditorTab = activeTab && ["editor", "notebook"].includes(activeTab.getComponent?.());
+        const tabset = (isEditorTab ? activeTabset : null)
+          || findEditorTabset(m.getRoot()) || activeTabset || findAnyTabset(m.getRoot());
+        if (!tabset) return;
+        const used = new Set();
+        try { m.visitNodes((n) => { if (n.getType?.() === "tab") used.add(n.getName?.()); }); } catch {}
+        let n = 1;
+        while (used.has(`Untitled-${n}`)) n++;
+        m.doAction(Actions.addNode({
+          type: "tab", component: "editor", name: `Untitled-${n}`, enableClose: true,
+          id: "editor-tab-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+          config: {},
+        }, tabset.getId(), DockLocation.CENTER, -1, true));
+        forceLayoutRedraw(m);
+        scheduleSaveProjectTabs();
+      } catch {}
     };
-    window.addEventListener("keydown", handler, true);
-    document.addEventListener("keydown", handler, true);
+    const offClose = window.electronAPI.onMenuEvent("menu:closeEditor", closeActiveTab);
+    const offNew = window.electronAPI.onMenuEvent("menu:newTab", newTab);
+    window.addEventListener("editor:closeTab", closeActiveTab);
+    window.addEventListener("editor:newTab", newTab);
     return () => {
-      off();
-      window.removeEventListener("keydown", handler, true);
-      document.removeEventListener("keydown", handler, true);
+      offClose();
+      offNew();
+      window.removeEventListener("editor:closeTab", closeActiveTab);
+      window.removeEventListener("editor:newTab", newTab);
     };
   }, []);
 
