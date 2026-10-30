@@ -2518,11 +2518,14 @@ ipcMain.handle("git:menuAction", async (_e, rootPath, action, value) => {
     let readOnly = false;
     switch (action) {
       case "sync": {
-        const pullOut = await gitRunLogged(rootPath, ["pull"], 15000);
-        gitCacheInvalidate(rootPath);
-        const pushOut = await gitRunLogged(rootPath, ["push"], 15000);
-        gitCacheInvalidate(rootPath);
-        return { ok: true, out: [pullOut, pushOut].filter(Boolean).join("\n") };
+        try {
+          const pullOut = await gitRunLogged(rootPath, ["pull"], 15000);
+          gitCacheInvalidate(rootPath);
+          const pushOut = await gitRunLogged(rootPath, ["push"], 15000);
+          return { ok: true, out: [pullOut, pushOut].filter(Boolean).join("\n") };
+        } finally {
+          gitCacheInvalidate(rootPath);
+        }
       }
       case "fetch-all": args = ["fetch", "--all"]; break;
       case "fetch-prune": args = ["fetch", "--all", "--prune"]; break;
