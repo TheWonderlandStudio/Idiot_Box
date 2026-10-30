@@ -75,11 +75,11 @@ const ExtensionsPage = () => {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-12)" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-8)", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-12)" }}>
         <span className="sw-row__desc" style={{ margin: 0 }}>
           Chrome extensions loaded into the browser. Installed paths are kept in userData and auto-loaded on startup.
         </span>
-        <div style={{ display: "flex", gap: "var(--space-8)", marginLeft: "var(--space-12)", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-8)", maxWidth: "100%" }}>
           <button className="sw-btn" onClick={installCrx} disabled={busyId === "crx"} title="Pick a .crx file to install">
             {busyId === "crx" ? "Installing…" : "+ Install .CRX"}
           </button>

@@ -1397,6 +1397,13 @@ export const DbPreview = ({ filePath }) => {
     <>
       <PrevHead title={`Database — ${fileName}`} extra={refreshBtn} />
       <div className="ed-prev__body ed-db">
+        <div className="ed-db__compact-objects">
+          <select aria-label="Database object" title={activeName || "Choose a database object"} value={activeName || ""} onChange={event => selectObject(event.target.value)}>
+            {!objects.length && <option value="">No tables yet</option>}
+            {objects.map(object => <option key={object.name} value={object.name}>{object.name}{object.type === "view" ? " (view)" : ""}</option>)}
+          </select>
+          <button className="ed-db__iconbtn" title="New table" onClick={openNewTable} disabled={!info}><Plus size={14}/></button>
+        </div>
         <aside className="ed-db__side">
           <div className="ed-db__side-head">
             <span className="ed-db__side-title">Objects</span>

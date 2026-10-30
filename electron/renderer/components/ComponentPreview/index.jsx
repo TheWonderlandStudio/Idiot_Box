@@ -1150,8 +1150,8 @@ const ComponentPreview = ({ nodeId, config }) => {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", background: "var(--bg-deep)", position: "relative", overflow: "hidden" }}>
       {/* ── Header Toolbar ─────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-4) var(--space-10)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", fontSize: "var(--fs-body)", color: "var(--text-bright)", flexShrink: 0, gap: "var(--space-8)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", padding: "var(--space-4) var(--space-10)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", fontSize: "var(--fs-body)", color: "var(--text-bright)", flexShrink: 0, gap: "var(--space-8)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", flex: "1 1 180px", minWidth: 0 }}>
           <span style={{ fontWeight: "var(--fw-semibold)", color: "var(--teal)", display: "flex", alignItems: "center", gap: "var(--space-4)", flexShrink: 0 }}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path style={{ stroke: "var(--teal)" }} d="M4 2.5L1.5 8L4 13.5M12 2.5L14.5 8L12 13.5M9.5 2L6.5 14" strokeWidth="1.2" strokeLinecap="round" />
@@ -1183,6 +1183,7 @@ const ComponentPreview = ({ nodeId, config }) => {
               outline: "none",
               cursor: "pointer",
               maxWidth: 260,
+              minWidth: 0, flex: 1,
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}
@@ -1205,7 +1206,7 @@ const ComponentPreview = ({ nodeId, config }) => {
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-6)", maxWidth: "100%" }}>
           {/* Sample Component Button */}
           <button
             onClick={() => setSampleMode(true)}

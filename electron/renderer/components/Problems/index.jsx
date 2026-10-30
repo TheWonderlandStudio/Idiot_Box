@@ -102,7 +102,7 @@ const ProblemsPanel = () => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-surface)", color: "var(--text-bright)", fontFamily: "sans-serif", overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-6) var(--space-12)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-6)", alignItems: "center", justifyContent: "space-between", padding: "var(--space-6) var(--space-12)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
           <span style={{ fontSize: "var(--fs-body)", fontWeight: "var(--fw-semibold)" }}>Problems</span>
           <span style={{ fontSize: "var(--fs-tiny)", background: markers.filter((m) => m.severity === 8).length ? "var(--error-bg-solid)" : "var(--bg-active)", color: markers.filter((m) => m.severity === 8).length ? "var(--danger)" : "var(--icon)", padding: "var(--space-1) var(--space-6)", borderRadius: "var(--radius-sm)" }}>

@@ -240,13 +240,13 @@ const XTERM_CUSTOM_CSS = `
 `;
 
 const TERMINAL_PANEL_CSS = `
-.term-panel { display:flex; flex-direction:column; height:100%; width:100%; background:var(--bg-surface); position:relative; overflow:hidden; }
+.term-panel { display:flex; flex-direction:column; height:100%; width:100%; background:var(--bg-surface); position:relative; overflow:hidden; container:terminal-panel / size; }
 .term-content { flex:1; position:relative; overflow:hidden; z-index:var(--z-base); background:var(--bg-surface); display:flex; flex-direction:column; min-height:0; }
 .term-empty { display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-muted); font-size:var(--fs-title); background:var(--bg-surface); }
 .term-status { display:flex; align-items:center; gap:var(--space-6); padding:var(--space-3) var(--space-10); background:var(--bg-raised); border-top:1px solid var(--border); font-size:var(--fs-small); color:var(--text-muted); flex-shrink:0; user-select:none; }
 .term-status-icon { flex-shrink:0; }
-.term-status-path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
-.term-status-actions { display:flex; align-items:center; gap:var(--space-4); }
+.term-status-path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+.term-status-actions { display:flex; align-items:center; gap:var(--space-4); flex-shrink:0; }
 .term-status-btn { background:transparent; border:none; color:var(--icon); cursor:pointer; padding:var(--space-2) var(--space-4); border-radius:var(--radius-xs); font-size:var(--fs-small); }
 .term-status-btn:hover { background:var(--bg-thumb); color:var(--text-inverse); }
 .term-toolbar { display:flex; align-items:center; gap:var(--space-6); padding:var(--space-4) var(--space-8); background:var(--bg-vscode); border-bottom:1px solid var(--bg-active); flex-shrink:0; user-select:none; }
@@ -255,7 +255,11 @@ const TERMINAL_PANEL_CSS = `
 .term-dd-btn:hover { border-color:var(--accent); }
 .term-dd-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; text-align:left; }
 .term-dd-chev { opacity:0.7; font-size:var(--fs-tiny); flex-shrink:0; }
-.term-dd-menu { position:absolute; top:calc(100% + 4px); left:0; min-width:230px; max-width:300px; max-height:260px; overflow-y:auto; background:var(--bg-raised); border:1px solid var(--border-strong); border-radius:var(--radius-md); box-shadow:0 8px 24px var(--overlay-dark); z-index:var(--z-menu); padding:var(--space-4); display:flex; flex-direction:column; gap:2px; }
+.term-dd-menu { position:absolute; top:calc(100% + 4px); left:0; width:min(300px, calc(100cqw - 16px)); max-height:min(260px, calc(100cqh - 80px)); overflow-y:auto; background:var(--bg-raised); border:1px solid var(--border-strong); border-radius:var(--radius-md); box-shadow:0 8px 24px var(--overlay-dark); z-index:var(--z-menu); padding:var(--space-4); display:flex; flex-direction:column; gap:2px; }
+@container terminal-panel (max-width:400px) {
+  .term-status-btn-label { display:none; }
+  .term-status-btn { min-width:24px; }
+}
 .term-dd-item { display:flex; align-items:center; gap:var(--space-6); width:100%; padding:var(--space-4) var(--space-8); border:0; border-radius:var(--radius-sm); background:transparent; color:var(--text-bright); font-size:var(--fs-small); cursor:pointer; text-align:left; }
 .term-dd-item:hover { background:var(--bg-hover); }
 .term-dd-item--active { background:var(--select-blue); color:var(--text-inverse); }
@@ -1096,46 +1100,52 @@ const TerminalPanel = ({ nodeId, config }) => {
           <button
             className="term-status-btn"
             title="New terminal"
+            aria-label="New terminal"
             onClick={addSession}
           >
-            + New
+            + <span className="term-status-btn-label">New</span>
           </button>
           <button
             className="term-status-btn"
             title="Kill active terminal"
+            aria-label="Kill active terminal"
             onClick={() => killSession(activeId)}
             onMouseEnter={(e) => { e.currentTarget.style.color = "var(--error-text)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = ""; }}
           >
-            🗑 Kill
+            🗑 <span className="term-status-btn-label">Kill</span>
           </button>
           <button
             className="term-status-btn"
             title="Clear active terminal"
+            aria-label="Clear active terminal"
             onClick={clearActive}
           >
-            ∿ Clear
+            ∿ <span className="term-status-btn-label">Clear</span>
           </button>
           <button
             className="term-status-btn"
             title="Restart active terminal"
+            aria-label="Restart active terminal"
             onClick={restartActive}
           >
-            ↻ Restart
+            ↻ <span className="term-status-btn-label">Restart</span>
           </button>
           <button
             className="term-status-btn"
             title="Split Right"
+            aria-label="Split terminal right"
             onClick={() => window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { nodeId, location: "RIGHT" } }))}
           >
-            ⧉ Right
+            ⧉ <span className="term-status-btn-label">Right</span>
           </button>
           <button
             className="term-status-btn"
             title="Split Down"
+            aria-label="Split terminal down"
             onClick={() => window.dispatchEvent(new CustomEvent("add-terminal-panel", { detail: { nodeId, location: "BOTTOM" } }))}
           >
-            ⧉ Down
+            ⧉ <span className="term-status-btn-label">Down</span>
           </button>
         </div>
       </div>

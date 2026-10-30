@@ -6,6 +6,7 @@
  * Without this chain Excalidraw renders at 0px height (blank panel).
  */
 .excalidraw-panel {
+  container: drawing-panel / size;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -17,6 +18,7 @@
 
 .excalidraw-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-8);
   padding: var(--space-4) var(--space-10);
@@ -43,7 +45,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 1;
-  min-width: 60px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .excalidraw-toolbar__status {
@@ -77,6 +80,7 @@
 }
 
 .excalidraw-body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -92,6 +96,15 @@
   background: var(--bg-surface);
   border-right: 1px solid var(--bg-active);
   min-height: 0;
+}
+@container drawing-panel (max-width: 600px) {
+  .excalidraw-comps { position: absolute; inset: 0 auto 0 0; max-width: 100%; z-index: var(--z-menu); box-shadow: var(--shadow-pop); }
+}
+@container drawing-panel (max-height: 240px) {
+  .excalidraw-toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .excalidraw-toolbar__file { max-width: 120px; flex-shrink: 0; }
+  .excalidraw-body { overflow-y: auto; }
+  .excalidraw-body > .excalidraw-host { min-height: 220px; }
 }
 
 /* Slim edge strip to bring the sidebar back when hidden */
@@ -249,6 +262,7 @@
 }
 
 .excalidraw-host {
+  container: drawing-surface / inline-size;
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -358,6 +372,14 @@
 .excalidraw-host__inner .excalidraw {
   width: 100% !important;
   height: 100% !important;
+}
+/* The drawing library uses viewport units for its mobile tools. Bound that
+ * strip to this pane and keep every tool reachable by scrolling or keyboard. */
+.excalidraw-host .App-toolbar--mobile {
+  max-width: calc(100cqw - 16px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .excalidraw-overlay {
