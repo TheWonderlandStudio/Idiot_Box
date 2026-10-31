@@ -161,8 +161,8 @@ const handlers = {
   "git:branch": () => ({
     branch: "main",
     isRepo: true,
-    ahead: 0,
-    behind: 0,
+    ahead: 3,
+    behind: 2,
     hasRemote: true,
   }),
   "git:branches": () => ({
