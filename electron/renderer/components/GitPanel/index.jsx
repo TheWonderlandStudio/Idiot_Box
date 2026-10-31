@@ -325,7 +325,7 @@ export default function GitPanel({ nodeId }){
       const r= amend
         ? await (window.electronAPI.gitCommitAmend ? window.electronAPI.gitCommitAmend(projectPath, msg.trim()) : window.electronAPI.gitCommit(projectPath, msg.trim(), {amend:true}))
         : await window.electronAPI.gitCommit(projectPath, msg.trim());
-      if(r?.ok){ setMsg(""); showToast(amend?"Amended":"Committed"); await doRefresh(true); if(pushAfter) await doPushInternal(); }
+      if(r?.ok){ setMsg(""); showToast(amend?"Amended":"Committed"); await doRefresh(true); const pull=await window.electronAPI.gitPull(projectPath); if(pull?.ok===false) throw new Error(pull.error); const push=await window.electronAPI.gitPush(projectPath); if(push?.ok===false) throw new Error(push.error); showToast("Synced"); }
       else throw new Error(r?.error||"Commit failed");
     }catch(e){ const m=humanBranchError(e.message); setError(m); showToast(m,true); }
     finally{ setBusy(""); }
