@@ -1,0 +1,97 @@
+name: Security checks (PR)
+
+# Fast + effective PR gate:
+#  1. Gitleaks       -> blocks tokens/keys/secrets (.env.signing, GH tokens, etc.)
+#  2. Dependency review -> blocks PRs adding new HIGH/CRITICAL advisories
+# No CodeQL, so this finishes in under a minute.
+#
+# Gitleaks is installed from the upstream release instead of using
+# gitleaks/gitleaks-action: the action now requires a paid license for
+# organization-owned repositories, while the scanner itself is MIT-licensed.
+#
+# Dependency review compares `npm audit` reports from the base and head
+# commits. GitHub's dependency-review-action is not usable here because its
+# dependency graph is disabled for this repository.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -sSfL -o "$tarball" "${base}/${tarball}"
+          curl -sSfL -o checksums.txt "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " ${tarball}$" checksums.txt | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan for secrets
+        run: gitleaks git --config .gitleaks.toml --redact --verbose
+
+  dependency-review:
+    name: Dependency review
+    # Runs the dependency diff on PRs only.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The base commit is needed to build the comparison audit.
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Review dependency changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          base_dir="$RUNNER_TEMP/dependency-review-base"
+          mkdir -p "$base_dir"
+          git show "${BASE_SHA}:package.json" > "$base_dir/package.json"
+          git show "${BASE_SHA}:package-lock.json" > "$base_dir/package-lock.json"
+
+          # npm audit exits 1 when it finds vulnerabilities; the reports are
+          # written either way and compared by the script below.
+          set +e
+          npm audit --json > "$RUNNER_TEMP/head-audit.json"
+          (cd "$base_dir" && npm audit --json > "$RUNNER_TEMP/base-audit.json")
+          set -e
+
+          node .github/scripts/dependency-review.cjs \
+            "$RUNNER_TEMP/base-audit.json" \
+            "$RUNNER_TEMP/head-audit.json"

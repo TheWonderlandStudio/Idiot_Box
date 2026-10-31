@@ -1,0 +1,51 @@
+name: CLA Assistant
+
+# Runs on pull_request_target so forked PRs get a writable token. This
+# workflow never checks out or executes PR code; the action only reads PR
+# metadata and writes comments, status checks, and the signature file.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  cla:
+    name: CLA Assistant
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check CLA signature
+        # Only handle PR conversation comments, not comments on regular issues.
+        if: >-
+          github.event_name == 'pull_request_target' ||
+          (github.event.issue.pull_request != null &&
+           (github.event.comment.body == 'recheck' ||
+            github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
+        uses: digital-asset/cla-action@v0.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-signatures: signatures/version1/cla.json
+          path-to-document: https://github.com/TheWonderlandStudio/Idiot_Box/blob/main/CLA.md
+          # Signatures live on an unprotected branch so the bot can commit
+          # them without bypassing protection on main.
+          branch: cla-signatures
+          allowlist: Jignesh1236,bot*,*[bot]
+          custom-notsigned-prcomment: >-
+            Thanks for your contribution! Before this pull request can be
+            merged, $you need to sign our [Contributor License Agreement](https://github.com/TheWonderlandStudio/Idiot_Box/blob/main/CLA.md).
+            To sign, post a new comment with exactly the text below.
+          custom-pr-sign-comment: I have read the CLA Document and I hereby sign the CLA
+          custom-allsigned-prcomment: All contributors have signed the CLA. Thank you!
+          lock-pullrequest-aftermerge: false
