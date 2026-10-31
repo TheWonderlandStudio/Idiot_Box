@@ -2417,7 +2417,10 @@ const App = () => {
       const m = modelRef.current;
       const nodeId = e.detail?.nodeId;
       if (m && nodeId) {
-        try { m.doAction(Actions.deleteTab(nodeId)); } catch {}
+        // Defer to avoid crash when closing a focused webview (same issue as Ctrl+W)
+        setTimeout(() => {
+          try { m.doAction(Actions.deleteTab(nodeId)); } catch {}
+        }, 50);
       }
     };
     window.addEventListener("close-flex-tab", handler);
@@ -2633,9 +2636,18 @@ const App = () => {
         const now = Date.now();
         if (now - lastCloseAt < 150) return;
         lastCloseAt = now;
-        const m = modelRef.current;
-        const tab = m?.getActiveTabset?.()?.getSelectedNode?.();
-        if (tab?.getId) requestEditorCloseRef.current?.(tab.getId());
+        // Defer the actual tab removal so the keydown / IPC event fully
+        // completes before a focused <webview> (Browser panel etc.) is torn
+        // down. Removing a focused webview synchronously crashes Electron's
+        // renderer process — this is why closing a browser panel with
+        // Ctrl+W used to kill the whole app.
+        setTimeout(() => {
+          try {
+            const m = modelRef.current;
+            const tab = m?.getActiveTabset?.()?.getSelectedNode?.();
+            if (tab?.getId) requestEditorCloseRef.current?.(tab.getId());
+          } catch {}
+        }, 50);
       } catch {}
     };
     const newTab = () => {
@@ -2668,11 +2680,34 @@ const App = () => {
     const offNew = window.electronAPI.onMenuEvent("menu:newTab", newTab);
     window.addEventListener("editor:closeTab", closeActiveTab);
     window.addEventListener("editor:newTab", newTab);
+
+    // Ctrl+W at the renderer level (capture phase): close the active tab and
+    // stop the chord from leaking through to any window-close path. The native
+    // menu accelerator (CmdOrCtrl+W) is kept as the fallback for webview focus,
+    // where this host-level listener cannot reach. The 150ms dedup inside
+    // closeActiveTab prevents double execution when both fire for one press.
+    // e.defaultPrevented is respected so terminals/editors can still use
+    // Ctrl+W for their own purposes (e.g. delete word).
+    const closeTabKeydown = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (String(e.key || "").toLowerCase() !== "w") return;
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === "function") {
+        try { e.stopImmediatePropagation(); } catch {}
+      }
+      closeActiveTab();
+    };
+    window.addEventListener("keydown", closeTabKeydown, true);
+    document.addEventListener("keydown", closeTabKeydown, true);
     return () => {
       offClose();
       offNew();
       window.removeEventListener("editor:closeTab", closeActiveTab);
       window.removeEventListener("editor:newTab", newTab);
+      window.removeEventListener("keydown", closeTabKeydown, true);
+      document.removeEventListener("keydown", closeTabKeydown, true);
     };
   }, []);
 
@@ -3253,7 +3288,10 @@ const App = () => {
                 }, isNbTab ? 1200 : 500);
               } else if (choice === "dontSave") {
                 try { forget(); } catch {}
-                try { mm.doAction(Actions.deleteTab(nodeId)); } catch {}
+                // Defer to avoid crash when closing a focused webview (same issue as Ctrl+W)
+                setTimeout(() => {
+                  try { mm.doAction(Actions.deleteTab(nodeId)); } catch {}
+                }, 50);
               }
             })();
             return undefined; // veto — async dialog decides
@@ -3410,9 +3448,20 @@ const App = () => {
           const parent = current.getParent?.();
           const tabs = parent?.getChildren?.() || [];
           try {
-            if (action === "close") m.doAction(Actions.deleteTab(tabId));
-            else if (action === "closeOthers") tabs.filter((tab) => tab.getId() !== tabId).forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
-            else if (action === "closeAll") tabs.forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
+            // Defer to avoid crash when closing a focused webview (same issue as Ctrl+W)
+            if (action === "close") {
+              setTimeout(() => { try { m.doAction(Actions.deleteTab(tabId)); } catch {} }, 50);
+            }
+            else if (action === "closeOthers") {
+              setTimeout(() => {
+                tabs.filter((tab) => tab.getId() !== tabId).forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
+              }, 50);
+            }
+            else if (action === "closeAll") {
+              setTimeout(() => {
+                tabs.forEach((tab) => m.doAction(Actions.deleteTab(tab.getId())));
+              }, 50);
+            }
             else if (action === "duplicate" && duplicateable && parent) {
               m.doAction(Actions.addNode(
                 makeTabJson(current.getComponent(), current.getName(), { ...(current.getConfig?.() || {}) }),
