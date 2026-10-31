@@ -90,6 +90,7 @@ export default function GitPanel({ nodeId }){
   const [diffMap,setDiffMap]=useState({});
   const [openDiff,setOpenDiff]=useState(null);
   const [busy,setBusy]=useState("");
+  const [awaitingSync,setAwaitingSync]=useState(false);
   const doSyncRef=useRef(()=>{});
   const [aiBusy,setAiBusy]=useState(false);
   const [commitMenuOpen,setCommitMenuOpen]=useState(false);
@@ -325,7 +326,7 @@ export default function GitPanel({ nodeId }){
       const r= amend
         ? await (window.electronAPI.gitCommitAmend ? window.electronAPI.gitCommitAmend(projectPath, msg.trim()) : window.electronAPI.gitCommit(projectPath, msg.trim(), {amend:true}))
         : await window.electronAPI.gitCommit(projectPath, msg.trim());
-      if(r?.ok){ setMsg(""); showToast(amend?"Amended":"Committed"); await doRefresh(true); const pull=await window.electronAPI.gitPull(projectPath); if(pull?.ok===false) throw new Error(pull.error); const push=await window.electronAPI.gitPush(projectPath); if(push?.ok===false) throw new Error(push.error); showToast("Synced"); }
+      if(r?.ok){ setMsg(""); showToast(amend?"Amended":"Committed"); await doRefresh(true); setAwaitingSync(true); }
       else throw new Error(r?.error||"Commit failed");
     }catch(e){ const m=humanBranchError(e.message); setError(m); showToast(m,true); }
     finally{ setBusy(""); }
@@ -389,6 +390,7 @@ export default function GitPanel({ nodeId }){
     const push=await window.electronAPI.gitPush(projectPath);
     if(push?.ok===false) throw new Error(push.error);
     showToast("Synced");
+    setAwaitingSync(false);
   };
   const doSync=()=>wrapAction("sync", doSyncInternal);
   useEffect(()=>{ doSyncRef.current=doSync; },[doSync]);
@@ -630,7 +632,7 @@ export default function GitPanel({ nodeId }){
           {loading && <LoaderCircle size={13} className="git-icon-spin" color="var(--teal)" aria-label="Syncing" />}
         </div>
         <div style={{display:"flex",gap:"var(--space-4)",alignItems:"center",flexShrink:0}}>
-          <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} title="Commit (Ctrl+Enter)" aria-label="Commit" style={{...s.iconBtn,opacity:(!msg.trim()||busy)?0.45:1}}><Check size={16}/></button>
+          <button onClick={awaitingSync?doSync:()=>doCommit(false)} disabled={!msg.trim() || !!busy} title={awaitingSync?"Sync (Pull then Push)":"Commit (Ctrl+Enter)"} aria-label={awaitingSync?"Sync":"Commit"} style={{...s.iconBtn,opacity:(!msg.trim()||busy)?0.45:1}}>{awaitingSync?<RefreshCw size={16}/>:<Check size={16}/>}</button>
           <button onClick={()=>doRefresh(true)} disabled={loading} title={lastRefresh?`Last: ${lastRefresh.toLocaleTimeString()}`:"Refresh"} aria-label="Refresh" style={{...s.iconBtn, opacity:loading?0.5:1}}>{loading?<LoaderCircle size={15} className="git-icon-spin" />:<RefreshCw size={15} />}</button>
           <button onClick={(e)=>{e.stopPropagation();setGitMenuOpen(v=>!v);setGitMenuSection("");}} title="Git actions" aria-label="Git actions" aria-expanded={gitMenuOpen} style={s.iconBtn}><Ellipsis size={16}/></button>
         </div>
