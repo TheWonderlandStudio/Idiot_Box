@@ -547,6 +547,14 @@ export default function GitPanel({ nodeId }){
 
   const total=status.length;
   const syncDisabled=!!busy || loading || !branchInfo.branch || branchInfo.hasRemote===false;
+  const syncAhead=Math.max(0,Number(branchInfo.ahead)||0);
+  const syncBehind=Math.max(0,Number(branchInfo.behind)||0);
+  const hasCommitWork=total>0 || groups.conflicted.length>0 || amend || !!msg.trim();
+  const primaryIsSync=busy==="sync" || (busy!=="commit" && !hasCommitWork && branchInfo.hasRemote!==false && (syncAhead>0 || syncBehind>0));
+  const primaryDisabled=primaryIsSync?syncDisabled:!msg.trim() || !!busy;
+  const primaryBusy=busy===(primaryIsSync?"sync":"commit");
+  const primaryLabel=primaryIsSync?(primaryBusy?"Syncing…":"Sync Changes"):(primaryBusy?"Committing…":amend?"Amend":"Commit");
+  const PrimaryActionIcon=primaryBusy?LoaderCircle:primaryIsSync?ArrowDownUp:Check;
   const unstagedFiles=[...groups.changes,...groups.untracked,...groups.staged.filter(file=>file.partiallyStaged)];
   const listedFiles=[...filtered,...groups.conflicted.filter(file=>!filtered.some(item=>item.rel===file.rel))]
     .sort((a,b)=>treeView||fileSort==="path"?a.rel.localeCompare(b.rel):fileSort==="status"?a.status.localeCompare(b.status)||a.rel.localeCompare(b.rel):a.rel.split(/[\\/]/).pop().localeCompare(b.rel.split(/[\\/]/).pop())||a.rel.localeCompare(b.rel));
@@ -642,13 +650,12 @@ export default function GitPanel({ nodeId }){
   return (
     <div className="git-panel" style={{...s.wrap,overflowY:"auto"}} onKeyDown={onListKeyDown} tabIndex={0} onContextMenu={(e)=> e.preventDefault()}>
       {/* Header */}
-      <div style={{...s.header,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"var(--space-6)",flex:"1 1 60px",minWidth:0}}>
+      <div style={s.header}>
+        <div style={{display:"flex",alignItems:"center",gap:"var(--space-6)",flex:1,minWidth:0}}>
           <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-semibold)",color:"var(--text-primary)"}}>Changes</span>
           {loading && <LoaderCircle size={13} className="git-icon-spin" color="var(--teal)" aria-label="Syncing" />}
         </div>
         <div style={{display:"flex",gap:"var(--space-4)",alignItems:"center",flexShrink:0}}>
-          <button onClick={doSync} disabled={syncDisabled} aria-label="Sync" aria-busy={busy==="sync"} title={branchInfo.hasRemote===false?"Add a remote to sync changes":"Sync changes (pull, then push)"} style={{...s.btnGhost,padding:"var(--space-3) var(--space-6)",minHeight:24,opacity:syncDisabled?0.45:1}}>{busy==="sync"?<LoaderCircle size={14} className="git-icon-spin" aria-hidden="true"/>:<ArrowDownUp size={14} aria-hidden="true"/>}Sync</button>
           <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} title="Commit (Ctrl+Enter)" aria-label="Commit" style={{...s.iconBtn,opacity:(!msg.trim()||busy)?0.45:1}}><Check size={16}/></button>
           <button onClick={()=>doRefresh(true)} disabled={loading || busy==="sync"} title={lastRefresh?`Last: ${lastRefresh.toLocaleTimeString()}`:"Refresh"} aria-label="Refresh" style={{...s.iconBtn, opacity:loading||busy==="sync"?0.5:1}}>{loading?<LoaderCircle size={15} className="git-icon-spin" />:<RefreshCw size={15} />}</button>
           <button onClick={(e)=>{e.stopPropagation();setGitMenuOpen(v=>!v);setGitMenuSection("");}} title="Git actions" aria-label="Git actions" aria-expanded={gitMenuOpen} style={s.iconBtn}><Ellipsis size={16}/></button>
@@ -723,8 +730,10 @@ export default function GitPanel({ nodeId }){
           <button onClick={generateCommitMessage} disabled={aiBusy || !total} title="Generate commit message" aria-label="Generate commit message" style={{...s.iconBtn,position:"absolute",right:3,top:4,color:"var(--text-muted)",opacity:aiBusy||!total?0.5:1}}>{aiBusy?<LoaderCircle size={14} className="git-icon-spin"/>:<Sparkles size={14}/>}</button>
         </div>
         <div style={{display:"flex",gap:"var(--space-4)",marginTop:"var(--space-6)",alignItems:"stretch",position:"relative"}}>
-          <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} style={{...s.btn, opacity:(!msg.trim()||busy)?0.5:1, flex:1, minWidth:110, borderRadius:"var(--radius-sm)", minHeight:30}} title="Ctrl+Enter">
-            {busy==="commit"?<><LoaderCircle size={14} className="git-icon-spin"/> Committing…</>:<><Check size={15} aria-hidden="true" /> {amend?"Amend":"Commit"}</>}
+          <button className="git-primary-action" onClick={()=>primaryIsSync?doSync():doCommit(false)} disabled={primaryDisabled} aria-label={primaryIsSync?"Sync":amend?"Amend":"Commit"} aria-busy={primaryBusy} style={{...s.btn, opacity:primaryDisabled?0.5:1, flex:1, minWidth:0, flexWrap:"wrap", borderRadius:"var(--radius-sm)", minHeight:30}} title={primaryIsSync?`Sync changes: ${syncBehind} incoming, ${syncAhead} outgoing (pull, then push)`:"Ctrl+Enter"}>
+            <PrimaryActionIcon size={15} className={primaryBusy?"git-icon-spin":undefined} aria-hidden="true"/>
+            <span>{primaryLabel}</span>
+            {primaryIsSync&&!primaryBusy&&<span aria-hidden="true">{syncBehind>0?`${syncBehind}↓ `:""}{syncAhead>0?`${syncAhead}↑`:""}</span>}
           </button>
           <button onClick={(e)=>{e.stopPropagation();setCommitMenuOpen(v=>!v);}} disabled={!!busy} title="More commit actions" aria-label="More commit actions" style={{...s.btn,background:"var(--editor-blue)",borderRadius:"var(--radius-sm)",width:30,minWidth:30,padding:0}}><ChevronDown size={15}/></button>
           {commitMenuOpen && (
@@ -736,8 +745,8 @@ export default function GitPanel({ nodeId }){
           )}
         </div>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:"var(--space-4)",fontSize:"var(--fs-tiny)",color:"var(--icon-muted)",gap:"var(--space-8)"}}>
-          <span>{groups.staged.length?`${groups.staged.length} staged`:"Stage files to commit"}</span>
-          <span style={{color:msg.length>72?"var(--git-modified)":msg.length>0?"var(--text-secondary)":"var(--text-placeholder)"}}>{msg.length}/280</span>
+          <span>{primaryIsSync?"Pull, then push":groups.staged.length?`${groups.staged.length} staged`:"Stage files to commit"}</span>
+          {!primaryIsSync&&<span style={{color:msg.length>72?"var(--git-modified)":msg.length>0?"var(--text-secondary)":"var(--text-placeholder)"}}>{msg.length}/280</span>}
         </div>
       </div>
 
