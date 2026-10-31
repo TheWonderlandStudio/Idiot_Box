@@ -631,7 +631,7 @@ export default function GitPanel({ nodeId }){
         </div>
         <div style={{display:"flex",gap:"var(--space-4)",alignItems:"center",flexShrink:0}}>
           <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} title="Commit (Ctrl+Enter)" aria-label="Commit" style={{...s.iconBtn,opacity:(!msg.trim()||busy)?0.45:1}}><Check size={16}/></button>
-          <button onClick={doSync} disabled={!!busy || branchInfo.hasRemote===false} title="Sync (Pull then Push)" aria-label="Sync" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="sync"?<LoaderCircle size={15} className="git-icon-spin"/>:<RefreshCw size={15}/>}</button>
+          <button onClick={doSync} disabled={!!busy || branchInfo.hasRemote===false} title="Sync (Pull then Push)" aria-label="Sync" style={{...s.btn,display:"flex",alignItems:"center",gap:6,padding:"var(--space-5) var(--space-8)",opacity:busy||branchInfo.hasRemote===false?0.5:1}}>{busy==="sync"?<LoaderCircle size={14} className="git-icon-spin"/>:<RefreshCw size={14}/>}<span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-medium)"}}>Sync</span></button>
           <button onClick={()=>doRefresh(true)} disabled={loading} title={lastRefresh?`Last: ${lastRefresh.toLocaleTimeString()}`:"Refresh"} aria-label="Refresh" style={{...s.iconBtn, opacity:loading?0.5:1}}>{loading?<LoaderCircle size={15} className="git-icon-spin" />:<RefreshCw size={15} />}</button>
           <button onClick={(e)=>{e.stopPropagation();setGitMenuOpen(v=>!v);setGitMenuSection("");}} title="Git actions" aria-label="Git actions" aria-expanded={gitMenuOpen} style={s.iconBtn}><Ellipsis size={16}/></button>
         </div>
