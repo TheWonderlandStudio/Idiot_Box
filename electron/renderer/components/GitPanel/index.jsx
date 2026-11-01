@@ -90,6 +90,8 @@ export default function GitPanel({ nodeId }){
   const [diffMap,setDiffMap]=useState({});
   const [openDiff,setOpenDiff]=useState(null);
   const [busy,setBusy]=useState("");
+  const [awaitingSync,setAwaitingSync]=useState(false);
+  const doSyncRef=useRef(()=>{});
   const [aiBusy,setAiBusy]=useState(false);
   const [commitMenuOpen,setCommitMenuOpen]=useState(false);
   const [graphMenuOpen,setGraphMenuOpen]=useState(false);
@@ -131,7 +133,7 @@ export default function GitPanel({ nodeId }){
     const unsubFs=window.electronAPI?.onFsChange ? window.electronAPI.onFsChange(()=>{ clearTimeout(fsDebounce); fsDebounce=setTimeout(()=>{ if(!document.hidden) doRefresh(); },1300); }) : ()=>{};
     window.addEventListener("git:refresh", onVis);
     document.addEventListener("visibilitychange", onVis);
-    const onEsc=(e)=>{ if(e.key==="Escape"){ setBranchPickerOpen(false); setGitMenuOpen(false); setCtxMenu(null); setShowCommitDetail(null); setCommitMenuOpen(false); setGraphMenuOpen(false); } };
+    const onEsc=(e)=>{ if(e.key==="Escape"){ setBranchPickerOpen(false); setGitMenuOpen(false); setCtxMenu(null); setShowCommitDetail(null); setCommitMenuOpen(false); setGraphMenuOpen(false); } if(((e.ctrlKey||e.metaKey) && e.shiftKey && e.key==="S") && !e.altKey){ const t=e.target; const editable=t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable); if(editable||gitMenuOpen||branchPickerOpen||commitMenuOpen||graphMenuOpen) return; e.preventDefault(); doSyncRef.current?.(); } };
     window.addEventListener("keydown", onEsc);
     const onClick=()=>{ setCtxMenu(null); setCommitMenuOpen(false); setGraphMenuOpen(false); setGitMenuOpen(false); };
     window.addEventListener("click", onClick);
@@ -324,7 +326,7 @@ export default function GitPanel({ nodeId }){
       const r= amend
         ? await (window.electronAPI.gitCommitAmend ? window.electronAPI.gitCommitAmend(projectPath, msg.trim()) : window.electronAPI.gitCommit(projectPath, msg.trim(), {amend:true}))
         : await window.electronAPI.gitCommit(projectPath, msg.trim());
-      if(r?.ok){ setMsg(""); showToast(amend?"Amended":"Committed"); await doRefresh(true); if(pushAfter) await doPushInternal(); }
+      if(r?.ok){ setMsg(""); showToast(amend?"Amended":"Committed"); await doRefresh(true); setAwaitingSync(true); }
       else throw new Error(r?.error||"Commit failed");
     }catch(e){ const m=humanBranchError(e.message); setError(m); showToast(m,true); }
     finally{ setBusy(""); }
@@ -382,6 +384,16 @@ export default function GitPanel({ nodeId }){
   const doPush=()=>wrapAction("push", doPushInternal);
   const doPull=()=>wrapAction("pull", ()=> window.electronAPI.gitPull(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("Pulled"); return r; }));
   const doFetch=()=>wrapAction("fetch", ()=> window.electronAPI.gitFetch(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("Fetched"); return r; }));
+  const doSyncInternal=async()=>{
+    const pull=await window.electronAPI.gitPull(projectPath);
+    if(pull?.ok===false) throw new Error(pull.error);
+    const push=await window.electronAPI.gitPush(projectPath);
+    if(push?.ok===false) throw new Error(push.error);
+    showToast("Synced");
+    setAwaitingSync(false);
+  };
+  const doSync=()=>wrapAction("sync", doSyncInternal);
+  useEffect(()=>{ doSyncRef.current=doSync; },[doSync]);
   const doInit=()=>wrapAction("init", async()=>{
     if(!window.electronAPI.gitInit) throw new Error("git init not supported");
     const r=await window.electronAPI.gitInit(projectPath);
@@ -620,7 +632,7 @@ export default function GitPanel({ nodeId }){
           {loading && <LoaderCircle size={13} className="git-icon-spin" color="var(--teal)" aria-label="Syncing" />}
         </div>
         <div style={{display:"flex",gap:"var(--space-4)",alignItems:"center",flexShrink:0}}>
-          <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} title="Commit (Ctrl+Enter)" aria-label="Commit" style={{...s.iconBtn,opacity:(!msg.trim()||busy)?0.45:1}}><Check size={16}/></button>
+          <button onClick={awaitingSync?doSync:()=>doCommit(false)} disabled={!msg.trim() || !!busy} title={awaitingSync?"Sync (Pull then Push)":"Commit (Ctrl+Enter)"} aria-label={awaitingSync?"Sync":"Commit"} style={{...s.iconBtn,opacity:(!msg.trim()||busy)?0.45:1}}>{awaitingSync?<RefreshCw size={16}/>:<Check size={16}/>}</button>
           <button onClick={()=>doRefresh(true)} disabled={loading} title={lastRefresh?`Last: ${lastRefresh.toLocaleTimeString()}`:"Refresh"} aria-label="Refresh" style={{...s.iconBtn, opacity:loading?0.5:1}}>{loading?<LoaderCircle size={15} className="git-icon-spin" />:<RefreshCw size={15} />}</button>
           <button onClick={(e)=>{e.stopPropagation();setGitMenuOpen(v=>!v);setGitMenuSection("");}} title="Git actions" aria-label="Git actions" aria-expanded={gitMenuOpen} style={s.iconBtn}><Ellipsis size={16}/></button>
         </div>
@@ -784,6 +796,7 @@ export default function GitPanel({ nodeId }){
             <button onClick={doFetch} disabled={!!busy || branchInfo.hasRemote===false} title="Fetch" aria-label="Fetch" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="fetch"?<LoaderCircle size={15} className="git-icon-spin"/>:<RefreshCw size={15}/>}</button>
             <button onClick={doPull} disabled={!!busy || branchInfo.hasRemote===false} title="Pull" aria-label="Pull" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="pull"?<LoaderCircle size={15} className="git-icon-spin"/>:<ArrowDownToLine size={15}/>}</button>
             <button onClick={doPush} disabled={!!busy || branchInfo.hasRemote===false} title="Push" aria-label="Push" style={{...s.iconBtn,opacity:busy||branchInfo.hasRemote===false?0.45:1}}>{busy==="push"?<LoaderCircle size={15} className="git-icon-spin"/>:<ArrowUpFromLine size={15}/>}</button>
+            <button onClick={doSync} disabled={!!busy || branchInfo.hasRemote===false} title="Sync (Pull then Push)" aria-label="Sync" style={{...s.btn,display:"flex",alignItems:"center",gap:6,padding:"var(--space-5) var(--space-8)",opacity:busy||branchInfo.hasRemote===false?0.5:1}}>{busy==="sync"?<LoaderCircle size={14} className="git-icon-spin"/>:<RefreshCw size={14}/>}<span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-medium)"}}>Sync</span></button>
             <button onClick={()=>doRefresh(true)} disabled={loading} title="Refresh graph and changes" aria-label="Refresh" style={{...s.iconBtn,opacity:loading?0.45:1}}>{loading?<LoaderCircle size={15} className="git-icon-spin"/>:<RefreshCw size={15}/>}</button>
             <button onClick={(e)=>{e.stopPropagation();setGraphMenuOpen(v=>!v);}} title="More graph actions" aria-label="More graph actions" style={s.iconBtn}><Ellipsis size={16}/></button>
             {graphMenuOpen && <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:8,top:30,zIndex:"var(--z-toast-top)",minWidth:190,padding:"var(--space-4)",background:"var(--bg-vscode)",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-pop)"}}>
