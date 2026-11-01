@@ -2573,7 +2573,7 @@
   z-index: 61;
   min-width: 210px;
   max-width: 260px;
-  max-height: 320px;
+  max-height: min(70vh, 480px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -2638,6 +2638,10 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   padding: 2px;
+}
+/* Bundled defaults — compact 3-up grid so all ship-with-app options fit */
+.phub__wallmenu-grid--defaults {
+  grid-template-columns: repeat(3, 1fr);
 }
 .phub__wallmenu-cell {
   display: flex;

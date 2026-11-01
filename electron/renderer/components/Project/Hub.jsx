@@ -54,6 +54,30 @@ const FRAMEWORKS = [
   { id: "cli", name: "CLI Tool", desc: "Node CLI starter", category: "Tools", icon: TerminalIcon, color: "#333", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/bash/bash-original.svg", languages: ["JavaScript", "TypeScript"] },
 ];
 
+// ─── Bundled wallpapers — always offered in the Hub wallpaper picker ──────
+const DEFAULT_WALLPAPERS = [
+  { file: "mount-sky.jpg", name: "Mount sky" },
+  { file: "overwater.jpg", name: "Overwater" },
+  { file: "sad-leaf.jpg", name: "Sad leaf" },
+  { file: "sui-boat.jpg", name: "Sui boat" },
+  { file: "f1-race-cars.jpg", name: "F1 Race Cars" },
+  { file: "white-salt.jpg", name: "White salt" },
+  { file: "svalbard-in-winter.jpg", name: "Svalbard in winter" },
+  { file: "lone-grass.jpg", name: "Lone grass" },
+  { file: "cr-to-the-rightful-owner.jpg", name: "To the rightful owner" },
+];
+const defaultWallpaperUrl = (file) => `./assets/wallpapers/${file}`;
+const defaultWallpaperKey = (file) => `asset:${file}`;
+const assetPathFromUrl = (url) => {
+  try {
+    let p = decodeURIComponent(new URL(url, document.baseURI).pathname || "");
+    if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
+    return p;
+  } catch {
+    return "";
+  }
+};
+
 // fallback for MessageSquare (if not imported, use Send)
 function MessageSquareIconFallback(props) {
   return <Send {...props} />;
@@ -1179,7 +1203,7 @@ const ProjectHub = () => {
 
   // ── Hub wallpaper (user's choice — path persisted, dataURL in memory) ──
   const [wallpaper, setWallpaper] = useState(null); // dataURL
-  const [wallpaperName, setWallpaperName] = useState("");
+  const [wallpaperKey, setWallpaperKey] = useState(""); // localStorage path / asset:<file>
   const [wallTint, setWallTint] = useState(""); // average color of the wallpaper
   // Downscale the image to 32px for the average RGB — for the sidebar/center tint
   const tintFromDataUrl = useCallback((url) => {
@@ -1216,6 +1240,18 @@ const ProjectHub = () => {
         const resolved = [];
         for (const rp of ordered) {
           if (dead) return;
+          if (String(rp).startsWith("asset:")) {
+            const def = DEFAULT_WALLPAPERS.find((w) => defaultWallpaperKey(w.file) === rp);
+            if (!def) continue;
+            let u = defaultWallpaperUrl(def.file);
+            try {
+              const fp = assetPathFromUrl(u);
+              const d = fp ? await window.electronAPI?.readFileAsDataUrl?.(fp) : null;
+              if (d) u = d;
+            } catch {}
+            resolved.push({ path: rp, url: u });
+            continue;
+          }
           try {
             const u = await window.electronAPI?.readFileAsDataUrl?.(rp);
             if (u) resolved.push({ path: rp, url: u });
@@ -1230,9 +1266,9 @@ const ProjectHub = () => {
         const cur = p && resolved.find((w) => w.path === p);
         const first = cur || resolved[0];
         setWallpaper(first.url);
-        setWallpaperName(String(first.path).split(/[\\/]/).pop() || "");
+        setWallpaperKey(first.path);
         tintFromDataUrl(first.url);
-        setRecentWalls(resolved);
+        setRecentWalls(resolved.filter((w) => !String(w.path).startsWith("asset:")));
         if (!p) {
           try { localStorage.setItem("ibx:hubWallpaper", first.path); } catch {}
         }
@@ -1255,7 +1291,7 @@ const ProjectHub = () => {
   const [wallCtx, setWallCtx] = useState(null); // { x, y, path }
   const applyWallpaper = useCallback((p, url) => {
     setWallpaper(url);
-    setWallpaperName(String(p).split(/[\\/]/).pop() || "");
+    setWallpaperKey(p);
     tintFromDataUrl(url);
     try { localStorage.setItem("ibx:hubWallpaper", p); } catch {}
     // to the top of recents (cap 6) + persist
@@ -1291,10 +1327,25 @@ const ProjectHub = () => {
   }, [applyWallpaper, flashDropMsg]);
   const clearWallpaper = useCallback(() => {
     setWallpaper(null);
-    setWallpaperName("");
+    setWallpaperKey("");
     setWallTint("");
     try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
   }, []);
+  // Bundled defaults are applied straight from the app assets — not added to
+  // the user's recents list.
+  const applyDefaultWallpaper = useCallback(async (w) => {
+    let url = defaultWallpaperUrl(w.file);
+    try {
+      const fp = assetPathFromUrl(url);
+      const d = fp ? await window.electronAPI?.readFileAsDataUrl?.(fp) : null;
+      if (d) url = d;
+    } catch {}
+    setWallpaper(url);
+    setWallpaperKey(defaultWallpaperKey(w.file));
+    tintFromDataUrl(url);
+    try { localStorage.setItem("ibx:hubWallpaper", defaultWallpaperKey(w.file)); } catch {}
+    setWallMenuOpen(false);
+  }, [tintFromDataUrl]);
 
   // ── Drag & drop: drag any folder from outside into Hub → import ──
   const [dropActive, setDropActive] = useState(false);
@@ -3545,6 +3596,26 @@ const ProjectHub = () => {
       <div className="phub__wallwrap">
         {wallMenuOpen && (
           <div className="phub__wallmenu" role="menu" aria-label="Wallpapers">
+            <div className="phub__wallmenu-label">Default</div>
+            <div className="phub__wallmenu-grid phub__wallmenu-grid--defaults">
+              {DEFAULT_WALLPAPERS.map((w) => {
+                const key = defaultWallpaperKey(w.file);
+                const isOn = wallpaperKey === key;
+                return (
+                  <button
+                    key={key}
+                    className={`phub__wallmenu-cell${isOn ? " phub__wallmenu-cell--on" : ""}`}
+                    onClick={() => { if (isOn) { clearWallpaper(); setWallMenuOpen(false); } else applyDefaultWallpaper(w); }}
+                    role="menuitem"
+                    title={isOn ? `${w.name} — click again to remove` : w.name}
+                  >
+                    <img src={defaultWallpaperUrl(w.file)} alt={w.name} draggable={false} />
+                    <span>{w.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="phub__wallmenu-label">Recent</div>
             <div className="phub__wallmenu-grid">
               <button
                 className="phub__wallmenu-cell phub__wallmenu-add"
@@ -3556,7 +3627,7 @@ const ProjectHub = () => {
               </button>
               {recentWalls.map((w) => {
                 const name = String(w.path).split(/[\\/]/).pop() || w.path;
-                const isOn = wallpaperName ? w.path.endsWith(wallpaperName) : false;
+                const isOn = w.path === wallpaperKey;
                 return (
                     <button
                       key={w.path}
