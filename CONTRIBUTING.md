@@ -31,11 +31,23 @@ There is no file watcher yet, so:
 ## Before you open a PR
 
 - `npm run build` passes.
+- `npm test` passes.
 - Main process changes: `node --check electron/main/index.js`.
 - User-visible strings stay in English (code comments can be anything you like).
 - No secrets, keys or tokens in the diff — CI and reviewers will catch them, but please don't.
 
-The PR template repeats this checklist.
+The PR template repeats this checklist. CI also runs the build, unit tests, a
+Gitleaks secret scan, and a dependency review on every pull request.
+
+## Contributor License Agreement
+
+Before a pull request can be merged, every contributor needs to sign the
+[Contributor License Agreement](CLA.md). The CLA Assistant bot comments on your
+first pull request with the exact text to post; signing takes one comment and
+only has to be done once per GitHub account.
+
+If the bot says you still need to sign after you have, comment `recheck` on the
+pull request.
 
 ## Commit messages
 
@@ -53,4 +65,6 @@ Small, focused PRs get reviewed fast. Bigger changes — open a Discussion first
 
 ## License
 
-By contributing you agree that your contribution is licensed under the repository's [GNU GPL v3](LICENSE) license, the same as the rest of the project.
+By contributing you agree to the [Contributor License Agreement](CLA.md) and
+that your contribution is licensed under the repository's [GNU GPL v3](LICENSE)
+license, the same as the rest of the project.

@@ -7,10 +7,15 @@ useDefault = true
 # Vendored third-party libraries and generated/minified bundles are not our
 # code and produce high-entropy false positives for the generic-api-key rule.
 [allowlist]
-description = "Vendored libs and generated bundles (false positives)"
+description = "Vendored libs, generated bundles and known false positives"
 paths = [
   '''landing-page/vendor/''',
   '''electron/renderer/bundle\.js''',
   '''electron/renderer/settings-bundle\.js''',
   '''electron/renderer/chunks/''',
+]
+# localStorage key, not a credential. The generic-api-key rule flags its
+# dotted name because it is long and high-entropy-looking.
+regexes = [
+  '''ibx\.breakpoints\.v1''',
 ]
