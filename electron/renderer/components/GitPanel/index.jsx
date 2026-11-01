@@ -1,6 +1,6 @@
 // GitPanel — full-featured Source Control, production ready
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { ArrowDownToLine, ArrowUpFromLine, Check, ChevronDown, ChevronRight, CircleSlash, Copy, Ellipsis, FileDiff, Folder, GitBranch, List, LoaderCircle, Minus, Pencil, Plus, RefreshCw, RotateCcw, Search, Sparkles, Target, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowDownToLine, ArrowDownUp, ArrowUpFromLine, Check, ChevronDown, ChevronRight, CircleSlash, Copy, Ellipsis, FileDiff, Folder, GitBranch, List, LoaderCircle, Minus, Pencil, Plus, RefreshCw, RotateCcw, Search, Sparkles, Target, Trash2, TriangleAlert, X } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import GitGraph from "./GitGraph.jsx";
 import "./git.css";
@@ -118,6 +118,9 @@ export default function GitPanel({ nodeId }){
   const diffCacheRef=useRef(new Map());
   const listRef=useRef(null);
   const graphListRef=useRef(null);
+  const syncRef=useRef(null);
+  const projectPathRef=useRef(projectPath);
+  projectPathRef.current=projectPath;
 
   const showToast=useCallback((text,isError=false)=>{ setToast({text,isError}); setTimeout(()=>setToast(null),3600); },[]);
 
@@ -157,6 +160,7 @@ export default function GitPanel({ nodeId }){
   },[]);
 
   const doRefresh=useCallback(async(force)=>{
+    if(syncRef.current && syncRef.current===projectPath && !force) return;
     if(!projectPath){ setStatus([]); setBranchInfo({branch:"",isRepo:true}); setLog([]); setConflicts([]); setBranches({local:[],remote:[],current:""}); setError(null); return; }
     if(document.hidden && !force) return;
     if(refreshRef.current) return;
@@ -193,7 +197,7 @@ export default function GitPanel({ nodeId }){
   // autoFetch live — previously dead (no consumer)
   useEffect(()=>{
     if(!projectPath || !gitOpts.autoFetch) return;
-    const iv=setInterval(()=>{ if(document.hidden) return; window.electronAPI.gitFetch(projectPath).then(()=> doRefresh(true)).catch(()=>{}); }, 5*60*1000);
+    const iv=setInterval(()=>{ if(document.hidden || syncRef.current) return; window.electronAPI.gitFetch(projectPath).then(()=> doRefresh(true)).catch(()=>{}); }, 5*60*1000);
     return ()=> clearInterval(iv);
   },[projectPath, gitOpts.autoFetch, doRefresh]);
 
@@ -299,6 +303,7 @@ export default function GitPanel({ nodeId }){
   };
 
   const wrapAction=async(key, fn)=>{
+    if(syncRef.current) return;
     setBusy(key); setError(null);
     try{ await fn(); await doRefresh(true); }
     catch(e){ const m=humanBranchError(e?.message||String(e)); setError(m); showToast(m,true); }
@@ -317,6 +322,7 @@ export default function GitPanel({ nodeId }){
   const doStageAll=()=>wrapAction("stageAll", ()=> window.electronAPI.gitStageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); }));
   const doUnstageAll=()=>wrapAction("unstageAll", ()=> window.electronAPI.gitUnstageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); }));
   const doCommit=async(pushAfter)=>{
+    if(busy || syncRef.current) return;
     if(!msg.trim()){ showToast("Write a commit message",true); return; }
     if(msg.trim().length<3){ showToast("Commit message too short",true); return; }
     const stagedCount=groups.staged.length;
@@ -481,6 +487,7 @@ export default function GitPanel({ nodeId }){
 
   // keyboard nav for file list
   const onListKeyDown=(e)=>{
+    if(e.target.closest?.("button,input,textarea,select,[contenteditable=true]")) return;
     if(!flatVisible.length) return;
     if(e.key==="ArrowDown"){ e.preventDefault(); setFocusIdx(i=> Math.min(flatVisible.length-1, i+1)); }
     else if(e.key==="ArrowUp"){ e.preventDefault(); setFocusIdx(i=> Math.max(0, i-1)); }
@@ -532,6 +539,15 @@ export default function GitPanel({ nodeId }){
   }
 
   const total=status.length;
+  const syncDisabled=!!busy || loading || !branchInfo.branch || branchInfo.hasRemote===false;
+  const syncAhead=Math.max(0,Number(branchInfo.ahead)||0);
+  const syncBehind=Math.max(0,Number(branchInfo.behind)||0);
+  const hasCommitWork=total>0 || groups.conflicted.length>0 || amend || !!msg.trim();
+  const primaryIsSync=busy==="sync" || (busy!=="commit" && !hasCommitWork && branchInfo.hasRemote!==false && (syncAhead>0 || syncBehind>0));
+  const primaryDisabled=primaryIsSync?syncDisabled:!msg.trim() || !!busy;
+  const primaryBusy=busy===(primaryIsSync?"sync":"commit");
+  const primaryLabel=primaryIsSync?(primaryBusy?"Syncing…":"Sync Changes"):(primaryBusy?"Committing…":amend?"Amend":"Commit");
+  const PrimaryActionIcon=primaryBusy?LoaderCircle:primaryIsSync?ArrowDownUp:Check;
   const unstagedFiles=[...groups.changes,...groups.untracked,...groups.staged.filter(file=>file.partiallyStaged)];
   const listedFiles=[...filtered,...groups.conflicted.filter(file=>!filtered.some(item=>item.rel===file.rel))]
     .sort((a,b)=>treeView||fileSort==="path"?a.rel.localeCompare(b.rel):fileSort==="status"?a.status.localeCompare(b.status)||a.rel.localeCompare(b.rel):a.rel.split(/[\\/]/).pop().localeCompare(b.rel.split(/[\\/]/).pop())||a.rel.localeCompare(b.rel));
@@ -571,7 +587,7 @@ export default function GitPanel({ nodeId }){
       <button onClick={()=>{if(window.confirm?.("Discard all tracked and untracked changes? This cannot be undone.")){setGitMenuOpen(false);wrapAction("discardAll",async()=>{for(const item of listedFiles){const result=await window.electronAPI.gitDiscard(projectPath,item.rel);if(result?.ok===false)throw new Error(result.error);}});}}} style={menuItemStyle}>Discard All Changes…</button>
     </div>;
     if(section==="sync") return <div style={sectionStyle}>
-      <button onClick={()=>{setGitMenuOpen(false);runGitMenuAction("sync");}} style={menuItemStyle}>Sync Changes (Pull, then Push)</button>
+      <button onClick={()=>{setGitMenuOpen(false);doSync();}} disabled={syncDisabled} style={{...menuItemStyle,opacity:syncDisabled?0.45:1}}>Sync Changes (Pull, then Push)</button>
       <button onClick={()=>{setGitMenuOpen(false);doPull();}} style={menuItemStyle}>Pull</button>
       <button onClick={()=>{setGitMenuOpen(false);runGitMenuAction("pull-rebase");}} style={menuItemStyle}>Pull (Rebase)</button>
       <button onClick={()=>{setGitMenuOpen(false);doPush();}} style={menuItemStyle}>Push</button>
@@ -608,6 +624,7 @@ export default function GitPanel({ nodeId }){
   const gitMenuEntries=[
     {label:"View as Tree",onClick:()=>{setTreeView(v=>!v);setGitMenuOpen(false);}},
     {label:"View & Sort",section:"sort"},
+    {label:"Sync Changes",disabled:syncDisabled,onClick:()=>{setGitMenuOpen(false);doSync();}},
     {label:"Pull",onClick:()=>{setGitMenuOpen(false);doPull();}},
     {label:"Push",onClick:()=>{setGitMenuOpen(false);doPush();}},
     {label:"Clone",onClick:()=>{setGitMenuOpen(false);runClone();}},
@@ -639,11 +656,10 @@ export default function GitPanel({ nodeId }){
       </div>
 
       {gitMenuOpen && <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:8,top:36,zIndex:"var(--z-toast-top)",width:260,maxWidth:"calc(100% - 16px)",maxHeight:"calc(100% - 48px)",overflowY:"auto",padding:"var(--space-4)",background:"var(--bg-vscode)",border:"1px solid var(--border-light)",borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-pop)"}}>
-        {gitMenuEntries.map(({label,onClick,section},index)=>(
+        {gitMenuEntries.map(({label,onClick,section,disabled})=>(
           <React.Fragment key={label}>
-            {index===7&&<div style={{height:1,background:"var(--border-light)",margin:"var(--space-4) 0"}}/>}
-            {index===14&&<div style={{height:1,background:"var(--border-light)",margin:"var(--space-4) 0"}}/>}
-            <button onClick={section?()=>setGitMenuSection(current=>current===section?"":section):onClick} aria-expanded={section?gitMenuSection===section:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"var(--space-7) var(--space-8)",background:section&&gitMenuSection===section?"var(--bg-hover)":"transparent",border:"none",borderRadius:"var(--radius-sm)",color:"var(--text-primary)",textAlign:"left",cursor:"pointer"}}>
+            {["Commit","Show Git Output"].includes(label)&&<div style={{height:1,background:"var(--border-light)",margin:"var(--space-4) 0"}}/>}
+            <button onClick={section?()=>setGitMenuSection(current=>current===section?"":section):onClick} disabled={disabled} aria-expanded={section?gitMenuSection===section:undefined} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"var(--space-7) var(--space-8)",background:section&&gitMenuSection===section?"var(--bg-hover)":"transparent",border:"none",borderRadius:"var(--radius-sm)",color:"var(--text-primary)",textAlign:"left",cursor:disabled?"default":"pointer",opacity:disabled?0.45:1}}>
               <span>{label==="View as Tree"&&treeView&&<Check size={13} style={{verticalAlign:"middle",marginRight:6}}/>}{label}</span>
               {section&&(gitMenuSection===section?<ChevronDown size={13}/>:<ChevronRight size={13}/>)}
             </button>
@@ -693,7 +709,7 @@ export default function GitPanel({ nodeId }){
           <button onClick={()=>setError(null)} aria-label="Dismiss error" style={s.iconBtn}><X size={15} /></button>
         </div>
       )}
-      {toast && <div style={{margin:error?"var(--space-6) var(--space-8) 0":"var(--space-8) var(--space-8) 0",padding:"7px var(--space-10)",background:toast.isError?"var(--error-bg-solid)":"var(--success-bg)",border:"var(--space-1) solid " + (toast.isError?"var(--error-border-3)":"var(--success-border-2)"),borderRadius:"var(--radius-md)",color:toast.isError?"var(--error-text-soft)":"var(--teal)",fontSize:"var(--fs-small)"}}>{toast.text}</div>}
+      {toast && <div role="status" style={{margin:error?"var(--space-6) var(--space-8) 0":"var(--space-8) var(--space-8) 0",padding:"7px var(--space-10)",background:toast.isError?"var(--error-bg-solid)":"var(--success-bg)",border:"var(--space-1) solid " + (toast.isError?"var(--error-border-3)":"var(--success-border-2)"),borderRadius:"var(--radius-md)",color:toast.isError?"var(--error-text-soft)":"var(--teal)",fontSize:"var(--fs-small)"}}>{toast.text}</div>}
 
       {/* Sync hints */}
       {branchInfo.hasRemote===false && (
@@ -707,8 +723,10 @@ export default function GitPanel({ nodeId }){
           <button onClick={generateCommitMessage} disabled={aiBusy || !total} title="Generate commit message" aria-label="Generate commit message" style={{...s.iconBtn,position:"absolute",right:3,top:4,color:"var(--text-muted)",opacity:aiBusy||!total?0.5:1}}>{aiBusy?<LoaderCircle size={14} className="git-icon-spin"/>:<Sparkles size={14}/>}</button>
         </div>
         <div style={{display:"flex",gap:"var(--space-4)",marginTop:"var(--space-6)",alignItems:"stretch",position:"relative"}}>
-          <button onClick={()=>doCommit(false)} disabled={!msg.trim() || !!busy} style={{...s.btn, opacity:(!msg.trim()||busy)?0.5:1, flex:1, minWidth:110, borderRadius:"var(--radius-sm)", minHeight:30}} title="Ctrl+Enter">
-            {busy==="commit"?<><LoaderCircle size={14} className="git-icon-spin"/> Committing…</>:<><Check size={15} aria-hidden="true" /> {amend?"Amend":"Commit"}</>}
+          <button className="git-primary-action" onClick={()=>primaryIsSync?doSync():doCommit(false)} disabled={primaryDisabled} aria-label={primaryIsSync?"Sync":amend?"Amend":"Commit"} aria-busy={primaryBusy} style={{...s.btn, opacity:primaryDisabled?0.5:1, flex:1, minWidth:0, flexWrap:"wrap", borderRadius:"var(--radius-sm)", minHeight:30}} title={primaryIsSync?`Sync changes: ${syncBehind} incoming, ${syncAhead} outgoing (pull, then push)`:"Ctrl+Enter"}>
+            <PrimaryActionIcon size={15} className={primaryBusy?"git-icon-spin":undefined} aria-hidden="true"/>
+            <span>{primaryLabel}</span>
+            {primaryIsSync&&!primaryBusy&&<span aria-hidden="true">{syncBehind>0?`${syncBehind}↓ `:""}{syncAhead>0?`${syncAhead}↑`:""}</span>}
           </button>
           <button onClick={(e)=>{e.stopPropagation();setCommitMenuOpen(v=>!v);}} disabled={!!busy} title="More commit actions" aria-label="More commit actions" style={{...s.btn,background:"var(--editor-blue)",borderRadius:"var(--radius-sm)",width:30,minWidth:30,padding:0}}><ChevronDown size={15}/></button>
           {commitMenuOpen && (
@@ -720,8 +738,8 @@ export default function GitPanel({ nodeId }){
           )}
         </div>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:"var(--space-4)",fontSize:"var(--fs-tiny)",color:"var(--icon-muted)",gap:"var(--space-8)"}}>
-          <span>{groups.staged.length?`${groups.staged.length} staged`:"Stage files to commit"}</span>
-          <span style={{color:msg.length>72?"var(--git-modified)":msg.length>0?"var(--text-secondary)":"var(--text-placeholder)"}}>{msg.length}/280</span>
+          <span>{primaryIsSync?"Pull, then push":groups.staged.length?`${groups.staged.length} staged`:"Stage files to commit"}</span>
+          {!primaryIsSync&&<span style={{color:msg.length>72?"var(--git-modified)":msg.length>0?"var(--text-secondary)":"var(--text-placeholder)"}}>{msg.length}/280</span>}
         </div>
       </div>
 

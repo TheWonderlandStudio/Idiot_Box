@@ -27,6 +27,7 @@
     "lint": "echo \"No linter configured\"",
     "test:layout": "npm run build && electron tests/layout.electron.cjs",
     "test:ui-overflow": "npm run build && electron tests/ui-overflow.electron.cjs",
+    "test:git-sync": "electron tests/git-sync.electron.cjs",
     "start": "npm run build && electron .",
     "test:project-files": "electron tests/project-files.electron.cjs",
     "pack": "electron-builder --dir",
