@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical, Copy, Check } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical, Copy, Check, MousePointer2 } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import { playClick, setClickEnabled } from "../shared/clickSound.js";
 import GitGraph from "../GitPanel/GitGraph.jsx";
@@ -920,6 +920,19 @@ const ProjectHub = () => {
       try { unsub?.(); } catch {}
     };
   }, [applyHubUiSettings]);
+
+  // Cursor toggle (same setting as Settings → Hub → Custom Cursor, persisted)
+  const toggleCustomCursor = useCallback(async () => {
+    const next = !nativeCursor;
+    setNativeCursor(next);
+    try {
+      const s = await window.electronAPI.readSettings();
+      const ok = await window.electronAPI.writeSettings({ ...(s || {}), hubCustomCursor: !next });
+      if (!ok) setNativeCursor(!next);
+    } catch {
+      setNativeCursor(!next);
+    }
+  }, [nativeCursor]);
 
   // ── Drag & drop badge message (also used by the wallpaper picker) ──
   const [dropMsg, setDropMsg] = useState(null);
@@ -3592,7 +3605,7 @@ const ProjectHub = () => {
         </>
       )}
 
-      {/* Wallpaper — bottom-right, small button + popup menu */}
+      {/* Corner controls — cursor toggle + wallpaper button (bottom-right) */}
       <div className="phub__wallwrap">
         {wallMenuOpen && (
           <div className="phub__wallmenu" role="menu" aria-label="Wallpapers">
@@ -3649,6 +3662,15 @@ const ProjectHub = () => {
             </div>
           </div>
         )}
+        <button
+          className={`phub__wallbtn${!nativeCursor ? " phub__wallbtn--on" : ""}`}
+          onClick={toggleCustomCursor}
+          title={nativeCursor ? "Custom cursor: off — click to enable" : "Custom cursor: on — click to use OS cursor"}
+          aria-label="Toggle custom cursor"
+          aria-pressed={!nativeCursor}
+        >
+          <MousePointer2 size={16} />
+        </button>
         <button
           className="phub__wallbtn"
           onClick={() => setWallMenuOpen((v) => !v)}
