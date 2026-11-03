@@ -4161,6 +4161,14 @@ function termKey(sender, tabId) { return `${sender.id}:${tabId}`; }
 
 ipcMain.handle("terminal:getProjectPath", () => lastProjectPath);
 
+// Closing from the renderer (Ctrl+Shift+W / hub "back" button) must also clear
+// the main-process project root. Otherwise the Hub mounts and re-reads the old
+// path from terminal:getProjectPath, leaving a stale "Current Project" bar.
+ipcMain.handle("project:clearCurrent", () => {
+  lastProjectPath = null;
+  return { ok: true };
+});
+
 ipcMain.handle("terminal:open", async (event, { tabId, cwd, forceRestart }) => {
   if (!pty) {
     console.error("[terminal:open] node-pty not available, cannot spawn terminal");

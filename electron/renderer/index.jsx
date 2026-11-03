@@ -1760,6 +1760,9 @@ const App = () => {
       transientProjectRef.current = false;
       window.__currentProjectPath = null;
       try { window.__ibxTransientProject = false; } catch {}
+      // Clear the main-process project root too. The Hub re-reads it on mount
+      // and would otherwise show a stale "Current Project" path.
+      try { window.electronAPI.clearProjectPath?.(); } catch {}
       setHasProject(false);
       // Notify editor panels
       window.dispatchEvent(new CustomEvent("project:closed"));

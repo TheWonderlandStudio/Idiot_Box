@@ -1792,6 +1792,7 @@
 .phub__sidebar--collapsed .phub__sidebar-label,
 .phub__sidebar--collapsed .phub__sidebar-divider,
 .phub__sidebar--collapsed .phub__sidebar-username,
+.phub__sidebar--collapsed .phub__sidebar-recents,
 .phub__sidebar--collapsed .phub__sidebar-brand {
   display: none;
 }
@@ -1911,6 +1912,83 @@
   margin-right: var(--space-10);
   padding-left: var(--space-8);
   padding-right: var(--space-8);
+}
+/* Recent projects — fills the empty space above the user row, scrolls on its own */
+.phub__sidebar-recents {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.phub__sidebar-recents-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-8) 6px;
+}
+.phub__sidebar-recents-list::-webkit-scrollbar { width: 6px; }
+.phub__sidebar-recents-list::-webkit-scrollbar-track { background: transparent; }
+.phub__sidebar-recents-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 99px; }
+.phub__sidebar-recents-list::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+.phub__sidebar-recent {
+  width: 100%;
+  min-width: 0;
+  flex-shrink: 0;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #a6a6b2;
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-normal), border-color var(--t-normal), color var(--t-normal);
+}
+.phub__sidebar-recent:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.07);
+  color: #f0f0f5;
+}
+.phub__sidebar-recent:active { background: rgba(255, 255, 255, 0.09); }
+.phub__sidebar-recent-ico {
+  width: 18px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.phub__sidebar-recent-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.phub__sidebar-recent-name {
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.phub__sidebar-recent-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.phub__sidebar-recents-empty {
+  padding: 4px var(--space-8);
+  font-size: 11.5px;
+  color: var(--text-placeholder);
 }
 /* Bottom user row — avatar + username (hairline divider above) */
 .phub__sidebar-user {
@@ -3761,6 +3839,17 @@
 }
 :root[data-theme="light"] .phub__sidebar-label { color: #555; }
 :root[data-theme="light"] .phub__sidebar-label--gap { border-top: 1px solid rgba(0, 0, 0, 0.08); }
+:root[data-theme="light"] .phub__sidebar-recents-list::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.18); }
+:root[data-theme="light"] .phub__sidebar-recents-list::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.28); }
+:root[data-theme="light"] .phub__sidebar-recent { color: #555; }
+:root[data-theme="light"] .phub__sidebar-recent:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: #1e1e1e;
+}
+:root[data-theme="light"] .phub__sidebar-recent:active { background: rgba(0, 0, 0, 0.08); }
+:root[data-theme="light"] .phub__sidebar-recent-time { color: #777; }
+:root[data-theme="light"] .phub__sidebar-recents-empty { color: #888; }
 :root[data-theme="light"] .phub__sidebar-user { border-top: 1px solid rgba(0, 0, 0, 0.08); }
 :root[data-theme="light"] .phub__sidebar-user:hover { background: rgba(0, 0, 0, 0.04); }
 :root[data-theme="light"] .phub__sidebar-avatar {

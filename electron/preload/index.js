@@ -327,6 +327,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ── Terminal ──────────────────────────────────────────────────────────────
   getProjectPath:  ()                          => ipcRenderer.invoke("terminal:getProjectPath"),
+  clearProjectPath: ()                         => ipcRenderer.invoke("project:clearCurrent"),
   openTerminal:    (tabId, cwd, forceRestart)  => ipcRenderer.invoke("terminal:open",  { tabId, cwd, forceRestart: !!forceRestart }),
   writeToTerminal: (tabId, data)   => ipcRenderer.invoke("terminal:write", { tabId, data }),
   cdTerminal: (tabId, cwd) => ipcRenderer.invoke("terminal:chdir", { tabId, cwd }),

@@ -27,6 +27,7 @@ const handlers = {
   "settings:read": () => ({ githubOnboardingDismissed: true, editorMinimap: false }),
   "session:load": () => null,
   "terminal:getProjectPath": () => activeProject,
+  "project:clearCurrent": () => { activeProject = null; return { ok: true }; },
   "projectConfig:readTabs": (_e, folder) => ({ tabs: [], panels: panelsFor(folder) }),
   "fs:readTextFile": (_e, file) => fs.readFileSync(file, "utf8"),
   "fs:readDir": () => [],
@@ -140,6 +141,9 @@ app.whenReady().then(async () => {
     // Ctrl+Shift+W closes the project (and leaves the app running).
     await press("W", ["control", "shift"]);
     await waitFor("window.__currentProjectPath === null && !!document.querySelector('.phub')");
+    // The Hub must not show a stale "Current Project" bar after the close.
+    await delay(300);
+    assert.equal(await run("document.querySelectorAll('.phub__path-bar').length"), 0);
     assert.deepEqual(errors, [], "No renderer errors");
     console.log("PASS: cancelled close, native file close, menu/palette recovery, tab options, deduplication, missing files, relative clipboard path, project-switch race, and tab/project shortcuts");
   } finally { win.destroy(); app.quit(); }

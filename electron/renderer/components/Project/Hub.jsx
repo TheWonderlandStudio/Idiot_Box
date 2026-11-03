@@ -2502,9 +2502,6 @@ const ProjectHub = () => {
       )}
 
       <div className={`phub__sidebar${sidebarCollapsed ? " phub__sidebar--collapsed" : ""}`}>
-        <div className="phub__sidebar-head">
-          <span className="phub__sidebar-brand">Idiot Box</span>
-        </div>
         <div className="phub__sidebar-label">Start</div>
         <button
           className={`phub__sidebar-btn phub__sidebar-btn--primary${showNewProjectDialog ? " phub__sidebar-btn--active" : ""}`}
@@ -2535,6 +2532,34 @@ const ProjectHub = () => {
         >
           <span className="phub__sidebar-ico"><Layers size={14} /></span> Frameworks
         </button>
+        <div className="phub__sidebar-recents">
+          <div className="phub__sidebar-label phub__sidebar-label--gap">Recent Projects</div>
+          <div className="phub__sidebar-recents-list">
+            {recentProjects.length === 0 ? (
+              <div className="phub__sidebar-recents-empty">No recent projects</div>
+            ) : (
+              recentProjects.map((entry) => {
+                const path = entry.path;
+                const name = path.split(/[\\/]/).pop() || path;
+                return (
+                  <button
+                    key={path}
+                    type="button"
+                    className="phub__sidebar-recent"
+                    title={path}
+                    onClick={() => openProject(path)}
+                  >
+                    <span className="phub__sidebar-recent-ico">{getProjectIcon(path)}</span>
+                    <span className="phub__sidebar-recent-meta">
+                      <span className="phub__sidebar-recent-name">{name}</span>
+                      <span className="phub__sidebar-recent-time">{formatLastOpened(entry.lastOpened)}</span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
         <div className="phub__sidebar-user">
           {ghUser ? (
             <>
