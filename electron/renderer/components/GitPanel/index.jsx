@@ -33,6 +33,67 @@ function fileNameParts(rel) {
   const name = parts.pop() || String(rel || "");
   return { name, directory: parts.join("/") };
 }
+
+// ── unified diff parsing (real file line numbers + hunk actions) ─────────
+function parseUnifiedDiff(text) {
+  const raw = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!raw.trim()) return [];
+  let lines = raw.split("\n");
+  while (lines.length && lines[lines.length - 1] === "") lines.pop();
+  if (lines.length > 4000) lines = lines.slice(0, 4000);
+  const files = [];
+  let file = null;
+  let hunk = null;
+  let oldNo = 0, newNo = 0;
+  const pushFile = () => {
+    if (!file) return;
+    const binary = file.header.some((l) => l.startsWith("Binary files"));
+    if (file.hunks.length || binary) files.push(file);
+  };
+  for (const line of lines) {
+    if (line.startsWith("diff --git ")) {
+      pushFile();
+      file = { header: [line], hunks: [] };
+      hunk = null;
+      continue;
+    }
+    if (!file) {
+      if (!line.trim()) continue;
+      file = { header: [], hunks: [] };
+    }
+    if (line.startsWith("@@")) {
+      const m = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+      oldNo = m ? parseInt(m[1], 10) : 0;
+      newNo = m ? parseInt(m[3], 10) : 0;
+      hunk = { header: line, lines: [] };
+      file.hunks.push(hunk);
+      continue;
+    }
+    if (!hunk) { file.header.push(line); continue; }
+    let type = "context", o = "", n = "";
+    if (line.startsWith("+")) { type = "add"; n = String(newNo++); }
+    else if (line.startsWith("-")) { type = "del"; o = String(oldNo++); }
+    else if (line.startsWith("\\")) { type = "meta"; }
+    else if (line.startsWith(" ") || line === "") { type = "context"; o = String(oldNo++); n = String(newNo++); }
+    else { type = "meta"; }
+    hunk.lines.push({ text: line, type, oldNo: o, newNo: n });
+  }
+  pushFile();
+  return files;
+}
+function diffFilePath(file) {
+  const line = (file?.header || []).find((l) => l.startsWith("+++ "));
+  if (!line) return "";
+  let p = line.slice(4).trim();
+  if (p.includes("\t")) p = p.split("\t")[0];
+  if (p.startsWith('"') && p.endsWith('"')) { try { p = JSON.parse(p); } catch {} }
+  p = p.replace(/^b\//, "");
+  return p === "/dev/null" ? "" : p;
+}
+function buildHunkPatch(file, hunk) {
+  const header = (file.header || []).filter((l) => !l.startsWith("\\"));
+  return [...header, hunk.header, ...hunk.lines.map((l) => l.text)].join("\n") + "\n";
+}
 function humanBranchError(m){
   if(!m) return "Git error";
   const s=String(m).toLowerCase();
@@ -49,10 +110,10 @@ const getGitOpts = (settings = {}) => {
   const g = settings.git || {};
   return {
     autoFetch: g.autoFetch === true || settings.gitAutoFetch === true,
-    showGutter: g.showGutter !== false && settings.gitShowGutter !== false && g.enableGutter !== false && settings.gitEnableGutter !== false,
+    showGutter: g.showGutter !== false && settings.gitShowGutter !== false && g.enableGutter !== false && settings.gitEnableGutter !== false && settings.gitGutter !== false,
     confirmCommit: g.confirmCommit !== false && settings.gitConfirmCommit !== false,
     autoStash: g.autoStash === true || settings.gitAutoStash === true,
-    showInlineBlame: g.showInlineBlame === true || settings.gitShowInlineBlame === true,
+    showInlineBlame: g.showInlineBlame === true || settings.gitShowInlineBlame === true || settings.gitBlame === true,
   };
 };
 
@@ -71,6 +132,11 @@ const s = {
   rowHover:{ display:"flex", alignItems:"center", gap:"var(--space-6)", padding:"var(--space-5) var(--space-8)", paddingLeft:"var(--space-10)", cursor:"pointer", fontSize:"var(--fs-body)", borderBottom:"var(--space-1) solid var(--border-row)", background:"var(--bg-hover)" },
 };
 const menuItemStyle={display:"block",width:"100%",padding:"var(--space-6) var(--space-8)",background:"transparent",border:0,color:"var(--text-primary)",textAlign:"left",cursor:"pointer"};
+const hunkBtnStyle={fontSize:"var(--fs-tiny)",lineHeight:"17px",padding:"0 var(--space-6)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border-light)",background:"var(--bg-vscode)",color:"var(--text-primary)",cursor:"pointer",flexShrink:0};
+const diffLineNoStyle={width:36,flexShrink:0,color:"var(--text-placeholder)",textAlign:"right",paddingRight:"var(--space-6)",userSelect:"none",borderRight:"1px solid var(--bg-hover)",marginRight:"var(--space-4)"};
+const OP_LABELS={merge:"Merge",rebase:"Rebase","cherry-pick":"Cherry-pick",revert:"Revert",bisect:"Bisect"};
+const LOG_PAGE=40;
+const LOG_MAX=300;
 
 // ── commit context menu ───────────────────────────────────────────────
 export default function GitPanel({ nodeId }){
@@ -112,11 +178,14 @@ export default function GitPanel({ nodeId }){
   const [focusIdx,setFocusIdx]=useState(-1);
   const [ctxMenu,setCtxMenu]=useState(null); // {x,y, rel}
   const [gitOpts,setGitOpts]=useState(()=> getGitOpts({}));
+  const [opState,setOpState]=useState(null);
+  const [logLimit,setLogLimit]=useState(LOG_PAGE);
   const refreshRef=useRef(0);
   const diffCacheRef=useRef(new Map());
   const listRef=useRef(null);
   const graphListRef=useRef(null);
   const syncRef=useRef(null);
+  const logLimitRef=useRef(LOG_PAGE);
   const projectPathRef=useRef(projectPath);
   projectPathRef.current=projectPath;
 
@@ -146,7 +215,7 @@ export default function GitPanel({ nodeId }){
     window.electronAPI.readSettings().then((s)=> setGitOpts(getGitOpts(s||{}))).catch(()=>{});
     const apply=(patch)=>{
       if(!patch||typeof patch!=="object") return;
-      const has = ["git","gitAutoFetch","gitShowGutter","gitEnableGutter","gitConfirmCommit","gitAutoStash","gitShowInlineBlame","autoFetch","showGutter","enableGutter","confirmCommit","autoStash","showInlineBlame"].some(k=>k in patch);
+      const has = ["git","gitAutoFetch","gitShowGutter","gitEnableGutter","gitConfirmCommit","gitAutoStash","gitShowInlineBlame","gitBlame","gitGutter","autoFetch","showGutter","enableGutter","confirmCommit","autoStash","showInlineBlame"].some(k=>k in patch);
       if(!has) return;
       window.electronAPI.readSettings().then((s)=> setGitOpts(getGitOpts(s||{}))).catch(()=>{});
     };
@@ -157,26 +226,32 @@ export default function GitPanel({ nodeId }){
     return ()=>{ try{bc?.close();}catch{} try{unsub?.();}catch{} };
   },[]);
 
+  const resetLogLimit=useCallback(()=>{ logLimitRef.current=LOG_PAGE; setLogLimit(LOG_PAGE); },[]);
+  // A fresh project always starts from the most recent page of history.
+  useEffect(()=>{ resetLogLimit(); },[projectPath, resetLogLimit]);
+
   const doRefresh=useCallback(async(force)=>{
     if(syncRef.current && syncRef.current===projectPath && !force) return;
-    if(!projectPath){ setStatus([]); setBranchInfo({branch:"",isRepo:true}); setLog([]); setConflicts([]); setBranches({local:[],remote:[],current:""}); setError(null); return; }
+    if(!projectPath){ setStatus([]); setBranchInfo({branch:"",isRepo:true}); setLog([]); setConflicts([]); setBranches({local:[],remote:[],current:""}); setOpState(null); setError(null); return; }
     if(document.hidden && !force) return;
     if(refreshRef.current) return;
     refreshRef.current=1;
     setLoading(true); if(force) setError(null);
     try{
-      const [st,br,lg, blist, conf] = await Promise.all([
+      const [st,br,lg, blist, conf, op] = await Promise.all([
         window.electronAPI.gitStatus(projectPath).catch((e)=>{ throw new Error("status: "+(e?.message||e)); }),
         window.electronAPI.gitBranch(projectPath).catch(()=>({branch:"",isRepo:false})),
-        window.electronAPI.gitLog(projectPath, 30).catch(()=>[]),
+        window.electronAPI.gitLog(projectPath, logLimitRef.current).catch(()=>[]),
         (window.electronAPI.gitBranches?window.electronAPI.gitBranches(projectPath).catch(()=>({local:[],remote:[],current:""})) : Promise.resolve({local:[],remote:[],current:""})),
         (window.electronAPI.gitConflicts?window.electronAPI.gitConflicts(projectPath).catch(()=>[]):Promise.resolve([])),
+        (window.electronAPI.gitOperationState?window.electronAPI.gitOperationState(projectPath).catch(()=>null):Promise.resolve(null)),
       ]);
       setStatus(Array.isArray(st)?st:[]);
       setBranchInfo(br||{branch:"",isRepo:true});
       setLog(Array.isArray(lg)?lg:[]);
       setBranches(blist||{local:[],remote:[],current:""});
       setConflicts(Array.isArray(conf)?conf:[]);
+      setOpState(op && op.operation ? op : null);
       // invalidate diff cache for files that disappeared
       const still = new Set((st||[]).map(x=>x.rel));
       for(const k of [...diffCacheRef.current.keys()]) if(!still.has(k)) diffCacheRef.current.delete(k);
@@ -188,6 +263,18 @@ export default function GitPanel({ nodeId }){
       if(m.includes("status:")) setError("Git status failed — is git installed? "+m);
       else setError(m);
     } finally{ setLoading(false); refreshRef.current=0; }
+  },[projectPath]);
+
+  const loadMoreLog=useCallback(async()=>{
+    if(!projectPath) return;
+    const next=Math.min(LOG_MAX, logLimitRef.current+LOG_PAGE);
+    if(next<=logLimitRef.current) return;
+    logLimitRef.current=next;
+    setLogLimit(next);
+    try{
+      const lg=await window.electronAPI.gitLog(projectPath, next);
+      setLog(Array.isArray(lg)?lg:[]);
+    }catch{}
   },[projectPath]);
 
   useEffect(()=>{ doRefresh(); const iv=setInterval(()=>{ if(!document.hidden) doRefresh(); },15000); return ()=>clearInterval(iv); },[doRefresh]);
@@ -257,47 +344,85 @@ export default function GitPanel({ nodeId }){
     try{ if(window.electronAPI?.clipboardWrite) await window.electronAPI.clipboardWrite(t); else await navigator.clipboard.writeText(t); showToast("Copied"); }catch{ showToast("Copy failed",true); }
   };
 
-  // diff rendering with line numbers, lazy, size guard
-  const renderDiff=(text, rel)=>{
+  // Unified diff rendering: real file line numbers, plus hunk-level actions.
+  const renderPatch=(text, rel, mode, interactive, showFilePath=false)=>{
     if(text===undefined) return <div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading…</div>;
     if(!text || text==="(no diff)" || text==="(error)") return <div style={{padding:"var(--space-6) var(--space-10)",color:"var(--icon-muted)",fontSize:"var(--fs-small)"}}>{text||"(no diff)"}</div>;
-    if(text==="Binary file — diff not displayed") return <div style={{padding:"var(--space-8) var(--space-10)",color:"var(--git-modified)",fontSize:"var(--fs-small)"}}>Binary file — no text diff</div>;
     const str=String(text);
     if(str.length>500000) return <div style={{padding:"var(--space-8) var(--space-10)",color:"var(--git-modified)",fontSize:"var(--fs-small)"}}>Diff too large ({(str.length/1000).toFixed(0)} KB) — <button onClick={()=>openFile(rel)} style={s.btnGhost}>Open File</button></div>;
-    const lines=str.split("\n").slice(0,700);
-    const large = lines.length>500;
-    const shown = large ? lines.slice(0,500) : lines;
+    const files=parseUnifiedDiff(str);
+    if(!files.length) return <div style={{padding:"var(--space-6) var(--space-10)",color:"var(--icon-muted)",fontSize:"var(--fs-small)"}}>No textual changes</div>;
     return (
       <div style={{ fontFamily:"var(--font-code)", fontSize:"var(--fs-small)", lineHeight:"15px" }}>
-        {shown.map((l,i)=>{
-          let bg="transparent", col="var(--text-bright)", prefix=" ";
-          if(l.startsWith("+") && !l.startsWith("+++")){ bg="var(--git-added-a10)"; col="var(--git-added)"; prefix="+"; }
-          else if(l.startsWith("-") && !l.startsWith("---")){ bg="var(--error-tint-a09)"; col="var(--diff-del-text)"; prefix="-"; }
-          else if(l.startsWith("@@")){ bg="var(--diff-hunk-a10)"; col="var(--code-blue)"; prefix="@"; }
-          const isHeader = l.startsWith("diff ")||l.startsWith("index ")||l.startsWith("---")||l.startsWith("+++");
-          return <div key={i} style={{ display:"flex", background:bg, color:isHeader?"var(--icon)":col, padding:"0 var(--space-4)", whiteSpace:"pre", overflow:"hidden" }}>
-            <span style={{ width:36, flexShrink:0, color:"var(--text-placeholder)", textAlign:"right", paddingRight:"var(--space-6)", userSelect:"none", borderRight:"1px solid var(--bg-hover)", marginRight:"var(--space-6)" }}>{i+1}</span>
-            <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis" }}>{l || " "}</span>
-          </div>;
+        {files.map((file, fi)=>{
+          const binary=file.header.some((l)=>l.startsWith("Binary files"));
+          const filePath=showFilePath?diffFilePath(file):"";
+          return (
+            <div key={fi}>
+              {filePath && <div style={{padding:"var(--space-5) var(--space-8)",background:"var(--bg-deep)",color:"var(--text-soft)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",borderBottom:"1px solid var(--border-row)",position:"sticky",top:0,zIndex:1}}>{filePath}</div>}
+              {binary && !file.hunks.length && <div style={{padding:"var(--space-8) var(--space-10)",color:"var(--git-modified)",fontSize:"var(--fs-small)"}}>Binary file — no text diff</div>}
+              {file.hunks.map((hunk, hi)=>(
+                <div key={hi}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"var(--space-4)", background:"var(--diff-hunk-a10)", color:"var(--code-blue)", padding:"1px var(--space-4)" }}>
+                    <span style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"pre", fontSize:"var(--fs-tiny)" }}>{hunk.header}</span>
+                    {interactive && mode==="unstaged" && rel && <>
+                      <button onClick={(e)=>{e.stopPropagation();doHunkAction(rel,buildHunkPatch(file,hunk),"stage");}} disabled={!!busy} title="Stage this hunk" aria-label="Stage this hunk" style={hunkBtnStyle}>Stage</button>
+                      <button onClick={(e)=>{e.stopPropagation();doHunkAction(rel,buildHunkPatch(file,hunk),"discard");}} disabled={!!busy} title="Discard this hunk" aria-label="Discard this hunk" style={{...hunkBtnStyle,color:"var(--error-text-pale)"}}>Discard</button>
+                    </>}
+                    {interactive && mode==="staged" && rel && <button onClick={(e)=>{e.stopPropagation();doHunkAction(rel,buildHunkPatch(file,hunk),"unstage");}} disabled={!!busy} title="Unstage this hunk" aria-label="Unstage this hunk" style={hunkBtnStyle}>Unstage</button>}
+                  </div>
+                  {hunk.lines.map((ln, li)=>{
+                    const bg=ln.type==="add"?"var(--git-added-a10)":ln.type==="del"?"var(--error-tint-a09)":"transparent";
+                    const col=ln.type==="add"?"var(--git-added)":ln.type==="del"?"var(--diff-del-text)":ln.type==="meta"?"var(--icon)":"var(--text-bright)";
+                    return (
+                      <div key={li} style={{ display:"flex", background:bg, color:col, padding:"0 var(--space-4)", whiteSpace:"pre", overflow:"hidden" }}>
+                        <span style={diffLineNoStyle}>{ln.oldNo}</span>
+                        <span style={diffLineNoStyle}>{ln.newNo}</span>
+                        <span style={{ flex:1, overflow:"hidden", textOverflow:"ellipsis" }}>{ln.text || " "}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          );
         })}
-        {large && <div style={{padding:"var(--space-6) var(--space-10)",color:"var(--code-blue)",fontSize:"var(--fs-small)"}}>… truncated ({lines.length-500} more lines) — <button onClick={()=>openFile(rel)} style={{...s.btnGhost, padding:"var(--space-2) var(--space-6)"}}>Open file</button></div>}
       </div>
     );
+  };
+  const renderDiff=(text, rel)=>renderPatch(text, rel, null, false, false);
+
+  const loadDiff=async(rel)=>{
+    try{
+      const [un,st]=await Promise.all([
+        window.electronAPI.gitDiffUnstaged ? window.electronAPI.gitDiffUnstaged(projectPath, rel).catch(()=> "") : window.electronAPI.gitDiff(projectPath, rel).catch(()=> ""),
+        window.electronAPI.gitDiffStaged ? window.electronAPI.gitDiffStaged(projectPath, rel).catch(()=> "") : Promise.resolve(""),
+      ]);
+      const value={unstaged:String(un||""),staged:String(st||"")};
+      diffCacheRef.current.set(rel,value);
+      setDiffMap(m=>({...m,[rel]:value}));
+    }catch(e){
+      const value={unstaged:"(error) "+(e?.message||e),staged:""};
+      diffCacheRef.current.set(rel,value);
+      setDiffMap(m=>({...m,[rel]:value}));
+    }
   };
 
   const toggleDiff=async(rel)=>{
     if(openDiff===rel){ setOpenDiff(null); return; }
     setOpenDiff(rel);
-    if(diffMap[rel]!==undefined || diffCacheRef.current.has(rel)) return;
-    // cache check
-    if(diffCacheRef.current.has(rel)){ setDiffMap(m=>({...m,[rel]:diffCacheRef.current.get(rel)})); return; }
-    try{
-      const fullPath= projectPath ? `${projectPath}/${rel}`.replace(/\\/g,"/") : rel;
-      const txt= await window.electronAPI.gitDiff(projectPath, fullPath);
-      const v= txt || "(no diff)";
-      diffCacheRef.current.set(rel, v);
-      setDiffMap(m=>({...m,[rel]:v}));
-    }catch(e){ const v="(error) "+(e?.message||e); diffCacheRef.current.set(rel, v); setDiffMap(m=>({...m,[rel]:v})); }
+    if(diffMap[rel]!==undefined) return;
+    const cached=diffCacheRef.current.get(rel);
+    if(cached){ setDiffMap(m=>({...m,[rel]:cached})); return; }
+    await loadDiff(rel);
+  };
+
+  // A stage/unstage/discard changes the diff — drop the cache and reload it
+  // when the file's diff view is open.
+  const refreshDiffFor=async(rel)=>{
+    diffCacheRef.current.delete(rel);
+    setDiffMap(m=>{ if(!(rel in m)) return m; const n={...m}; delete n[rel]; return n; });
+    if(openDiff===rel) await loadDiff(rel);
   };
 
   const wrapAction=async(key, fn)=>{
@@ -308,23 +433,44 @@ export default function GitPanel({ nodeId }){
     finally{ setBusy(""); }
   };
 
-  const doStage=(rel)=>wrapAction(rel+":stage", ()=> window.electronAPI.gitStage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); }));
-  const doUnstage=(rel)=>wrapAction(rel+":unstage", ()=> window.electronAPI.gitUnstage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); }));
+  const doStage=async(rel)=>{ await wrapAction(rel+":stage", ()=> window.electronAPI.gitStage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await refreshDiffFor(rel); };
+  const doUnstage=async(rel)=>{ await wrapAction(rel+":unstage", ()=> window.electronAPI.gitUnstage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await refreshDiffFor(rel); };
   const doDiscard=async(rel)=>{
     const isUntracked= groups.untracked.some(x=>x.rel===rel) || status.find(x=>x.rel===rel)?.status==="??";
     const msg = isUntracked ? `Delete untracked file "${rel}"?\nThis cannot be undone.` : `Discard changes in "${rel}"?\nThis cannot be undone.`;
     const ok = window.confirm ? window.confirm(msg) : true;
     if(!ok) return;
     await wrapAction(rel+":discard", ()=> window.electronAPI.gitDiscard(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); }));
+    await refreshDiffFor(rel);
   };
-  const doStageAll=()=>wrapAction("stageAll", ()=> window.electronAPI.gitStageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); }));
-  const doUnstageAll=()=>wrapAction("unstageAll", ()=> window.electronAPI.gitUnstageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); }));
+  const invalidateAllDiffs=async()=>{
+    diffCacheRef.current.clear();
+    setDiffMap({});
+    if(openDiff) await loadDiff(openDiff);
+  };
+  const doStageAll=async()=>{ await wrapAction("stageAll", ()=> window.electronAPI.gitStageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await invalidateAllDiffs(); };
+  const doUnstageAll=async()=>{ await wrapAction("unstageAll", ()=> window.electronAPI.gitUnstageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await invalidateAllDiffs(); };
+  const doHunkAction=async(rel,patch,mode)=>{
+    if(!rel || !patch) return;
+    if(mode==="discard" && window.confirm && !window.confirm(`Discard this hunk in "${rel}"?\nThis cannot be undone.`)) return;
+    await wrapAction(rel+":"+mode, async()=>{
+      const r=await window.electronAPI.gitApplyHunk(projectPath, rel, patch, mode);
+      if(r?.ok===false) throw new Error(r.error||"Hunk operation failed");
+      showToast(mode==="stage"?"Hunk staged":mode==="unstage"?"Hunk unstaged":"Hunk discarded");
+    });
+    await refreshDiffFor(rel);
+  };
   const doCommit=async(pushAfter)=>{
     if(busy || syncRef.current) return;
     if(!msg.trim()){ showToast("Write a commit message",true); return; }
     if(msg.trim().length<3){ showToast("Commit message too short",true); return; }
     const stagedCount=groups.staged.length;
+    const unstagedCount=groups.changes.length + groups.untracked.length + groups.staged.filter(f=>f.partiallyStaged).length;
     if(!stagedCount && !amend){ showToast("Nothing staged — stage files first",true); setError("Nothing staged — stage files first or enable Amend."); return; }
+    if(gitOpts.confirmCommit && stagedCount>0 && unstagedCount>0){
+      const ok = window.confirm ? window.confirm(`${stagedCount} staged file(s) will be committed.\n${unstagedCount} unstaged change(s) will be left out. Continue?`) : true;
+      if(!ok) return;
+    }
     setBusy("commit");
     try{
       const r= amend
@@ -386,7 +532,7 @@ export default function GitPanel({ nodeId }){
     showToast("Pushed");
   };
   const doPush=()=>wrapAction("push", doPushInternal);
-  const doPull=()=>wrapAction("pull", ()=> window.electronAPI.gitPull(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("Pulled"); return r; }));
+  const doPull=()=>wrapAction("pull", ()=> window.electronAPI.gitPull(projectPath,{autostash:gitOpts.autoStash}).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("Pulled"); return r; }));
   const doFetch=()=>wrapAction("fetch", ()=> window.electronAPI.gitFetch(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); showToast("Fetched"); return r; }));
   const doSync=async()=>{
     if(!projectPath || busy || syncRef.current || loading || !branchInfo.branch || branchInfo.hasRemote===false) return;
@@ -396,7 +542,7 @@ export default function GitPanel({ nodeId }){
     try{
       let syncError=null;
       try{
-        const result=await window.electronAPI.gitMenuAction(rootPath,"sync");
+        const result=await window.electronAPI.gitMenuAction(rootPath,"sync",undefined,{autostash:gitOpts.autoStash});
         if(result?.ok!==true) throw new Error(result?.error || "Sync did not complete");
       }catch(e){ syncError=humanBranchError(e?.message||String(e)); }
       // A failed pull can leave conflicts, so refresh after either outcome.
@@ -406,6 +552,16 @@ export default function GitPanel({ nodeId }){
       if(syncError){ setError(syncError); showToast("Sync failed",true); }
       else showToast("Synced");
     }finally{ syncRef.current=null; setBusy(""); }
+  };
+  const doOperationAction=async(cmd)=>{
+    const op=opState?.operation;
+    if(!op) return;
+    if(cmd==="abort" && window.confirm && !window.confirm(`Abort the in-progress ${OP_LABELS[op]||op}?\nAny conflict resolution for this operation will be lost.`)) return;
+    await wrapAction("op:"+op+":"+cmd, async()=>{
+      const r=await window.electronAPI.gitOperationAction(projectPath, op, cmd);
+      if(r?.ok===false) throw new Error(r.error);
+      showToast(`${OP_LABELS[op]||op}: ${cmd} completed`);
+    });
   };
   const doInit=()=>wrapAction("init", async()=>{
     if(!window.electronAPI.gitInit) throw new Error("git init not supported");
@@ -427,6 +583,16 @@ export default function GitPanel({ nodeId }){
       const r= await window.electronAPI.gitSwitchBranch(projectPath, name);
       if(r?.ok===false) throw new Error(r.error);
       showToast(`Switched to ${name}`);
+    });
+  };
+  const handleCheckoutRemote=async(ref)=>{
+    if(!ref) return;
+    if(status.length>0 && window.confirm && !window.confirm(`Checkout "${ref}"?\nYou have uncommitted changes that might be overwritten. Continue?`)) return;
+    setBranchPickerOpen(false);
+    await wrapAction("remote:"+ref, async()=>{
+      const r=await window.electronAPI.gitCheckoutRemote(projectPath, ref);
+      if(r?.ok===false) throw new Error(r.error);
+      showToast(`Checked out ${r?.branch||ref}`);
     });
   };
   const handleCreateBranch=async()=>{
@@ -561,7 +727,7 @@ export default function GitPanel({ nodeId }){
 
   const runGitMenuAction=async(action,value)=>{
     await wrapAction(action,async()=>{
-      const result=await window.electronAPI.gitMenuAction(projectPath,action,value);
+      const result=await window.electronAPI.gitMenuAction(projectPath,action,value,{autostash:gitOpts.autoStash});
       if(result?.ok===false) throw new Error(result.error);
       showToast("Git operation completed");
       if(action==="remotes"||action==="stash-list"||action==="tags") return result.out;
@@ -698,9 +864,8 @@ export default function GitPanel({ nodeId }){
             {filteredRemote.map(b=>(
               <div key={"r:"+b} style={{display:"flex",alignItems:"center",padding:"var(--space-5) var(--space-8)",fontSize:"var(--fs-small)",borderBottom:"var(--space-1) solid var(--border-row)"}}>
                 <button onClick={()=>{
-                  // checkout remote => create local tracking
-                  const localName=b.replace(/^origin\//,"");
-                  handleSwitch(localName);
+                  // Checkout via the real remote name (no hard-coded `origin/`).
+                  handleCheckoutRemote(b);
                 }} style={{flex:1,textAlign:"left",background:"transparent",border:"none",color:"var(--code-blue)",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={"Checkout "+b}>{b}</button>
               </div>
             ))}
@@ -721,6 +886,23 @@ export default function GitPanel({ nodeId }){
       {/* Sync hints */}
       {branchInfo.hasRemote===false && (
         <div style={{margin:"var(--space-6) var(--space-8) 0",padding:"var(--space-6) var(--space-8)",background:"var(--warn-bg-olive)",border:"var(--space-1) solid var(--warn-border-olive)",borderRadius:"var(--radius-md)",color:"var(--git-modified)",fontSize:"var(--fs-small)"}}>No remote configured — push/pull will fail. <span style={{color:"var(--text-secondary)"}}>Add with: <span style={{fontFamily:"var(--font-code)"}}>git remote add origin &lt;url&gt;</span></span></div>
+      )}
+
+      {/* In-progress Git operation (merge / rebase / cherry-pick / revert / bisect) */}
+      {opState?.operation && (
+        <div style={{margin:"var(--space-6) var(--space-8) 0",padding:"var(--space-6) var(--space-8)",background:"var(--warn-bg-olive)",border:"var(--space-1) solid var(--warn-border-olive)",borderRadius:"var(--radius-md)",display:"flex",alignItems:"center",gap:"var(--space-8)",flexWrap:"wrap"}}>
+          <TriangleAlert size={14} color="var(--git-modified)" aria-hidden="true" />
+          <span style={{flex:1,minWidth:140,fontSize:"var(--fs-small)",color:"var(--git-modified)",fontWeight:"var(--fw-semibold)"}}>
+            {OP_LABELS[opState.operation]||opState.operation} in progress
+            {opState.progress?.step ? ` — step ${opState.progress.step}${opState.progress.total?`/${opState.progress.total}`:""}` : ""}
+            {opState.conflicts?.length ? <span style={{fontWeight:"var(--fw-regular)",color:"var(--text-secondary)"}}>{` — ${opState.conflicts.length} conflicted file${opState.conflicts.length===1?"":"s"}`}</span> : null}
+          </span>
+          <span style={{display:"flex",gap:"var(--space-4)",flexWrap:"wrap"}}>
+            {opState.operation!=="bisect" && <button onClick={()=>doOperationAction("continue")} disabled={!!busy} style={{...hunkBtnStyle,lineHeight:"22px",padding:"0 var(--space-8)"}} title="Continue the operation">Continue</button>}
+            {["rebase","cherry-pick","revert"].includes(opState.operation) && <button onClick={()=>doOperationAction("skip")} disabled={!!busy} style={{...hunkBtnStyle,lineHeight:"22px",padding:"0 var(--space-8)"}} title="Skip this commit">Skip</button>}
+            <button onClick={()=>doOperationAction("abort")} disabled={!!busy} style={{...hunkBtnStyle,lineHeight:"22px",padding:"0 var(--space-8)",color:"var(--error-text-pale)"}} title="Abort the operation">{opState.operation==="bisect"?"End Bisect":"Abort"}</button>
+          </span>
+        </div>
       )}
 
       {/* Commit box */}
@@ -799,7 +981,28 @@ export default function GitPanel({ nodeId }){
                   </span>
                   <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-bold)",color:conflicted?"var(--danger)":color,minWidth:13,textAlign:"center"}} title={statusLabel(it.status,it.x,it.y,it)}>{conflicted?"!":untracked?"U":it.status.trim()||"M"}</span>
                 </div>
-                {openDiff===it.rel && <div style={{background:"var(--bg-panel)",borderTop:"1px solid var(--border-row)",maxHeight:260,overflow:"auto",padding:"var(--space-6) 0"}}>{diffMap[it.rel]===undefined?<div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div>:renderDiff(diffMap[it.rel],it.rel)}</div>}
+                {openDiff===it.rel && <div style={{background:"var(--bg-panel)",borderTop:"1px solid var(--border-row)",maxHeight:320,overflow:"auto",padding:"var(--space-6) 0"}}>{diffMap[it.rel]===undefined?<div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div>:(()=>{
+                  const d = typeof diffMap[it.rel]==="string" ? {unstaged:diffMap[it.rel],staged:""} : (diffMap[it.rel]||{});
+                  const un = String(d.unstaged||"");
+                  const st = String(d.staged||"");
+                  if(!un.trim() && !st.trim()){
+                    return <div style={{padding:"var(--space-6) var(--space-10)",color:"var(--icon-muted)",fontSize:"var(--fs-small)",display:"flex",gap:"var(--space-8)",alignItems:"center",flexWrap:"wrap"}}>
+                      <span>{untracked?"Untracked file — stage it to see a diff.":"No textual diff available."}</span>
+                      {untracked && <button onClick={(e)=>{e.stopPropagation();doStage(it.rel);}} disabled={!!busy} style={hunkBtnStyle}>Stage file</button>}
+                      <button onClick={(e)=>{e.stopPropagation();openFile(it.rel);}} style={hunkBtnStyle}>Open file</button>
+                    </div>;
+                  }
+                  return <>
+                    {un.trim() && <div>
+                      <div style={{padding:"var(--space-4) var(--space-10)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-secondary)",background:"var(--bg-deep)",borderBottom:"1px solid var(--border-row)"}}>Unstaged — stage or discard individual hunks</div>
+                      {renderPatch(un,it.rel,"unstaged",true,false)}
+                    </div>}
+                    {st.trim() && <div>
+                      <div style={{padding:"var(--space-4) var(--space-10)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-secondary)",background:"var(--bg-deep)",borderBottom:"1px solid var(--border-row)",borderTop:un.trim()?"1px solid var(--border-row)":undefined}}>Staged — unstage individual hunks</div>
+                      {renderPatch(st,it.rel,"staged",true,false)}
+                    </div>}
+                  </>;
+                })()}</div>}
               </div>
             );
           })}
@@ -859,6 +1062,11 @@ export default function GitPanel({ nodeId }){
                     </div>
                   </div>
                 ))
+              )}
+              {log.length>=logLimit && logLimit<LOG_MAX && !logQuery.trim() && (
+                <div style={{padding:"var(--space-6)",display:"flex",justifyContent:"center",borderTop:"var(--space-1) solid var(--border-row)"}}>
+                  <button onClick={loadMoreLog} style={hunkBtnStyle} title="Load older commits">Load more commits ({logLimit}/{LOG_MAX})</button>
+                </div>
               )}
             </div>
           </div>

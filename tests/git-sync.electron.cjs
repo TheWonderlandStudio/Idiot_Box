@@ -14,6 +14,8 @@ let hasRemote = true,
   behind = 0,
   statusRows = [],
   commitCalls = [],
+  opCalls = [],
+  operationState = null,
   calls = [],
   reads = [],
   pending = [];
@@ -45,6 +47,14 @@ ipcMain.handle("test:git", (_event, method, ...args) => {
       return { local: ["main"], remote: ["origin/main"], current: "main" };
     case "gitConflicts":
       return [];
+    case "gitOperationState":
+      return operationState || { operation: null, progress: null, conflicts: [] };
+    case "gitOperationAction":
+      opCalls.push(args);
+      return { ok: true };
+    case "gitDiffUnstaged":
+    case "gitDiffStaged":
+      return "";
     case "gitMenuAction":
       calls.push(args);
       return held("sync", args[0]);
@@ -66,6 +76,10 @@ const methods = [
   "gitBranch",
   "gitBranches",
   "gitConflicts",
+  "gitOperationState",
+  "gitOperationAction",
+  "gitDiffUnstaged",
+  "gitDiffStaged",
   "gitMenuAction",
   "gitFetch",
   "gitCommit",
@@ -156,6 +170,8 @@ app
       behind = branch.behind;
       statusRows = rows;
       commitCalls = [];
+      opCalls = [];
+      operationState = null;
       calls = [];
       reads = [];
       pending = [];
@@ -221,7 +237,11 @@ app
           win.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
           await wait(() => pending.length === 1);
           await capture("primary-sync-loading");
-          assert.deepEqual(calls, [[project, "sync"]]);
+          assert.deepEqual(
+            calls.map((c) => c.slice(0, 2)),
+            [[project, "sync"]],
+          );
+          assert.equal(calls[0][3]?.autostash, false);
           assert.equal(
             await run(
               "document.querySelector('[aria-label=\"Sync\"]').getAttribute('aria-busy')",
@@ -447,7 +467,11 @@ app
               );
             await menuSync(nested);
             await wait(() => pending.length === 1);
-            assert.deepEqual(calls, [[project, "sync"]]);
+            assert.deepEqual(
+            calls.map((c) => c.slice(0, 2)),
+            [[project, "sync"]],
+          );
+          assert.equal(calls[0][3]?.autostash, false);
             await finish({ ok: true });
             assert.equal(
               await run("document.querySelector('[role=status]').textContent"),
@@ -503,6 +527,46 @@ app
               "document.querySelector('.git-panel').textContent.includes('Connection dropped')",
             ),
             true,
+          );
+        },
+      );
+      await check(
+        "an in-progress merge shows Continue/Abort and continues the operation",
+        async () => {
+          await ready();
+          operationState = {
+            operation: "merge",
+            progress: null,
+            conflicts: ["conflicted.js"],
+          };
+          await run("window.dispatchEvent(new Event('git:refresh'))");
+          await wait(() =>
+            run(
+              "document.querySelector('.git-panel').textContent.includes('Merge in progress')",
+            ),
+          );
+          assert.equal(
+            await run(
+              "document.querySelector('.git-panel').textContent.includes('1 conflicted file')",
+            ),
+            true,
+          );
+          assert.equal(
+            await run(
+              "[...document.querySelectorAll('button')].some(el=>el.textContent==='Continue')",
+            ),
+            true,
+          );
+          operationState = null;
+          await run(
+            "[...document.querySelectorAll('button')].find(el=>el.textContent==='Continue').click()",
+          );
+          await wait(() => opCalls.length === 1);
+          assert.deepEqual(opCalls, [[project, "merge", "continue"]]);
+          await wait(() =>
+            run(
+              "!document.querySelector('.git-panel').textContent.includes('Merge in progress')",
+            ),
           );
         },
       );

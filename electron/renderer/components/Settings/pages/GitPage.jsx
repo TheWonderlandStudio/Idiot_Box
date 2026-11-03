@@ -7,21 +7,23 @@ import React from "react";
 const GitPage = ({ settings, onSave }) => {
   const g = settings.git || {};
   const autoFetch      = g.autoFetch === true || settings.gitAutoFetch === true; // default false
-  const showGutter     = g.showGutter !== false && settings.gitShowGutter !== false; // default true
+  const showGutter     = g.showGutter !== false && settings.gitShowGutter !== false && settings.gitGutter !== false; // default true
   const confirmCommit  = g.confirmCommit !== false && settings.gitConfirmCommit !== false; // default true
-  const enableGutter   = g.enableGutter !== false && settings.gitEnableGutter !== false; // alias for showGutter
+  const enableGutter   = g.enableGutter !== false && settings.gitEnableGutter !== false && settings.gitGutter !== false; // alias for showGutter
   const autoStash      = g.autoStash === true || settings.gitAutoStash === true; // default false
-  const showInlineBlame= g.showInlineBlame === true || settings.gitShowInlineBlame === true; // default false
+  const showInlineBlame= g.showInlineBlame === true || settings.gitShowInlineBlame === true || settings.gitBlame === true; // default false
 
   const updateGit = async (patch) => {
     const nextGit = { ...g, ...patch };
     const flat = {};
     if ("autoFetch" in patch) flat.gitAutoFetch = patch.autoFetch;
-    if ("showGutter" in patch) flat.gitShowGutter = patch.showGutter;
+    if ("showGutter" in patch) { flat.gitShowGutter = patch.showGutter; flat.gitGutter = patch.showGutter; }
     if ("enableGutter" in patch) flat.gitEnableGutter = patch.enableGutter;
     if ("confirmCommit" in patch) flat.gitConfirmCommit = patch.confirmCommit;
     if ("autoStash" in patch) flat.gitAutoStash = patch.autoStash;
-    if ("showInlineBlame" in patch) flat.gitShowInlineBlame = patch.showInlineBlame;
+    // The editor reads the flat `gitBlame` key; keep both in sync so the Git
+    // settings page actually controls inline blame.
+    if ("showInlineBlame" in patch) { flat.gitShowInlineBlame = patch.showInlineBlame; flat.gitBlame = patch.showInlineBlame; }
     await onSave({ git: nextGit, ...flat });
     try {
       const bc = new BroadcastChannel("git-settings");

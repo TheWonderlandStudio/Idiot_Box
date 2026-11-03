@@ -2074,9 +2074,11 @@ ipcMain.handle("debug:availability", (_e, opts = {}) => debuggerService.availabi
 ipcMain.handle("debug:sessions", () => ({ ok: true, sessions: debuggerService.listSessions() }));
 
 // ─── Git helpers — lightweight async (non-blocking) ────────────────────────────
-function gitExec(args, cwd, timeout = 4000) {
+function gitExec(args, cwd, timeout = 4000, env = null) {
   return new Promise((resolve, reject) => {
-    execFile("git", args, { cwd, timeout, encoding: "utf8", windowsHide: true }, (err, stdout, stderr) => {
+    const opts = { cwd, timeout, encoding: "utf8", windowsHide: true };
+    if (env && typeof env === "object") opts.env = { ...process.env, ...env };
+    execFile("git", args, opts, (err, stdout, stderr) => {
       if (err) {
         err.stdout = stdout;
         err.stderr = stderr;
@@ -2146,6 +2148,31 @@ function ensureInsideRoot(root, rel) {
     if (joined === r || joined.startsWith(r + path.sep)) return true;
   } catch {}
   return false;
+}
+// Git C-quotes paths containing non-ASCII bytes (e.g. "b/h\303\251llo.txt").
+// Decode those escapes so hunk patches can be matched to the real file name.
+function gitUnquotePath(value) {
+  const s = String(value || "");
+  if (!(s.startsWith('"') && s.endsWith('"'))) return s;
+  const body = s.slice(1, -1);
+  const bytes = [];
+  const pushText = (text) => { for (const b of Buffer.from(text, "utf8")) bytes.push(b); };
+  const simple = { n: 0x0a, t: 0x09, r: 0x0d, '"': 0x22, "\\": 0x5c, a: 0x07, b: 0x08, f: 0x0c, v: 0x0b };
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch !== "\\") { pushText(ch); continue; }
+    const next = body[++i];
+    if (next === undefined) break;
+    if (next in simple) { bytes.push(simple[next]); continue; }
+    if (/[0-7]/.test(next)) {
+      let oct = next;
+      while (oct.length < 3 && /[0-7]/.test(body[i + 1] || "")) oct += body[++i];
+      bytes.push(parseInt(oct, 8));
+      continue;
+    }
+    pushText(next);
+  }
+  return Buffer.from(bytes).toString("utf8");
 }
 // tiny cache to avoid hammering git when multiple panels poll simultaneously
 const gitCache = new Map(); // key -> { data, time, promise }
@@ -2394,16 +2421,19 @@ ipcMain.handle("git:commitDiff", async (_e, rootPath, hash) => {
   try { const out = await gitExec(["show", h], rootPath, 6000); return String(out||""); } catch { return ""; }
 });
 
-ipcMain.handle("git:log", async (_e, rootPath, limit = 20) => {
+ipcMain.handle("git:log", async (_e, rootPath, limit = 20, skip = 0) => {
   if (!rootPath) return [];
-  const key = `log:${rootPath}:${limit}`;
+  const key = `log:${rootPath}:${limit}:${skip}`;
   const cached = gitCacheGet(key, 8000);
   if (cached) return cached instanceof Promise ? cached : cached;
   const p = (async () => {
     try {
-      const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50); // cap 50 vs 100 to lighten
+      const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 300);
+      const off = Math.min(Math.max(parseInt(skip, 10) || 0, 0), 100000);
       const fmt = "%H%x1f%an%x1f%ae%x1f%ar%x1f%s%x1f%D%x1f%P";
-      const out = await gitExec(["log", "--oneline", "-n", String(n), `--pretty=format:${fmt}`], rootPath, 3000);
+      const logArgs = ["log", "--oneline", "-n", String(n), `--pretty=format:${fmt}`];
+      if (off > 0) logArgs.push(`--skip=${off}`);
+      const out = await gitExec(logArgs, rootPath, 3000);
       return out.split("\n").filter(Boolean).map((l) => {
         const [hash, author, email, relTime, msg, refs, parents] = l.split("\x1f");
         return { hash: hash?.slice(0, 7), fullHash: hash, author, email, relTime, msg, refs: refs || "", parents: (parents || "").trim() };
@@ -2471,9 +2501,11 @@ ipcMain.handle("git:push", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
   try { const out = await gitRunLogged(rootPath, ["push"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
-ipcMain.handle("git:pull", async (_e, rootPath) => {
+ipcMain.handle("git:pull", async (_e, rootPath, opts) => {
   if (!rootPath) return { ok: false };
-  try { const out = await gitRunLogged(rootPath, ["pull"], 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
+  const args = ["pull"];
+  if (opts && opts.autostash) args.push("--autostash");
+  try { const out = await gitRunLogged(rootPath, args, 15000); gitCacheInvalidate(rootPath); return { ok: true, out }; } catch (e) { return { ok: false, error: humanGitError(e.stderr||e.message) }; }
 });
 ipcMain.handle("git:fetch", async (_e, rootPath) => {
   if (!rootPath) return { ok: false };
@@ -2507,11 +2539,180 @@ ipcMain.handle("git:blame", async (_e, rootPath, relPath) => {
     return { ok: false, error: humanGitError(e.stderr || e.message) };
   }
 });
-ipcMain.handle("git:menuAction", async (_e, rootPath, action, value) => {
+
+// ── In-progress operations (merge / rebase / cherry-pick / revert / bisect) ──
+// Reading the git dir is the only reliable cross-version way to detect these.
+ipcMain.handle("git:operationState", async (_e, rootPath) => {
+  if (!rootPath) return { operation: null, progress: null, conflicts: [] };
+  try {
+    await gitExec(["rev-parse", "--is-inside-work-tree"], rootPath, 2000);
+    const rawGitDir = (await gitExec(["rev-parse", "--git-dir"], rootPath, 2000)).trim();
+    const gitDir = path.isAbsolute(rawGitDir) ? rawGitDir : path.join(rootPath, rawGitDir);
+    const exists = (name) => { try { return fs.existsSync(path.join(gitDir, name)); } catch { return false; } };
+    const readNum = (name) => {
+      try { return parseInt(String(fs.readFileSync(path.join(gitDir, name), "utf8")).trim(), 10) || 0; } catch { return 0; }
+    };
+    let operation = null;
+    let progress = null;
+    if (exists("rebase-merge")) {
+      operation = "rebase";
+      progress = { step: readNum("rebase-merge/msgnum"), total: readNum("rebase-merge/end") };
+    } else if (exists("rebase-apply")) {
+      operation = "rebase";
+      progress = { step: readNum("rebase-apply/next"), total: readNum("rebase-apply/last") };
+    } else if (exists("MERGE_HEAD")) {
+      operation = "merge";
+    } else if (exists("CHERRY_PICK_HEAD")) {
+      operation = "cherry-pick";
+    } else if (exists("REVERT_HEAD")) {
+      operation = "revert";
+    } else if (exists("BISECT_LOG")) {
+      operation = "bisect";
+    }
+    let conflicts = [];
+    if (operation && operation !== "bisect") {
+      try {
+        const raw = await gitExec(["diff", "--name-only", "--diff-filter=U"], rootPath, 3000);
+        conflicts = raw.split("\n").map((s) => s.trim()).filter(Boolean);
+      } catch {}
+    }
+    return { operation, progress, conflicts };
+  } catch {
+    return { operation: null, progress: null, conflicts: [] };
+  }
+});
+
+ipcMain.handle("git:operationAction", async (_e, rootPath, operation, action) => {
+  const ops = new Set(["merge", "rebase", "cherry-pick", "revert", "bisect"]);
+  const acts = new Set(["continue", "abort", "skip"]);
+  if (typeof rootPath !== "string" || !rootPath || !ops.has(operation) || !acts.has(action)) {
+    return { ok: false, error: "Invalid Git operation" };
+  }
+  // Editors must never block on a rebase/cherry-pick commit message.
+  const env = { GIT_EDITOR: "true", GIT_SEQUENCE_EDITOR: "true", GIT_MERGE_AUTOEDIT: "no" };
+  try {
+    let out = "";
+    if (operation === "merge") {
+      if (action === "continue") out = await gitExec(["commit", "--no-edit"], rootPath, 15000, env);
+      else if (action === "abort") out = await gitExec(["merge", "--abort"], rootPath, 15000, env);
+      else return { ok: false, error: "A merge cannot be skipped — use Abort or finish resolving conflicts." };
+    } else if (operation === "rebase") {
+      out = await gitExec(["rebase", `--${action}`], rootPath, 20000, env);
+    } else if (operation === "cherry-pick") {
+      out = await gitExec(["cherry-pick", `--${action}`], rootPath, 20000, env);
+    } else if (operation === "revert") {
+      out = await gitExec(["revert", `--${action}`], rootPath, 20000, env);
+    } else if (operation === "bisect") {
+      if (action === "abort") out = await gitExec(["bisect", "reset"], rootPath, 15000);
+      else return { ok: false, error: "Bisect can only be ended (reset) from here." };
+    }
+    gitCacheInvalidate(rootPath);
+    return { ok: true, out: String(out || "") };
+  } catch (e) {
+    return { ok: false, error: humanGitError(e.stderr?.toString() || e.message || String(e)) };
+  }
+});
+
+// Exact unstaged diff (index -> working tree) so hunks can be staged/discarded.
+ipcMain.handle("git:diffUnstaged", async (_e, rootPath, filePath) => {
+  if (!rootPath || !filePath) return "";
+  try {
+    const rel = path.isAbsolute(filePath)
+      ? path.relative(rootPath, filePath).replace(/\\/g, "/")
+      : String(filePath).replace(/\\/g, "/");
+    if (!ensureInsideRoot(rootPath, rel)) return "";
+    const out = await gitExec(["diff", "--no-color", "--", rel], rootPath, 4000);
+    return String(out || "");
+  } catch { return ""; }
+});
+
+// Apply a single hunk patch (built by the renderer from the diff).
+// stage: index only | unstage: reverse index | discard: reverse working tree.
+ipcMain.handle("git:applyHunk", async (_e, rootPath, relPath, patch, mode) => {
+  if (!rootPath || !relPath || typeof patch !== "string") return { ok: false, error: "Missing arguments" };
+  if (!["stage", "unstage", "discard"].includes(mode)) return { ok: false, error: "Invalid hunk operation" };
+  if (!validateRelPath(relPath) || !ensureInsideRoot(rootPath, relPath)) return { ok: false, error: "Invalid path" };
+  if (!patch.trim() || patch.length > 2_000_000 || patch.includes("\0")) return { ok: false, error: "Invalid patch" };
+  // Never let a hunk patch touch a different file than the one it was built for.
+  const plusLine = patch.split("\n").find((l) => l.startsWith("+++ "));
+  if (plusLine) {
+    let patchPath = plusLine.slice(4).trim();
+    if (patchPath.includes("\t")) patchPath = patchPath.split("\t")[0];
+    patchPath = gitUnquotePath(patchPath).replace(/^b\//, "").replace(/\\/g, "/");
+    if (patchPath !== "/dev/null" && patchPath !== String(relPath).replace(/\\/g, "/")) {
+      return { ok: false, error: "Patch path does not match the selected file" };
+    }
+  }
+  const args = ["apply", "--whitespace=nowarn", "--recount"];
+  if (mode === "stage") args.push("--cached");
+  else if (mode === "unstage") args.push("--cached", "--reverse");
+  else args.push("--reverse");
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn("git", args, { cwd: rootPath, windowsHide: true });
+      let stderr = "";
+      child.stderr.on("data", (d) => { stderr += d.toString(); });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) resolve();
+        else reject(Object.assign(new Error(stderr || `git apply exited ${code}`), { stderr }));
+      });
+      try {
+        child.stdin.write(patch.endsWith("\n") ? patch : patch + "\n");
+        child.stdin.end();
+      } catch (err) {
+        try { child.kill(); } catch {}
+        reject(err);
+      }
+    });
+    gitCacheInvalidate(rootPath);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: humanGitError(e.stderr?.toString() || e.message || String(e)) };
+  }
+});
+
+// Checkout a remote branch using whatever remote it actually belongs to
+// (the old UI hard-coded `origin/`, which broke `upstream` and other remotes).
+ipcMain.handle("git:checkoutRemote", async (_e, rootPath, remoteRef) => {
+  if (!rootPath || !remoteRef) return { ok: false, error: "Missing branch name" };
+  const ref = String(remoteRef).trim();
+  if (!ref || ref.includes("\0") || ref.startsWith("-")) return { ok: false, error: "Invalid branch name" };
+  try {
+    const remotes = (await gitExec(["remote"], rootPath, 2000))
+      .split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+    let localName = ref;
+    for (const r of remotes) {
+      if (ref.startsWith(r + "/")) { localName = ref.slice(r.length + 1); break; }
+    }
+    const locals = (await gitExec(["branch", "--format=%(refname:short)"], rootPath, 3000))
+      .split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (locals.includes(localName)) {
+      await gitExec(["checkout", localName], rootPath, 10000);
+      gitCacheInvalidate(rootPath);
+      return { ok: true, branch: localName, existing: true };
+    }
+    try {
+      await gitExec(["checkout", "--track", ref], rootPath, 12000);
+    } catch (e) {
+      // Older git / unusual ref names: create the local branch explicitly.
+      if (!localName || localName === ref) throw e;
+      await gitExec(["checkout", "-b", localName, ref], rootPath, 12000);
+    }
+    gitCacheInvalidate(rootPath);
+    return { ok: true, branch: localName };
+  } catch (e) {
+    return { ok: false, error: humanGitError(e.stderr?.toString() || e.message || String(e)) };
+  }
+});
+
+ipcMain.handle("git:menuAction", async (_e, rootPath, action, value, opts) => {
   const actions = new Set(["remotes", "remote-add", "remote-remove", "stash-list", "stash-save", "stash-pop", "stash-apply", "stash-drop", "tags", "tag-create", "tag-delete", "tag-checkout", "sync", "fetch-all", "fetch-prune", "pull-rebase", "push-force-with-lease", "publish-branch"]);
   if (typeof rootPath !== "string" || !rootPath || !actions.has(action)) return { ok: false, error: "Invalid Git operation" };
   const arg = typeof value === "string" ? value.trim() : "";
   if (arg.length > 512 || arg.includes("\0")) return { ok: false, error: "Invalid Git argument" };
+  const autostash = !!(opts && opts.autostash);
   try {
     await gitExec(["rev-parse", "--is-inside-work-tree"], rootPath, 2000);
     let args;
@@ -2519,7 +2720,7 @@ ipcMain.handle("git:menuAction", async (_e, rootPath, action, value) => {
     switch (action) {
       case "sync": {
         try {
-          const pullOut = await gitRunLogged(rootPath, ["pull"], 15000);
+          const pullOut = await gitRunLogged(rootPath, ["pull", ...(autostash ? ["--autostash"] : [])], 15000);
           gitCacheInvalidate(rootPath);
           const pushOut = await gitRunLogged(rootPath, ["push"], 15000);
           return { ok: true, out: [pullOut, pushOut].filter(Boolean).join("\n") };
@@ -2529,7 +2730,7 @@ ipcMain.handle("git:menuAction", async (_e, rootPath, action, value) => {
       }
       case "fetch-all": args = ["fetch", "--all"]; break;
       case "fetch-prune": args = ["fetch", "--all", "--prune"]; break;
-      case "pull-rebase": args = ["pull", "--rebase"]; break;
+      case "pull-rebase": args = ["pull", "--rebase", ...(autostash ? ["--autostash"] : [])]; break;
       case "push-force-with-lease": args = ["push", "--force-with-lease"]; break;
       case "publish-branch": args = ["push", "--set-upstream", "origin", "HEAD"]; break;
       case "remotes": args = ["remote", "-v"]; readOnly = true; break;
