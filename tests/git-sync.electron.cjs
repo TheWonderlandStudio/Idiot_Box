@@ -17,6 +17,7 @@ let hasRemote = true,
   opCalls = [],
   operationState = null,
   calls = [],
+  fileCalls = [],
   reads = [],
   pending = [];
 const held = (kind, rootPath) =>
@@ -55,6 +56,11 @@ ipcMain.handle("test:git", (_event, method, ...args) => {
     case "gitDiffUnstaged":
     case "gitDiffStaged":
       return "";
+    case "gitStage":
+    case "gitUnstage":
+    case "gitDiscard":
+      fileCalls.push([method, ...args]);
+      return { ok: true };
     case "gitMenuAction":
       calls.push(args);
       return held("sync", args[0]);
@@ -80,6 +86,9 @@ const methods = [
   "gitOperationAction",
   "gitDiffUnstaged",
   "gitDiffStaged",
+  "gitStage",
+  "gitUnstage",
+  "gitDiscard",
   "gitMenuAction",
   "gitFetch",
   "gitCommit",
@@ -173,6 +182,7 @@ app
       opCalls = [];
       operationState = null;
       calls = [];
+      fileCalls = [];
       reads = [];
       pending = [];
       await win.loadFile(path.join(profile, "index.html"));
@@ -652,6 +662,101 @@ app
               (await win.webContents.capturePage()).toPNG(),
             );
           }
+        },
+      );
+      await check(
+        "multi-select stages checked files in one bulk action",
+        async () => {
+          const rows = [
+            { rel: "first.js", status: " M", x: " ", y: "M" },
+            { rel: "second.js", status: " M", x: " ", y: "M" },
+            { rel: "third.js", status: "??", x: "?", y: "?" },
+          ];
+          await reset(true, rows);
+          await wait(() =>
+            run("document.querySelectorAll('.git-select-box').length===3"),
+          );
+          await click('[aria-label="Select first.js"]');
+          await wait(() =>
+            run("!!document.querySelector('[aria-label=\"Stage selected files\"]')"),
+          );
+          await click('[aria-label="Select second.js"]');
+          await wait(() =>
+            run(
+              "document.querySelector('.git-bulk-bar')?.textContent.includes('2 selected')",
+            ),
+          );
+          assert.equal(
+            await run("document.querySelector('.git-bulk-bar').getAttribute('role')"),
+            "toolbar",
+          );
+          await click('[aria-label="Stage selected files"]');
+          await wait(() => run("!document.querySelector('.git-bulk-bar')"));
+          assert.deepEqual(
+            fileCalls.map((call) => call.slice(0, 3)),
+            [
+              ["gitStage", project, "first.js"],
+              ["gitStage", project, "second.js"],
+            ],
+          );
+        },
+      );
+      await check(
+        "shift-click selects a range and Escape clears it",
+        async () => {
+          const rows = [
+            { rel: "a.js", status: " M", x: " ", y: "M" },
+            { rel: "b.js", status: " M", x: " ", y: "M" },
+            { rel: "c.js", status: " M", x: " ", y: "M" },
+          ];
+          await reset(true, rows);
+          await wait(() =>
+            run("document.querySelectorAll('.git-select-box').length===3"),
+          );
+          await click('[aria-label="Select a.js"]');
+          await run(
+            `document.querySelector('[aria-label="Select c.js"]').dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}))`,
+          );
+          await wait(() =>
+            run(
+              "document.querySelector('.git-bulk-bar')?.textContent.includes('3 selected')",
+            ),
+          );
+          await run(
+            "window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))",
+          );
+          await wait(() => run("!document.querySelector('.git-bulk-bar')"));
+        },
+      );
+      await check(
+        "bulk discard skips staged files and confirms first",
+        async () => {
+          const rows = [
+            { rel: "staged.js", status: "M ", x: "M", y: " " },
+            { rel: "dirty.js", status: " M", x: " ", y: "M" },
+            { rel: "new.js", status: "??", x: "?", y: "?" },
+          ];
+          await reset(true, rows);
+          await wait(() =>
+            run("document.querySelectorAll('.git-select-box').length===3"),
+          );
+          await run("window.confirm=()=>true; true");
+          for (const name of ["staged.js", "dirty.js", "new.js"])
+            await click(`[aria-label="Select ${name}"]`);
+          await wait(() =>
+            run(
+              "document.querySelector('.git-bulk-bar')?.textContent.includes('3 selected')",
+            ),
+          );
+          await click('[aria-label="Discard selected files"]');
+          await wait(() => run("!document.querySelector('.git-bulk-bar')"));
+          assert.deepEqual(
+            fileCalls.map((call) => call.slice(0, 3)),
+            [
+              ["gitDiscard", project, "dirty.js"],
+              ["gitDiscard", project, "new.js"],
+            ],
+          );
         },
       );
       win.destroy();
