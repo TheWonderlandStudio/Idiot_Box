@@ -133,6 +133,7 @@ const s = {
 };
 const menuItemStyle={display:"block",width:"100%",padding:"var(--space-6) var(--space-8)",background:"transparent",border:0,color:"var(--text-primary)",textAlign:"left",cursor:"pointer"};
 const hunkBtnStyle={fontSize:"var(--fs-tiny)",lineHeight:"17px",padding:"0 var(--space-6)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border-light)",background:"var(--bg-vscode)",color:"var(--text-primary)",cursor:"pointer",flexShrink:0};
+const selectBoxStyle={width:16,height:16,flexShrink:0,padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:"var(--radius-sm)",border:"1px solid var(--border-light)",background:"transparent",color:"var(--text-inverse)",cursor:"pointer"};
 const diffLineNoStyle={width:36,flexShrink:0,color:"var(--text-placeholder)",textAlign:"right",paddingRight:"var(--space-6)",userSelect:"none",borderRight:"1px solid var(--bg-hover)",marginRight:"var(--space-4)"};
 const OP_LABELS={merge:"Merge",rebase:"Rebase","cherry-pick":"Cherry-pick",revert:"Revert",bisect:"Bisect"};
 const LOG_PAGE=40;
@@ -176,6 +177,7 @@ export default function GitPanel({ nodeId }){
   const [branchFilter,setBranchFilter]=useState("");
   const [newBranchName,setNewBranchName]=useState("");
   const [focusIdx,setFocusIdx]=useState(-1);
+  const [selected,setSelected]=useState(()=>new Set());
   const [ctxMenu,setCtxMenu]=useState(null); // {x,y, rel}
   const [gitOpts,setGitOpts]=useState(()=> getGitOpts({}));
   const [opState,setOpState]=useState(null);
@@ -186,6 +188,7 @@ export default function GitPanel({ nodeId }){
   const graphListRef=useRef(null);
   const syncRef=useRef(null);
   const logLimitRef=useRef(LOG_PAGE);
+  const lastClickedRef=useRef(null);
   const projectPathRef=useRef(projectPath);
   projectPathRef.current=projectPath;
 
@@ -433,9 +436,10 @@ export default function GitPanel({ nodeId }){
     finally{ setBusy(""); }
   };
 
-  const doStage=async(rel)=>{ await wrapAction(rel+":stage", ()=> window.electronAPI.gitStage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await refreshDiffFor(rel); };
-  const doUnstage=async(rel)=>{ await wrapAction(rel+":unstage", ()=> window.electronAPI.gitUnstage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await refreshDiffFor(rel); };
+  const doStage=async(rel)=>{ if(busy) return; await wrapAction(rel+":stage", ()=> window.electronAPI.gitStage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await refreshDiffFor(rel); };
+  const doUnstage=async(rel)=>{ if(busy) return; await wrapAction(rel+":unstage", ()=> window.electronAPI.gitUnstage(projectPath, rel).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await refreshDiffFor(rel); };
   const doDiscard=async(rel)=>{
+    if(busy) return;
     const isUntracked= groups.untracked.some(x=>x.rel===rel) || status.find(x=>x.rel===rel)?.status==="??";
     const msg = isUntracked ? `Delete untracked file "${rel}"?\nThis cannot be undone.` : `Discard changes in "${rel}"?\nThis cannot be undone.`;
     const ok = window.confirm ? window.confirm(msg) : true;
@@ -451,7 +455,7 @@ export default function GitPanel({ nodeId }){
   const doStageAll=async()=>{ await wrapAction("stageAll", ()=> window.electronAPI.gitStageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await invalidateAllDiffs(); };
   const doUnstageAll=async()=>{ await wrapAction("unstageAll", ()=> window.electronAPI.gitUnstageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await invalidateAllDiffs(); };
   const doHunkAction=async(rel,patch,mode)=>{
-    if(!rel || !patch) return;
+    if(busy || !rel || !patch) return;
     if(mode==="discard" && window.confirm && !window.confirm(`Discard this hunk in "${rel}"?\nThis cannot be undone.`)) return;
     await wrapAction(rel+":"+mode, async()=>{
       const r=await window.electronAPI.gitApplyHunk(projectPath, rel, patch, mode);
@@ -662,8 +666,22 @@ export default function GitPanel({ nodeId }){
   const onListKeyDown=(e)=>{
     if(e.target.closest?.("button,input,textarea,select,[contenteditable=true]")) return;
     if(!flatVisible.length) return;
-    if(e.key==="ArrowDown"){ e.preventDefault(); setFocusIdx(i=> Math.min(flatVisible.length-1, i+1)); }
-    else if(e.key==="ArrowUp"){ e.preventDefault(); setFocusIdx(i=> Math.max(0, i-1)); }
+    const ctrl=e.ctrlKey||e.metaKey;
+    if(ctrl && (e.key==="a"||e.key==="A")){
+      e.preventDefault();
+      setSelected(new Set(listedFiles.map(it=>it.rel)));
+      lastClickedRef.current=null;
+      return;
+    }
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+      e.preventDefault();
+      const next=Math.max(0,Math.min(flatVisible.length-1,focusIdx+(e.key==="ArrowDown"?1:-1)));
+      if(e.shiftKey){
+        if(!lastClickedRef.current && focusIdx>=0 && flatVisible[focusIdx]) lastClickedRef.current=flatVisible[focusIdx].rel;
+        if(flatVisible[next]) selectRange(flatVisible[next].rel,ctrl,flatVisible);
+      }
+      setFocusIdx(next);
+    }
     else if(e.key==="Enter"){
       if(focusIdx>=0 && flatVisible[focusIdx]) { e.preventDefault(); openFile(flatVisible[focusIdx].rel); }
     } else if(e.key===" "){
@@ -673,6 +691,8 @@ export default function GitPanel({ nodeId }){
         if(it._group==="staged") doUnstage(it.rel);
         else if(it._group==="untracked"||it._group==="changes") doStage(it.rel);
       }
+    } else if(e.key==="x"||e.key==="X"){
+      if(focusIdx>=0){ e.preventDefault(); toggleSelect(flatVisible[focusIdx].rel); }
     }
   };
   useEffect(()=>{ setFocusIdx(-1); },[status.length, filter]);
@@ -680,6 +700,28 @@ export default function GitPanel({ nodeId }){
     if(!autoFollow || !showLog || !graphListRef.current) return;
     graphListRef.current.scrollTop=0;
   },[autoFollow,filteredLog,logView,showLog]);
+
+  // ── multi-selection ─────────────────────────────────────────────────
+  // A different project or a new filter always starts with a clean selection.
+  useEffect(()=>{ setSelected(new Set()); lastClickedRef.current=null; },[projectPath, filter]);
+  // Drop files that disappeared from the working tree, keep the rest.
+  useEffect(()=>{
+    setSelected(prev=>{
+      if(!prev.size) return prev;
+      const alive=new Set();
+      for(const it of status) alive.add(it.rel);
+      for(const c of conflicts) alive.add(c.rel);
+      let changed=false;
+      const next=new Set();
+      for(const rel of prev){ if(alive.has(rel)) next.add(rel); else changed=true; }
+      return changed?next:prev;
+    });
+  },[status, conflicts]);
+  useEffect(()=>{
+    const onKey=(e)=>{ if(e.key==="Escape"){ setSelected(new Set()); lastClickedRef.current=null; } };
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  },[]);
 
   if(!projectPath){
     return (
@@ -724,6 +766,83 @@ export default function GitPanel({ nodeId }){
   const unstagedFiles=[...groups.changes,...groups.untracked,...groups.staged.filter(file=>file.partiallyStaged)];
   const listedFiles=[...filtered,...groups.conflicted.filter(file=>!filtered.some(item=>item.rel===file.rel))]
     .sort((a,b)=>treeView||fileSort==="path"?a.rel.localeCompare(b.rel):fileSort==="status"?a.status.localeCompare(b.status)||a.rel.localeCompare(b.rel):a.rel.split(/[\\/]/).pop().localeCompare(b.rel.split(/[\\/]/).pop())||a.rel.localeCompare(b.rel));
+
+  // ── multi-selection helpers ──────────────────────────────────────────
+  const selectedFiles=listedFiles.filter(it=>selected.has(it.rel));
+  const selectedRels=selectedFiles.map(it=>it.rel);
+  const isStagedEntry=(it)=>Boolean(it && !it.conflicted && it.x && it.x!==" " && it.x!=="?" && it.x!=="!" && it.x!=="U");
+  const stageTargetsFor=(files)=>files.filter(it=>it && !it.conflicted && (it.status==="??" || !isStagedEntry(it) || it.partiallyStaged)).map(it=>it.rel);
+  const unstageTargetsFor=(files)=>files.filter(it=>it && !it.conflicted && isStagedEntry(it)).map(it=>it.rel);
+  const discardTargetsFor=(files)=>files.filter(it=>it && !it.conflicted && (it.status==="??" || (it.y && it.y!==" " && it.y!=="?") || it.partiallyStaged)).map(it=>it.rel);
+  const bulkStageTargets=stageTargetsFor(selectedFiles);
+  const bulkUnstageTargets=unstageTargetsFor(selectedFiles);
+  const bulkDiscardTargets=discardTargetsFor(selectedFiles);
+
+  const clearSelection=()=>{ setSelected(new Set()); lastClickedRef.current=null; };
+  const toggleSelect=(rel)=>{
+    if(!rel) return;
+    lastClickedRef.current=rel;
+    setSelected(prev=>{
+      const next=new Set(prev);
+      if(next.has(rel)) next.delete(rel); else next.add(rel);
+      return next;
+    });
+  };
+  const selectRange=(rel,additive=false,order=listedFiles)=>{
+    const rels=order.map(it=>it.rel);
+    const to=rels.indexOf(rel);
+    if(to<0) return;
+    const anchor=lastClickedRef.current;
+    const from=anchor?rels.indexOf(anchor):-1;
+    setSelected(prev=>{
+      const next=additive?new Set(prev):new Set();
+      if(from<0){ next.add(rel); return next; }
+      const [a,b]=from<to?[from,to]:[to,from];
+      for(let i=a;i<=b;i++) next.add(rels[i]);
+      return next;
+    });
+    if(!anchor) lastClickedRef.current=rel;
+  };
+
+  const runBulkFileAction=async(key,verb,targets,fn)=>{
+    if(!targets.length || syncRef.current) return false;
+    setBusy("bulk:"+key); setError(null);
+    const failed=[];
+    try{
+      for(const rel of targets){
+        try{
+          const result=await fn(rel);
+          if(result?.ok===false) failed.push(`${rel}: ${result.error||"failed"}`);
+        }catch(e){ failed.push(`${rel}: ${e?.message||String(e)}`); }
+      }
+      if(projectPathRef.current!==projectPath) return false;
+      await doRefresh(true);
+      if(failed.length){
+        const message=`${failed.length} of ${targets.length} file(s) could not be ${verb}. ${failed[0]}`;
+        setError(message); showToast(message,true);
+        return false;
+      }
+      showToast(`${verb[0].toUpperCase()+verb.slice(1)} ${targets.length} file${targets.length===1?"":"s"}`);
+      return true;
+    } finally{ setBusy(""); }
+  };
+  const doBulkStage=async()=>{
+    const ok=await runBulkFileAction("stage","staged",bulkStageTargets,(rel)=>window.electronAPI.gitStage(projectPath,rel));
+    if(ok){ clearSelection(); await invalidateAllDiffs(); }
+  };
+  const doBulkUnstage=async()=>{
+    const ok=await runBulkFileAction("unstage","unstaged",bulkUnstageTargets,(rel)=>window.electronAPI.gitUnstage(projectPath,rel));
+    if(ok){ clearSelection(); await invalidateAllDiffs(); }
+  };
+  const doBulkDiscard=async()=>{
+    const targets=bulkDiscardTargets;
+    if(!targets.length) return;
+    const untracked=selectedFiles.filter(it=>targets.includes(it.rel)&&it.status==="??").length;
+    const message=`Discard unstaged changes in ${targets.length} selected file${targets.length===1?"":"s"}?${untracked?`\n${untracked} untracked file${untracked===1?"":"s"} will be deleted.`:""}\nThis cannot be undone.`;
+    if(window.confirm && !window.confirm(message)) return;
+    const ok=await runBulkFileAction("discard","discarded",targets,(rel)=>window.electronAPI.gitDiscard(projectPath,rel));
+    if(ok){ clearSelection(); await invalidateAllDiffs(); }
+  };
 
   const runGitMenuAction=async(action,value)=>{
     await wrapAction(action,async()=>{
@@ -958,6 +1077,17 @@ export default function GitPanel({ nodeId }){
               {!collapsed.changes&&<button onClick={()=>doStageAll()} disabled={!unstagedFiles.length||!!busy} title="Stage all changes" aria-label="Stage all changes" style={{...s.iconBtn,opacity:!unstagedFiles.length?0.45:1}}><Plus size={16}/></button>}
             </span>}
           </div>
+          {!collapsed.changes && selectedRels.length>0 && (
+            <div className="git-bulk-bar" role="toolbar" aria-label="Selected files actions" style={{position:"sticky",top:30,zIndex:2,display:"flex",alignItems:"center",gap:"var(--space-8)",padding:"var(--space-5) var(--space-8)",background:"var(--bg-deep)",borderBottom:"1px solid var(--border-row)"}}>
+              <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-semibold)",color:"var(--text-secondary)",whiteSpace:"nowrap"}}>{selectedRels.length} selected</span>
+              <span style={{display:"flex",alignItems:"center",gap:"var(--space-4)",marginLeft:"auto",flexWrap:"wrap"}}>
+                <button onClick={doBulkStage} disabled={!bulkStageTargets.length||!!busy} title={`Stage ${bulkStageTargets.length} selected file(s)`} aria-label="Stage selected files" style={{...hunkBtnStyle,lineHeight:"20px",padding:"0 var(--space-8)",opacity:bulkStageTargets.length&&!busy?1:0.45}}>Stage</button>
+                <button onClick={doBulkUnstage} disabled={!bulkUnstageTargets.length||!!busy} title={`Unstage ${bulkUnstageTargets.length} selected file(s)`} aria-label="Unstage selected files" style={{...hunkBtnStyle,lineHeight:"20px",padding:"0 var(--space-8)",opacity:bulkUnstageTargets.length&&!busy?1:0.45}}>Unstage</button>
+                <button onClick={doBulkDiscard} disabled={!bulkDiscardTargets.length||!!busy} title={`Discard changes in ${bulkDiscardTargets.length} selected file(s)`} aria-label="Discard selected files" style={{...hunkBtnStyle,lineHeight:"20px",padding:"0 var(--space-8)",color:"var(--error-text-pale)",opacity:bulkDiscardTargets.length&&!busy?1:0.45}}>Discard</button>
+                <button onClick={clearSelection} disabled={!!busy} aria-label="Clear selection" title="Clear selection (Esc)" style={{...hunkBtnStyle,lineHeight:"20px",padding:"0 var(--space-8)"}}>Clear</button>
+              </span>
+            </div>
+          )}
           {!collapsed.changes && listedFiles.map((it,index)=>{
             const path=fileNameParts(it.rel);
             const previousDirectory=index>0?fileNameParts(listedFiles[index-1].rel).directory:"";
@@ -966,18 +1096,20 @@ export default function GitPanel({ nodeId }){
             const untracked=it.status==="??";
             const conflicted=Boolean(it.conflicted);
             const staged=Boolean(it.x && it.x!==" " && it.x!=="?" && it.x!=="!" && it.x!=="U");
+            const isSelected=selected.has(it.rel);
             return (
               <div key={it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
                 {showDirectory&&<div style={{padding:"var(--space-4) var(--space-8)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-muted)",background:"var(--bg-surface)"}}><Folder size={11} style={{verticalAlign:"middle",marginRight:5}}/>{path.directory}</div>}
-                <div className="git-file-row" style={{...s.row, paddingLeft: treeView && path.directory ? 20 : "var(--space-10)", background:focusIdx>=0&&flatVisible[focusIdx]?.rel===it.rel?"var(--bg-hover-strong)":"transparent"}} onClick={()=>openFile(it.rel)} onDoubleClick={()=>toggleDiff(it.rel)} title={`${it.rel} — click to open, double-click for diff`} onContextMenu={e=>{e.preventDefault();e.stopPropagation();setCtxMenu({x:e.clientX,y:e.clientY,rel:it.rel});}}>
+                <div className="git-file-row" style={{...s.row, paddingLeft: treeView && path.directory ? 20 : "var(--space-10)", background:isSelected||(focusIdx>=0&&flatVisible[focusIdx]?.rel===it.rel)?"var(--bg-hover-strong)":"transparent", boxShadow:isSelected?"inset 2px 0 0 var(--editor-blue)":undefined}} onClick={(e)=>{ if(e.shiftKey){ e.preventDefault(); selectRange(it.rel,e.ctrlKey||e.metaKey); return; } if(e.ctrlKey||e.metaKey){ e.preventDefault(); toggleSelect(it.rel); return; } openFile(it.rel); }} onDoubleClick={()=>toggleDiff(it.rel)} title={`${it.rel} — click to open, Ctrl/Shift-click to select, double-click for diff`} onContextMenu={e=>{e.preventDefault();e.stopPropagation(); if(!selected.has(it.rel)){ setSelected(new Set([it.rel])); lastClickedRef.current=it.rel; } setCtxMenu({x:e.clientX,y:e.clientY,rel:it.rel});}}>
+                  <button className="git-select-box" onClick={(e)=>{e.stopPropagation(); if(e.shiftKey) selectRange(it.rel,e.ctrlKey||e.metaKey); else toggleSelect(it.rel);}} aria-label={`${isSelected?"Deselect":"Select"} ${path.name}`} aria-pressed={isSelected} title={isSelected?"Deselect file":"Select file (Ctrl/Shift-click for multiple)"} style={{...selectBoxStyle, borderColor:isSelected?"var(--editor-blue)":"var(--border-light)", background:isSelected?"var(--editor-blue)":"transparent"}}>{isSelected&&<Check size={11} strokeWidth={3}/>}</button>
                   <VscodeIcon name={path.name} isDir={false} size={16}/>
                   <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"baseline"}} title={it.rel}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.name}</span>{path.directory&&<span style={{color:"var(--text-muted)",fontSize:"var(--fs-small)",marginLeft:"var(--space-6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.directory}</span>}</span>
                   <span className="git-file-actions" style={{display:"flex",alignItems:"center",gap:"var(--space-2)",flexShrink:0}}>
                     <button onClick={e=>{e.stopPropagation();toggleDiff(it.rel);}} title={openDiff===it.rel?"Hide diff":"Show diff"} aria-label={openDiff===it.rel?"Hide diff":"Show diff"} style={s.iconBtn}>{openDiff===it.rel?<X size={14}/>:<FileDiff size={14}/>}</button>
                     {conflicted
-                      ? <button onClick={e=>{e.stopPropagation();markResolved(it.rel);}} title="Mark as resolved and stage" aria-label="Mark as resolved" style={s.iconBtn}><Check size={15}/></button>
-                      : <button onClick={e=>{e.stopPropagation();staged?doUnstage(it.rel):doStage(it.rel);}} disabled={busy.includes(it.rel)} title={staged?"Unstage":"Stage"} aria-label={staged?"Unstage":"Stage"} style={s.iconBtn}>{staged?<Minus size={15}/>:<Plus size={15}/>}</button>}
-                    <button onClick={e=>{e.stopPropagation();doDiscard(it.rel);}} disabled={busy.includes(it.rel)} title={untracked?"Delete file":"Discard"} aria-label={untracked?"Delete file":"Discard"} style={s.iconBtn}>{untracked?<Trash2 size={14}/>:<RotateCcw size={14}/>}</button>
+                      ? <button onClick={e=>{e.stopPropagation();markResolved(it.rel);}} disabled={!!busy} title="Mark as resolved and stage" aria-label="Mark as resolved" style={s.iconBtn}><Check size={15}/></button>
+                      : <button onClick={e=>{e.stopPropagation();staged?doUnstage(it.rel):doStage(it.rel);}} disabled={!!busy} title={staged?"Unstage":"Stage"} aria-label={staged?"Unstage":"Stage"} style={s.iconBtn}>{staged?<Minus size={15}/>:<Plus size={15}/>}</button>}
+                    <button onClick={e=>{e.stopPropagation();doDiscard(it.rel);}} disabled={!!busy} title={untracked?"Delete file":"Discard"} aria-label={untracked?"Delete file":"Discard"} style={s.iconBtn}>{untracked?<Trash2 size={14}/>:<RotateCcw size={14}/>}</button>
                   </span>
                   <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-bold)",color:conflicted?"var(--danger)":color,minWidth:13,textAlign:"center"}} title={statusLabel(it.status,it.x,it.y,it)}>{conflicted?"!":untracked?"U":it.status.trim()||"M"}</span>
                 </div>
