@@ -7217,6 +7217,19 @@ function createWindow() {
     if (iz !== 1) win.webContents.setZoomFactor(iz);
   } catch {}
 
+  // ── Ctrl+Tab / Ctrl+Shift+Tab → cycle open editor file tabs ─────────────
+  // Some focused surfaces claim this chord before it reaches the renderer's
+  // keydown listeners, so capture it here and forward the direction to the UI.
+  win.webContents.on("before-input-event", (event, input) => {
+    try {
+      if (!input || input.type !== "keyDown") return;
+      if (!(input.control || input.meta) || input.alt) return;
+      if (String(input.key || "") !== "Tab" && String(input.code || "") !== "Tab") return;
+      event.preventDefault();
+      win.webContents.send("menu:cycleEditorTab", { direction: input.shift ? -1 : 1 });
+    } catch {}
+  });
+
   // ── Browser guest shortcuts → forward to the owning tab ────────────────────
   // Guest page keys never reach the host, so webview shortcuts are
   // captured here and sent to the host window. The renderer (BrowserPanel)
@@ -7228,6 +7241,15 @@ function createWindow() {
       if (!input || input.type !== "keyDown") return;
       const isCtrl = !!(input.control || input.meta);
       const key = String(input.key || "").toLowerCase();
+      // Ctrl+Tab while a browser/webview panel is focused still cycles the
+      // host window's editor tabs.
+      if (isCtrl && !input.alt && key === "tab") {
+        try { event.preventDefault(); } catch {}
+        if (hostWin && !hostWin.isDestroyed()) {
+          try { hostWin.webContents.send("menu:cycleEditorTab", { direction: input.shift ? -1 : 1 }); } catch {}
+        }
+        return;
+      }
       let action = null;
       if (key === "f12" && !isCtrl && !input.shift && !input.alt) action = "devtools";
       else if (key === "f5" && !isCtrl && !input.shift && !input.alt) action = "reload";

@@ -2760,6 +2760,65 @@ const App = () => {
     };
   }, []);
 
+  // ── Ctrl+Tab / Ctrl+Shift+Tab: cycle open file editors ──────────────────
+  // Walks every open editor/notebook tab in layout order, so files in split
+  // tabsets are reachable from anywhere (editor, terminal, browser panel, …).
+  // Capture phase keeps CodeMirror/xterm from swallowing the chord. Wraps.
+  useEffect(() => {
+    // The main process may forward Ctrl+Tab (some surfaces consume it before
+    // keydown) while the local listener covers everyone else. Ignore the
+    // second delivery of one physical key press.
+    let lastCycleAt = 0;
+    const isFileTab = (node) => {
+      try { return ["editor", "notebook"].includes(node.getComponent?.()); } catch { return false; }
+    };
+    const cycle = (dir) => {
+      const m = modelRef.current;
+      if (!m) return;
+      try {
+        const now = Date.now();
+        if (now - lastCycleAt < 60) return;
+        lastCycleAt = now;
+        const tabs = [];
+        m.visitNodes((node) => {
+          try { if (node.getType?.() === "tab" && isFileTab(node)) tabs.push(node); } catch {}
+        });
+        if (tabs.length < 2) return;
+        const active = m.getActiveTabset?.()?.getSelectedNode?.();
+        let idx = -1;
+        try {
+          const activeId = active?.getId?.();
+          idx = tabs.findIndex((tab) => { try { return tab.getId() === activeId; } catch { return false; } });
+        } catch {}
+        if (idx < 0) idx = dir > 0 ? -1 : 0;
+        const next = tabs[(idx + dir + tabs.length) % tabs.length];
+        if (next) {
+          try { m.doAction(Actions.selectTab(next.getId())); } catch {}
+          try { forceLayoutRedraw(m); } catch {}
+        }
+      } catch {}
+    };
+    const handler = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if (String(e.key || "") !== "Tab" && String(e.code || "") !== "Tab") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === "function") try { e.stopImmediatePropagation(); } catch {}
+      cycle(e.shiftKey ? -1 : 1);
+      return false;
+    };
+    const offCycle = window.electronAPI.onMenuEvent("menu:cycleEditorTab", (payload) => {
+      cycle(payload?.direction === -1 ? -1 : 1);
+    });
+    window.addEventListener("keydown", handler, true);
+    document.addEventListener("keydown", handler, true);
+    return () => {
+      try { offCycle(); } catch {}
+      window.removeEventListener("keydown", handler, true);
+      document.removeEventListener("keydown", handler, true);
+    };
+  }, []);
+
   // ── UI Size — View → Ctrl + + / Ctrl + - / Ctrl + 0 / Ctrl + Scroll + overlay ──
   // Main process handles accelerators + before-input-event, but Monaco/webview can
   // swallow them. This renderer fallback ensures Ctrl+=/Plus/Minus/0/wheel still zoom.

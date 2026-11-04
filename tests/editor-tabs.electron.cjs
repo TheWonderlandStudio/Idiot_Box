@@ -94,6 +94,16 @@ app.whenReady().then(async () => {
     await press("W", ["control"]);
     await waitFor("!window.__flexModel.current.getNodeById('editors').getChildren().some(n => n.getComponent() === 'editor' && !n.getConfig().filePath)");
     assert.equal(await run("window.__currentProjectPath"), fixture);
+    // Ctrl+Tab / Ctrl+Shift+Tab cycle through the open file editors.
+    await run("(() => { const m = window.__flexModel.current; let tab = null; m.visitNodes(n => { if (!tab && n.getType?.() === 'tab' && n.getName?.() === 'file1.js') tab = n; }); m.doAction(window.__flexActions.selectTab(tab.getId())); })()");
+    await press("Tab", ["control"]);
+    assert.equal(await run("window.__flexModel.current.getNodeById('editors').getSelectedNode().getName()"), "file2.js");
+    await press("Tab", ["control", "shift"]);
+    assert.equal(await run("window.__flexModel.current.getNodeById('editors').getSelectedNode().getName()"), "file1.js");
+    // The main-process before-input-event path forwards through IPC too.
+    win.webContents.send("menu:cycleEditorTab", { direction: 1 });
+    await delay(120);
+    assert.equal(await run("window.__flexModel.current.getNodeById('editors').getSelectedNode().getName()"), "file2.js");
     // Ctrl+Shift+T restores the most recently closed file tab.
     await close("file1");
     await press("T", ["control", "shift"]);
