@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
 import { EDIT_HELPER_SOURCE } from "./editHelper.js";
+import { rememberBrowserForPreview } from "../shared/browserPreview.js";
 import {
   ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
   Search, ChevronUp, ChevronDown,   Pencil, PencilOff, MoreVertical,
@@ -1956,6 +1957,8 @@ const BrowserPanel = (props) => {
 
   return (
     <div className="browser"
+      onPointerDownCapture={() => rememberBrowserForPreview(nodeId)}
+      onFocusCapture={() => rememberBrowserForPreview(nodeId)}
       onDragOver={(e) => { e.preventDefault(); }}
       onDrop={handleHostDrop}
     >
@@ -2120,6 +2123,7 @@ const BrowserPanel = (props) => {
         <webview
           key="browser-webview"
           className="browser__view"
+          data-browser-node-id={nodeId}
           ref={webviewRefCb}
           src={navUrl}
           preload={WEBVIEW_PRELOAD}

@@ -183,6 +183,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showBrowserWebviewContextMenu: (params) => ipcRenderer.invoke("browser:webviewContextMenu", params),
   browserGuestEdit: (params)              => ipcRenderer.invoke("browser:guestEdit", params),
   registerBrowserGuest: (webContentsId)   => ipcRenderer.invoke("browser:registerGuest", webContentsId),
+  pickBrowserElement: (guestId, requestId) => ipcRenderer.invoke("browser:pickElement", guestId, requestId),
+  cancelBrowserElementPick: (guestId, requestId) => ipcRenderer.send("browser:cancelElementPick", guestId, requestId),
   showTabContextMenu: (details)          => ipcRenderer.invoke("tab:contextMenu", details),
   openExternal: (url)                    => ipcRenderer.invoke("open:url", url),
   // ── Browser guest shortcuts (main forwards webview keys here) ─────────
