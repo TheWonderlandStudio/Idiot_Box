@@ -30,6 +30,7 @@ import NotebookPanel from "./components/Notebook/index.jsx";
 import TerminalPanel from "./components/Terminal/index.jsx";
 import BlankPanel, { bumpPanelUsage } from "./components/Blank/index.jsx";
 import ComponentPreview from "./components/ComponentPreview/index.jsx";
+import { rememberBrowserForPreview } from "./components/shared/browserPreview.js";
 import CommunityPanel from "./components/CommunityPanel/index.jsx";
 import CanvasPanel from "./components/Canvas/index.jsx";
 import OpenPencilPanel from "./components/OpenPencil/index.jsx";
@@ -3385,7 +3386,12 @@ const App = () => {
         // Post-mutation hook — the tab count is correct here (the pre-onAction
         // count is stale). No count needed for SELECT_TAB.
         try {
-          if (!action || action.type === Actions.SELECT_TAB) return;
+          if (!action) return;
+          if (action.type === Actions.SELECT_TAB) {
+            const tab = m.getNodeById(action.data.tabNode);
+            if (tab?.getComponent() === "panel3") rememberBrowserForPreview(tab.getId());
+            return;
+          }
           ensureNewPanelIfEmpty();
         } catch {}
       }}

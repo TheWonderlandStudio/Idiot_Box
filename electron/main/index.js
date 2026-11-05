@@ -12,6 +12,7 @@ const localHistory = require("./local-history");
 const testRunner = require("./test-runner");
 const debuggerService = require("./debugger");
 const browserRegistry = require("./browser-registry");
+const { registerBrowserPicker } = require("./browser-picker");
 
 // ─── Dev builds get their own Chromium profile ──────────────────────────────
 // Chromium's HTTP cache, Service Worker and QuotaManager databases cannot be
@@ -3924,7 +3925,7 @@ ipcMain.handle("browser:webviewContextMenu", (event, { hasSelection, selectionTe
 ipcMain.handle("browser:registerGuest", (event, webContentsId) => {
   try {
     const wc = webContents.fromId(Number(webContentsId));
-    if (!wc) return false;
+    if (!wc || wc.hostWebContents !== event.sender) return false;
     const marked = browserRegistry.markBrowser(wc);
 
     // Website popups (target="_blank", window.open) belong inside the browser
@@ -3948,6 +3949,8 @@ ipcMain.handle("browser:registerGuest", (event, webContentsId) => {
     return false;
   }
 });
+
+registerBrowserPicker();
 
 // Run edit commands on the webview guest from the main process. Copying from
 // the renderer's <webview> element can race with focus restoration after the

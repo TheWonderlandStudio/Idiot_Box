@@ -2,8 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import * as ReactDOMPkg from "react-dom";
 import * as ReactJSXRuntime from "react/jsx-runtime";
+import { Actions } from "flexlayout-react";
+import { MousePointer2, X } from "lucide-react";
 import { prepareHtmlDocument } from "../shared/previewCss.js";
 import { PREVIEW_IFRAME_CSP } from "../shared/previewCsp.js";
+import { getBrowserPreviewTarget, makeBrowserPreviewDocument } from "../shared/browserPreview.js";
 
 // Error Boundary to catch runtime errors inside previewed user components
 class PreviewErrorBoundary extends React.Component {
@@ -325,6 +328,79 @@ const ComponentPreview = ({ nodeId, config }) => {
   const [sampleMode, setSampleMode] = useState(false);
   // HTML docs: no bundler — the raw doc (+<base>) goes straight into srcDoc.
   const [htmlDoc, setHtmlDoc] = useState(null);
+  const [pickedElement, setPickedElement] = useState(null);
+  const [picking, setPicking] = useState(false);
+  const [pickNotice, setPickNotice] = useState(null);
+  const pickRequest = useRef(null);
+
+  const cancelPick = useCallback(() => {
+    const request = pickRequest.current;
+    if (request) {
+      request.canceled = true;
+      window.electronAPI?.cancelBrowserElementPick?.(request.guestId, request.id);
+    }
+  }, []);
+
+  useEffect(() => () => {
+    cancelPick();
+    pickRequest.current = null;
+  }, [cancelPick]);
+
+  useEffect(() => {
+    if (!pickNotice) return;
+    const timer = setTimeout(() => setPickNotice(null), 4200);
+    return () => clearTimeout(timer);
+  }, [pickNotice]);
+
+  const selectElement = async () => {
+    if (pickRequest.current) {
+      cancelPick();
+      return;
+    }
+    const model = window.__flexModel?.current;
+    const target = getBrowserPreviewTarget(model);
+    if (!target) {
+      setPickNotice({ text: "Open a page in the Browser panel first.", error: true });
+      return;
+    }
+    const { view, node, guestId } = target;
+    const request = { guestId, id: window.crypto.randomUUID() };
+    pickRequest.current = request;
+    setPickNotice(null);
+    setPicking(true);
+    const revealBrowser = !node.isVisible();
+    try {
+      if (revealBrowser) {
+        model.doAction(Actions.selectTab(node.getId()));
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      if (pickRequest.current !== request || request.canceled) return;
+      view.focus();
+      const result = await window.electronAPI.pickBrowserElement(guestId, request.id);
+      if (pickRequest.current !== request || request.canceled) return;
+      if (result?.element) {
+        const { html, label, truncated } = result.element;
+        const name = String(label || "element").slice(0, 90);
+        setPickedElement({ document: makeBrowserPreviewDocument(html), name });
+        setPickNotice({ text: `Loaded <${name}> from the browser${truncated ? " (partial preview)" : ""}.` });
+      } else if (result?.error) {
+        setPickNotice({ text: result.error, error: true });
+      }
+    } catch {
+      if (pickRequest.current === request) {
+        setPickNotice({ text: "Couldn't select an element. Try reopening the Browser tab.", error: true });
+      }
+    } finally {
+      if (pickRequest.current === request) {
+        pickRequest.current = null;
+        setPicking(false);
+        const previewNode = model.getNodeById(nodeId);
+        if (revealBrowser && node.isVisible() && previewNode && node.getParent() === previewNode.getParent()) {
+          model.doAction(Actions.selectTab(nodeId));
+        }
+      }
+    }
+  };
 
   // Iframe sandbox — full isolation from main window navigation (allow-scripts + allow-same-origin + allow-forms, but NO allow-top-navigation / allow-popups)
   const iframeRef = useRef(null);
@@ -562,6 +638,9 @@ const ComponentPreview = ({ nodeId, config }) => {
       refreshFileList();
     };
     const onClose = () => {
+      cancelPick();
+      setPickedElement(null);
+      setPickNotice(null);
       setSampleMode(false); setFilePath(null); setProjectFiles([]);
       setComponentToRender(null); setPreviewCode(null);
       setLoadedCssFiles([]);
@@ -575,7 +654,7 @@ const ComponentPreview = ({ nodeId, config }) => {
       window.removeEventListener("project:opened", onOpen);
       window.removeEventListener("project:closed", onClose);
     };
-  }, [refreshFileList]);
+  }, [refreshFileList, cancelPick]);
 
   // Listen for file changes / active editor file
   useEffect(() => {
@@ -1161,9 +1240,10 @@ const ComponentPreview = ({ nodeId, config }) => {
 
           {/* File selector dropdown */}
           <select
-            value={filePath || ""}
+            value={pickedElement ? "" : filePath || ""}
             onChange={(e) => {
               const p = e.target.value || null;
+              setPickedElement(null);
               setSampleMode(false);
               setFilePath(p);
               // Link back to the code editor: open the selected component there.
@@ -1188,8 +1268,9 @@ const ComponentPreview = ({ nodeId, config }) => {
               textOverflow: "ellipsis",
             }}
           >
+            {pickedElement && <option value="" disabled>{`<${pickedElement.name}> · Browser`}</option>}
             {projectFiles.length === 0 ? (
-              <option value="">{filePath ? fileName : "No previewable files found"}</option>
+              !pickedElement && <option value="">{filePath ? fileName : "No previewable files found"}</option>
             ) : (
               <>
                 {filePath && !projectFiles.includes(filePath) && (
@@ -1207,9 +1288,30 @@ const ComponentPreview = ({ nodeId, config }) => {
 
         {/* Action Controls */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-6)", maxWidth: "100%" }}>
+          <button
+            type="button"
+            aria-pressed={picking}
+            onClick={selectElement}
+            title={picking ? "Cancel element selection (Esc)" : "Select an element in the Browser"}
+            style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-4)", background: picking ? "var(--bg-active)" : "var(--bg-surface)", color: picking ? "var(--teal)" : "var(--text-bright)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)", padding: "var(--space-2) var(--space-6)", fontSize: "var(--fs-small)", cursor: "pointer" }}
+          >
+            <MousePointer2 size={12} aria-hidden="true" />
+            {picking ? "Cancel pick" : "Select"}
+          </button>
+          {pickedElement && (
+            <button
+              type="button"
+              onClick={() => setPickedElement(null)}
+              aria-label="Return to file preview"
+              title="Return to file preview"
+              style={{ display: "inline-flex", background: "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-4)" }}
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          )}
           {/* Sample Component Button */}
           <button
-            onClick={() => setSampleMode(true)}
+            onClick={() => { setPickedElement(null); setSampleMode(true); }}
             title="Show sample component with temp data"
             style={{ background: sampleMode ? "var(--bg-active)" : "transparent", border: "none", color: sampleMode ? "var(--teal)" : "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", borderRadius: "var(--radius-sm)" }}
           >
@@ -1280,8 +1382,24 @@ const ComponentPreview = ({ nodeId, config }) => {
           csp={PREVIEW_IFRAME_CSP}
           srcDoc={!sampleMode && htmlDoc ? htmlDoc : IFRAME_HTML}
           onLoad={handleIframeLoad}
-          style={{ width: "100%", height: "100%", border: "none", display: "block", background: "transparent" }}
+          style={{ width: "100%", height: "100%", border: "none", display: pickedElement ? "none" : "block", background: "transparent" }}
         />
+        {pickedElement && (
+          <iframe
+            title={`Browser element preview: ${pickedElement.name}`}
+            sandbox=""
+            srcDoc={pickedElement.document}
+            style={{ width: "100%", height: "100%", border: "none", display: "block", background: "transparent" }}
+          />
+        )}
+        {(picking || pickNotice) && (
+          <div
+            role={pickNotice?.error ? "alert" : "status"}
+            style={{ position: "absolute", bottom: "var(--space-10)", left: "50%", transform: "translateX(-50%)", width: "max-content", maxWidth: "90%", boxSizing: "border-box", padding: "var(--space-6) var(--space-10)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)", background: "var(--bg-vscode)", color: pickNotice?.error ? "var(--error-text)" : "var(--text-bright)", fontSize: "var(--fs-small)", boxShadow: "var(--shadow-toast)", overflowWrap: "anywhere", pointerEvents: "none" }}
+          >
+            {pickNotice?.text || "Click an element in the Browser. Press Esc to cancel."}
+          </div>
+        )}
       </div>
     </div>
   );
