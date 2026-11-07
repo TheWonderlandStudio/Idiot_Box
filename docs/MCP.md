@@ -91,104 +91,71 @@ Any other client: point a **Streamable HTTP** MCP transport at that URL.
   keep confirmation enabled for payments, posting, deleting or sending messages. For sensitive
   accounts, use a separate browser profile or a dedicated machine.
 
+## Token economy
+
+Tool list and tool output dominate LLM context cost. This server is deliberately lean:
+
+- **13 grouped tools** (was 66): cost is paid once per tool definition, so 66 verbose
+  schemas plus per-field descriptions would be re-charged on every turn. Groups share
+  one schema and one `action` enum instead of repeating field descriptions per tool.
+- No `title` fields and no per-field `.describe()` text — the field name plus the
+  one-line tool description carry the meaning.
+- Outputs are capped and compacted: per-call output is truncated to 8000 chars,
+  long strings/arrays are shrunk, and list/search/diff results are projected down
+  to the fields a model actually needs (relative paths, ids, short previews).
+- Large reads are paged (file read uses `offset`/`limit` lines, default 500 lines)
+  rather than returning whole files; page read defaults to 8000 chars and snapshot
+  to 120 nodes, both raisable explicitly.
+
 ## Tools
 
-### IDE & project
+Most tools take an `action` enum. Full parameter lists are in `electron/main/mcp-server.js`.
 
-| Tool | Description |
+| Tool | Actions |
 | --- | --- |
-| `ide_status` | Active project, recent/pinned projects, version, platform, channel count |
-| `project_open` | Open a folder as the active project |
-| `project_scan` | Framework detection + page/component file tree (Canvas scan) |
-| `editor_open_file` | Open a file in the editor (creates or focuses an editor tab) |
-| `tab_open` | Open any tab or tool panel: terminal, browser, git, problems, ports, output, runDebug, canvas, openPencil, androidEmulator, extensions, componentPreview, community, settings, or file |
-| `tabs_list` | List all open tabs with their id, component type, name, file path/url, and active status |
-| `tab_close` | Close an open tab by tabId, title/name, or file path |
-| `tab_select` | Focus / switch to an open tab by tabId, title/name, or file path |
-| `settings_open` | Open the Settings window (general, editor, terminal, ai, appearance, etc.) |
+| `project` | `status`, `open` (path), `scan`, `settings` (page) |
+| `file` | `list`, `read` (paged), `write`, `create`, `rename`, `delete`, `find`, `search` |
+| `git` | `status`, `diff`, `log`, `branches`, `stage`, `unstage`, `commit`, `push`, `pull`, `fetch`, `init`, `branch_create`, `branch_switch` |
+| `tabs` | `list`, `open`, `close`, `select`, `edit` (open file in editor) |
+| `shell` | `command` (+ `cwd`, `timeoutMs`) — real PTY, capped output |
+| `servers` | `list` (ports), `start` (live preview server) |
+| `extensions` | `list`, `commands`, `invoke` (commandId+args), `views`, `status` |
+| `notebook` | `execute` (code), `restart` |
+| `android` | `state`, `avds`, `start`, `stop`, `screenshot`, `input`, `install` |
+| `ai` | `prompt` (+ optional `system`) |
+| `opencode` | `start`, `stop` (leaseId) |
+| `runtime` | install the mise runtime |
+| `browser` | `open`, `tabs`, `navigate`, `read`, `snapshot`, `click`, `type`, `press`, `scroll`, `screenshot`, `eval`, `wait`, `back`, `forward`, `reload` |
 
 ### Browser
 
-These tools drive the **real Idiot Box browser panel** through the Chrome DevTools
+These actions drive the **real Idiot Box browser panel** through the Chrome DevTools
 Protocol. The agent uses the same cookies, saved logins and extensions as the panel
 you see on screen — there is no second, isolated browser.
 
-| Tool | Description |
-| --- | --- |
-| `browser_open` | Open a browser panel and optionally navigate it; returns its `webContents` id |
-| `browser_tabs` | List open browser panels with id, URL, title and focus state |
-| `browser_navigate` | Navigate the panel to an http(s) URL and wait for the load |
-| `browser_read` | Read the page title, URL and visible text |
-| `browser_snapshot` | Accessibility snapshot of clickable/readable elements with `e1`, `e2`, … refs |
-| `browser_click` | Click an element by snapshot ref using real mouse events |
-| `browser_type` | Focus an element by ref and type text (optionally replacing existing text) |
-| `browser_press` | Press Enter, Tab, Escape, arrows and other named keys |
-| `browser_scroll` | Scroll by a pixel delta |
-| `browser_screenshot` | Capture the panel as a PNG image |
-| `browser_eval` | Evaluate a JavaScript expression in the page |
-| `browser_wait` | Wait for a selector or text to appear |
-| `browser_back` / `browser_forward` / `browser_reload` | Browser history and reload |
-
-Refs from `browser_snapshot` belong to that page and expire after navigation or a
-new snapshot. Call `browser_snapshot` again after a page change. If DevTools is
-open for the browser panel, close it before using these tools — Electron allows
-only one debugger attachment per `webContents`.
+Workflow: `browser open` → `browser snapshot` (returns `e1`, `e2`, … refs) →
+`browser click`/`browser type` with the ref. Refs belong to that snapshot and
+expire after navigation or a new snapshot. If DevTools is open for the browser
+panel, close it before using these actions — Electron allows only one debugger
+attachment per `webContents`.
 
 ### Files
 
-| Tool | Description |
-| --- | --- |
-| `file_list` | List a directory |
-| `file_read` | Read a text file |
-| `file_write` | Create/overwrite a file (makes parent folders) |
-| `file_create` | New file or folder |
-| `file_rename` | Rename in place |
-| `file_delete` | Delete (Recycle Bin by default, `permanent` to bypass) |
-| `file_find` | Fuzzy filename search |
-| `file_search` | Full-text search across the project |
+- `file read` is paged: `offset` is a 1-based line number, `limit` lines (default 500,
+  max 2000). Continue with a larger offset to read the rest — no need to fetch
+  whole files into context at once.
+- `file list` returns names (with `/` for folders), searches return compact
+  `path:line:preview` strings. Default `limit` for `find`/`search` is 30.
+- `file delete` moves to the Recycle Bin unless `permanent: true`.
 
 ### Git
 
-`git_status`, `git_diff` (staged/file/whole tree), `git_log`, `git_branches`,
-`git_stage` / `git_unstage` (paths or `["*"]`), `git_commit` (with `amend`),
-`git_push`, `git_pull`, `git_fetch`, `git_init`, `git_create_branch`, `git_switch_branch`
-
-### Shell & dev servers
-
-| Tool | Description |
-| --- | --- |
-| `shell_exec` | Run a command in a real PTY, returns output + exit code (timeout aware) |
-| `ports_list` | Listening ports, including terminal-sniffed dev servers |
-| `live_server_start` | Start the static live-reload preview server, returns its URL |
-
-### Extensions
-
-`extensions_list`, `extension_commands`, `extension_invoke` (run by command id),
-`extension_views`, `extension_status_items`
-
-### Notebooks
-
-`notebook_execute` (persistent Python kernel), `notebook_restart`
-
-### Android emulator
-
-`android_state`, `android_list_avds`, `android_start_avd`, `android_stop_avd`,
-`android_screenshot`, `android_input` (tap/swipe/key/text/rotate), `android_install_package`
-
-### AI & agents
-
-| Tool | Description |
-| --- | --- |
-| `ai_ask` | One-shot question to the built-in keyless Hub assistant |
-| `opencode_start` / `opencode_stop` | Lease the per-project OpenCode agent server |
-| `runtime_ensure` | Install the on-demand runtime tool (mise) |
-
-### Resource
-
-- `idiotbox://project-structure` — Canvas scan of the open project as JSON.
+`git diff` honors `staged` / `filePath`; `git stage`/`unstage` accept `paths`
+(`["*"]` = all). Output is truncated, so prefer diffing a single file for large
+changes.
 
 ## Architecture
-  
+
 `electron/main/mcp-server.js` hosts the HTTP transport (official
 `@modelcontextprotocol/sdk`) and translates tools onto the app's existing IPC surface.
 `electron/main/ipc-invoke.js` captures every `ipcMain.handle` registration at boot, so MCP

@@ -34,7 +34,7 @@ function pickGuest(tabId) {
   const all = browserGuests();
   if (tabId != null) {
     const found = all.find((wc) => wc.id === Number(tabId));
-    if (!found) throw new Error(`No browser panel with webContents id ${tabId}. Call browser_tabs.`);
+    if (!found) throw new Error(`No browser panel with webContents id ${tabId}. Call browser tabs.`);
     return found;
   }
   return browserRegistry.pick();
@@ -43,7 +43,7 @@ function pickGuest(tabId) {
 function needGuest(tabId) {
   const wc = pickGuest(tabId);
   if (!wc) {
-    throw new Error("No browser panel is open. Call browser_open (or tab_open with tabType 'browser') first.");
+    throw new Error("No browser panel is open. Call browser open first.");
   }
   return wc;
 }
@@ -125,7 +125,7 @@ async function navigate(wc, url) {
 
 async function readPage(wc, maxChars) {
   const dbg = await debuggerFor(wc);
-  const limit = Math.max(1000, Math.min(Number(maxChars) || 30000, 100000));
+  const limit = Math.max(1000, Math.min(Number(maxChars) || 8000, 20000));
   const { result } = await dbg.sendCommand("Runtime.evaluate", {
     expression: `(() => {
       const text = document.body ? document.body.innerText : "";
@@ -173,7 +173,7 @@ async function waitForReady(wc, timeoutMs = 15000) {
 async function snapshot(wc, maxNodes) {
   const dbg = await debuggerFor(wc);
   await waitForReady(wc, 10000);
-  const limit = Math.max(10, Math.min(Number(maxNodes) || 400, 1000));
+  const limit = Math.max(20, Math.min(Number(maxNodes) || 120, 400));
   const { nodes } = await dbg.sendCommand("Accessibility.getFullAXTree");
   const refs = new Map();
   const lines = [];
@@ -208,7 +208,8 @@ async function snapshot(wc, maxNodes) {
   stateFor(wc).refs = refs;
   const info = await pageInfo(wc);
   return {
-    ...info,
+    url: info.url,
+    title: info.title,
     snapshot: lines.join("\n"),
     nodes: count,
     truncated: skipped > 0,
@@ -288,7 +289,7 @@ async function settleAfterAction(wc, dbg, beforeUrl, maxWaitMs = 1200) {
 
 async function clickRef(wc, ref, count) {
   const backendNodeId = stateFor(wc).refs.get(ref);
-  if (!backendNodeId) throw new Error(`Unknown ref "${ref}". Call browser_snapshot again.`);
+  if (!backendNodeId) throw new Error(`Unknown ref "${ref}". Call browser snapshot again.`);
   const dbg = await debuggerFor(wc);
   let beforeUrl = "";
   try { beforeUrl = wc.getURL() || ""; } catch {}
@@ -537,7 +538,7 @@ async function setFocusedValue(dbg, text, clear) {
 
 async function typeInto(wc, ref, text, clear) {
   const backendNodeId = stateFor(wc).refs.get(ref);
-  if (!backendNodeId) throw new Error(`Unknown ref "${ref}". Call browser_snapshot again.`);
+  if (!backendNodeId) throw new Error(`Unknown ref "${ref}". Call browser snapshot again.`);
   const dbg = await debuggerFor(wc);
   try { wc.focus(); } catch {}
 
@@ -899,182 +900,67 @@ async function openBrowser(openTab, url, listTabs) {
 }
 
 function registerBrowserTools(server, helpers) {
-  const { z, tool, call } = helpers;
-  if (!server || !z || !tool || !call) throw new Error("browser tool helpers are incomplete");
+  const { z, call, ok, fail } = helpers;
+  if (!server || !z || !call || !ok || !fail) throw new Error("browser tool helpers are incomplete");
 
-  const readOnly = { readOnlyHint: true, destructiveHint: false };
-  const write = { readOnlyHint: false, destructiveHint: false, openWorldHint: true };
-  const risky = { readOnlyHint: false, destructiveHint: true, openWorldHint: true };
-  const tab = z.number().int().positive().optional()
-    .describe("Browser panel webContents id from browser_tabs. Omit to use the focused/last panel.");
-
-  tool(server, "browser_open", {
-    title: "Open browser panel",
-    description: "Open a browser tab in the Idiot Box browser panel and optionally navigate it. Returns the panel's webContents id.",
+  // One grouped tool instead of 15: the action enum + shared fields cost far
+  // fewer schema tokens than 15 near-duplicate schemas, while the internal
+  // snapshot/click/type workflow is unchanged.
+  server.registerTool("browser", {
+    description: "Browser panel: action open|tabs|navigate|read|snapshot|click|type|press|scroll|screenshot|eval|wait|back|forward|reload. Workflow: open -> snapshot (refs e1..) -> click/type ref. Refs expire after navigation/snapshot. Read/snapshot are capped (maxChars 8000, maxNodes 120 default). tab=panel id (omit for focused).",
     inputSchema: {
-      url: z.string().optional().describe("Optional http(s) URL or about:blank"),
+      action: z.enum(["open", "tabs", "navigate", "read", "snapshot", "click", "type", "press", "scroll", "screenshot", "eval", "wait", "back", "forward", "reload"]),
+      url: z.string().optional(), tab: z.number().optional(),
+      maxChars: z.number().optional(), maxNodes: z.number().optional(),
+      ref: z.string().optional(), count: z.number().optional(),
+      text: z.string().optional(), clear: z.boolean().optional(),
+      key: z.string().optional(),
+      deltaX: z.number().optional(), deltaY: z.number().optional(),
+      fullPage: z.boolean().optional(),
+      expression: z.string().optional(),
+      selector: z.string().optional(), timeoutMs: z.number().optional(),
     },
-    annotations: write,
-  }, async ({ url }) => {
-    if (url && url !== "about:blank" && !/^https?:\/\//i.test(url)) {
-      throw new Error("Only http(s) URLs and about:blank are supported.");
-    }
-    return openBrowser((options) => call("tabs:open", options), url, () => call("tabs:list"));
-  });
-
-  tool(server, "browser_tabs", {
-    title: "List browser panels",
-    description: "List open browser panels with their webContents id, URL, title and focus state.",
-    inputSchema: {},
-    annotations: readOnly,
-  }, async () => ({ tabs: listTabs() }));
-
-  tool(server, "browser_navigate", {
-    title: "Navigate browser",
-    description: "Navigate a browser panel to an http(s) URL and wait for the page load.",
-    inputSchema: {
-      url: z.string().describe("http(s) URL"),
-      tab,
-    },
-    annotations: write,
-  }, async ({ url, tab: tabId }) => {
-    if (!/^https?:\/\//i.test(url)) throw new Error("Only http(s) URLs are supported.");
-    return navigate(needGuest(tabId), url);
-  });
-
-  tool(server, "browser_read", {
-    title: "Read page",
-    description: "Read the current page title, URL and visible text from a browser panel.",
-    inputSchema: {
-      tab,
-      maxChars: z.number().int().min(1000).max(100000).default(30000)
-        .describe("Maximum characters of page text to return."),
-    },
-    annotations: readOnly,
-  }, async ({ tab: tabId, maxChars }) => readPage(needGuest(tabId), maxChars));
-
-  tool(server, "browser_snapshot", {
-    title: "Snapshot page",
-    description: "Return an accessibility snapshot of clickable and readable elements with short refs for browser_click and browser_type. Refs expire after navigation or a new snapshot.",
-    inputSchema: {
-      tab,
-      maxNodes: z.number().int().min(10).max(1000).default(400)
-        .describe("Maximum number of elements to return."),
-    },
-    annotations: readOnly,
-  }, async ({ tab: tabId, maxNodes }) => snapshot(needGuest(tabId), maxNodes));
-
-  tool(server, "browser_click", {
-    title: "Click element",
-    description: "Click an element by its browser_snapshot ref. Uses real mouse events in the browser panel.",
-    inputSchema: {
-      ref: z.string().describe("Element ref from browser_snapshot, for example e12"),
-      count: z.number().int().min(1).max(2).default(1).describe("1 for a click, 2 for a double click."),
-      tab,
-    },
-    annotations: write,
-  }, async ({ ref, count, tab: tabId }) => clickRef(needGuest(tabId), ref, count));
-
-  tool(server, "browser_type", {
-    title: "Type into element",
-    description: "Focus an element by browser_snapshot ref and type text into it. Set clear=true to replace its current value.",
-    inputSchema: {
-      ref: z.string().describe("Element ref from browser_snapshot, for example e3"),
-      text: z.string().describe("Text to type"),
-      clear: z.boolean().default(false).describe("Select all existing text first."),
-      tab,
-    },
-    annotations: write,
-  }, async ({ ref, text, clear, tab: tabId }) => typeInto(needGuest(tabId), ref, text, clear));
-
-  tool(server, "browser_press", {
-    title: "Press key",
-    description: "Press a named key in the focused browser panel, for example Enter, Tab, Escape, ArrowDown or Space.",
-    inputSchema: {
-      key: z.string().describe("Key name"),
-      tab,
-    },
-    annotations: write,
-  }, async ({ key, tab: tabId }) => pressKey(needGuest(tabId), key));
-
-  tool(server, "browser_scroll", {
-    title: "Scroll page",
-    description: "Scroll the browser panel by a pixel delta. Positive deltaY scrolls down.",
-    inputSchema: {
-      deltaX: z.number().int().default(0),
-      deltaY: z.number().int().default(600),
-      tab,
-    },
-    annotations: write,
-  }, async ({ deltaX, deltaY, tab: tabId }) => scrollPage(needGuest(tabId), deltaX, deltaY));
-
-  server.registerTool("browser_screenshot", {
-    title: "Browser screenshot",
-    description: "Capture the browser panel as a PNG image. Also returns the saved server-local path.",
-    inputSchema: {
-      fullPage: z.boolean().default(false).describe("Capture the full page instead of the viewport."),
-      tab,
-    },
-    annotations: readOnly,
-  }, async ({ fullPage, tab: tabId }) => {
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+  }, async (a) => {
+    const { action, url, tab: tabId, maxChars, maxNodes, ref, count, text, clear, key, deltaX, deltaY, fullPage, expression, selector, timeoutMs } = a || {};
     try {
-      const wc = needGuest(tabId);
-      const data = await captureScreenshot(wc, fullPage);
-      const file = path.join(os.tmpdir(), `idiotbox-browser-${Date.now()}.png`);
-      fs.writeFileSync(file, Buffer.from(data, "base64"));
-      return {
-        content: [
-          { type: "text", text: `Screenshot saved to ${file}` },
-          { type: "image", data, mimeType: "image/png" },
-        ],
-      };
-    } catch (err) {
-      return { content: [{ type: "text", text: String(err?.message || err) }], isError: true };
-    }
+      switch (action) {
+        case "open": {
+          if (url && url !== "about:blank" && !/^https?:\/\//i.test(url)) throw new Error("Only http(s) URLs and about:blank are supported.");
+          return ok(await openBrowser((options) => call("tabs:open", options), url, () => call("tabs:list")));
+        }
+        case "tabs": return ok({ tabs: listTabs() });
+        case "navigate": {
+          if (!/^https?:\/\//i.test(url)) throw new Error("Only http(s) URLs are supported.");
+          return ok(await navigate(needGuest(tabId), url));
+        }
+        case "read": return ok(await readPage(needGuest(tabId), maxChars));
+        case "snapshot": return ok(await snapshot(needGuest(tabId), maxNodes));
+        case "click": return ok(await clickRef(needGuest(tabId), ref, count));
+        case "type": return ok(await typeInto(needGuest(tabId), ref, text, clear));
+        case "press": return ok(await pressKey(needGuest(tabId), key));
+        case "scroll": return ok(await scrollPage(needGuest(tabId), deltaX, deltaY ?? 600));
+        case "screenshot": {
+          const wc = needGuest(tabId);
+          const data = await captureScreenshot(wc, fullPage);
+          const file = path.join(os.tmpdir(), `idiotbox-browser-${Date.now()}.png`);
+          fs.writeFileSync(file, Buffer.from(data, "base64"));
+          return {
+            content: [
+              { type: "text", text: `Screenshot saved to ${file}` },
+              { type: "image", data, mimeType: "image/png" },
+            ],
+          };
+        }
+        case "eval": return ok(await evaluate(needGuest(tabId), expression));
+        case "wait": return ok(await waitFor(needGuest(tabId), { selector, text, timeoutMs }));
+        case "back": return ok(await history(needGuest(tabId), -1));
+        case "forward": return ok(await history(needGuest(tabId), 1));
+        case "reload": return ok(await reload(needGuest(tabId)));
+        default: throw new Error(`Unknown browser action: ${action}`);
+      }
+    } catch (err) { return fail(err); }
   });
-
-  tool(server, "browser_eval", {
-    title: "Evaluate JavaScript",
-    description: "Evaluate a JavaScript expression in the current page and return its value. Use browser_snapshot and browser_read for normal work.",
-    inputSchema: {
-      expression: z.string().describe("JavaScript expression to evaluate"),
-      tab,
-    },
-    annotations: risky,
-  }, async ({ expression, tab: tabId }) => evaluate(needGuest(tabId), expression));
-
-  tool(server, "browser_wait", {
-    title: "Wait for page content",
-    description: "Wait until a CSS selector exists or the page text contains a string.",
-    inputSchema: {
-      selector: z.string().optional().describe("CSS selector to wait for"),
-      text: z.string().optional().describe("Text to wait for"),
-      timeoutMs: z.number().int().min(500).max(60000).default(10000),
-      tab,
-    },
-    annotations: readOnly,
-  }, async ({ selector, text, timeoutMs, tab: tabId }) => waitFor(needGuest(tabId), { selector, text, timeoutMs }));
-
-  tool(server, "browser_back", {
-    title: "Go back",
-    description: "Go back in the browser panel's history.",
-    inputSchema: { tab },
-    annotations: write,
-  }, async ({ tab: tabId }) => history(needGuest(tabId), -1));
-
-  tool(server, "browser_forward", {
-    title: "Go forward",
-    description: "Go forward in the browser panel's history.",
-    inputSchema: { tab },
-    annotations: write,
-  }, async ({ tab: tabId }) => history(needGuest(tabId), 1));
-
-  tool(server, "browser_reload", {
-    title: "Reload page",
-    description: "Reload the browser panel.",
-    inputSchema: { tab },
-    annotations: write,
-  }, async ({ tab: tabId }) => reload(needGuest(tabId)));
 }
 
 module.exports = { registerBrowserTools };
