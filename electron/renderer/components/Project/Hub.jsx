@@ -703,6 +703,10 @@ const RepoCard = ({ repo, cloning, cloningTarget, onClone }) => (
   </div>
 );
 
+const HUB_SIDEBAR_MIN = 160;
+const HUB_SIDEBAR_MAX = 460;
+const HUB_SIDEBAR_DEFAULT = 200;
+
 const ProjectHub = () => {
   const [recentProjects, setRecentProjects] = useState([]);
   const [pinnedProjects, setPinnedProjects] = useState([]);
@@ -845,6 +849,53 @@ const ProjectHub = () => {
 
   const [showHeat, setShowHeat] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // ── Hub sidebar resize (drag the handle on its right edge) ───────────────
+  const [sidebarWidth, setSidebarWidth] = useState(HUB_SIDEBAR_DEFAULT);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
+  const sidebarWidthRef = useRef(HUB_SIDEBAR_DEFAULT);
+  const sidebarSettingsRef = useRef({});
+  const clampSidebarWidth = (w) => Math.min(HUB_SIDEBAR_MAX, Math.max(HUB_SIDEBAR_MIN, w));
+  useEffect(() => { sidebarWidthRef.current = sidebarWidth; }, [sidebarWidth]);
+  useEffect(() => {
+    window.electronAPI?.readSettings?.().then((s) => {
+      const data = s || {};
+      sidebarSettingsRef.current = data;
+      const w = Number(data.hubSidebarWidth);
+      if (Number.isFinite(w)) setSidebarWidth(clampSidebarWidth(w));
+    }).catch(() => {});
+  }, []);
+  const onSidebarResizeStart = useCallback((e) => {
+    if (sidebarCollapsed) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarWidthRef.current;
+    setSidebarResizing(true);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev) => {
+      setSidebarWidth(clampSidebarWidth(startW + (ev.clientX - startX)));
+    };
+    const onUp = () => {
+      setSidebarResizing(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      const w = sidebarWidthRef.current;
+      const next = { ...sidebarSettingsRef.current, hubSidebarWidth: w };
+      sidebarSettingsRef.current = next;
+      try { window.electronAPI?.writeSettings?.(next); } catch {}
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [sidebarCollapsed]);
+  const resetSidebarWidth = useCallback(() => {
+    setSidebarWidth(HUB_SIDEBAR_DEFAULT);
+    const next = { ...sidebarSettingsRef.current, hubSidebarWidth: HUB_SIDEBAR_DEFAULT };
+    sidebarSettingsRef.current = next;
+    try { window.electronAPI?.writeSettings?.(next); } catch {}
+  }, []);
 
   // ── Hub view history (Back/Forward + mouse side buttons) ──
   // Views: main | new | clone | fw — the sidebar/dialogs set these,
@@ -2240,15 +2291,6 @@ const ProjectHub = () => {
     return loc.replace(/[\\/]+$/, "") + sep + name;
   }, [newProjectName, newProjectLocation]);
 
-  const handleBrowseLocation = useCallback(async () => {
-    try {
-      const picked = await window.electronAPI.browseFolder();
-      if (picked) setNewProjectLocation(picked);
-    } catch (err) {
-      console.warn("browse failed", err);
-    }
-  }, []);
-
   const handleFrameworkSelect = useCallback((fw) => {
     setSelectedFramework(fw);
     if (fw.languages?.length) setFrameworkLang(fw.languages.includes("TypeScript") ? "TypeScript" : fw.languages[0]);
@@ -2340,6 +2382,31 @@ const ProjectHub = () => {
       try { await window.electronAPI.showAlert?.(`Create failed: ${err?.message || err}`); } catch {}
     }
   }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, writeTemplateFiles, closeCreateDialog]);
+
+  // Create button → native folder picker first (same pattern as Clone),
+  // then the project is created inside the chosen folder.
+  const handleCreate = useCallback(async () => {
+    if (scaffolding || scaffoldingRef.current) return;
+    const name = newProjectName.trim() || selectedFramework?.name || "app";
+    if (!newProjectName.trim() && !newProjectPath.trim() && !selectedFramework) return;
+    let destParent = newProjectLocation.trim();
+    try {
+      if (!destParent) {
+        try { destParent = (await window.electronAPI.getDefaultLocation?.()) || ""; } catch { destParent = ""; }
+      }
+      const picked = await window.electronAPI.browseFolder({
+        title: `Save "${name}" to…`,
+        defaultPath: destParent || undefined,
+      });
+      if (!picked) return;
+      destParent = picked;
+    } catch (err) {
+      console.warn("folder pick failed", err);
+      return;
+    }
+    setNewProjectLocation(destParent);
+    await createNewProject({ loc: destParent });
+  }, [scaffolding, newProjectName, newProjectPath, selectedFramework, newProjectLocation, createNewProject]);
 
   // AI proposal card → "Create project": first ask the user where to save
   // (folder picker) — on cancel nothing is created. Then the
@@ -2476,10 +2543,11 @@ const ProjectHub = () => {
 
   return (
     <div
-        className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}${sidebarCollapsed ? " phub--sb-collapsed" : ""}`}
+        className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}${sidebarCollapsed ? " phub--sb-collapsed" : ""}${sidebarResizing ? " phub--sb-resizing" : ""}`}
       style={{
         ...(wallpaper ? { backgroundImage: `url("${wallpaper}")`, "--wall-tint": wallTint || undefined } : {}),
         "--wall-opacity": `${wallOpacity}%`,
+        "--phub-sb-w": sidebarCollapsed ? "52px" : `${sidebarWidth}px`,
       }}
       onDragEnter={onHubDragEnter}
       onDragOver={onHubDragOver}
@@ -2645,6 +2713,18 @@ const ProjectHub = () => {
         </div>
       </div>
 
+      {!sidebarCollapsed && (
+        <div
+          className={`phub__sidebar-resizer${sidebarResizing ? " phub__sidebar-resizer--active" : ""}`}
+          onMouseDown={onSidebarResizeStart}
+          onDoubleClick={resetSidebarWidth}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          title="Drag to resize · double-click to reset"
+        />
+      )}
+
       <div className={`phub__center${showNewProjectDialog || showCloneDialog || showFrameworks || homeOverlay ? " phub__center--modal" : ""}${sidebarCollapsed ? " phub__center--collapsed" : ""}`}>
         {(showNewProjectDialog || showCloneDialog || showFrameworks || homeOverlay) && (
           <div className="phub__modal-veil" onClick={closeCenterViews} />
@@ -2755,55 +2835,6 @@ const ProjectHub = () => {
                       autoFocus
                     />
                   </div>
-                  <div className="phub__dialog-field">
-                    <label className="phub__dialog-label">Save Location</label>
-                    <div className="phub__dialog-row">
-                      <input
-                        className="phub__dialog-input phub__dialog-input--flex"
-                        type="text"
-                        placeholder="Choose folder where project will be created"
-                        value={newProjectLocation}
-                        onChange={(e) => setNewProjectLocation(e.target.value)}
-                        autoComplete="off"
-                      />
-                      <button className="phub__dialog-browse" onClick={handleBrowseLocation} title="Browse" type="button">
-                        <FolderOpen size={14} />
-                        Browse
-                      </button>
-                    </div>
-                  </div>
-                  {(() => {
-                    const full = getFullProjectPath();
-                    const loc = newProjectLocation.trim();
-                    // parent-mode CLI creates <loc>/<safe> itself — show that
-                    if (createSpec && createSpec.mode === "parent" && loc) {
-                      const sep = loc.includes("\\") ? "\\" : "/";
-                      const preview = loc.replace(/[\\/]+$/, "") + sep + (editedProjName || createSpec.safe);
-                      return (
-                        <div className="phub__dialog-field phub__dialog-field--preview">
-                          <label className="phub__dialog-label">Project will be created at</label>
-                          <div className="phub__dialog-path-preview" title={preview}>
-                            <FolderOpen size={12} className="phub__dialog-path-icon" />
-                            <span>{preview}</span>
-                          </div>
-                          <span className="phub__dialog-hint">Official {selectedFramework.name} CLI runs in the workspace terminal after Create</span>
-                        </div>
-                      );
-                    }
-                    const preview = full || loc;
-                    if (!preview) return null;
-                    const isFull = !!full;
-                    return (
-                      <div className="phub__dialog-field phub__dialog-field--preview">
-                        <label className="phub__dialog-label">{isFull ? "Project will be created at" : "Default location"}</label>
-                        <div className="phub__dialog-path-preview" title={preview}>
-                          <FolderOpen size={12} className="phub__dialog-path-icon" />
-                          <span>{preview}{!isFull && loc ? "/<project-name>" : ""}</span>
-                        </div>
-                        {!isFull && loc ? <span className="phub__dialog-hint">Enter project name to see full path</span> : null}
-                    </div>
-                  );
-                  })}
                 </div>
                 {selectedFramework && (
                   <div className="phub__create-files">
@@ -2943,7 +2974,7 @@ const ProjectHub = () => {
               >
                 Cancel
               </button>
-              <button className="phub__dialog-create" onClick={createNewProject} disabled={scaffolding || (!getFullProjectPath() && !newProjectPath.trim())}>
+              <button className="phub__dialog-create" onClick={handleCreate} disabled={scaffolding || (!newProjectName.trim() && !newProjectPath.trim() && !selectedFramework)}>
                 {scaffolding ? (<><Loader2 size={14} className="phub__spin" /> Creating…</>) : "Create"}
               </button>
             </div>

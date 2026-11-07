@@ -549,6 +549,12 @@
 
 .pw-sidebar__resize:hover { background: var(--accent-soft-a25); } /* keep — accent with alpha */
 
+/* Keep the middle projects still while the sidebar is being resized. */
+body.pw-resizing .pw-grid,
+body.pw-resizing .pw-item {
+  transition: none !important;
+}
+
 /* ── Sidebar drop target ─────────────────────────────────────────────────── */
 .pw-tree-row--drop-target {
   background: var(--selection-border) !important;
