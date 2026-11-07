@@ -68,6 +68,24 @@ const DEFAULT_WALLPAPERS = [
 ];
 const defaultWallpaperUrl = (file) => `./assets/wallpapers/${file}`;
 const defaultWallpaperKey = (file) => `asset:${file}`;
+const RANDOM_WALLPAPER_KEY = "random:minimalistic-wallpaper";
+const NO_WALLPAPER_KEY = "none";
+const loadRandomWallpaper = () => {
+  const url = `https://minimalistic-wallpaper.demolab.com/?random=${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const timer = setTimeout(() => reject(new Error("Wallpaper request timed out")), 15000);
+    image.onload = () => {
+      clearTimeout(timer);
+      resolve(url);
+    };
+    image.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("Wallpaper request failed"));
+    };
+    image.src = url;
+  });
+};
 const assetPathFromUrl = (url) => {
   try {
     let p = decodeURIComponent(new URL(url, document.baseURI).pathname || "");
@@ -1214,8 +1232,8 @@ const ProjectHub = () => {
     } catch {}
   }, []);
 
-  // ── Hub wallpaper (user's choice — path persisted, dataURL in memory) ──
-  const [wallpaper, setWallpaper] = useState(null); // dataURL
+  // ── Hub wallpaper (path persisted, image URL/dataURL in memory) ──
+  const [wallpaper, setWallpaper] = useState(null);
   const [wallpaperKey, setWallpaperKey] = useState(""); // localStorage path / asset:<file>
   const [wallTint, setWallTint] = useState(""); // average color of the wallpaper
   // Downscale the image to 32px for the average RGB — for the sidebar/center tint
@@ -1240,6 +1258,21 @@ const ProjectHub = () => {
       img.src = url;
     } catch {}
   }, []);
+  const resolveRandomWallpaper = useCallback(async () => {
+    try {
+      return await loadRandomWallpaper();
+    } catch {
+      flashDropMsg("Couldn't load an online random wallpaper. Using a bundled wallpaper instead.");
+      const fallback = DEFAULT_WALLPAPERS[Math.floor(Math.random() * DEFAULT_WALLPAPERS.length)];
+      let url = defaultWallpaperUrl(fallback.file);
+      try {
+        const fp = assetPathFromUrl(url);
+        const dataUrl = fp ? await window.electronAPI?.readFileAsDataUrl?.(fp) : null;
+        if (dataUrl) url = dataUrl;
+      } catch {}
+      return url;
+    }
+  }, [flashDropMsg]);
   useEffect(() => {
     let dead = false;
     (async () => {
@@ -1248,8 +1281,11 @@ const ProjectHub = () => {
         let saved = [];
         try { saved = JSON.parse(localStorage.getItem("ibx:hubWallpapers") || "[]") || []; } catch {}
         if (!Array.isArray(saved)) saved = [];
-        // current first, then saved recents (dedupe, cap 6)
-        const ordered = [p, ...saved].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).slice(0, 6);
+        // Resolve saved local wallpapers for the picker without treating them as the active choice.
+        const ordered = [p, ...saved]
+          .filter((x) => x && x !== RANDOM_WALLPAPER_KEY && x !== NO_WALLPAPER_KEY)
+          .filter((x, i, a) => a.indexOf(x) === i)
+          .slice(0, 6);
         const resolved = [];
         for (const rp of ordered) {
           if (dead) return;
@@ -1271,26 +1307,38 @@ const ProjectHub = () => {
           } catch {}
         }
         if (dead) return;
-        if (!resolved.length) {
-          try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
-          try { localStorage.removeItem("ibx:hubWallpapers"); } catch {}
+        setRecentWalls(resolved.filter((w) => !String(w.path).startsWith("asset:")));
+        if (p === NO_WALLPAPER_KEY) {
+          setWallpaper(null);
+          setWallpaperKey("");
+          setWallTint("");
           return;
         }
         const cur = p && resolved.find((w) => w.path === p);
-        const first = cur || resolved[0];
-        setWallpaper(first.url);
-        setWallpaperKey(first.path);
-        tintFromDataUrl(first.url);
-        setRecentWalls(resolved.filter((w) => !String(w.path).startsWith("asset:")));
-        if (!p) {
-          try { localStorage.setItem("ibx:hubWallpaper", first.path); } catch {}
+        if (cur) {
+          setWallpaper(cur.url);
+          setWallpaperKey(cur.path);
+          tintFromDataUrl(cur.url);
+        } else {
+          const url = await resolveRandomWallpaper();
+          if (dead) return;
+          setWallpaper(url);
+          setWallpaperKey(RANDOM_WALLPAPER_KEY);
+          tintFromDataUrl(url);
+          try { localStorage.setItem("ibx:hubWallpaper", RANDOM_WALLPAPER_KEY); } catch {}
         }
       } catch {
-        try { if (!dead) localStorage.removeItem("ibx:hubWallpaper"); } catch {}
+        if (!dead) {
+          const url = await resolveRandomWallpaper();
+          setWallpaper(url);
+          setWallpaperKey(RANDOM_WALLPAPER_KEY);
+          tintFromDataUrl(url);
+          try { localStorage.setItem("ibx:hubWallpaper", RANDOM_WALLPAPER_KEY); } catch {}
+        }
       }
     })();
     return () => { dead = true; };
-  }, []);
+  }, [resolveRandomWallpaper, tintFromDataUrl]);
   // Recents — paths are persisted (not images), dataURL stays in memory.
   const [recentWalls, setRecentWalls] = useState([]);
   const [wallMenuOpen, setWallMenuOpen] = useState(false);
@@ -1342,8 +1390,16 @@ const ProjectHub = () => {
     setWallpaper(null);
     setWallpaperKey("");
     setWallTint("");
-    try { localStorage.removeItem("ibx:hubWallpaper"); } catch {}
+    try { localStorage.setItem("ibx:hubWallpaper", NO_WALLPAPER_KEY); } catch {}
   }, []);
+  const applyRandomWallpaper = useCallback(async () => {
+    const url = await resolveRandomWallpaper();
+    setWallpaper(url);
+    setWallpaperKey(RANDOM_WALLPAPER_KEY);
+    tintFromDataUrl(url);
+    try { localStorage.setItem("ibx:hubWallpaper", RANDOM_WALLPAPER_KEY); } catch {}
+    setWallMenuOpen(false);
+  }, [resolveRandomWallpaper, tintFromDataUrl]);
   // Bundled defaults are applied straight from the app assets — not added to
   // the user's recents list.
   const applyDefaultWallpaper = useCallback(async (w) => {
@@ -3634,6 +3690,18 @@ const ProjectHub = () => {
       <div className="phub__wallwrap">
         {wallMenuOpen && (
           <div className="phub__wallmenu" role="menu" aria-label="Wallpapers">
+            <div className="phub__wallmenu-label">Random</div>
+            <div className="phub__wallmenu-grid">
+              <button
+                className={`phub__wallmenu-cell phub__wallmenu-add${wallpaperKey === RANDOM_WALLPAPER_KEY ? " phub__wallmenu-cell--on" : ""}`}
+                onClick={applyRandomWallpaper}
+                role="menuitem"
+                title="Load a random wallpaper from minimalistic-wallpaper.demolab.com"
+              >
+                <RefreshCw size={16} />
+                <span>Surprise me</span>
+              </button>
+            </div>
             <div className="phub__wallmenu-label">Default</div>
             <div className="phub__wallmenu-grid phub__wallmenu-grid--defaults">
               {DEFAULT_WALLPAPERS.map((w) => {
@@ -3685,6 +3753,19 @@ const ProjectHub = () => {
                 );
               })}
             </div>
+            {wallpaper && (
+              <>
+                <div className="phub__wallmenu-sep" />
+                <button
+                  className="phub__wallmenu-item"
+                  onClick={() => { clearWallpaper(); setWallMenuOpen(false); }}
+                  role="menuitem"
+                >
+                  <X size={14} />
+                  <span>Clear wallpaper</span>
+                </button>
+              </>
+            )}
           </div>
         )}
         <button
