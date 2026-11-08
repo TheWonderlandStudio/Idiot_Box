@@ -33,8 +33,9 @@ jobs:
            (github.event.comment.body == 'recheck' ||
             github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
         uses: contributor-assistant/github-action@v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-signatures: signatures/version1/cla.json
           path-to-document: https://github.com/TheWonderlandStudio/Idiot_Box/blob/main/CLA.md
           # Signatures live on an unprotected branch so the bot can commit
