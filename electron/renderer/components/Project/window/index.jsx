@@ -144,12 +144,18 @@ const ProjectWindow = () => {
     draggingRef.current = true;
     startXRef.current   = e.clientX;
     startWRef.current   = sidebarWidth;
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    document.body.classList.add("pw-resizing");
     const onMove = (ev) => {
       if (!draggingRef.current) return;
       setSidebarWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startWRef.current + (ev.clientX - startXRef.current))));
     };
     const onUp = () => {
       draggingRef.current = false;
+      document.body.classList.remove("pw-resizing");
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };

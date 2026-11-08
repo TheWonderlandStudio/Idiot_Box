@@ -169,7 +169,7 @@
   color: var(--icon-hover);
 }
 .phub__sidebar {
-  flex: 0 0 200px;
+  flex: 0 0 var(--phub-sb-w, 200px);
   background: var(--bg-surface);
   border-right: none;
   display: flex;
@@ -182,9 +182,9 @@
 /* ── Panels layout ─────────────────────────────────────────────────────── */
 .phub__panels {
   flex: 1;
-  margin-left: 200px;
-  width: calc(100% - 200px);
-  max-width: calc(100% - 200px);
+  margin-left: var(--phub-sb-w, 200px);
+  width: calc(100% - var(--phub-sb-w, 200px));
+  max-width: calc(100% - var(--phub-sb-w, 200px));
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -195,9 +195,9 @@
 }
 .phub__center {
   flex: 1;
-  margin-left: 200px;
-  width: calc(100% - 200px);
-  max-width: calc(100% - 200px);
+  margin-left: var(--phub-sb-w, 200px);
+  width: calc(100% - var(--phub-sb-w, 200px));
+  max-width: calc(100% - var(--phub-sb-w, 200px));
   min-width: 0;
   padding: 0;
   overflow-y: auto;
@@ -1742,8 +1742,8 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 200px;
-  max-width: 200px;
+  width: var(--phub-sb-w, 200px);
+  max-width: var(--phub-sb-w, 200px);
   background: linear-gradient(180deg, #1d1d21 0%, #18181b 100%);
   border-right: 1px solid rgba(255, 255, 255, 0.055);
   display: flex;
@@ -1760,6 +1760,42 @@
 .phub__sidebar::-webkit-scrollbar-track { background: transparent; }
 .phub__sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 99px; }
 .phub__sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* Drag handle on the sidebar's right edge — resize the Hub sidebar */
+.phub__sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--phub-sb-w, 200px);
+  width: 10px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+  z-index: 30;
+  background: transparent;
+  transition: left 0.25s ease;
+}
+.phub__sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.phub__sidebar-resizer:hover::after,
+.phub__sidebar-resizer--active::after {
+  background: rgba(255, 157, 77, 0.75);
+}
+.phub--sb-resizing .phub__sidebar,
+.phub--sb-resizing .phub__center,
+.phub--sb-resizing .phub__glow,
+.phub--sb-resizing .phub__path-bar,
+.phub--sb-resizing .phub__sidebar-resizer {
+  transition: none !important;
+}
 
 /* Head — brand text (collapse toggle sidebar ke bottom par) */
 .phub__sidebar-head {
@@ -2265,9 +2301,9 @@
   padding: var(--space-8) var(--space-12);
   background: var(--bg-surface);
   border-bottom: none;
-  margin-left: 200px;
-  width: calc(100% - 200px);
-  max-width: calc(100% - 200px);
+  margin-left: var(--phub-sb-w, 200px);
+  width: calc(100% - var(--phub-sb-w, 200px));
+  max-width: calc(100% - var(--phub-sb-w, 200px));
   min-width: 0;
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -3023,7 +3059,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  left: 200px;
+  left: var(--phub-sb-w, 200px);
   z-index: 0;
   pointer-events: none;
   background:
@@ -3049,7 +3085,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  left: 200px;
+  left: var(--phub-sb-w, 200px);
   z-index: 1;
   margin: 0;
   width: auto;
@@ -3130,9 +3166,9 @@
 .phub__path-bar {
   position: relative;
   z-index: 6;
-  margin-left: 200px;
-  width: calc(100% - 200px);
-  max-width: calc(100% - 200px);
+  margin-left: var(--phub-sb-w, 200px);
+  width: calc(100% - var(--phub-sb-w, 200px));
+  max-width: calc(100% - var(--phub-sb-w, 200px));
   background: rgba(10, 10, 12, 0.72);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
