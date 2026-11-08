@@ -88,6 +88,12 @@ build/              esbuild configs + worker asset copy
 
 Other sites offering "Idiot Box" for download are not official.
 
+## Sponsor
+
+[![Sponsor on GitHub Sponsors](https://img.shields.io/badge/Sponsor_on_GitHub_Sponsors-pink?style=flat-square&logo=githubsponsors)](https://github.com/sponsors/Jignesh1236)
+
+Idiot Box is free and open source. If it helps you, consider sponsoring its development via [GitHub Sponsors](https://github.com/sponsors/Jignesh1236).
+
 ## License
 
 Source code is licensed under the [GNU General Public License v3](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
