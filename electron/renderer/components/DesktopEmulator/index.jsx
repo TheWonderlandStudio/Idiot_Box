@@ -5,6 +5,7 @@
 // the key box sends QEMU `sendkey` chords.
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, ArrowLeft, Monitor, Download, Terminal, X } from "lucide-react";
+import EmulatorDisclaimer from "../shared/EmulatorDisclaimer.jsx";
 
 const s = {
   wrap: { display: "flex", flexDirection: "column", height: "100%", background: "var(--bg-surface)", color: "var(--text-bright)", overflow: "hidden", fontFamily: "var(--font-system)" },
@@ -490,6 +491,19 @@ const DesktopEmulatorPanel = () => {
           )}
         </div>
       )}
+
+      <EmulatorDisclaimer
+        summary="Unofficial panel — not affiliated with, endorsed by or sponsored by the QEMU project. QEMU is third-party free software (GPL-2.0) that you install and license separately."
+        items={[
+          "This app does not bundle, download or redistribute QEMU or any operating-system image. \"Download QEMU\" only fetches the official installer (or opens the official page) and hands control to it — the installer runs separately under its own licence.",
+          "ISO buttons open the vendor's official download page or file in your system browser. Nothing is downloaded, cached or redistributed by Idiot Box.",
+          "Each guest operating system remains under its own licence and terms. Windows requires a valid Microsoft licence; Linux and BSD images carry their distribution's terms. You are responsible for complying with them.",
+          "Virtual machines and disks are stored locally as ordinary files under .appdata/qemu. Deleting a VM deletes its disk, so back up anything you need first.",
+          "Hardware virtualisation (WHPX, Hypervisor.framework or KVM) is used when available. Performance and device support depend on your host, firmware settings and the QEMU build you installed.",
+          "Running untrusted or unlicensed images is at your own risk. This panel is provided \"as is\", without warranty of any kind. Idiot Box itself is free software under GPL-3.0.",
+        ]}
+        note="QEMU is a trademark of its respective owners. This panel is not a QEMU project product."
+      />
     </div>
   );
 };

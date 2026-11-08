@@ -4,6 +4,7 @@
 // Delete, plus first-run Setup SDK (cmdline-tools download → sdkmanager).
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, Download, ArrowLeft, Home, LayoutGrid, X, Monitor, RotateCw, Camera, Power, Volume1, Volume2, PictureInPicture2, Maximize2, Minimize2, ZoomIn, ZoomOut, Terminal } from "lucide-react";
+import EmulatorDisclaimer from "../shared/EmulatorDisclaimer.jsx";
 
 const FALLBACK_APIS = [
   { api: 36, android: "Android 16" },
@@ -752,6 +753,21 @@ const AndroidEmulatorPanel = () => {
         </div>
       )}
       </>
+      )}
+
+      {!full && (
+        <EmulatorDisclaimer
+          summary="Unofficial panel — not affiliated with, endorsed by or sponsored by Google. Android and Google Play are trademarks of Google LLC."
+          items={[
+            "Android SDK command-line tools, platform-tools, the emulator and system images are downloaded directly from Google when you run Setup SDK. This app does not bundle, mirror or redistribute them.",
+            "Those components are licensed under the Android SDK License Agreement and Google's terms. By running Setup SDK — and by accepting any licence prompt shown by sdkmanager or avdmanager — you confirm that you accept them.",
+            "Play Store system images are Google user builds: no root access, and use of the Play Store and Google apps is subject to Google Play's terms of service.",
+            "The emulator needs hardware virtualisation (WHPX or HAXM on Windows, Hypervisor.framework on macOS, KVM on Linux). Without it the emulator may refuse to start or run very slowly; enabling virtualisation in firmware/OS settings is outside this app.",
+            "SDK files, AVDs and screenshots stay on this machine under .appdata/android. Deleting an AVD removes its data, and you are responsible for what you install and run in it.",
+            "This panel is provided \"as is\", without warranty of any kind, and is intended for development and testing. Idiot Box itself is free software under GPL-3.0.",
+          ]}
+          note="Google, Android, Google Play and related marks are trademarks of Google LLC. This panel is not a Google product."
+        />
       )}
     </div>
   );
