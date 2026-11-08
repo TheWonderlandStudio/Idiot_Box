@@ -4,7 +4,7 @@
 // HMP `screendump` (PPM frames drawn on a canvas). Click = guest mouse click,
 // the key box sends QEMU `sendkey` chords.
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, ArrowLeft, Monitor, Download, Terminal, X } from "lucide-react";
+import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, ArrowLeft, Monitor, Download, Terminal, X, Info } from "lucide-react";
 import EmulatorDisclaimer from "../shared/EmulatorDisclaimer.jsx";
 
 const s = {
@@ -283,6 +283,7 @@ const DesktopEmulatorPanel = () => {
           </span>
         </div>
         <div style={{ display: "flex", gap: "var(--space-6)" }}>
+          <button style={s.iconBtn} title="Disclaimer" onClick={() => window.dispatchEvent(new CustomEvent("show-emulator-disclaimer", { detail: { key: "idiotbox.disclaimer.desktop" } }))}><Info size={14} /></button>
           <button style={s.iconBtn} title="Open QEMU log (Terminal)" onClick={openLog}><Terminal size={14} /></button>
           <button style={s.iconBtn} title="Reveal .appdata/qemu folder" onClick={() => window.electronAPI?.qemuRevealFolder?.()}><FolderOpen size={14} /></button>
           <button style={s.iconBtn} title="Refresh" onClick={() => fetchState(false)}><RefreshCw size={14} /></button>
@@ -493,6 +494,8 @@ const DesktopEmulatorPanel = () => {
       )}
 
       <EmulatorDisclaimer
+        storageKey="idiotbox.disclaimer.desktop"
+        title="Desktop Emulator — Disclaimer"
         summary="Unofficial panel — not affiliated with, endorsed by or sponsored by the QEMU project. QEMU is third-party free software (GPL-2.0) that you install and license separately."
         items={[
           "This app does not bundle, download or redistribute QEMU or any operating-system image. \"Download QEMU\" only fetches the official installer (or opens the official page) and hands control to it — the installer runs separately under its own licence.",
