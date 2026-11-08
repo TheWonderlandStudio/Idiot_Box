@@ -37,9 +37,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-signatures: signatures/version1/cla.json
           path-to-document: https://github.com/TheWonderlandStudio/Idiot_Box/blob/main/CLA.md
-          # Signatures live on an unprotected branch so the bot can commit
-          # them without bypassing protection on main.
-          branch: cla-signatures
+          # Signatures are stored in the `signatures/` folder on the
+          # default branch (main) — no separate branch.
           allowlist: Jignesh1236,bot*,*[bot],dependabot*
           custom-notsigned-prcomment: >-
             Thanks for your contribution! Before this pull request can be
