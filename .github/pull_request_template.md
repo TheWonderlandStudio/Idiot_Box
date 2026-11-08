@@ -8,7 +8,6 @@
 - [ ] `npm run build` passes
 - [ ] `npm test` passes
 - [ ] `node --check electron/main/index.js` passes (main changes)
-- [ ] No Hinglish in user-visible strings (English only)
 - [ ] No secrets, keys or tokens in the diff
 
 ## Signing the CLA
