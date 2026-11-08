@@ -12,6 +12,7 @@ const {
   qemuDownloadTarget,
   makeQmpClient,
   buildInputAction,
+  ISO_CATALOG,
 } = require("../electron/main/qemu");
 const net = require("node:net");
 
@@ -194,6 +195,27 @@ test("QMP client matches replies by id (no prompt-desync) and survives events", 
     try { client.socket.destroy(); } catch {}
     await new Promise((r) => server.close(r));
   }
+});
+
+test("ISO catalog links are official https, unique, and match known arches", () => {
+  assert.ok(ISO_CATALOG.length >= 8);
+  const ids = new Set();
+  const arches = new Set(ARCHES.map((a) => a.id));
+  for (const e of ISO_CATALOG) {
+    assert.ok(e.id && !ids.has(e.id), `duplicate/missing id: ${e.id}`);
+    ids.add(e.id);
+    assert.ok(e.name && e.note, `${e.id} missing name/note`);
+    assert.ok(arches.has(e.arch), `${e.id} has unknown arch ${e.arch}`);
+    assert.match(e.page, /^https:\/\//, `${e.id} page must be https`);
+    if (e.iso !== null) {
+      assert.match(e.iso, /^https:\/\/\S+\.iso$/, `${e.id} direct link must be an https .iso`);
+    }
+  }
+  // A couple of well-known official sources must be present
+  const hosts = ISO_CATALOG.map((e) => new URL(e.page).host);
+  assert.ok(hosts.includes("releases.ubuntu.com"));
+  assert.ok(hosts.includes("cdimage.debian.org"));
+  assert.ok(hosts.includes("alpinelinux.org"));
 });
 
 test("qemuDownloadTarget: Windows gets an installer, others get the page + command", () => {

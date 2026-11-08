@@ -37,6 +37,7 @@ const DesktopEmulatorPanel = () => {
   const [toast, setToast] = useState(null);
   const [log, setLog] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showIsoList, setShowIsoList] = useState(false);
   const [form, setForm] = useState({ name: "linux-x64", arch: "x86_64", memoryMb: 2048, cpus: 2, diskGb: 20, iso: "" });
   const [view, setView] = useState(null); // { name }
   const [keyText, setKeyText] = useState("");
@@ -230,6 +231,12 @@ const DesktopEmulatorPanel = () => {
     const p = await window.electronAPI?.qemuPickIso?.();
     if (p) setForm((f) => ({ ...f, iso: p }));
   };
+  // Official ISO links open in the system browser (http/https allowlisted).
+  const openLink = (url) => {
+    if (!url) return;
+    window.electronAPI?.openExternal?.(url);
+    pushLog(`[iso] opened ${url}`);
+  };
   const setCustomBin = async () => {
     const r = await window.electronAPI?.qemuSetCustomBinDir?.();
     if (r?.ok) { pushLog(`[qemu] custom QEMU folder: ${r.qemuBinDir}`); fetchState(true); }
@@ -396,8 +403,42 @@ const DesktopEmulatorPanel = () => {
                 <div style={{ display: "flex", gap: "var(--space-6)" }}>
                   <input style={s.input} placeholder="No ISO — installs later" value={form.iso} onChange={(e) => setForm({ ...form, iso: e.target.value })} />
                   <button style={s.btnGhost} onClick={pickIso}>Browse…</button>
+                  <button style={s.btnGhost} title="Official ISO download links" onClick={() => setShowIsoList((v) => !v)}>
+                    <Download size={13} /> ISOs
+                  </button>
                 </div>
               </div>
+
+              {showIsoList && (
+                <div style={{ gridColumn: "1 / -1", border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+                  <div style={{ padding: "var(--space-6) var(--space-10)", fontSize: "var(--fs-small)", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between", gap: "var(--space-8)" }}>
+                    <span>Official ISO download pages — opens in your browser, nothing is downloaded by the app.</span>
+                    <button style={s.iconBtn} title="Close" onClick={() => setShowIsoList(false)}><X size={12} /></button>
+                  </div>
+                  <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                    {(state?.isoCatalog || []).map((e) => (
+                      <div key={e.id} style={{ ...s.row, borderBottom: "1px solid var(--border-row)" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600 }}>{e.name}</div>
+                          <div style={{ fontSize: "var(--fs-small)", color: "var(--text-secondary)" }}>
+                            {e.arch} · {e.note}
+                          </div>
+                        </div>
+                        {e.iso && (
+                          <button style={s.btn} onClick={() => openLink(e.iso)} title={e.iso}>
+                            <Download size={13} /> ISO
+                          </button>
+                        )}
+                        <button style={s.btnGhost} onClick={() => openLink(e.page)} title={e.page}>Page</button>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: "var(--space-6) var(--space-10)", fontSize: "var(--fs-small)", color: "var(--text-secondary)" }}>
+                    After downloading, click Browse… and pick the .iso from your Downloads folder.
+                  </div>
+                </div>
+              )}
+
               <div style={{ gridColumn: "1 / -1", display: "flex", gap: "var(--space-8)" }}>
                 <button style={s.btn} disabled={busy === "create"} onClick={doCreate}>{busy === "create" ? "Creating…" : "Create VM"}</button>
                 <button style={s.btnGhost} onClick={() => setShowCreate(false)}><X size={13} /> Cancel</button>

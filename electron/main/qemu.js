@@ -60,6 +60,77 @@ const ARCHES = [
   { id: "ppc64", label: "ppc64 (pseries)" },
   { id: "s390x", label: "s390x (IBM Z)" },
 ];
+// Official ISO download links shown in the panel's Create form. Nothing is
+// bundled or downloaded by the app — these only open the vendor's page / file
+// in the user's browser. `page` is always valid; `iso` is a direct image link
+// (versioned filenames age — the page link is the fallback).
+const ISO_CATALOG = [
+  {
+    id: "ubuntu-desktop", name: "Ubuntu 24.04 LTS Desktop", arch: "x86_64", note: "~5.9 GB · full desktop",
+    iso: "https://releases.ubuntu.com/24.04/ubuntu-24.04.5.1-desktop-amd64.iso",
+    page: "https://releases.ubuntu.com/24.04/",
+  },
+  {
+    id: "ubuntu-server", name: "Ubuntu 24.04 LTS Server", arch: "x86_64", note: "~3.9 GB · text installer",
+    iso: "https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso",
+    page: "https://releases.ubuntu.com/24.04/",
+  },
+  {
+    id: "ubuntu-server-arm64", name: "Ubuntu 24.04 LTS Server (ARM64)", arch: "aarch64", note: "~3.6 GB · boots with arch aarch64 · virt",
+    iso: "https://cdimage.ubuntu.com/releases/24.04/release/ubuntu-24.04.5-live-server-arm64.iso",
+    page: "https://cdimage.ubuntu.com/releases/24.04/release/",
+  },
+  {
+    id: "debian", name: "Debian 13 netinst", arch: "x86_64", note: "~756 MB · smallest full installer",
+    iso: "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso",
+    page: "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/",
+  },
+  {
+    id: "fedora", name: "Fedora Workstation 45", arch: "x86_64", note: "~2.5 GB · GNOME live",
+    iso: "https://download.fedoraproject.org/pub/fedora/linux/releases/45/Workstation/x86_64/iso/Fedora-Workstation-Live-45-1.4.x86_64.iso",
+    page: "https://fedoraproject.org/workstation/download",
+  },
+  {
+    id: "alpine", name: "Alpine Linux Standard", arch: "x86_64", note: "~353 MB · tiny, fast boot",
+    iso: "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/alpine-standard-3.24.4-x86_64.iso",
+    page: "https://alpinelinux.org/downloads/",
+  },
+  {
+    id: "alpine-arm64", name: "Alpine Linux Standard (ARM64)", arch: "aarch64", note: "~376 MB · boots with arch aarch64 · virt",
+    iso: "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/aarch64/alpine-standard-3.24.4-aarch64.iso",
+    page: "https://alpinelinux.org/downloads/",
+  },
+  {
+    id: "arch", name: "Arch Linux", arch: "x86_64", note: "~1.3 GB · rolling release",
+    iso: "https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso",
+    page: "https://archlinux.org/download/",
+  },
+  {
+    id: "kali", name: "Kali Linux Installer", arch: "x86_64", note: "~4 GB · security distro",
+    iso: "https://cdimage.kali.org/current/kali-linux-2026.3-installer-amd64.iso",
+    page: "https://www.kali.org/get-kali/",
+  },
+  {
+    id: "mint", name: "Linux Mint", arch: "x86_64", note: "Cinnamon / MATE / Xfce — pick on the page",
+    iso: null,
+    page: "https://linuxmint.com/download.php",
+  },
+  {
+    id: "windows11", name: "Windows 11", arch: "x86_64", note: "Microsoft requires its download tool / page",
+    iso: null,
+    page: "https://www.microsoft.com/software-download/windows11",
+  },
+  {
+    id: "freebsd", name: "FreeBSD", arch: "x86_64", note: "disc1 ISO — pick the release on the page",
+    iso: null,
+    page: "https://www.freebsd.org/where/",
+  },
+  {
+    id: "reactos", name: "ReactOS", arch: "i386", note: "lightweight Windows-compatible OS",
+    iso: null,
+    page: "https://reactos.org/download/",
+  },
+];
 // Per-arch machine/cpu defaults (x86 uses the QEMU default "pc").
 const ARCH_MACHINE = {
   aarch64: ["-machine", "virt", "-cpu", "cortex-a72"],
@@ -805,6 +876,7 @@ async function getState() {
     qemu,
     customBinDir: readSettings().qemuBinDir || null,
     arches: ARCHES,
+    isoCatalog: ISO_CATALOG,
     vms,
     running: vms.filter((v) => v.running).map((v) => v.name),
     installHelp: {
@@ -905,6 +977,7 @@ module.exports = {
   getLogsDir,
   ARCHES,
   ARCH_MACHINE,
+  ISO_CATALOG,
   archBinary,
   buildQemuArgs,
   validateVmConfig,
