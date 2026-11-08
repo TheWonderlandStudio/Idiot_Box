@@ -101,5 +101,5 @@ Your comment, together with Your GitHub account, is Your electronic signature.
 You can comment `recheck` on the pull request at any time to ask the bot to
 re-check the CLA status.
 
-Signatures are stored in `signatures/version1/cla.json` in the
-`signatures/` folder on `main`.
+Signatures are stored in `signatures/version1/cla.json` on the unprotected
+`cla-signatures` branch of this repository, not on `main`.
