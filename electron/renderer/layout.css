@@ -218,7 +218,33 @@ body,
   cursor: pointer !important;
 }
 /* The titlebar library owns .cet-container's top offset, including fullscreen
-   and platform-specific titlebar heights. */
+   and platform-specific titlebar heights.
+   Compact top toolbar: shrink CET's hardcoded 30px (+1px shadow) to 24px. */
+.cet-titlebar,
+.cet-titlebar.cet-windows,
+.cet-titlebar.cet-linux,
+.cet-titlebar.cet-freebsd,
+.cet-titlebar.cet-darwin {
+  height: 24px !important;
+  line-height: 24px !important;
+}
+.cet-container {
+  top: 24px !important;
+}
+/* Fullscreen: CET hides the titlebar — don't leave a gap above the workspace. */
+.cet-titlebar[aria-hidden="true"] ~ .cet-container {
+  top: 0 !important;
+}
+.cet-icon {
+  height: 24px !important;
+}
+.cet-titlebar .cet-window-controls {
+  height: 24px !important;
+}
+.cet-titlebar .cet-menubar-menu-button {
+  height: 24px !important;
+  line-height: 24px !important;
+}
 .cet-menubar-menu-button:hover {
   background: var(--bg-hover) !important;
 }
@@ -275,7 +301,7 @@ body,
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  height: 22px;
+  height: 18px;
   margin: 0 0 0 auto;
   border-radius: 5px;
   -webkit-app-region: no-drag;
@@ -290,7 +316,7 @@ body,
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  height: 22px;
+  height: 18px;
   margin: 0 10px 0 6px;
   padding: 0 10px;
   background: rgba(255, 255, 255, 0.05);
@@ -475,7 +501,7 @@ body,
 .cet-titlebar .tb-logo {
   width: auto;
   flex-shrink: 0;
-  height: 30px;
+  height: 24px;
   padding: 0 6px;
   margin-right: 2px;
   align-items: center;

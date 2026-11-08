@@ -506,7 +506,7 @@ const RunStatusButton = () => {
     background: hovered ? "linear-gradient(180deg, #43c35b, #2fa349)" : "linear-gradient(180deg, #3cb454, #2f9e44)",
     border: "1px solid rgba(255, 255, 255, 0.16)", color: "#fff", fontSize: 11.5, letterSpacing: 0.01,
     fontFamily: "inherit", fontWeight: 600,
-    height: 22, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
+    height: 18, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
     transition: "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
     boxShadow: hovered
       ? "0 6px 16px rgba(47, 158, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.22)"
