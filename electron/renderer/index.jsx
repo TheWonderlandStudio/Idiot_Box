@@ -42,6 +42,7 @@ import OutputPanel from "./components/Output/index.jsx";
 import GitPanel from "./components/GitPanel/index.jsx";
 import PortsPanel from "./components/Ports/index.jsx";
 import AndroidEmulatorPanel from "./components/AndroidEmulator/index.jsx";
+import DesktopEmulatorPanel from "./components/DesktopEmulator/index.jsx";
 import AIAgentPanel from "./components/OpenCodePanel/index.jsx";
 import ExtensionsPanel from "./components/Extensions/index.jsx";
 import ExtView from "./components/Extensions/ExtView.jsx";
@@ -307,6 +308,7 @@ const renderPanelContent = (json) => {
     case "ports":             return <PortsPanel />;
     case "aiPanel":           return <AIAgentPanel />;   // legacy saved tab → OpenCode AI Agent
     case "androidEmulator":   return <AndroidEmulatorPanel />;
+    case "desktopEmulator":   return <DesktopEmulatorPanel />;
     case "aiAgent":           return <AIAgentPanel />;
     case "extensions":        return <ExtensionsPanel />;
     case "extView":           return <ExtView config={config} nodeId={nodeId} />;
@@ -1069,7 +1071,7 @@ const findAnyTabset = (node) => {
 const PROJECT_PANEL_COMPONENTS = new Set([
   "mediaViewer", "panel3", "projectPanel", "editor", "notebook", "terminal",
   "blank", "componentPreview", "community", "canvas", "problems", "output",
-  "runDebug", "gitPanel", "ports", "androidEmulator", "openPencil", "aiAgent",
+  "runDebug", "gitPanel", "ports", "androidEmulator", "desktopEmulator", "openPencil", "aiAgent",
   "extensions", "extView", "localHistory", "testExplorer", "debugPanel",
 ]);
 const sanitizeProjectPanels = (json) => {
@@ -1548,7 +1550,7 @@ const App = () => {
             // "notebook" stays allowed as a compat shim (interim builds saved
             // such tabs); they render the same cell UI. .ipynb files always
             // open as plain editor tabs now (cell UI embedded in EditorPanel).
-            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","builder","docs","openPencil","aiAgent","extensions","extView","localHistory","testExplorer","debugPanel"]);
+            const allowed = new Set(["mediaViewer","panel3","projectPanel","editor","notebook","terminal","blank","componentPreview","community","canvas","problems","output","runDebug","gitPanel","ports","androidEmulator","desktopEmulator","builder","docs","openPencil","aiAgent","extensions","extView","localHistory","testExplorer","debugPanel"]);
             // Migrate old saved AI panel tabs (component "aiPanel") to the OpenCode-powered AI Agent tab
             // so pre-0.1.29 saved sessions render the AI Agent instead of a blank panel.
             if (node.component === "aiPanel") { node.component = "aiAgent"; node.name = "AI Agent"; node.config = node.config || {}; }
@@ -2214,6 +2216,37 @@ const App = () => {
       }
       addPanel("androidEmulator", "Android Emulator", {});
     };
+    const onDesktop = () => {
+      const m = modelRef.current;
+      if (m) {
+        const findDesktop = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "desktopEmulator") return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findDesktop(c); if (r) return r; }
+          return null;
+        };
+        const existing = findDesktop(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("desktopEmulator", "Desktop Emulator", {});
+    };
+    // Desktop (QEMU) log: a Terminal tab in mirror mode (no PTY — shows QEMU stdout).
+    // Tab id must match QEMU_LOG_TAB in electron/main/qemu.js.
+    const onDesktopLog = () => {
+      const mirrorId = "qemu-log";
+      const m = modelRef.current;
+      if (m) {
+        const findLog = (node) => {
+          if (node.getType?.() === "tab" && node.getComponent?.() === "terminal" && node.getConfig?.()?.mirrorTabId === mirrorId) return node;
+          const ch = node.getChildren?.();
+          if (ch) for (const c of ch) { const r = findLog(c); if (r) return r; }
+          return null;
+        };
+        const existing = findLog(m.getRoot());
+        if (existing) { try { m.doAction(Actions.selectTab(existing.getId())); } catch {} return; }
+      }
+      addPanel("terminal", "Desktop Emulator Log", { mirrorTabId: mirrorId });
+    };
     // Emulator log: a Terminal tab in mirror mode (no PTY — shows emulator stdout).
     // Tab id must match EMULATOR_LOG_TAB in electron/main/android.js.
     const onEmulatorLog = () => {
@@ -2377,6 +2410,8 @@ const App = () => {
     window.addEventListener("add-run-panel", onRunDebug);
     window.addEventListener("add-git-panel", onGit);
     window.addEventListener("add-android-panel", onAndroid);
+    window.addEventListener("add-desktop-panel", onDesktop);
+    window.addEventListener("add-qemu-log-panel", onDesktopLog);
     window.addEventListener("add-local-history-panel", onLocalHistory);
     window.addEventListener("local-history:open", onLocalHistory);
     window.addEventListener("add-test-explorer-panel", onTestExplorer);
@@ -2396,6 +2431,8 @@ const App = () => {
       window.removeEventListener("add-run-panel", onRunDebug);
       window.removeEventListener("add-git-panel", onGit);
       window.removeEventListener("add-android-panel", onAndroid);
+      window.removeEventListener("add-desktop-panel", onDesktop);
+      window.removeEventListener("add-qemu-log-panel", onDesktopLog);
       window.removeEventListener("add-local-history-panel", onLocalHistory);
       window.removeEventListener("local-history:open", onLocalHistory);
       window.removeEventListener("add-test-explorer-panel", onTestExplorer);
@@ -2447,6 +2484,12 @@ const App = () => {
   useEffect(() => {
     const unsub = window.electronAPI.onMenuEvent("menu:openAndroid", () => {
       window.dispatchEvent(new CustomEvent("add-android-panel"));
+    });
+    return unsub;
+  }, []);
+  useEffect(() => {
+    const unsub = window.electronAPI.onMenuEvent("menu:openDesktop", () => {
+      window.dispatchEvent(new CustomEvent("add-desktop-panel"));
     });
     return unsub;
   }, []);
@@ -3677,6 +3720,7 @@ const App = () => {
             else if (action === "runDebug") window.dispatchEvent(new CustomEvent("add-run-panel"));
             else if (action === "aiAgent") window.dispatchEvent(new CustomEvent("add-ai-agent-panel"));
             else if (action === "android") window.dispatchEvent(new CustomEvent("add-android-panel"));
+            else if (action === "desktop") window.dispatchEvent(new CustomEvent("add-desktop-panel"));
             else if (action === "community") window.dispatchEvent(new CustomEvent("add-community-panel"));
             else if (action === "extensions") window.dispatchEvent(new CustomEvent("add-extensions-panel"));
           } catch (error) {

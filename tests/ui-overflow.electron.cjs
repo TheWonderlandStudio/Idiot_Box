@@ -334,6 +334,7 @@ app
               "projectHub",
               "componentPreview",
               "androidEmulator",
+              "desktopEmulator",
               "canvas",
               "community",
               "aiAgent",
