@@ -11,6 +11,7 @@ Thanks for helping out. This page covers the shortest path from an idea to a mer
 | Fix something or add a feature | Pull request (guide below) |
 | Report a security problem | [SECURITY.md](SECURITY.md) — never a public issue |
 | Use the name, logo or branding | [TRADEMARK.md](TRADEMARK.md) |
+| Be a good community member | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 
 ## Development setup
 
