@@ -242,7 +242,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:fullscreen",
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
       "menu:clearTerminal","menu:killTerminal",
-      "menu:openPorts","menu:openGit","menu:openAndroid","menu:openExtensions",
+      "menu:openPorts","menu:openGit","menu:openAndroid","menu:openDesktop","menu:openExtensions",
       "menu:runAuto","menu:runStop","menu:openRunPanel"
     ];
     if (!valid.includes(channel)) return () => {};
@@ -540,6 +540,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
     const handler = (_e, payload) => callback(payload);
     ipcRenderer.on("android:progress", handler);
     return () => ipcRenderer.removeListener("android:progress", handler);
+  },
+
+  // ── Desktop Emulator (QEMU VMs rooted at <userData>/.appdata/qemu) ───────
+  qemuGetState:         () => ipcRenderer.invoke("qemu:getState"),
+  qemuCreateVm:         (payload) => ipcRenderer.invoke("qemu:createVm", payload),
+  qemuDeleteVm:         (name) => ipcRenderer.invoke("qemu:deleteVm", { name }),
+  qemuStartVm:          (name) => ipcRenderer.invoke("qemu:startVm", { name }),
+  qemuStopVm:           (name) => ipcRenderer.invoke("qemu:stopVm", { name }),
+  qemuFrame:            (name) => ipcRenderer.invoke("qemu:frame", { name }),
+  qemuInput:            (name, action) => ipcRenderer.invoke("qemu:input", { name, action }),
+  qemuPickIso:          () => ipcRenderer.invoke("qemu:pickIso"),
+  qemuDownload:         () => ipcRenderer.invoke("qemu:downloadQemu"),
+  qemuSetCustomBinDir:  () => ipcRenderer.invoke("qemu:setCustomBinDir"),
+  qemuRevealFolder:     () => ipcRenderer.invoke("qemu:revealFolder"),
+  onQemuProgress: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("qemu:progress", handler);
+    return () => ipcRenderer.removeListener("qemu:progress", handler);
   },
 
   // ── Notebook (Jupyter-like .ipynb cells, stateful Python kernel in main) ─

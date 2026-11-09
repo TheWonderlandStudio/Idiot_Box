@@ -140,6 +140,8 @@ let miseService = null;
 try { miseService = require("./mise-service"); } catch (e) { console.warn("[main] mise-service not available:", e.message); }
 let androidManager = null;
 try { androidManager = require("./android"); } catch (e) { console.warn("[main] android manager not available:", e.message); }
+let qemuManager = null;
+try { qemuManager = require("./qemu"); } catch (e) { console.warn("[main] qemu manager not available:", e.message); }
 // Anonymous usage tracking (install counter + online heartbeat) — opt-out via
 // Settings → General → Telemetry. See electron/main/tracking.js.
 let tracking = null;
@@ -889,6 +891,13 @@ try {
     androidManager.setupAndroidIpc();
   }
 } catch (e) { console.warn("[main] android setup failed:", e.message); }
+
+// ─── Desktop Emulator — QEMU VMs rooted at <userData>/.appdata/qemu ─────────
+try {
+  if (qemuManager && typeof qemuManager.setupQemuIpc === "function") {
+    qemuManager.setupQemuIpc();
+  }
+} catch (e) { console.warn("[main] qemu setup failed:", e.message); }
 
 // ─── UI Zoom (View → UI Size — Ctrl + + / Ctrl + -) ──────────────────────────
 // Whole-app zoom via Electron's webContents zoomFactor (0.25x to 3x).
@@ -5289,6 +5298,7 @@ ipcMain.handle("panel:addMenu", async (event) => {
       { label: "Output Panel", click: () => act("output") },
       { label: "Run and Debug", click: () => act("runDebug") },
       { label: "Android Emulator", click: () => act("android") },
+      { label: "Desktop Emulator", click: () => act("desktop") },
       { label: "Extensions", click: () => act("extensions") },
       { label: "Community", click: () => act("community") },
     ];
@@ -6899,6 +6909,7 @@ function buildMenu() {
         { label: "Ports", click: () => sendToRenderer("menu:openPorts", null) },
         { label: "Extensions", click: () => sendToRenderer("menu:openExtensions", null) },
         { label: "Android Emulator", click: () => sendToRenderer("menu:openAndroid", null) },
+        { label: "Desktop Emulator", click: () => sendToRenderer("menu:openDesktop", null) },
         { type: "separator" },
         { label: "Local History", click: () => sendToRenderer("menu:localHistory", null) },
         { label: "Test Explorer", click: () => sendToRenderer("menu:testExplorer", null) },

@@ -89,6 +89,13 @@ const I = {
       <path fill="currentColor" d="M17.532 15.106a1.003 1.003 0 1 1 .001-2.007 1.003 1.003 0 0 1 0 2.007m-11.044 0a1.003 1.003 0 1 1 .001-2.007 1.003 1.003 0 0 1 0 2.007m11.4-6.018 2.006-3.459a.413.413 0 1 0-.721-.407l-2.027 3.5a12.2 12.2 0 0 0-5.13-1.108c-1.85 0-3.595.398-5.141 1.098l-2.027-3.5a.413.413 0 1 0-.72.407l1.995 3.458C2.696 10.947.345 14.417 0 18.523h24c-.334-4.096-2.675-7.565-6.112-9.435" />
     </svg>
 ),
+  desktop: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="12" rx="1.5" />
+      <path strokeLinecap="round" d="M9 20h6M12 16v4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 8.5h3M7 11h5" />
+    </svg>
+  ),
   openPencil: (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="2" aria-hidden="true">
       <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l.9-3.6L16.7 4.6a2.05 2.05 0 0 1 2.9 2.9L8.1 18.6l-3.6.9z" />
@@ -307,6 +314,15 @@ const PANEL_TYPES = [
     description: "Run Android apps — SDK auto-setup with live device screen",
     accent: "var(--success)",
     icon: I.android,
+    config: {},
+  },
+  {
+    id: "desktop",
+    name: "Desktop Emulator",
+    component: "desktopEmulator",
+    description: "Run desktop OSes via QEMU — create VMs, boot ISOs, live guest screen",
+    accent: "var(--code-blue)",
+    icon: I.desktop,
     config: {},
   },
   {

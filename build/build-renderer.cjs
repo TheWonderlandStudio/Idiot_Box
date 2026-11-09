@@ -139,6 +139,7 @@ async function main() {
     ["git",         "electron/renderer/components/GitPanel/index.jsx"],
     ["community",   "electron/renderer/components/CommunityPanel/index.jsx"],
     ["android",     "electron/renderer/components/AndroidEmulator/index.jsx"],
+    ["desktop",     "electron/renderer/components/DesktopEmulator/index.jsx"],
     ["excalidraw",  "electron/renderer/components/OpenPencil/index.jsx"],
   ];
 
