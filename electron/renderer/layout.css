@@ -7,27 +7,16 @@
   font-family: var(--font-ui);
 }
 
-/* Astryx (Hub) renders from layered styles (@layer astryx-base/theme). The
-   unlayered `*` reset above strips their padding/margins and forces the app
-   font, because unlayered rules always beat layered ones. Re-open the cascade
-   for Astryx subtrees only, leaving the app's legacy styling untouched. */
-.phub :is([class^="astryx-"], [class*=" astryx-"]),
-.phub :is([class^="astryx-"], [class*=" astryx-"]) * {
+/* Astryx renders from layered styles (@layer astryx-base/theme). The
+   unlayered `*` reset above strips their padding/margins, because unlayered
+   rules always beat layered ones. Re-open the cascade for Astryx subtrees only
+   (the theme root lives on <html>), leaving the app's legacy styling
+   untouched. StyleX class tokens start with `x`, so app classes are excluded. */
+:is([data-astryx-theme], .phub) :is([class^="astryx-"], [class*=" astryx-"]),
+:is([data-astryx-theme], .phub) :is([class^="astryx-"], [class*=" astryx-"]) :is([class^="x"], [class*=" x"]) {
   box-sizing: border-box;
-}
-/* Restore the layering for Astryx's own internals. Hub elements nested inside a
-   component (e.g. .phub__card-foot) are excluded: revert-layer would discard
-   their own unlayered padding. */
-.phub :is([class^="astryx-"], [class*=" astryx-"]),
-.phub :is([class^="astryx-"], [class*=" astryx-"]) *:not([class^="phub__"], [class*=" phub__"]) {
   margin: revert-layer;
   padding: revert-layer;
-}
-.phub :is([class^="astryx-"], [class*=" astryx-"]) * {
-  font-family: inherit;
-}
-.phub :is([class^="astryx-"], [class*=" astryx-"]) {
-  font-family: var(--font-family-body, system-ui, -apple-system, "Segoe UI", sans-serif);
 }
 
 html,

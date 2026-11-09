@@ -15,6 +15,12 @@ try {
   }
 } catch {}
 import "./variables.css";
+// ── Astryx design system (Meta) — app-wide ──────────────────────────────────
+// The theme is anchored on <html data-astryx-theme="neutral"> so every window
+// (main, settings) renders Astryx components with the neutral theme. Legacy
+// app styles keep working through the token bridge in variables.css.
+import "@astryxdesign/core/astryx.css";
+import "@astryxdesign/theme-neutral/theme.css";
 import "flexlayout-react/style/dark.css";
 import "./layout.css";
 import "./responsive.css";

@@ -12,6 +12,8 @@ import CanvasPage      from "./pages/CanvasPage.jsx";
 import KeybindingsPage from "./pages/KeybindingsPage.jsx";
 import ExtensionsPage  from "./pages/ExtensionsPage.jsx";
 import "../../variables.css";
+import "@astryxdesign/core/astryx.css";
+import "@astryxdesign/theme-neutral/theme.css";
 import "./settings.css";
 
 const urlParam = (name) => {
