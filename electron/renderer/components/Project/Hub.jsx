@@ -8,6 +8,21 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import "./hub.css";
 import CustomCursor from "../shared/CustomCursor.jsx";
+// ── Astryx design system (Meta) — scoped to the Hub via data-astryx-theme ──
+// Pre-built CSS (no StyleX build step needed) + neutral theme, forced dark.
+// The theme is scoped to the Hub root element only (see `phub` div below);
+// the rest of the app keeps its own variables.css palette.
+import "@astryxdesign/core/astryx.css";
+import "@astryxdesign/theme-neutral/theme.css";
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Card } from "@astryxdesign/core/Card";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Badge } from "@astryxdesign/core/Badge";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
+import { Spinner } from "@astryxdesign/core/Spinner";
 
 // ─── Frameworks / Templates — Replit-style starter gallery ────────────────
 // Real icons via devicons + simpleicons CDN (no local assets needed)
@@ -677,8 +692,9 @@ const getFrameworkFiles = (id, projectName, lang = "TypeScript") => {
 };
 
 // ─── Repo card (search results + your repos share) ──────────────────────────
+// Astryx Card + Button; layout classes kept for the grid inside Hub.
 const RepoCard = ({ repo, cloning, cloningTarget, onClone }) => (
-  <div className="phub__dialog-result phub__dialog-result--card">
+  <Card className="phub__dialog-result--card" padding={3}>
     <div className="phub__dialog-result-main">
       {repo.owner?.avatar_url && (
         <img
@@ -691,17 +707,32 @@ const RepoCard = ({ repo, cloning, cloningTarget, onClone }) => (
         />
       )}
       <span className="phub__dialog-result-name" title={repo.full_name}>{repo.full_name}</span>
-      <span className="phub__dialog-result-stars"><Star size={12} /> {repo.stargazers_count?.toLocaleString?.() ?? repo.stargazers_count}</span>
+      <Badge variant="yellow" label={`${repo.stargazers_count?.toLocaleString?.() ?? repo.stargazers_count} ★`} />
     </div>
     {repo.description && <div className="phub__dialog-result-desc" title={repo.description}>{repo.description}</div>}
     <div className="phub__dialog-result-foot">
       <span className="phub__dialog-result-url" title={repo.clone_url}>{repo.clone_url}</span>
-      <button className="phub__dialog-cloneBtn" onClick={() => onClone(repo.clone_url)} disabled={cloning} title={repo.clone_url}>
-        {cloning && cloningTarget === repo.clone_url ? <Loader2 size={12} className="phub__spin" /> : <CloudDownload size={12} />} Clone
-      </button>
+      <Button
+        label="Clone"
+        aria-label={`Clone ${repo.full_name}`}
+        variant="secondary"
+        size="sm"
+        icon={cloning && cloningTarget === repo.clone_url ? <Spinner size="sm" /> : <CloudDownload size={12} />}
+        onClick={() => onClone(repo.clone_url)}
+        isDisabled={cloning}
+      />
     </div>
-  </div>
+  </Card>
 );
+
+// Sidebar action: full labelled Button when expanded, compact IconButton when
+// the sidebar is collapsed (an Astryx Button keeps its label and would clip).
+const SidebarAction = ({ collapsed, label, icon, variant = "secondary", onClick }) =>
+  collapsed ? (
+    <IconButton label={label} variant={variant} size="sm" icon={icon} onClick={onClick} />
+  ) : (
+    <Button label={label} variant={variant} size="sm" width="100%" icon={icon} onClick={onClick} />
+  );
 
 const HUB_SIDEBAR_MIN = 160;
 const HUB_SIDEBAR_MAX = 460;
@@ -2543,6 +2574,8 @@ const ProjectHub = () => {
 
   return (
     <div
+        data-astryx-theme="neutral"
+        data-theme="dark"
         className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}${sidebarCollapsed ? " phub--sb-collapsed" : ""}${sidebarResizing ? " phub--sb-resizing" : ""}`}
       style={{
         ...(wallpaper ? { backgroundImage: `url("${wallpaper}")`, "--wall-tint": wallTint || undefined } : {}),
@@ -2627,35 +2660,37 @@ const ProjectHub = () => {
 
       <div className={`phub__sidebar${sidebarCollapsed ? " phub__sidebar--collapsed" : ""}`}>
         <div className="phub__sidebar-label">Start</div>
-        <button
-          className={`phub__sidebar-btn phub__sidebar-btn--primary${showNewProjectDialog ? " phub__sidebar-btn--active" : ""}`}
-          onClick={() => { setHomeOverlay(null); setShowNewProjectDialog(true); setShowCloneDialog(false); setShowFrameworks(false); }}
-          title="Create Project"
-        >
-          <Plus size={14} /> Create Project
-        </button>
-        <button
-          className={`phub__sidebar-btn${showCloneDialog ? " phub__sidebar-btn--active" : ""}`}
-          onClick={() => { setHomeOverlay(null); setShowCloneDialog(true); setShowNewProjectDialog(false); setShowFrameworks(false); }}
-          title="Clone Repo"
-        >
-          <span className="phub__sidebar-ico"><CloudDownload size={14} /></span> Clone Repo
-        </button>
-        <button
-          className="phub__sidebar-btn"
-          onClick={async () => { try { await window.electronAPI.openFolder(); } catch {} }}
-          title="Open Existing Folder"
-        >
-          <span className="phub__sidebar-ico"><FolderOpen size={14} /></span> Open Folder
-        </button>
+        <div className="phub__sidebar-actions">
+          <SidebarAction
+            collapsed={sidebarCollapsed}
+            label="Create Project"
+            variant="primary"
+            icon={<Plus size={14} />}
+            onClick={() => { setHomeOverlay(null); setShowNewProjectDialog(true); setShowCloneDialog(false); setShowFrameworks(false); }}
+          />
+          <SidebarAction
+            collapsed={sidebarCollapsed}
+            label="Clone Repo"
+            icon={<CloudDownload size={14} />}
+            onClick={() => { setHomeOverlay(null); setShowCloneDialog(true); setShowNewProjectDialog(false); setShowFrameworks(false); }}
+          />
+          <SidebarAction
+            collapsed={sidebarCollapsed}
+            label="Open Folder"
+            icon={<FolderOpen size={14} />}
+            onClick={async () => { try { await window.electronAPI.openFolder(); } catch {} }}
+          />
+        </div>
         <div className="phub__sidebar-label phub__sidebar-label--gap">Explore</div>
-        <button
-          className={`phub__sidebar-btn${showFrameworks ? " phub__sidebar-btn--active" : ""}`}
-          title="Frameworks"
-          onClick={() => { setHomeOverlay(null); setShowFrameworks(true); setShowNewProjectDialog(false); setShowCloneDialog(false); }}
-        >
-          <span className="phub__sidebar-ico"><Layers size={14} /></span> Frameworks
-        </button>
+        <div className="phub__sidebar-actions">
+          <SidebarAction
+            collapsed={sidebarCollapsed}
+            label="Frameworks"
+            variant={showFrameworks ? "primary" : "secondary"}
+            icon={<Layers size={14} />}
+            onClick={() => { setHomeOverlay(null); setShowFrameworks(true); setShowNewProjectDialog(false); setShowCloneDialog(false); }}
+          />
+        </div>
         <div className="phub__sidebar-recents">
           <div className="phub__sidebar-label phub__sidebar-label--gap">Recent Projects</div>
           <div className="phub__sidebar-recents-list">
@@ -2703,13 +2738,13 @@ const ProjectHub = () => {
               <span className="phub__sidebar-username phub__sidebar-username--muted">Local user</span>
             </>
           )}
-          <button
-            className="phub__sidebar-hidebtn"
+          <IconButton
+            label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            variant="ghost"
+            size="sm"
+            icon={sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
             onClick={() => setSidebarCollapsed((v) => !v)}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-          </button>
+          />
         </div>
       </div>
 
@@ -2780,14 +2815,16 @@ const ProjectHub = () => {
                   )}
                   {selectedFramework?.languages && (
                     <div className="phub__dialog-field">
-                      <label className="phub__dialog-label">Language</label>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <SegmentedControl
+                        label="Language"
+                        value={frameworkLang}
+                        onChange={(v) => setFrameworkLang(v)}
+                        size="sm"
+                      >
                         {selectedFramework.languages.map((l) => (
-                          <button key={l} onClick={() => setFrameworkLang(l)} className={frameworkLang === l ? "phub__fw-cat phub__fw-cat--active" : "phub__fw-cat"}>
-                            {l}
-                          </button>
+                          <SegmentedControlItem key={l} value={l} label={l} />
                         ))}
-                      </div>
+                      </SegmentedControl>
                     </div>
                   )}
                   {selectedFramework?.variants?.includes("Tailwind") && (
@@ -2824,15 +2861,13 @@ const ProjectHub = () => {
                     </div>
                   </div>
                   <div className="phub__dialog-field">
-                    <label className="phub__dialog-label">Project Name</label>
-                    <input
-                      className="phub__dialog-input"
-                      type="text"
+                    <TextInput
+                      label="Project Name"
                       placeholder="e.g., MyAwesomeApp"
                       value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
+                      onChange={(v) => setNewProjectName(v)}
                       autoComplete="off"
-                      autoFocus
+                      hasAutoFocus
                     />
                   </div>
                 </div>
@@ -2953,8 +2988,10 @@ const ProjectHub = () => {
               </div>
             )}
             <div className="phub__panel-footer phub__create-actions">
-              <button
-                className="phub__dialog-cancel"
+              <Button
+                label="Cancel"
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   try { const id = scafRunIdRef.current; if (id) window.electronAPI.runStop(id); } catch {}
                   scafRunIdRef.current = null;
@@ -2971,12 +3008,15 @@ const ProjectHub = () => {
                   setSelectedFramework(null);
                   setShowTemplateFiles(false);
                 }}
-              >
-                Cancel
-              </button>
-              <button className="phub__dialog-create" onClick={handleCreate} disabled={scaffolding || (!newProjectName.trim() && !newProjectPath.trim() && !selectedFramework)}>
-                {scaffolding ? (<><Loader2 size={14} className="phub__spin" /> Creating…</>) : "Create"}
-              </button>
+              />
+              <Button
+                label={scaffolding ? "Creating…" : "Create"}
+                variant="primary"
+                size="sm"
+                isLoading={scaffolding}
+                isDisabled={scaffolding || (!newProjectName.trim() && !newProjectPath.trim() && !selectedFramework)}
+                onClick={handleCreate}
+              />
             </div>
           </div>
         ) : showCloneDialog ? (
@@ -2998,23 +3038,24 @@ const ProjectHub = () => {
             </div>
             <div className="phub__panel-body">
               <div className="phub__dialog-field">
-                <label className="phub__dialog-label">Search GitHub or paste URL</label>
-                <div className="phub__dialog-row">
-                  <div className="phub__dialog-inputWrap">
-                    <Search size={14} className="phub__dialog-inputIcon" />
-                    <input
-                      className="phub__dialog-input phub__dialog-input--flex"
-                      type="text"
-                      placeholder="e.g., react or https://github.com/user/repo.git"
-                      value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setCloneUrl(e.target.value); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { const v = searchQuery.trim(); if (v.includes("github.com") || v.startsWith("http")) handleClone(v); else handleSearch(); } }}
-                      tabIndex={0}
-                    />
-                  </div>
-                  <button className="phub__dialog-browse" onClick={() => { const v = searchQuery.trim(); if (v.includes("github.com") || v.startsWith("http")) handleClone(v); else handleSearch(); }} disabled={searchLoading || cloning || !searchQuery.trim()} title="Search or Clone" tabIndex={0}>
-                    {searchLoading || (cloning && cloningTarget === searchQuery.trim()) ? <Loader2 size={14} className="phub__spin" /> : <Search size={14} />} Go
-                  </button>
+                <div className="phub__dialog-row phub__dialog-row--astryx">
+                  <TextInput
+                    label="Search GitHub or paste URL"
+                    isLabelHidden
+                    placeholder="e.g., react or https://github.com/user/repo.git"
+                    value={searchQuery}
+                    onChange={(v) => { setSearchQuery(v); setCloneUrl(v); }}
+                    onEnter={() => { const v = searchQuery.trim(); if (v.includes("github.com") || v.startsWith("http")) handleClone(v); else handleSearch(); }}
+                    hasClear
+                  />
+                  <Button
+                    label="Go"
+                    variant="primary"
+                    size="sm"
+                    icon={searchLoading || (cloning && cloningTarget === searchQuery.trim()) ? <Spinner size="sm" /> : <Search size={14} />}
+                    onClick={() => { const v = searchQuery.trim(); if (v.includes("github.com") || v.startsWith("http")) handleClone(v); else handleSearch(); }}
+                    isDisabled={searchLoading || cloning || !searchQuery.trim()}
+                  />
                 </div>
               </div>
               {ghUser && !searchQuery.trim() && !searchLoading && searchResults.length === 0 && (
@@ -3043,20 +3084,25 @@ const ProjectHub = () => {
               )}
               <div className="phub__dialog-results phub__dialog-results--full">
                 {searchLoading ? (
-                  <div className="phub__panel-empty"><Loader2 size={16} className="phub__spin" /> Searching…</div>
+                  <Spinner label="Searching GitHub…" />
                 ) : searchResults.length > 0 ? (
                   searchResults.map((repo) => (
                     <RepoCard key={repo.id} repo={repo} cloning={cloning} cloningTarget={cloningTarget} onClone={handleClone} />
                   ))
                 ) : (
-                  <div className="phub__panel-empty" style={{ padding: "var(--space-16)" }}>No results — try searching or paste a URL above</div>
+                  <EmptyState
+                    title="No results"
+                    description="Try searching, or paste a GitHub URL above to clone it directly."
+                    icon={<Search size={20} />}
+                    isCompact
+                  />
                 )}
               </div>
               {(searchHasMore || searchPage > 1) && (
                 <div className="phub__pagination">
-                  <button className="phub__pagination-btn" disabled={searchPage <= 1 || searchLoading} onClick={() => handleSearch(searchPage - 1)}>Prev</button>
+                  <Button label="Prev" variant="secondary" size="sm" isDisabled={searchPage <= 1 || searchLoading} onClick={() => handleSearch(searchPage - 1)} />
                   <span className="phub__pagination-info">Page {searchPage}{searchHasMore ? "" : " • end"}</span>
-                  <button className="phub__pagination-btn phub__pagination-btn--primary" disabled={!searchHasMore || searchLoading} onClick={() => handleSearch(searchPage + 1)}>Next</button>
+                  <Button label="Next" variant="primary" size="sm" isDisabled={!searchHasMore || searchLoading} onClick={() => handleSearch(searchPage + 1)} />
                 </div>
               )}
             </div>
@@ -3081,17 +3127,15 @@ const ProjectHub = () => {
             </div>
             <div className="phub__panel-body">
               <div className="phub__dialog-field">
-                <div className="phub__dialog-inputWrap">
-                  <Search size={14} className="phub__dialog-inputIcon" />
-                  <input
-                    className="phub__dialog-input phub__dialog-input--flex"
-                    type="text"
-                    placeholder="Search frameworks — e.g., react, discord, expo..."
-                    value={frameworkSearch}
-                    onChange={(e) => setFrameworkSearch(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
+                <TextInput
+                  label="Search frameworks"
+                  isLabelHidden
+                  placeholder="Search frameworks — e.g., react, discord, expo..."
+                  value={frameworkSearch}
+                  onChange={(v) => setFrameworkSearch(v)}
+                  autoComplete="off"
+                  hasClear
+                />
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                   {FRAMEWORK_CATEGORIES.map((cat) => (
                     <button
@@ -3113,7 +3157,8 @@ const ProjectHub = () => {
                 }).map((fw) => {
                   const Icon = fw.icon;
                   return (
-                    <div key={fw.id} className="phub__dialog-result phub__dialog-result--card phub__fw-card" onClick={() => handleFrameworkSelect(fw)} style={{ cursor: "pointer" }}>
+                    <Card key={fw.id} className="phub__dialog-result--card phub__fw-card" padding={3} elevation="low">
+                      <div onClick={() => handleFrameworkSelect(fw)} style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
                       <div className="phub__dialog-result-main">
                         <span style={{ width: 28, height: 28, borderRadius: 6, background: "#fff", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
                           {fw.iconUrl ? (
@@ -3124,14 +3169,15 @@ const ProjectHub = () => {
                           </span>
                         </span>
                         <span className="phub__dialog-result-name" title={fw.name}>{fw.name}</span>
-                        <span className="phub__fw-badge">{fw.category}</span>
+                        <Badge variant="neutral" label={fw.category} />
                       </div>
                       <div className="phub__dialog-result-desc" title={fw.desc}>{fw.desc}</div>
                       <div className="phub__dialog-result-foot">
                         <span className="phub__dialog-result-url" title={fw.id}>{fw.id}</span>
-                        <button className="phub__dialog-cloneBtn" onClick={(e) => { e.stopPropagation(); handleFrameworkSelect(fw); }}>Use</button>
+                        <Button label="Use" variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); handleFrameworkSelect(fw); }} />
                       </div>
-                    </div>
+                      </div>
+                    </Card>
                   );
                   })}
                 </div>
@@ -3141,7 +3187,7 @@ const ProjectHub = () => {
                 if (!q) return true;
                 return fw.name.toLowerCase().includes(q) || fw.desc.toLowerCase().includes(q) || fw.id.toLowerCase().includes(q);
               }).length === 0 && (
-                <div className="phub__panel-empty" style={{ padding: "var(--space-16)" }}>No frameworks found</div>
+                <EmptyState title="No frameworks found" description="Try a different search or category." icon={<Layers size={20} />} isCompact />
               )}
             </div>
           </div>
@@ -3162,27 +3208,26 @@ const ProjectHub = () => {
                   {ghUser ? (
                     <>
                       <span className="phub__heat-user" title={ghUser}>@{ghUser}</span>
-                      <span className="phub__heat-stat">{ghTotal} contributions in the last year</span>
-                      <button
-                        className="phub__btn--tiny"
+                      <Badge variant="teal" label={`${ghTotal} contributions this year`} />
+                      <IconButton
+                        label="Refresh heatmap"
+                        variant="ghost"
+                        size="sm"
+                        icon={<RefreshCw size={12} />}
                         onClick={() => loadHeatmap(ghUser)}
-                        title="Refresh"
-                        style={{ marginLeft: "auto" }}
-                      >
-                        <RefreshCw size={11} />
-                      </button>
+                      />
                     </>
                   ) : (
                     <>
                       <span className="phub__heat-stat">github heatmap</span>
-                      <input
-                        className="phub__heat-input"
-                        value={ghInput}
-                        onChange={(e) => setGhInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveGhUser(); }}
+                      <TextInput
+                        label="GitHub username"
+                        isLabelHidden
                         placeholder="username + Enter"
+                        value={ghInput}
+                        onChange={(v) => setGhInput(v)}
+                        onEnter={() => saveGhUser()}
                         autoComplete="off"
-                        spellCheck={false}
                       />
                     </>
                   )}
@@ -3256,14 +3301,14 @@ const ProjectHub = () => {
                 <span className="phub__panel-title">Recents</span>
                 <span className="phub__panel-count">{recentProjects.length}</span>
                 <div className="phub__panel-search">
-                  <Search size={12} className="phub__dialog-inputIcon" />
-                  <input
-                    type="text"
+                  <TextInput
+                    label="Search recents"
+                    isLabelHidden
                     placeholder="Search…"
                     value={recentSearch}
-                    onChange={(e) => setRecentSearch(e.target.value)}
+                    onChange={(v) => setRecentSearch(v)}
                     autoComplete="off"
-                    aria-label="Search recents"
+                    hasClear
                   />
                 </div>
                 <div className="phub__filterwrap" ref={recentFilterRef}>
@@ -3298,9 +3343,13 @@ const ProjectHub = () => {
                 </button>
               </div>
               {recentProjects.length === 0 && (
-                <div className="phub__panel-empty">
-                  No recent projects. <button className="phub__empty-link" onClick={() => setShowNewProjectDialog(true)}>Create first project</button>
-                </div>
+                <EmptyState
+                  title="No recent projects"
+                  description="Create your first project to get started."
+                  icon={<FolderOpen size={20} />}
+                  isCompact
+                  actions={<Button label="Create first project" variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowNewProjectDialog(true)} />}
+                />
               )}
               <div className="phub__panel-list">
                 {(() => {
@@ -3429,26 +3478,18 @@ const ProjectHub = () => {
                     <div className="phub__msg phub__msg--ai phub__msg--busy">● ● ●</div>
                   )}
                   {chatProposal && (
-                    <div className="phub__msg phub__msg--proposal">
-                      <div className="phub__proposal-title">Project setup ready</div>
+                    <Card className="phub__msg--proposal-card" padding={4}>
+                      <Heading level={3}>Project setup ready</Heading>
                       <div className="phub__proposal-row"><span>Project</span><b>{chatProposal.projectName}</b></div>
                       <div className="phub__proposal-row"><span>Framework</span><b>{chatProposal.frameworkName} · {chatProposal.language}</b></div>
                       <div className="phub__proposal-panels">
-                        {chatProposal.panels.map((p) => (<span key={p.key}>{p.label}</span>))}
+                        {chatProposal.panels.map((p) => (<Badge key={p.key} variant="neutral" label={p.label} />))}
                       </div>
                       <div className="phub__proposal-actions">
-                        <button
-                          className="phub__proposal-create"
-                          disabled={chatBusy}
-                          onClick={handleAiCreate}
-                        >
-                          Create project
-                        </button>
-                        <button className="phub__proposal-change" onClick={() => setChatProposal(null)}>
-                          Dismiss
-                        </button>
+                        <Button label="Create project" variant="primary" size="sm" isDisabled={chatBusy} onClick={handleAiCreate} />
+                        <Button label="Dismiss" variant="ghost" size="sm" onClick={() => setChatProposal(null)} />
                       </div>
-                    </div>
+                    </Card>
                   )}
                 </div>
                 <button
@@ -3467,9 +3508,11 @@ const ProjectHub = () => {
                 const path = entry.path;
                 const name = path.split(/[\\/]/).pop() || path;
                 return (
-                  <div
+                  <Card
                     key={path}
                     className="phub__card"
+                    padding={0}
+                    elevation="low"
                     role="button"
                     tabIndex={0}
                     title={path}
@@ -3503,22 +3546,22 @@ const ProjectHub = () => {
                         <MoreVertical size={14} />
                       </button>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
             {recentProjects.length === 0 && (
-              <div className="phub__home-empty">
-                <p>No projects yet — create your first project</p>
-                <div className="phub__home-emptybtns">
-                  <button className="phub__home-emptybtn phub__home-emptybtn--primary" onClick={() => setShowNewProjectDialog(true)}>
-                    <Plus size={14} /> Create Project
-                  </button>
-                  <button className="phub__home-emptybtn" onClick={() => setShowCloneDialog(true)}>
-                    <CloudDownload size={14} /> Clone Repo
-                  </button>
-                </div>
-              </div>
+              <EmptyState
+                title="No projects yet"
+                description="Create your first project, clone a repo, or open an existing folder."
+                icon={<FolderOpen size={24} />}
+                actions={
+                  <>
+                    <Button label="Create Project" variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowNewProjectDialog(true)} />
+                    <Button label="Clone Repo" variant="secondary" size="sm" icon={<CloudDownload size={13} />} onClick={() => setShowCloneDialog(true)} />
+                  </>
+                }
+              />
             )}
               </>
             )}
@@ -3588,15 +3631,14 @@ const ProjectHub = () => {
             >
               {voiceBusy ? <Loader2 size={15} className="phub__spin" /> : <Mic size={15} />}
             </button>
-            <button
-              className="phub__composer-send"
-              title="Send"
-              aria-label="Send"
+            <IconButton
+              label="Send"
+              variant="primary"
+              size="sm"
+              icon={<ArrowUp size={15} />}
               onClick={sendHubMessage}
-              disabled={!hubChatText.trim() || chatBusy}
-            >
-              <ArrowUp size={15} />
-            </button>
+              isDisabled={!hubChatText.trim() || chatBusy}
+            />
           </div>
           {compMenu === "plus" && (
             <div className="phub__composer-menu" role="menu">

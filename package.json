@@ -53,6 +53,8 @@
     "dev:icon": "node tools/stamp-dev-icon.cjs"
   },
   "dependencies": {
+    "@astryxdesign/core": "^0.7.11",
+    "@astryxdesign/theme-neutral": "^0.7.11",
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.11.0",
     "@codemirror/lang-cpp": "^6.0.3",
@@ -89,6 +91,7 @@
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.3",
     "@streamdown/mermaid": "^1.0.3",
+    "@stylexjs/stylex": "^0.19.0",
     "@uiw/codemirror-theme-vscode": "^4.25.11",
     "@uiw/react-codemirror": "^4.25.11",
     "@xterm/addon-fit": "^0.11.0",
@@ -124,6 +127,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@astryxdesign/cli": "^0.7.11",
     "@tailwindcss/cli": "^4.3.3",
     "electron": "^43.2.0",
     "electron-builder": "^27.0.0-alpha.10",

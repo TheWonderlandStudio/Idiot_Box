@@ -4,7 +4,10 @@
  * variables.css so data-theme light/dark stays in sync.
  * ─────────────────────────────────────────────────────────────────────────── */
 
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-ui); }
+/* Scoped to the Settings window root: this file is bundled into every renderer,
+   so a bare `*` reset here also stripped padding/fonts from the Hub's Astryx
+   components (unlayered rules beat Astryx's @layer styles). */
+html, body, .sw-shell, .sw-shell * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-ui); }
 
 :root {
   --sw-primary: var(--accent);

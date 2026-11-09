@@ -1410,6 +1410,7 @@
   min-height: 120px;
   display: flex;
   flex-direction: column;
+  gap: var(--space-6);
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -4093,6 +4094,84 @@
 
 /* ── Heatmap (empty-cell hairline was white-on-dark) ────────────────── */
 :root[data-theme="light"] .phub__heat-cell { border: 1px solid rgba(0, 0, 0, 0.08); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Astryx (Meta) redesign — Hub only
+   ---------------------------------------------------------------------------
+   The Hub root carries data-astryx-theme="neutral" data-theme="dark"
+   (Hub.jsx), so @astryxdesign/theme-neutral tokens resolve on .phub and
+   light-dark() picks the dark value via color-scheme. The bridge below maps
+   the Hub's legacy palette variables onto Astryx tokens, so every existing
+   panel rule re-skins without touching its logic. Astryx components
+   (Button / Card / TextInput / Badge / EmptyState / SegmentedControl /
+   IconButton) render from @astryxdesign/core/astryx.css.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.phub {
+  color-scheme: dark;
+  --bg-workspace: var(--color-background-body);
+  --bg-surface: var(--color-background-surface);
+  --bg-panel: var(--color-background-card);
+  --bg-raised: var(--color-background-card);
+  --bg-vscode: var(--color-background-muted);
+  --bg-hover: var(--color-overlay-hover);
+  --bg-subtle: var(--color-background-muted);
+  --bg-active: var(--color-background-muted);
+  --bg-input: var(--color-background-body);
+  --bg-header-dark: var(--color-background-surface);
+  --bg-bar: var(--color-background-surface);
+  --text-primary: var(--color-text-primary);
+  --text-bright: var(--color-text-primary);
+  --text-highlight: var(--color-text-primary);
+  --text-hover: var(--color-text-primary);
+  --text-soft: var(--color-text-secondary);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-secondary);
+  --text-label: var(--color-text-secondary);
+  --text-placeholder: var(--color-text-secondary);
+  --text-input: var(--color-text-primary);
+  --border: var(--color-border);
+  --border-light: var(--color-border-emphasized);
+  --border-strong: var(--color-border-emphasized);
+  --border-input: var(--color-border-emphasized);
+  --accent: var(--color-accent);
+  --accent-light: var(--color-text-accent);
+  --editor-blue: var(--color-accent);
+  --editor-blue-hover: var(--color-accent);
+  --accent-border: var(--color-border-emphasized);
+  --link-blue: var(--color-text-accent);
+  font-family: var(--font-family-body, var(--font-ui));
+}
+/* Astryx Button rows in the sidebar (Button renders a <button>) */
+.phub__sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 8px;
+}
+.phub__sidebar-actions > button { justify-content: flex-start; }
+.phub__sidebar--collapsed .phub__sidebar-actions { padding: 0 8px; align-items: center; }
+.phub__sidebar--collapsed .phub__sidebar-actions > button { justify-content: center; }
+/* Astryx TextInput rows (clone search / framework search / recents) */
+.phub__dialog-row--astryx { align-items: flex-end; }
+/* Only the TextInput field grows; Astryx buttons keep their intrinsic width. */
+.phub__dialog-row--astryx > div { flex: 1; min-width: 0; }
+.phub__dialog-row--astryx > button { flex: 0 0 auto; }
+.phub__panel-search > div { flex: 1; min-width: 0; }
+.phub__heat-head > div { flex: 1; min-width: 0; max-width: 320px; }
+/* AI proposal card (replaces .phub__msg--proposal) */
+.phub__msg--proposal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  align-self: flex-start;
+}
+.phub__msg--proposal-card h3 { margin: 0; }
+.phub__fw-cat { background: var(--color-background-muted); border-color: var(--color-border); color: var(--color-text-secondary); }
+.phub__fw-cat:hover { background: var(--color-overlay-hover); color: var(--color-text-primary); }
+.phub__fw-cat--active { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent, #fff); }
+.phub__layout-opt--on { background: var(--color-accent-muted); border-color: var(--color-accent); }
+.phub__layout-opt--on .phub__layout-opt-svg { background: var(--color-accent-muted); border-color: var(--color-accent); }
 /* ghColor() teal steps + var(--bg-active) empty cells adapt — kept as-is */
 
 
