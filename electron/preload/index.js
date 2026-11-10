@@ -551,7 +551,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   qemuGetLog:           (name) => ipcRenderer.invoke("qemu:getLog", { name }),
   qemuInput:            (name, action) => ipcRenderer.invoke("qemu:input", { name, action }),
   qemuPickIso:          () => ipcRenderer.invoke("qemu:pickIso"),
-  qemuDownload:         () => ipcRenderer.invoke("qemu:downloadQemu"),
+  qemuSelectVmStorageDir: () => ipcRenderer.invoke("qemu:selectVmStorageDir"),
   qemuSetCustomBinDir:  () => ipcRenderer.invoke("qemu:setCustomBinDir"),
   qemuRevealFolder:     () => ipcRenderer.invoke("qemu:revealFolder"),
   onQemuProgress: (callback) => {
