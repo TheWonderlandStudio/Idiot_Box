@@ -1,44 +1,167 @@
-<img src="electron/renderer/assets/idot_box.png" width=200px>
+ <img src="electron/renderer/assets/idot_box.png" width=200px>
 
 # Idiot Box
 
-Idiot Box is a modern, customizable desktop IDE designed to make development simpler, more flexible, and more enjoyable. Code, preview, terminal, browser, and developer tools, all in one workspace.
+Idiot Box is a modern and customizable desktop IDE that brings code editing, preview, terminal, browser and developer tools into one workspace.
 
 ## Download
 
-- **Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare)
-- **macOS / Linux:** [Download page](https://thewonderlandstudio.github.io/Idiot_Box/download.html)
-- All installers: [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases)
+**Windows:** [Microsoft Store](https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare)
 
-## Features
+**macOS / Linux:** [Download page](https://thewonderlandstudio.github.io/Idiot_Box/download.html)
 
-- **Canvas — Visual Project Map** — every page & component of your project as live preview cards, grouped by folder on an infinite pan/zoom canvas. Drag cards (push the parent edge to expand), shift+drag to move card+group together, resize groups from all 8 sides, search, fit view, and persist your layout per project (`.canvas/layout.json`).
-- **Code Editor** — Code-OSS editor services with syntax highlighting for 50+ languages, IntelliSense, diagnostics, automatic language detection (shebang, modelines, content sniffing) with suggestions, minimap, word wrap, autosave, Save As, dirty-tab markers, and **live reload**: if an external app (or git/build tool) changes a file on disk, the editor updates automatically.
-- **Extension Host** — runs VS Code-compatible extensions in a local web worker through `@codingame/monaco-vscode-api`, with built-in language extensions and a demo extension proving the pipeline.
-- **Live Component Preview** — shadow-DOM previews of components that sync instantly with the editor (no save needed).
-- **Terminal** — xterm.js + node-pty with split/new panel actions and working-directory-aware launch.
-- **Search & Replace** — project-wide literal or regex search with case/whole-word toggles and include/exclude filters, grouped file results, replace across files and one-step undo (`Ctrl+Shift+F`).
-- **Local History** — per-file snapshots on save, live edit and replace, stored under userData with preview and restore from the Local History panel.
-- **Test Explorer** — detects Jest, Vitest, Mocha, node:test, pytest and unittest, with a test tree, per-file/per-test runs, streamed output, pass/fail summaries and debug handoff.
-- **Debugger** — Node.js (inspector/CDP) and Python (debugpy/DAP) sessions with launch configurations, conditional breakpoints (gutter/`F9`), call stack, scopes/variables, watches, evaluate console and output.
-- **Editable Keybindings** — rebind any command from Settings with recording and conflict detection; overrides persist in `settings.json` and rebuild the native menu accelerators.
-- **Browser Panel** — webview-based tabs with port detection for your dev servers.
-- **Desktop Emulator** — QEMU desktop VMs: auto-detects `qemu-system-*`, create VMs (arch/RAM/CPU/disk/ISO), render a live VNC stream inside the app with direct mouse/keyboard input, stop/delete, per-VM logs, and official ISO download links (Ubuntu, Debian, Fedora, Alpine, Arch, Kali, …). VMs live in `.appdata/qemu`.
-- **Project Panel** — grid/list file manager with native drag-and-drop, multi-select, clipboard operations, undo/redo, renaming, duplicate, context menus (open in new editor tab, open with, reveal, terminal here), and sidebar tree. Delete moves files to the OS Recycle Bin (`shell.trashItem`); permanent delete bypasses it. There is no app-internal trash folder — restore deleted files from your OS Recycle Bin.
-- **Media Viewer** — zoom / rotate / flip / pan for images and videos.
-- **Settings Window** — live-updating editor preferences (minimap, word wrap) via BroadcastChannel.
-- **Command Palette** — quick actions for projects, files, panels and layout.
-- **Session Restore** — remembers your window state and open tabs.
-- **MCP Server** — built-in local Model Context Protocol endpoint so external AI clients (Claude Desktop, Cursor, opencode) can read/write files, run git, execute commands and control the IDE. See [docs/MCP.md](docs/MCP.md).
+**All installers:** [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases)
 
 <img src="https://files.catbox.moe/dx4x76.gif">
 
+## Features
+
+<table style="width:100%; table-layout:fixed; border-collapse:collapse;">
+<tr>
+<td style="width:50%; vertical-align:top; padding:0;">
+
+<details>
+<summary>Canvas</summary>
+
+Visual project map with live preview cards for pages and components. Cards are grouped by folder on an infinite pan and zoom canvas. Drag, resize, search and organize layouts per project using `.canvas/layout.json`.
+
+</details>
+
+<details>
+<summary>Code Editor</summary>
+
+Code OSS editor services with syntax highlighting for 50+ languages, IntelliSense, diagnostics, automatic language detection, minimap, word wrap, autosave, Save As, dirty tab markers and live reload for external file changes.
+
+</details>
+
+<details>
+<summary>Extension Host</summary>
+
+Runs VS Code compatible extensions in a local web worker using `@codingame/monaco-vscode-api`. Includes built in language extensions and a demo extension.
+
+</details>
+
+<details>
+<summary>Live Component Preview</summary>
+
+Shadow DOM previews that sync instantly with the editor without saving.
+
+</details>
+
+<details>
+<summary>Terminal</summary>
+
+xterm.js and node-pty with split panels and working directory support.
+
+</details>
+
+<details>
+<summary>Search & Replace</summary>
+
+Project wide literal and regex search with case, whole word, include and exclude filters. Supports grouped results, replace across files and one step undo. Shortcut: `Ctrl+Shift+F`.
+
+</details>
+
+<details>
+<summary>Local History</summary>
+
+Per file snapshots on save, live edit and replace. Stored under userData with preview and restore options.
+
+</details>
+
+<details>
+<summary>Test Explorer</summary>
+
+Detects Jest, Vitest, Mocha, node:test, pytest and unittest. Includes test trees, individual test runs, streamed output, pass and fail summaries and debug handoff.
+
+</details>
+
+<details>
+<summary>Debugger</summary>
+
+Supports Node.js inspector/CDP and Python debugpy/DAP sessions. Includes launch configurations, conditional breakpoints, call stack, scopes, variables, watches, evaluate console and output.
+
+</details>
+
+</td>
+<td style="width:50%; vertical-align:top; padding:0;">
+
+<details>
+<summary>Editable Keybindings</summary>
+
+Rebind commands from Settings with recording and conflict detection. Overrides persist in `settings.json` and update native menu accelerators.
+
+</details>
+
+<details>
+<summary>Browser Panel</summary>
+
+Webview based tabs with development server port detection.
+
+</details>
+
+<details>
+<summary>Desktop Emulator</summary>
+
+QEMU desktop VMs with automatic detection of `qemu-system-*`. Create VMs with custom architecture, RAM, CPU, disk and ISO. Includes live VNC, mouse and keyboard input, stop and delete actions, logs and official ISO download links for Ubuntu, Debian, Fedora, Alpine, Arch, Kali and more. VMs are stored in `.appdata/qemu`.
+
+</details>
+
+<details>
+<summary>Project Panel</summary>
+
+Grid and list file manager with drag and drop, multi select, clipboard operations, undo and redo, rename, duplicate, context menus and sidebar tree. Files can be opened in new tabs, revealed or opened in a terminal. Delete moves files to the OS Recycle Bin using `shell.trashItem`. Permanent delete bypasses it. Deleted files can be restored from the OS Recycle Bin.
+
+</details>
+
+<details>
+<summary>Media Viewer</summary>
+
+Zoom, rotate, flip and pan for images and videos.
+
+</details>
+
+<details>
+<summary>Settings Window</summary>
+
+Live editor preferences for minimap and word wrap using BroadcastChannel.
+
+</details>
+
+<details>
+<summary>Command Palette</summary>
+
+Quick access to projects, files, panels and layout actions.
+
+</details>
+
+<details>
+<summary>Session Restore</summary>
+
+Remembers window state and open tabs.
+
+</details>
+
+<details>
+<summary>MCP Server</summary>
+
+Built in local Model Context Protocol endpoint for external AI clients like Claude Desktop, Cursor and opencode. Supports file operations, git, commands and IDE control. See [docs/MCP.md](docs/MCP.md).
+
+</details>
+
+</td>
+</tr>
+</table>
+
 ## Stack
 
-- Electron 43, React 19, flexlayout-react (dockable panels)
-- Code-OSS workbench services via `@codingame/monaco-vscode-api` (TextMate grammars, themes, IntelliSense, diagnostics, language services, and extension hosting)
-- xterm.js + node-pty (terminal), chokidar (fs watching)
-- esbuild (bundling), CSS + HTML workers for Monaco
+Electron 43, React 19 and flexlayout-react for dockable panels.
+
+Code OSS workbench services through `@codingame/monaco-vscode-api` for TextMate grammars, themes, IntelliSense, diagnostics, language services and extension hosting.
+
+xterm.js and node-pty for terminal support, with chokidar for file watching.
+
+esbuild for bundling, with CSS and HTML workers for Monaco.
 
 ## Getting Started
 
@@ -49,56 +172,64 @@ npm start
 
 `npm start` builds the workers, renderer and settings bundles, then launches the app.
 
-## AI control (MCP)
+## AI Control (MCP)
 
-While the app runs it serves a local MCP endpoint at `http://127.0.0.1:39271/mcp` (also written
-to `mcp.json` in the app's user-data folder). Point any Streamable-HTTP MCP client at it and the
-AI can use the IDE — tools for files, git, shell, editor tabs, extensions, notebooks and the
-Android emulator. Setup and the full tool list: [docs/MCP.md](docs/MCP.md).
+The app runs a local MCP endpoint at `http://127.0.0.1:39271/mcp` while active. The endpoint is also written to `mcp.json` in the app's user data folder.
+
+Connect any Streamable HTTP MCP client to let AI use the IDE. Available tools include files, git, shell, editor tabs, extensions, notebooks and the Android emulator.
+
+Setup and full tool list: [docs/MCP.md](docs/MCP.md).
 
 ## Scripts
 
 | Script | Description |
 | --- | --- |
-| `npm run build:workers` | Build Monaco + extension-host web workers |
+| `npm run build:workers` | Build Monaco and extension host web workers |
 | `npm run build:renderer` | Build the main renderer bundle |
 | `npm run build:settings` | Build the settings window bundle |
-| `npm run build` | All of the above |
+| `npm run build` | Build everything |
 | `npm start` | Build everything and launch |
 
 ## Structure
 
-```
+```text
 electron/
   main/             Electron main process (IPC, menus, fs watcher, canvas scan)
-  preload/          context-isolated API bridge
+  preload/          Context isolated API bridge
   renderer/
     components/     Panels: Editor, Project, Terminal, Browser, Canvas, ComponentPreview, Blank
-    workers/        Monaco language/theme workers + extension-host worker entry
+    workers/        Monaco language/theme workers and extension host worker entry
     extensions/     Bundled demo extension
-  host/             (legacy extension host files, migrated to worker)
-build/              esbuild configs + worker asset copy
+  host/             Legacy extension host files, migrated to worker
+build/              esbuild configs and worker asset copy
 ```
 
-## Official sources
+## Official Sources
 
-- Download (Windows): https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare (Microsoft Store)
-- Download page (macOS / Linux + all formats): https://thewonderlandstudio.github.io/Idiot_Box/download.html
-- Releases: https://github.com/TheWonderlandStudio/Idiot_Box/releases
-- Discord: https://discord.gg/Z9DynuSxRY
+**Windows:** https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare
 
-Other sites offering "Idiot Box" for download are not official.
+**macOS / Linux:** https://thewonderlandstudio.github.io/Idiot_Box/download.html
+
+**Releases:** https://github.com/TheWonderlandStudio/Idiot_Box/releases
+
+**Discord:** https://discord.gg/Z9DynuSxRY
+
+Other sites offering Idiot Box downloads are not official.
 
 ## Sponsor
 
 [![Sponsor on GitHub Sponsors](https://img.shields.io/badge/Sponsor_on_GitHub_Sponsors-pink?style=flat-square&logo=githubsponsors)](https://github.com/sponsors/Jignesh1236)
 
-Idiot Box is free and open source. If it helps you, consider sponsoring its development via [GitHub Sponsors](https://github.com/sponsors/Jignesh1236).
+Idiot Box is free and open source. You can support its development through [GitHub Sponsors](https://github.com/sponsors/Jignesh1236).
 
 ## License
 
-Source code is licensed under the [GNU General Public License v3](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
+Source code is licensed under the [GNU General Public License v3](LICENSE).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ## Trademark
 
-"Idiot Box" branding, logo and the rules for forks and re-releases are in [TRADEMARK.md](TRADEMARK.md). Short version: anyone may fork and modify the code under the GPL, but modified versions must drop the Idiot Box name and identity, and nobody may pass a build off as the official one.
+The Idiot Box branding, logo and rules for forks and re releases are defined in [TRADEMARK.md](TRADEMARK.md).
+
+Anyone can fork and modify the code under the GPL. Modified versions must use a different name and identity. Builds must not be presented as official Idiot Box releases.
