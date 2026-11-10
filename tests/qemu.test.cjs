@@ -10,6 +10,7 @@ const {
   parseQemuVersion,
   hmpKeyName,
   qemuDownloadTarget,
+  parseQemuInstallerIndex,
   makeQmpClient,
   buildInputAction,
   createVncWebSocketProxy,
@@ -271,9 +272,10 @@ test("ISO catalog links are official https, unique, and match known arches", () 
 test("qemuDownloadTarget: Windows gets an installer, others get the page + command", () => {
   const win = qemuDownloadTarget("win32", "x64");
   assert.equal(win.kind, "installer");
-  assert.match(win.url, /qemu\.weilnetz\.de\/w64\/qemu-w64-x86_64-latest\.exe$/);
-  assert.ok(win.file.endsWith(".exe"));
-  assert.equal(qemuDownloadTarget("win32", "arm64").url.includes("aarch64"), true);
+  assert.equal(win.indexUrl, "https://qemu.weilnetz.de/w64/");
+  assert.equal(qemuDownloadTarget("win32", "arm64").indexUrl, win.indexUrl);
+  assert.equal(parseQemuInstallerIndex('<a href="qemu-w64-setup-20260805.exe">old</a><a href="qemu-w64-setup-20260811.exe">latest</a>'), "qemu-w64-setup-20260811.exe");
+  assert.throws(() => parseQemuInstallerIndex("<html>no installer</html>"), /No Windows QEMU installer/);
   const mac = qemuDownloadTarget("darwin", "arm64");
   assert.equal(mac.kind, "page");
   assert.equal(mac.command, "brew install qemu");

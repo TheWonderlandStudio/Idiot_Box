@@ -244,13 +244,11 @@ async function resolveArchBin(arch) {
 // process, so the user sees the normal installer window and can cancel /
 // choose the install dir. macOS/Linux have no single installer — the button
 // opens the official download page and logs the package-manager command.
-function qemuDownloadTarget(platform = process.platform, arch = process.arch) {
+function qemuDownloadTarget(platform = process.platform) {
   if (platform === "win32") {
-    const a = arch === "arm64" ? "aarch64" : "x86_64";
     return {
       kind: "installer",
-      url: `https://qemu.weilnetz.de/w64/qemu-w64-${a}-latest.exe`,
-      file: `qemu-w64-${a}-latest.exe`,
+      indexUrl: "https://qemu.weilnetz.de/w64/",
       page: "https://www.qemu.org/download/",
     };
   }
@@ -260,6 +258,48 @@ function qemuDownloadTarget(platform = process.platform, arch = process.arch) {
     page: "https://www.qemu.org/download/",
     command: platform === "darwin" ? "brew install qemu" : "sudo apt install qemu-system",
   };
+}
+
+function parseQemuInstallerIndex(html) {
+  const installers = [...String(html).matchAll(/href=["'](qemu-w64-setup-(\d+)\.exe)["']/gi)]
+    .map((match) => ({ file: match[1], version: match[2] }))
+    .sort((a, b) => b.version.localeCompare(a.version));
+  if (!installers.length) throw new Error("No Windows QEMU installer was found in the official download directory.");
+  return installers[0].file;
+}
+
+function getLatestQemuInstaller(indexUrl) {
+  return new Promise((resolve, reject) => {
+    const get = (url, redirects = 0) => {
+      if (redirects > 8) return reject(new Error("Too many redirects while checking QEMU downloads."));
+      const req = https.get(url, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          const next = new URL(res.headers.location, url);
+          res.resume();
+          if (next.protocol !== "https:") return reject(new Error("QEMU download directory redirected to a non-HTTPS URL."));
+          return get(next, redirects + 1);
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`Could not check the official QEMU download directory: HTTP ${res.statusCode}.`));
+        }
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          try {
+            const file = parseQemuInstallerIndex(Buffer.concat(chunks).toString("utf8"));
+            resolve({ file, url: new URL(file, url).toString() });
+          } catch (error) {
+            reject(error);
+          }
+        });
+        res.on("error", reject);
+      });
+      req.on("error", reject);
+      req.setTimeout(15000, () => req.destroy(new Error("Timed out checking the official QEMU download directory.")));
+    };
+    get(indexUrl);
+  });
 }
 
 function downloadFile(url, dest, onPct = null) {
@@ -320,15 +360,16 @@ async function downloadAndInstallQemu(op = "download-qemu") {
   downloadRunning = true;
   try {
     ensureDirs();
-    const dest = path.join(getDownloadsDir(), target.file);
+    const installer = await getLatestQemuInstaller(target.indexUrl);
+    const dest = path.join(getDownloadsDir(), installer.file);
     let looksComplete = false;
     try { looksComplete = fs.statSync(dest).size > 50 * 1024 * 1024; } catch { looksComplete = false; }
     if (looksComplete) {
       const mb = (fs.statSync(dest).size / 1048576).toFixed(1);
       progress(op, "download", `Reusing existing installer (${mb} MB) — skipping re-download.`, 100);
     } else {
-      progress(op, "download", `Downloading QEMU installer…\n${target.url}`);
-      await downloadFile(target.url, dest, (pct, done, total) => {
+      progress(op, "download", `Downloading QEMU installer…\n${installer.url}`);
+      await downloadFile(installer.url, dest, (pct, done, total) => {
         const mb = total ? `${(done / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB` : `${(done / 1048576).toFixed(1)} MB`;
         progress(op, "download", `Downloading QEMU installer… ${pct}% (${mb})`, pct, { done, total });
       });
@@ -1248,4 +1289,5 @@ module.exports = {
   candidateDirs,
   findQemuBinFile,
   qemuDownloadTarget,
+  parseQemuInstallerIndex,
 };
