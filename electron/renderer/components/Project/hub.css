@@ -1831,6 +1831,16 @@
 .phub__sidebar--collapsed .phub__sidebar-brand {
   display: none;
 }
+.phub__sidebar--collapsed .phub__sidebar-label--gap {
+  display: block;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 8px var(--space-8);
+  padding: 0;
+  font-size: 0;
+  letter-spacing: 0;
+  border-top: none;
+}
 .phub__sidebar--collapsed .phub__sidebar-head {
   justify-content: center;
   padding: 2px 0 10px;
@@ -1844,6 +1854,9 @@
   justify-content: center;
   gap: 0;
   font-size: 0;
+}
+.phub__sidebar--collapsed .phub__sidebar-actions {
+  align-items: center;
 }
 .phub__sidebar--collapsed .phub__sidebar-user {
   flex-direction: column;
@@ -2578,7 +2591,7 @@
 .phub__wallbtn {
   width: 30px;
   height: 30px;
-  border-radius: var(--radius-pill);
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3185,7 +3198,10 @@
 /* ── Home — cards row on top, empty hint ──────────────────────────────────── */
 .phub__home {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--phub-sb-w, 200px);
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -3363,7 +3379,7 @@
 /* ── Bottom composer ────────────────────────────────────────────────────── */
 .phub__composer {
   position: absolute;
-  left: calc(50% + 100px);
+  left: calc(var(--phub-sb-w, 200px) + (100% - var(--phub-sb-w, 200px)) / 2);
   bottom: 22px;
   transform: translateX(-50%);
   z-index: 20;
@@ -3384,6 +3400,7 @@
   from { opacity: 0; transform: translate(-50%, 12px); }
   to   { opacity: 1; transform: translateX(-50%); }
 }
+
 .phub__composer-input {
   width: 100%;
   min-height: 24px;
@@ -3566,13 +3583,13 @@
 }
 
 /* While chat is on, the composer stays put — chat runs through it */
-.phub--sb-collapsed .phub__composer { left: calc(50% + 26px); }
+.phub--sb-collapsed .phub__composer { left: calc(52px + (100% - 52px) / 2); }
 
 /* ── Chat in home — message list instead of cards (input = bottom composer) ── */
 .phub__home-chat {
   position: relative;
   /* width = composer (min 840px), keep them equal */
-  width: min(840px, 100%);
+  width: min(840px, calc(100% - 48px));
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -3803,7 +3820,7 @@
 @media (max-width: 700px) {
   .phub__card { width: min(264px, calc(50vw - 28px)); }
   .phub__home { padding-top: 56px; }
-  .phub__composer { width: calc(100% - 24px); bottom: 14px; left: 50%; }
+  .phub__composer { width: calc(100% - 24px); bottom: 14px; left: 50%; transform: translateX(-50%); }
   .phub__home-chat { width: min(840px, calc(100% - 24px)); }
   .phub__center, .phub__center--collapsed { left: 0; }
   .phub__glow { left: 0; }
