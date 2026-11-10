@@ -19,6 +19,8 @@ const { WebSocket, WebSocketServer } = require("ws");
 const https = require("https");
 const http = require("http");
 const { spawn, execFile } = require("child_process");
+const { promisify } = require("util");
+const execFileAsync = promisify(execFile);
 
 let _deps = null; // { app, BrowserWindow, shell, dialog }
 function deps() {
@@ -40,6 +42,7 @@ function getLogsDir() { return path.join(getQemuRoot(), "logs"); }
 function getSettingsPath() { return path.join(getQemuRoot(), "settings.json"); }
 function vmDir(name) { return path.join(getVmsDir(), name); }
 function vmConfigPath(name) { return path.join(vmDir(name), "vm.json"); }
+function vmRuntimePath(name) { return path.join(getLogsDir(), `${name}.runtime.json`); }
 
 function ensureDirs() {
   for (const d of [getQemuRoot(), getVmsDir(), getDownloadsDir(), getLogsDir()]) {
@@ -391,7 +394,15 @@ function describeVm(name) {
   let diskBytes = 0;
   try { diskBytes = fs.statSync(disk).size; } catch {}
   const running = runningVms.get(name);
-  return { ...cfg, disk, diskBytes, running: !!running, pid: running?.pid || null, websocketPort: running?.websocketPort || null };
+  return {
+    ...cfg,
+    disk,
+    diskBytes,
+    running: !!running,
+    pid: running?.pid || null,
+    websocketPort: running?.websocketPort || null,
+    recoveryError: vmRecoveryErrors.get(name) || null,
+  };
 }
 
 // ─── Progress broadcast (mirrors android:progress) ──────────────────────────
@@ -430,6 +441,8 @@ function buildQemuArgs(vm, { disk, iso, monitorPort, vncDisplay, serialLog }) {
 
 // ─── Running processes ──────────────────────────────────────────────────────
 const runningVms = new Map(); // name -> { pid, child, startedAt, monitorPort, logFile }
+const vmRecoveryErrors = new Map();
+let startupRecovery = null;
 const QEMU_LOG_TAB = "qemu-log"; // must match renderer index.jsx
 
 function getFreePort() {
@@ -441,6 +454,88 @@ function getFreePort() {
       s.close(() => resolve(port));
     });
   });
+}
+function listQemuProcesses() {
+  const command = isWin()
+    ? execFileAsync("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "$p = @(Get-CimInstance Win32_Process -Filter \"Name LIKE 'qemu-system-%'\" | Select-Object ProcessId, CommandLine); ConvertTo-Json -InputObject $p -Compress",
+    ], { encoding: "utf8", timeout: 10000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
+    : execFileAsync("ps", ["-eo", "pid=,args="], { encoding: "utf8", timeout: 10000, maxBuffer: 4 * 1024 * 1024 });
+  return new Promise((resolve, reject) => {
+    command.then(({ stdout }) => {
+      if (isWin()) {
+        try {
+          const parsed = JSON.parse(stdout || "[]");
+          resolve((Array.isArray(parsed) ? parsed : [parsed]).filter(Boolean).map((proc) => ({
+            pid: Number(proc.ProcessId),
+            commandLine: String(proc.CommandLine || ""),
+          })));
+        } catch (e) {
+          reject(new Error(`Could not read running QEMU process details: ${e.message}`));
+        }
+        return;
+      }
+      resolve(String(stdout || "").split(/\r?\n/).flatMap((line) => {
+        const match = line.trim().match(/^(\d+)\s+(.+)$/);
+        return match ? [{ pid: Number(match[1]), commandLine: match[2] }] : [];
+      }));
+    }, reject);
+  });
+}
+function parseQemuRuntimeArgs(commandLine, disk) {
+  const normalizedDisk = path.resolve(disk).replace(/\//g, "\\").toLowerCase();
+  const normalizedCommand = String(commandLine || "").replace(/\//g, "\\").toLowerCase();
+  if (!normalizedCommand.includes(normalizedDisk)) return null;
+  const monitor = String(commandLine).match(/(?:^|\s)-qmp\s+(?:"?tcp:)?127\.0\.0\.1:(\d+)/i);
+  if (!monitor) return null;
+  const vnc = String(commandLine).match(/(?:^|\s)-vnc\s+127\.0\.0\.1:(\d+)/i);
+  const vncDisplay = vnc ? Number(vnc[1]) : null;
+  if (vncDisplay !== null && (vncDisplay < 0 || vncDisplay > 99)) return null;
+  return { monitorPort: Number(monitor[1]), vncDisplay };
+}
+function writeRuntimeState(name, entry) {
+  const file = vmRuntimePath(name);
+  const tempFile = `${file}.${process.pid}.tmp`;
+  const contents = JSON.stringify({
+    version: 1,
+    pid: entry.pid,
+    monitorPort: entry.monitorPort,
+    vncDisplay: entry.vncDisplay,
+    startedAt: entry.startedAt,
+  });
+  try {
+    fs.writeFileSync(tempFile, contents, { flag: "w" });
+    fs.renameSync(tempFile, file);
+  } catch (e) {
+    try { fs.unlinkSync(tempFile); } catch {}
+    throw e;
+  }
+}
+function clearRuntimeState(name) {
+  try { fs.unlinkSync(vmRuntimePath(name)); }
+  catch (e) { if (e.code !== "ENOENT") console.warn(`[qemu] could not remove runtime state for ${name}: ${e.message}`); }
+}
+function readRuntimeState(name) {
+  try {
+    const data = JSON.parse(fs.readFileSync(vmRuntimePath(name), "utf8"));
+    if (data?.version !== 1 || !Number.isInteger(data.pid) || data.pid <= 0 ||
+        !Number.isInteger(data.monitorPort) || data.monitorPort < 1 || data.monitorPort > 65535 ||
+        !Number.isInteger(data.vncDisplay) || data.vncDisplay < 0 || data.vncDisplay > 99) return null;
+    return data;
+  } catch { return null; }
+}
+function isProcessRunning(pid) {
+  try { process.kill(pid, 0); return true; }
+  catch (e) { return e.code === "EPERM"; }
+}
+async function waitForProcessExit(pid, timeoutMs = 8000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!isProcessRunning(pid)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return !isProcessRunning(pid);
 }
 async function getFreeVncDisplay() {
   for (let display = 0; display < 100; display++) {
@@ -493,8 +588,8 @@ function waitForTcpPort(port, child, timeoutMs = 15000) {
     let settled = false;
     const cleanup = () => {
       if (timer) clearTimeout(timer);
-      child.removeListener("error", onError);
-      child.removeListener("exit", onExit);
+      child?.removeListener("error", onError);
+      child?.removeListener("exit", onExit);
     };
     const finish = (error) => {
       if (settled) return;
@@ -505,15 +600,15 @@ function waitForTcpPort(port, child, timeoutMs = 15000) {
     };
     const onError = (error) => finish(new Error(`Could not launch QEMU: ${error.message}`));
     const onExit = (code, signal) => finish(new Error(`QEMU exited before its display was ready (code ${code ?? "unknown"}${signal ? `, signal ${signal}` : ""}).`));
-    child.once("error", onError);
-    child.once("exit", onExit);
+    child?.once("error", onError);
+    child?.once("exit", onExit);
     const attempt = () => {
       const socket = net.createConnection({ host: "127.0.0.1", port });
       socket.once("connect", () => { socket.destroy(); finish(); });
       socket.once("error", () => {
         socket.destroy();
         if (settled) return;
-        if (child.exitCode !== null || child.signalCode !== null) return onExit(child.exitCode, child.signalCode);
+        if (child && (child.exitCode !== null || child.signalCode !== null)) return onExit(child.exitCode, child.signalCode);
         timer = setTimeout(attempt, 100);
       });
     };
@@ -530,6 +625,80 @@ function readQemuLog(name, logDir = getLogsDir()) {
     if (error.code === "ENOENT") return { ok: true, text: "", truncated: false };
     throw error;
   }
+}
+async function findExistingQemu(name, disk) {
+  const runtime = readRuntimeState(name);
+  const processes = await listQemuProcesses();
+  const normalizedDisk = path.resolve(disk).replace(/\//g, "\\").toLowerCase();
+  const processInfo = processes.find((proc) =>
+    proc.pid > 0 && String(proc.commandLine).replace(/\//g, "\\").toLowerCase().includes(normalizedDisk));
+  if (!processInfo) {
+    if (runtime) clearRuntimeState(name);
+    return null;
+  }
+  const commandArgs = parseQemuRuntimeArgs(processInfo.commandLine, disk);
+  const monitorPort = commandArgs?.monitorPort || (runtime?.pid === processInfo.pid ? runtime.monitorPort : null);
+  if (!monitorPort) {
+    throw new Error(`Found an existing QEMU process using "${name}", but it has no recoverable QMP port. Close that QEMU process, then retry.`);
+  }
+  return {
+    pid: processInfo.pid,
+    monitorPort,
+    vncDisplay: commandArgs?.vncDisplay ?? (runtime?.pid === processInfo.pid ? runtime.vncDisplay : null),
+    startedAt: runtime?.pid === processInfo.pid ? runtime.startedAt : Date.now(),
+    logFile: path.join(getLogsDir(), `${name}.log`),
+  };
+}
+async function recoverExistingQemu(name, disk) {
+  const found = await findExistingQemu(name, disk);
+  if (!found) return null;
+  const entry = { ...found, child: null, websocketPort: null, vncProxy: null };
+  runningVms.set(name, entry);
+  try {
+    await qmpCommand(name, "query-status");
+    if (entry.vncDisplay === null) {
+      await qmpCommand(name, "quit", null, 3000);
+      qmpClose(name);
+      runningVms.delete(name);
+      if (!await waitForProcessExit(entry.pid)) {
+        throw new Error(`QEMU is still using "${name}"'s disk. Close its existing window, then retry.`);
+      }
+      clearRuntimeState(name);
+      vmRecoveryErrors.delete(name);
+      return null;
+    }
+    await waitForTcpPort(5900 + entry.vncDisplay, null, 5000);
+    entry.vncProxy = await createVncWebSocketProxy(5900 + entry.vncDisplay);
+    entry.websocketPort = entry.vncProxy.port;
+    writeRuntimeState(name, entry);
+    vmRecoveryErrors.delete(name);
+    progress("start", "recovered", `${name} was recovered from the previous app session.`, null, { vm: name });
+    return entry;
+  } catch (error) {
+    qmpClose(name);
+    runningVms.delete(name);
+    await closeVncWebSocketProxy(entry.vncProxy);
+    if (error?.code === "ECONNREFUSED" || /QMP connect timed out/i.test(error?.message || "")) {
+      throw new Error(`Found an existing QEMU process using "${name}", but its control socket is unavailable. Close that QEMU process before starting the VM again.`);
+    }
+    throw error;
+  }
+}
+async function recoverVmsAtStartup(names) {
+  if (!startupRecovery) {
+    startupRecovery = Promise.all(names.map(async (name) => {
+      try {
+        const cfg = readVmConfig(name);
+        if (cfg) await recoverExistingQemu(name, describeVm(name).disk);
+        vmRecoveryErrors.delete(name);
+      } catch (error) {
+        const message = error?.message || String(error);
+        vmRecoveryErrors.set(name, message);
+        console.warn(`[qemu] could not recover ${name}: ${message}`);
+      }
+    }));
+  }
+  await startupRecovery;
 }
 function forwardOut(name, chunk, logFile) {
   try {
@@ -551,12 +720,17 @@ async function startVmProcess(name) {
   if (!cfg) throw new Error(`VM "${name}" not found.`);
   const cur = runningVms.get(name);
   if (cur) {
-    try { process.kill(cur.pid, 0); return cur; }
-    catch { runningVms.delete(name); }
+    if (isProcessRunning(cur.pid)) return cur;
+    runningVms.delete(name);
+    qmpClose(name);
+    await closeVncWebSocketProxy(cur.vncProxy);
+    clearRuntimeState(name);
   }
   const bin = await resolveArchBin(cfg.arch);
   const disk = describeVm(name).disk;
   if (!fs.existsSync(disk)) throw new Error(`Disk image missing for "${name}" — recreate the VM.`);
+  const recovered = await recoverExistingQemu(name, disk);
+  if (recovered) return recovered;
   const monitorPort = await getFreePort();
   const vncDisplay = await getFreeVncDisplay();
   const vncPort = 5900 + vncDisplay;
@@ -598,7 +772,15 @@ async function startVmProcess(name) {
     await closeVncWebSocketProxy(vncProxy);
     throw new Error(`Could not start the in-app VNC stream: ${e?.message || String(e)}`);
   }
-  const entry = { pid, startedAt: Date.now(), monitorPort, logFile, websocketPort: vncProxy.port, vncProxy };
+  const entry = { pid, startedAt: Date.now(), monitorPort, vncDisplay, logFile, websocketPort: vncProxy.port, vncProxy, child };
+  try {
+    writeRuntimeState(name, entry);
+  } catch (error) {
+    try { child.kill(); } catch {}
+    await closeVncWebSocketProxy(vncProxy);
+    throw new Error(`Could not save VM runtime state: ${error.message}`);
+  }
+  vmRecoveryErrors.delete(name);
   runningVms.set(name, entry);
   forwardOut(name, Buffer.from(`[${name}] QEMU starting (pid ${pid}) — ${bin} ${args.join(" ")}\n`), logFile);
   progress("start", "started", `${name} starting (pid ${pid}) — opening the in-app display…`, null, { vm: name });
@@ -623,6 +805,7 @@ async function stopVmProcess(name) {
     qmpClose(name);
     await closeVncWebSocketProxy(entry.vncProxy);
     runningVms.delete(name);
+    clearRuntimeState(name);
     return { ok: true };
   }
   return { ok: false, error: `VM "${name}" is not running.` };
@@ -896,7 +1079,12 @@ async function createVm(payload = {}) {
 async function deleteVm(name) {
   const n = sanitizeVmName(name);
   if (!readVmConfig(n)) return { ok: false, error: `VM "${n}" not found.` };
-  await stopVmProcess(n).catch(() => {});
+  const disk = describeVm(n).disk;
+  await recoverExistingQemu(n, disk);
+  if (runningVms.has(n)) {
+    const stopped = await stopVmProcess(n);
+    if (!stopped.ok) return stopped;
+  }
   qmpClose(n);
   try { fs.rmSync(vmDir(n), { recursive: true, force: true }); } catch (e) {
     return { ok: false, error: e.message || String(e) };
@@ -910,6 +1098,7 @@ async function getState() {
   ensureDirs();
   const qemu = await detectQemu();
   const names = listVmNames();
+  await recoverVmsAtStartup(names);
   const vms = names.map(describeVm);
   return {
     ok: true,
@@ -1027,6 +1216,7 @@ module.exports = {
   ISO_CATALOG,
   archBinary,
   buildQemuArgs,
+  parseQemuRuntimeArgs,
   createVncWebSocketProxy,
   closeVncWebSocketProxy,
   readQemuLog,

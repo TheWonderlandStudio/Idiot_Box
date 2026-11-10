@@ -2,7 +2,7 @@
 // Mirrors the Android Emulator panel: list VMs, Create (arch/RAM/CPU/disk/ISO),
 // Start/Stop QEMU VMs and render their live VNC display inside the app.
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, ArrowLeft, Monitor, Download, Terminal, X, Info } from "lucide-react";
+import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, ArrowLeft, Monitor, Download, Terminal, X, Info, Maximize2, Minimize2 } from "lucide-react";
 import RFB from "@novnc/novnc/core/rfb.js";
 import EmulatorDisclaimer from "../shared/EmulatorDisclaimer.jsx";
 
@@ -42,9 +42,13 @@ const DesktopEmulatorPanel = () => {
   const [view, setView] = useState(null); // { name }
   const [displayStatus, setDisplayStatus] = useState({ state: "connecting", error: null });
   const [qemuLog, setQemuLog] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenUiVisible, setFullscreenUiVisible] = useState(true);
   const [keyText, setKeyText] = useState("");
   const busyRef = useRef(false);
   const screenRef = useRef(null);
+  const viewerRef = useRef(null);
+  const fullscreenUiTimerRef = useRef(null);
 
   const showToast = useCallback((text, isError = false) => {
     setToast({ text, isError });
@@ -66,7 +70,10 @@ const DesktopEmulatorPanel = () => {
       if (!silent) setLoading(true);
       const st = await window.electronAPI.qemuGetState();
       if (st?.ok === false) { if (!silent) setError(st.error || "Failed to load QEMU state"); }
-      else { setState(st); setError(null); }
+      else {
+        setState(st);
+        if (!silent) setError(null);
+      }
     } catch (e) {
       if (!silent) setError(e?.message || String(e));
     } finally {
@@ -132,6 +139,32 @@ const DesktopEmulatorPanel = () => {
     };
   }, [view]);
 
+  useEffect(() => {
+    const updateFullscreen = () => setIsFullscreen(document.fullscreenElement === viewerRef.current);
+    document.addEventListener("fullscreenchange", updateFullscreen);
+    return () => document.removeEventListener("fullscreenchange", updateFullscreen);
+  }, []);
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      clearTimeout(fullscreenUiTimerRef.current);
+      setFullscreenUiVisible(true);
+      return undefined;
+    }
+    setFullscreenUiVisible(true);
+    fullscreenUiTimerRef.current = setTimeout(() => setFullscreenUiVisible(false), 2200);
+    return () => clearTimeout(fullscreenUiTimerRef.current);
+  }, [isFullscreen]);
+
+  useEffect(() => () => clearTimeout(fullscreenUiTimerRef.current), []);
+
+  const revealFullscreenUi = () => {
+    if (!isFullscreen) return;
+    if (!fullscreenUiVisible) setFullscreenUiVisible(true);
+    clearTimeout(fullscreenUiTimerRef.current);
+    fullscreenUiTimerRef.current = setTimeout(() => setFullscreenUiVisible(false), 2200);
+  };
+
   const sendKey = async (keys) => {
     if (!view) return;
     const r = await window.electronAPI?.qemuInput?.(view.name, { type: "key", keys });
@@ -142,6 +175,15 @@ const DesktopEmulatorPanel = () => {
     const r = await window.electronAPI?.qemuInput?.(view.name, { type: "text", text: keyText });
     if (r?.ok === false) showToast(r.error || "Type failed", true);
     else setKeyText("");
+  };
+  const toggleFullscreen = async () => {
+    try {
+      setFullscreenUiVisible(true);
+      if (document.fullscreenElement === viewerRef.current) await document.exitFullscreen();
+      else await viewerRef.current?.requestFullscreen();
+    } catch (e) {
+      showToast(e?.message || "Could not toggle emulator fullscreen.", true);
+    }
   };
 
   const openLog = async (name = view?.name || state?.vms?.find((vm) => vm.running)?.name || state?.vms?.[0]?.name) => {
@@ -274,15 +316,22 @@ const DesktopEmulatorPanel = () => {
       {error && <div style={{ padding: "var(--space-6) var(--space-10)", background: "var(--danger-bg, #3a1d1d)", color: "var(--danger)", fontSize: "var(--fs-small-plus)" }}>{error}</div>}
 
       {view ? (
-        <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-10)" }}>
+        <div
+          ref={viewerRef}
+          onMouseMove={revealFullscreenUi}
+          style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: "#000", ...(isFullscreen ? { position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 9999, overflow: "hidden" } : {}) }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-10)", ...(isFullscreen ? { position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, background: "linear-gradient(#000b, transparent)", opacity: fullscreenUiVisible ? 1 : 0, transform: fullscreenUiVisible ? "translateY(0)" : "translateY(-100%)", transition: "opacity 180ms ease, transform 180ms ease", pointerEvents: fullscreenUiVisible ? "auto" : "none" } : {}) }}>
             <button style={s.iconBtn} title="Back to VM list" onClick={() => setView(null)}><ArrowLeft size={14} /></button>
             <strong style={{ fontSize: "var(--fs-body)" }}>{view.name}</strong>
             <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-6)" }}>
+              <button style={s.iconBtn} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen}>
+                {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
               <button style={s.btnGhost} onClick={() => doStop(view.name)}><Square size={13} /> Stop</button>
             </div>
           </div>
-          <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden", background: "#000" }}>
+          <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden", background: "#000", ...(isFullscreen ? { position: "absolute", inset: 0 } : {}) }}>
             <div ref={screenRef} style={{ width: "100%", height: "100%", overflow: "hidden" }} />
             {displayStatus.state !== "connected" && (
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--space-10)", padding: "var(--space-20)", background: "rgba(0, 0, 0, 0.88)", textAlign: "center" }}>
@@ -292,7 +341,7 @@ const DesktopEmulatorPanel = () => {
               </div>
             )}
           </div>
-          <div style={{ display: "flex", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", flexWrap: "wrap", alignItems: "center", ...(isFullscreen ? { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, background: "linear-gradient(transparent, #000b)", opacity: fullscreenUiVisible ? 1 : 0, transform: fullscreenUiVisible ? "translateY(0)" : "translateY(100%)", transition: "opacity 180ms ease, transform 180ms ease", pointerEvents: fullscreenUiVisible ? "auto" : "none" } : {}) }}>
             <input style={{ ...s.input, flex: "1 1 160px" }} placeholder="Type text + Enter to send…" value={keyText}
               onChange={(e) => setKeyText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") sendText(); }} />
@@ -429,6 +478,7 @@ const DesktopEmulatorPanel = () => {
                 <div style={{ fontSize: "var(--fs-small)", color: "var(--text-secondary)" }}>
                   {vm.arch} · {vm.memoryMb >= 1024 ? `${vm.memoryMb / 1024} GB` : `${vm.memoryMb} MB`} RAM · {vm.cpus} CPU · disk {fmtBytes(vm.diskBytes)}
                   {vm.iso ? ` · ISO: ${String(vm.iso).split(/[\\/]/).pop()}` : ""}
+                  {vm.recoveryError ? ` · Recovery: ${vm.recoveryError}` : ""}
                 </div>
               </div>
               {vm.running ? (

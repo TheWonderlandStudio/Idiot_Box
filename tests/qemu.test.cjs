@@ -4,6 +4,7 @@ const {
   ARCHES,
   archBinary,
   buildQemuArgs,
+  parseQemuRuntimeArgs,
   validateVmConfig,
   sanitizeVmName,
   parseQemuVersion,
@@ -80,6 +81,15 @@ test("buildQemuArgs uses virt machine for aarch64 and boot order c without ISO",
   assert.ok(joined.includes("-boot order=c"));
   assert.ok(!joined.includes("-cdrom"));
   assert.ok(!joined.includes("-serial"));
+});
+
+test("parseQemuRuntimeArgs identifies a VM's persisted QMP and VNC endpoints", () => {
+  const disk = path.resolve("vms", "linux x64", "disk.qcow2");
+  const commandLine = `"qemu-system-x86_64" -drive "file=${disk},format=qcow2,if=ide" -vnc 127.0.0.1:4 -qmp tcp:127.0.0.1:43127,server,nowait`;
+  assert.deepEqual(parseQemuRuntimeArgs(commandLine, disk), { monitorPort: 43127, vncDisplay: 4 });
+  const legacyCommand = `"qemu-system-x86_64" -drive "file=${disk},format=qcow2,if=ide" -qmp tcp:127.0.0.1:43127,server,nowait`;
+  assert.deepEqual(parseQemuRuntimeArgs(legacyCommand, disk), { monitorPort: 43127, vncDisplay: null });
+  assert.equal(parseQemuRuntimeArgs(commandLine, `${disk}.other`), null);
 });
 
 test("VNC WebSocket proxy forwards binary display data and guest input", async () => {
