@@ -1,23 +1,20 @@
-// ─── Desktop (QEMU) Emulator manager — VMs rooted at `.appdata/qemu` ────────
-// Root lives under Electron userData so the repo stays small:
+// ─── Desktop (QEMU) Emulator manager ────────────────────────────────────────
+// VM files live under the selected storage directory:
 //
-//   <userData>/.appdata/qemu/
-//   ├── settings.json   ← optional { "qemuBinDir": "C:/path/to/qemu" }
-//   ├── vms/<name>/     ← vm.json + disk.qcow2 (one folder per VM, like AVDs)
-//   ├── downloads/      ← optional QEMU installer downloads
-//   └── logs/           ← per-VM serial + stdout logs
+//   <selected-folder>/<name>/
+//   ├── vm.json
+//   ├── disk.qcow2
+//   ├── runtime.json
+//   └── logs/            ← QEMU stdout + serial logs
 //
-// QEMU itself is NOT bundled (no single official portable zip) — the panel
-// auto-detects qemu-system-<arch> from the custom dir, the app-data bin/,
-// the standard install locations, or PATH, and shows install help if missing.
+// The selected storage path preference is saved in Electron userData. The app
+// never runs a QEMU installer.
 // QEMU's VNC framebuffer is streamed into the panel over a loopback WebSocket;
-// QMP remains available for lifecycle and keyboard input.
+// guests have no host-folder, host-device, or network access by default.
 const path = require("path");
 const fs = require("fs");
 const net = require("net");
 const { WebSocket, WebSocketServer } = require("ws");
-const https = require("https");
-const http = require("http");
 const { spawn, execFile } = require("child_process");
 const { promisify } = require("util");
 const execFileAsync = promisify(execFile);
@@ -36,18 +33,54 @@ function getQemuRoot() {
   const { app } = deps();
   return path.join(app.getPath("userData"), ".appdata", "qemu");
 }
-function getVmsDir() { return path.join(getQemuRoot(), "vms"); }
-function getDownloadsDir() { return path.join(getQemuRoot(), "downloads"); }
-function getLogsDir() { return path.join(getQemuRoot(), "logs"); }
+function getLegacyVmsDir() { return path.join(getQemuRoot(), "vms"); }
+function getVmsDir() {
+  const configured = readSettings().vmStorageDir;
+  return typeof configured === "string" && configured ? configured : getLegacyVmsDir();
+}
 function getSettingsPath() { return path.join(getQemuRoot(), "settings.json"); }
 function vmDir(name) { return path.join(getVmsDir(), name); }
-function vmConfigPath(name) { return path.join(vmDir(name), "vm.json"); }
-function vmRuntimePath(name) { return path.join(getLogsDir(), `${name}.runtime.json`); }
-
-function ensureDirs() {
-  for (const d of [getQemuRoot(), getVmsDir(), getDownloadsDir(), getLogsDir()]) {
-    try { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); } catch {}
+function vmRoots() {
+  const settings = readSettings();
+  const savedRoots = Array.isArray(settings.vmStorageDirs)
+    ? settings.vmStorageDirs.filter((root) => typeof root === "string" && root)
+    : [];
+  return [...new Set([getVmsDir(), ...savedRoots, getLegacyVmsDir()])];
+}
+function resolveVmDir(name) {
+  const safeName = sanitizeVmName(name);
+  for (const root of vmRoots()) {
+    const folder = path.join(root, safeName);
+    try {
+      if (!fs.lstatSync(folder).isDirectory()) continue;
+      if (!fs.lstatSync(path.join(folder, "vm.json")).isFile()) continue;
+      return folder;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
   }
+  return null;
+}
+function vmLogsDir(name) { return path.join(resolveVmDir(name) || vmDir(name), "logs"); }
+function vmLogPath(name) { return path.join(vmLogsDir(name), "qemu.log"); }
+function vmRuntimePath(name) { return path.join(resolveVmDir(name) || vmDir(name), "runtime.json"); }
+function ensureVmLogsDir(name) {
+  const folder = resolveVmDir(name);
+  if (!folder) throw new Error(`VM "${name}" storage folder was not found.`);
+  const logsDir = path.join(folder, "logs");
+  fs.mkdirSync(logsDir, { recursive: true });
+  if (!fs.lstatSync(logsDir).isDirectory()) throw new Error(`VM "${name}" logs path must be a folder inside its VM folder.`);
+  for (const file of [path.join(logsDir, "qemu.log"), path.join(logsDir, "serial.log")]) {
+    try {
+      const info = fs.lstatSync(file);
+      if (!info.isFile() || info.isSymbolicLink() || info.nlink > 1) {
+        throw new Error(`VM "${name}" log files must be regular files inside its VM folder.`);
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  return logsDir;
 }
 
 const isWin = () => process.platform === "win32";
@@ -154,9 +187,9 @@ function readSettings() {
   } catch { return {}; }
 }
 function writeSettings(patch) {
-  ensureDirs();
+  fs.mkdirSync(getQemuRoot(), { recursive: true });
   const next = { ...readSettings(), ...patch };
-  try { fs.writeFileSync(getSettingsPath(), JSON.stringify(next, null, 2)); } catch {}
+  fs.writeFileSync(getSettingsPath(), JSON.stringify(next, null, 2));
   return next;
 }
 
@@ -233,160 +266,8 @@ async function resolveArchBin(arch) {
   const probed = await probePathQemu(arch);
   if (probed.found) return archBinary(arch);
   throw new Error(
-    `qemu-system-${arch} not found. Install QEMU (Windows: winget install QEMU.QEMU · macOS: brew install qemu · Linux: sudo apt install qemu-system), ` +
-    `or point the panel at your install folder via "Custom QEMU folder…".`
+    `qemu-system-${arch} not found. Select an existing or portable QEMU folder containing that binary via "Custom QEMU folder…".`
   );
-}
-
-// ─── "Download QEMU" — fetch the official installer, run it separately ─────
-// QEMU is never bundled (per user choice): this downloads the official
-// Windows installer into .appdata/qemu/downloads and launches it as its own
-// process, so the user sees the normal installer window and can cancel /
-// choose the install dir. macOS/Linux have no single installer — the button
-// opens the official download page and logs the package-manager command.
-function qemuDownloadTarget(platform = process.platform) {
-  if (platform === "win32") {
-    return {
-      kind: "installer",
-      indexUrl: "https://qemu.weilnetz.de/w64/",
-      page: "https://www.qemu.org/download/",
-    };
-  }
-  return {
-    kind: "page",
-    url: "https://www.qemu.org/download/",
-    page: "https://www.qemu.org/download/",
-    command: platform === "darwin" ? "brew install qemu" : "sudo apt install qemu-system",
-  };
-}
-
-function parseQemuInstallerIndex(html) {
-  const installers = [...String(html).matchAll(/href=["'](qemu-w64-setup-(\d+)\.exe)["']/gi)]
-    .map((match) => ({ file: match[1], version: match[2] }))
-    .sort((a, b) => b.version.localeCompare(a.version));
-  if (!installers.length) throw new Error("No Windows QEMU installer was found in the official download directory.");
-  return installers[0].file;
-}
-
-function getLatestQemuInstaller(indexUrl) {
-  return new Promise((resolve, reject) => {
-    const get = (url, redirects = 0) => {
-      if (redirects > 8) return reject(new Error("Too many redirects while checking QEMU downloads."));
-      const req = https.get(url, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-          const next = new URL(res.headers.location, url);
-          res.resume();
-          if (next.protocol !== "https:") return reject(new Error("QEMU download directory redirected to a non-HTTPS URL."));
-          return get(next, redirects + 1);
-        }
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error(`Could not check the official QEMU download directory: HTTP ${res.statusCode}.`));
-        }
-        const chunks = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => {
-          try {
-            const file = parseQemuInstallerIndex(Buffer.concat(chunks).toString("utf8"));
-            resolve({ file, url: new URL(file, url).toString() });
-          } catch (error) {
-            reject(error);
-          }
-        });
-        res.on("error", reject);
-      });
-      req.on("error", reject);
-      req.setTimeout(15000, () => req.destroy(new Error("Timed out checking the official QEMU download directory.")));
-    };
-    get(indexUrl);
-  });
-}
-
-function downloadFile(url, dest, onPct = null) {
-  return new Promise((resolve, reject) => {
-    const get = (u, redirects = 0) => {
-      if (redirects > 8) return reject(new Error("Too many redirects"));
-      const lib = String(u).startsWith("https:") ? https : http;
-      const req = lib.get(u, { headers: { "User-Agent": "IdiotBox-DesktopEmulator-Setup" } }, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-          const next = new URL(res.headers.location, u).toString();
-          res.resume();
-          return get(next, redirects + 1);
-        }
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error(`Download failed: HTTP ${res.statusCode} for ${u}`));
-        }
-        const total = parseInt(res.headers["content-length"] || "0", 10) || 0;
-        let done = 0;
-        let lastPct = -1;
-        const ws = fs.createWriteStream(dest);
-        res.on("data", (chunk) => {
-          done += chunk.length;
-          if (total > 0) {
-            const pct = Math.min(99, Math.round((done / total) * 100));
-            if (pct !== lastPct && pct % 2 === 0) {
-              lastPct = pct;
-              try { onPct && onPct(pct, done, total); } catch {}
-            }
-          }
-        });
-        res.pipe(ws);
-        ws.on("finish", () => ws.close(() => resolve({ path: dest, bytes: done, total })));
-        ws.on("error", (e) => { try { fs.unlinkSync(dest); } catch {} reject(e); });
-        res.on("error", (e) => { try { ws.destroy(); } catch {} reject(e); });
-      });
-      req.on("error", reject);
-      req.setTimeout(60000, () => { try { req.destroy(new Error("Download timed out")); } catch {} });
-    };
-    get(url);
-  });
-}
-
-let downloadRunning = false;
-async function downloadAndInstallQemu(op = "download-qemu") {
-  if (downloadRunning) return { ok: false, error: "QEMU download already running — watch the progress log." };
-  const target = qemuDownloadTarget();
-  if (target.kind === "page") {
-    // No single installer on macOS/Linux — open the official page; the
-    // package-manager command is logged so it can be copied into a terminal.
-    try {
-      const { shell } = deps();
-      await shell.openExternal(target.page);
-    } catch {}
-    progress(op, "page", `Opened ${target.page} — install with: ${target.command}`, 100);
-    return { ok: true, kind: "page", command: target.command };
-  }
-  downloadRunning = true;
-  try {
-    ensureDirs();
-    const installer = await getLatestQemuInstaller(target.indexUrl);
-    const dest = path.join(getDownloadsDir(), installer.file);
-    let looksComplete = false;
-    try { looksComplete = fs.statSync(dest).size > 50 * 1024 * 1024; } catch { looksComplete = false; }
-    if (looksComplete) {
-      const mb = (fs.statSync(dest).size / 1048576).toFixed(1);
-      progress(op, "download", `Reusing existing installer (${mb} MB) — skipping re-download.`, 100);
-    } else {
-      progress(op, "download", `Downloading QEMU installer…\n${installer.url}`);
-      await downloadFile(installer.url, dest, (pct, done, total) => {
-        const mb = total ? `${(done / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB` : `${(done / 1048576).toFixed(1)} MB`;
-        progress(op, "download", `Downloading QEMU installer… ${pct}% (${mb})`, pct, { done, total });
-      });
-    }
-    progress(op, "install", `Launching installer: ${dest}\n(Separate window — finish it, then click Refresh in the panel.)`, 100);
-    // Run the installer as its own process/window — never embedded, never
-    // silent, so the user stays in control (and can cancel).
-    const child = spawn(dest, [], { detached: true, windowsHide: false, stdio: "ignore" });
-    child.unref();
-    return { ok: true, kind: "installer", installer: dest };
-  } catch (e) {
-    const msg = e?.message || String(e);
-    progress(op, "error", msg);
-    return { ok: false, error: msg.slice(0, 1200) };
-  } finally {
-    downloadRunning = false;
-  }
 }
 
 // ─── VM config ──────────────────────────────────────────────────────────────
@@ -414,31 +295,43 @@ function validateVmConfig(payload = {}) {
 }
 function readVmConfig(name) {
   try {
-    const raw = fs.readFileSync(vmConfigPath(name), "utf8");
+    const folder = resolveVmDir(name);
+    if (!folder) return null;
+    const raw = fs.readFileSync(path.join(folder, "vm.json"), "utf8");
     const j = JSON.parse(raw);
     if (j && typeof j === "object" && j.name) return j;
   } catch {}
   return null;
 }
 function listVmNames() {
-  ensureDirs();
-  try {
-    return fs.readdirSync(getVmsDir(), { withFileTypes: true })
-      .filter((e) => e.isDirectory() && readVmConfig(e.name))
-      .map((e) => e.name)
-      .sort();
-  } catch { return []; }
+  const names = new Set();
+  for (const root of vmRoots()) {
+    try {
+      for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+        if (entry.isDirectory() && /^[A-Za-z0-9_.-]{1,48}$/.test(entry.name) &&
+            entry.name !== "." && entry.name !== ".." && readVmConfig(entry.name)) names.add(entry.name);
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  return [...names].sort();
 }
 function describeVm(name) {
   const cfg = readVmConfig(name) || { name, arch: "x86_64", memoryMb: 2048, cpus: 2, diskGb: 20, iso: null };
-  const disk = path.join(vmDir(name), cfg.diskFormat === "raw" ? "disk.img" : "disk.qcow2");
+  const folder = resolveVmDir(name) || vmDir(name);
+  const disk = path.join(folder, cfg.diskFormat === "raw" ? "disk.img" : "disk.qcow2");
   let diskBytes = 0;
-  try { diskBytes = fs.statSync(disk).size; } catch {}
+  try {
+    const diskInfo = fs.lstatSync(disk);
+    if (diskInfo.isFile() && !diskInfo.isSymbolicLink() && diskInfo.nlink === 1) diskBytes = diskInfo.size;
+  } catch {}
   const running = runningVms.get(name);
   return {
     ...cfg,
     disk,
     diskBytes,
+    storageDir: folder,
     running: !!running,
     pid: running?.pid || null,
     websocketPort: running?.websocketPort || null,
@@ -468,6 +361,7 @@ function buildQemuArgs(vm, { disk, iso, monitorPort, vncDisplay, serialLog }) {
   args.push("-drive", `file=${disk},format=${vm.diskFormat === "raw" ? "raw" : "qcow2"},if=${isX86 ? "ide" : "virtio"}`);
   if (iso) args.push("-cdrom", iso, "-boot", "order=d");
   else args.push("-boot", "order=c");
+  args.push("-net", "none");
   // Use a localhost VNC server; noVNC renders its incremental framebuffer in-app.
   // x86 has UHCI by default; other machines need an explicit XHCI controller.
   if (isX86) args.push("-usb", "-device", "usb-tablet");
@@ -657,9 +551,15 @@ function waitForTcpPort(port, child, timeoutMs = 15000) {
     timer = setTimeout(() => finish(new Error(`QEMU's VNC display did not become ready within ${Math.ceil(timeoutMs / 1000)} seconds.`)), timeoutMs);
   });
 }
-function readQemuLog(name, logDir = getLogsDir()) {
-  const file = path.join(logDir, `${sanitizeVmName(name)}.log`);
+function readQemuLog(name, logDir = null) {
+  const file = logDir
+    ? path.join(logDir, `${sanitizeVmName(name)}.log`)
+    : vmLogPath(name);
   try {
+    const info = fs.lstatSync(file);
+    if (!info.isFile() || info.isSymbolicLink() || info.nlink > 1) {
+      throw new Error("QEMU log must be a regular file.");
+    }
     const contents = fs.readFileSync(file, "utf8");
     return { ok: true, text: contents.slice(-200000), truncated: contents.length > 200000 };
   } catch (error) {
@@ -687,7 +587,7 @@ async function findExistingQemu(name, disk) {
     monitorPort,
     vncDisplay: commandArgs?.vncDisplay ?? (runtime?.pid === processInfo.pid ? runtime.vncDisplay : null),
     startedAt: runtime?.pid === processInfo.pid ? runtime.startedAt : Date.now(),
-    logFile: path.join(getLogsDir(), `${name}.log`),
+    logFile: vmLogPath(name),
   };
 }
 async function recoverExistingQemu(name, disk) {
@@ -756,7 +656,6 @@ function forwardOut(name, chunk, logFile) {
 }
 
 async function startVmProcess(name) {
-  ensureDirs();
   const cfg = readVmConfig(name);
   if (!cfg) throw new Error(`VM "${name}" not found.`);
   const cur = runningVms.get(name);
@@ -770,20 +669,27 @@ async function startVmProcess(name) {
   const bin = await resolveArchBin(cfg.arch);
   const disk = describeVm(name).disk;
   if (!fs.existsSync(disk)) throw new Error(`Disk image missing for "${name}" — recreate the VM.`);
+  const diskInfo = fs.lstatSync(disk);
+  if (!diskInfo.isFile() || diskInfo.isSymbolicLink() || diskInfo.nlink > 1) {
+    throw new Error(`VM disk for "${name}" must be a regular, unlinked file inside its VM folder.`);
+  }
   const recovered = await recoverExistingQemu(name, disk);
   if (recovered) return recovered;
   const monitorPort = await getFreePort();
   const vncDisplay = await getFreeVncDisplay();
   const vncPort = 5900 + vncDisplay;
-  const logFile = path.join(getLogsDir(), `${name}.log`);
-  const serialLog = path.join(getLogsDir(), `${name}-serial.log`);
+  const folder = resolveVmDir(name);
+  if (!folder) throw new Error(`VM "${name}" storage folder was not found.`);
+  const logsDir = ensureVmLogsDir(name);
+  const logFile = vmLogPath(name);
+  const serialLog = path.join(logsDir, "serial.log");
   const args = buildQemuArgs(cfg, { disk, iso: cfg.iso, monitorPort, vncDisplay, serialLog });
   const child = spawn(bin, args, {
     env: { ...process.env },
     detached: true,
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
-    cwd: getDownloadsDir(),
+    cwd: folder,
   });
   child.unref();
   const pid = child.pid;
@@ -1106,30 +1012,37 @@ async function sendInput(name, action = {}) {
 // ─── Create / delete ────────────────────────────────────────────────────────
 async function createVm(payload = {}) {
   const cfg = { ...validateVmConfig(payload), createdAt: Date.now() };
-  ensureDirs();
-  if (fs.existsSync(vmDir(cfg.name))) throw new Error(`VM "${cfg.name}" already exists.`);
-  fs.mkdirSync(vmDir(cfg.name), { recursive: true });
+  const storageDir = readSettings().vmStorageDir;
+  if (!storageDir) throw new Error("Choose a VM storage folder before creating a VM.");
+  if (readVmConfig(cfg.name) || fs.existsSync(vmDir(cfg.name))) throw new Error(`VM "${cfg.name}" already exists.`);
+  fs.mkdirSync(storageDir, { recursive: true });
+  const folder = vmDir(cfg.name);
+  fs.mkdirSync(folder);
   const qimg = findQemuImgFile();
   let disk;
-  if (qimg) {
-    disk = path.join(vmDir(cfg.name), "disk.qcow2");
-    cfg.diskFormat = "qcow2";
-    progress("create", "disk", `Creating ${cfg.diskGb} GB qcow2 disk…`, null, { vm: cfg.name });
-    await new Promise((resolve, reject) => {
-      execFile(qimg, ["create", "-f", "qcow2", disk, `${cfg.diskGb}G`], { encoding: "utf8", timeout: 120000, windowsHide: true }, (err, stdout, stderr) => {
-        if (err) { err.stdout = stdout; err.stderr = stderr; reject(err); }
-        else resolve(String(stdout || ""));
+  try {
+    if (qimg) {
+      disk = path.join(folder, "disk.qcow2");
+      cfg.diskFormat = "qcow2";
+      progress("create", "disk", `Creating ${cfg.diskGb} GB qcow2 disk…`, null, { vm: cfg.name });
+      await new Promise((resolve, reject) => {
+        execFile(qimg, ["create", "-f", "qcow2", disk, `${cfg.diskGb}G`], { cwd: folder, encoding: "utf8", timeout: 120000, windowsHide: true }, (err, stdout, stderr) => {
+          if (err) { err.stdout = stdout; err.stderr = stderr; reject(err); }
+          else resolve(String(stdout || ""));
+        });
       });
-    });
-  } else {
-    // Fallback when qemu-img is missing: sparse raw image (QEMU reads it fine).
-    disk = path.join(vmDir(cfg.name), "disk.img");
-    cfg.diskFormat = "raw";
-    progress("create", "disk", `qemu-img not found — creating a sparse ${cfg.diskGb} GB raw disk instead…`, null, { vm: cfg.name });
-    const fd = fs.openSync(disk, "w");
-    try { fs.ftruncateSync(fd, cfg.diskGb * 1024 * 1024 * 1024); } finally { fs.closeSync(fd); }
+    } else {
+      disk = path.join(folder, "disk.img");
+      cfg.diskFormat = "raw";
+      progress("create", "disk", `qemu-img not found — creating a sparse ${cfg.diskGb} GB raw disk instead…`, null, { vm: cfg.name });
+      const fd = fs.openSync(disk, "w");
+      try { fs.ftruncateSync(fd, cfg.diskGb * 1024 * 1024 * 1024); } finally { fs.closeSync(fd); }
+    }
+    fs.writeFileSync(path.join(folder, "vm.json"), JSON.stringify(cfg, null, 2));
+  } catch (error) {
+    fs.rmSync(folder, { recursive: true, force: true });
+    throw error;
   }
-  fs.writeFileSync(vmConfigPath(cfg.name), JSON.stringify(cfg, null, 2));
   progress("create", "done", `VM "${cfg.name}" created.`, 100, { vm: cfg.name });
   return { ok: true, vm: describeVm(cfg.name) };
 }
@@ -1144,7 +1057,8 @@ async function deleteVm(name) {
     if (!stopped.ok) return stopped;
   }
   qmpClose(n);
-  try { fs.rmSync(vmDir(n), { recursive: true, force: true }); } catch (e) {
+  const folder = resolveVmDir(n);
+  try { if (folder) fs.rmSync(folder, { recursive: true, force: true }); } catch (e) {
     return { ok: false, error: e.message || String(e) };
   }
   progress("delete", "done", `VM "${n}" deleted.`, null, { vm: n });
@@ -1153,7 +1067,10 @@ async function deleteVm(name) {
 
 // ─── State ──────────────────────────────────────────────────────────────────
 async function getState() {
-  ensureDirs();
+  const settings = readSettings();
+  const storageDir = typeof settings.vmStorageDir === "string" && settings.vmStorageDir
+    ? settings.vmStorageDir
+    : null;
   const qemu = await detectQemu();
   const names = listVmNames();
   await recoverVmsAtStartup(names);
@@ -1162,24 +1079,20 @@ async function getState() {
     ok: true,
     root: getQemuRoot(),
     vmsDir: getVmsDir(),
+    storageDir,
+    storageConfigured: !!storageDir,
     qemu,
-    customBinDir: readSettings().qemuBinDir || null,
+    customBinDir: settings.qemuBinDir || null,
     arches: ARCHES,
     isoCatalog: ISO_CATALOG,
     vms,
     running: vms.filter((v) => v.running).map((v) => v.name),
-    installHelp: {
-      windows: "winget install QEMU.QEMU  (or download from https://www.qemu.org/download)",
-      macos: "brew install qemu",
-      linux: "sudo apt install qemu-system  (Debian/Ubuntu) · sudo dnf install qemu-system-x86_64",
-    },
   };
 }
 
 // ─── IPC wiring ─────────────────────────────────────────────────────────────
 function setupQemuIpc() {
   const { ipcMain, shell, dialog } = require("electron");
-  ensureDirs();
 
   ipcMain.handle("qemu:getState", async () => {
     try { return await getState(); } catch (e) { return { ok: false, error: e?.message || String(e) }; }
@@ -1204,8 +1117,10 @@ function setupQemuIpc() {
       const message = (e?.message || String(e)).slice(0, 1200);
       try {
         const n = sanitizeVmName(name);
-        ensureDirs();
-        fs.appendFileSync(path.join(getLogsDir(), `${n}.log`), `\r\n[QEMU start error] ${message}\r\n`);
+        if (resolveVmDir(n)) {
+          ensureVmLogsDir(n);
+          fs.appendFileSync(vmLogPath(n), `\r\n[QEMU start error] ${message}\r\n`);
+        }
       } catch {}
       return { ok: false, error: message };
     }
@@ -1243,7 +1158,19 @@ function setupQemuIpc() {
     return r.filePaths[0];
   });
 
-  ipcMain.handle("qemu:downloadQemu", async () => downloadAndInstallQemu("download-qemu"));
+  ipcMain.handle("qemu:selectVmStorageDir", async () => {
+    const r = await dialog.showOpenDialog({
+      title: "Choose the parent folder for QEMU VMs",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (r.canceled || !r.filePaths.length) return null;
+    const selected = fs.realpathSync(r.filePaths[0]);
+    if (!fs.statSync(selected).isDirectory()) throw new Error("The selected VM storage path is not a folder.");
+    const savedRoots = readSettings().vmStorageDirs;
+    const roots = [...new Set([...(Array.isArray(savedRoots) ? savedRoots.filter((root) => typeof root === "string") : []), selected])];
+    writeSettings({ vmStorageDir: selected, vmStorageDirs: roots });
+    return { ok: true, storageDir: selected };
+  });
 
   ipcMain.handle("qemu:setCustomBinDir", async () => {
     const r = await dialog.showOpenDialog({
@@ -1258,7 +1185,11 @@ function setupQemuIpc() {
   });
 
   ipcMain.handle("qemu:revealFolder", async () => {
-    try { ensureDirs(); await shell.openPath(getQemuRoot()); return { ok: true }; }
+    try {
+      const error = await shell.openPath(getVmsDir());
+      if (error) throw new Error(error);
+      return { ok: true };
+    }
     catch (e) { return { ok: false, error: e?.message || String(e) }; }
   });
 }
@@ -1268,8 +1199,6 @@ module.exports = {
   stopAllVms,
   getQemuRoot,
   getVmsDir,
-  getDownloadsDir,
-  getLogsDir,
   ARCHES,
   ARCH_MACHINE,
   ISO_CATALOG,
@@ -1288,6 +1217,4 @@ module.exports = {
   sendInput,
   candidateDirs,
   findQemuBinFile,
-  qemuDownloadTarget,
-  parseQemuInstallerIndex,
 };

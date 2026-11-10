@@ -270,22 +270,15 @@ const DesktopEmulatorPanel = () => {
     const r = await window.electronAPI?.qemuSetCustomBinDir?.();
     if (r?.ok) { pushLog(`[qemu] custom QEMU folder: ${r.qemuBinDir}`); fetchState(true); }
   };
-  const [downloading, setDownloading] = useState(false);
-  const doDownload = async () => {
-    setDownloading(true);
-    pushLog("[download] fetching the official QEMU installer…");
+  const selectVmStorageDir = async () => {
     try {
-      const r = await window.electronAPI?.qemuDownload?.();
+      const r = await window.electronAPI?.qemuSelectVmStorageDir?.();
       if (r?.ok) {
-        if (r.kind === "installer") pushLog(`[download] installer launched: ${r.installer} — finish it, then Refresh.`);
-        else pushLog(`[download] opened the download page — install with: ${r.command}`);
-      } else {
-        showToast(r?.error || "Download failed", true);
-        pushLog(`[download:error] ${r?.error}`);
+        pushLog(`[storage] VM folders will be saved under ${r.storageDir}`);
+        showToast("VM storage folder selected");
+        fetchState(true);
       }
     } catch (e) { showToast(e?.message || String(e), true); }
-    setDownloading(false);
-    fetchState(true);
   };
   const qemu = state?.qemu || {};
   const vms = state?.vms || [];
@@ -303,7 +296,7 @@ const DesktopEmulatorPanel = () => {
         <div style={{ display: "flex", gap: "var(--space-6)" }}>
           <button style={s.iconBtn} title="Disclaimer" onClick={() => window.dispatchEvent(new CustomEvent("show-emulator-disclaimer", { detail: { key: "idiotbox.disclaimer.desktop" } }))}><Info size={14} /></button>
           <button style={s.iconBtn} title="Open QEMU log" onClick={() => openLog()}><Terminal size={14} /></button>
-          <button style={s.iconBtn} title="Reveal .appdata/qemu folder" onClick={() => window.electronAPI?.qemuRevealFolder?.()}><FolderOpen size={14} /></button>
+          <button style={s.iconBtn} title="Open VM storage folder" onClick={() => window.electronAPI?.qemuRevealFolder?.()}><FolderOpen size={14} /></button>
           <button style={s.iconBtn} title="Refresh" onClick={() => fetchState(false)}><RefreshCw size={14} /></button>
         </div>
       </div>
@@ -354,23 +347,24 @@ const DesktopEmulatorPanel = () => {
       ) : (
         <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
           {loading && <div style={{ padding: 16, color: "var(--text-secondary)" }}>Loading QEMU state…</div>}
+          <div style={{ padding: "var(--space-6) var(--space-10)", display: "flex", gap: "var(--space-8)", alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "var(--fs-small)", color: "var(--text-secondary)", flex: "1 1 260px" }}>
+              VM storage: {state?.storageDir || "Choose a parent folder before creating VMs"}
+            </span>
+            <button style={s.btnGhost} onClick={selectVmStorageDir}>Change storage folder…</button>
+          </div>
+          <div style={{ padding: "0 var(--space-10) var(--space-6)", fontSize: "var(--fs-small)", color: "var(--text-secondary)" }}>
+            Existing VMs are not moved when you change this folder; their files stay in their original VM subfolders.
+          </div>
           {!loading && !qemu.found && (
             <div style={{ margin: "var(--space-10)", padding: "var(--space-10)", border: "1px solid var(--danger)", borderRadius: "var(--radius-md)" }}>
-              <strong>QEMU is not installed or not found.</strong>
+              <strong>QEMU is not available in the selected or standard folders.</strong>
               <div style={{ marginTop: 8, fontSize: "var(--fs-small-plus)", lineHeight: 1.6, color: "var(--text-secondary)" }}>
-                <div>Windows: <code>{state?.installHelp?.windows}</code></div>
-                <div>macOS: <code>{state?.installHelp?.macos}</code></div>
-                <div>Linux: <code>{state?.installHelp?.linux}</code></div>
-                <div style={{ marginTop: 6 }}>Already installed? Point the panel at its folder (the one containing <code>qemu-system-x86_64</code>).</div>
+                <div>This app does not download or run installers. Use an existing or portable QEMU folder; the app checks the selected QEMU build and starts it only for VM use.</div>
+                <div style={{ marginTop: 6 }}>Choose the folder containing <code>qemu-system-x86_64</code>.</div>
               </div>
               <div style={{ marginTop: 8, display: "flex", gap: "var(--space-8)", flexWrap: "wrap" }}>
-                <button style={s.btn} disabled={downloading} onClick={doDownload}>
-                  <Download size={13} /> {downloading ? "Downloading…" : "Download QEMU"}
-                </button>
                 <button style={s.btnGhost} onClick={setCustomBin}>Custom QEMU folder…</button>
-              </div>
-              <div style={{ marginTop: 6, fontSize: "var(--fs-small)", color: "var(--text-secondary)" }}>
-                Download QEMU fetches the official installer (not bundled) and runs it in its own window — you can cancel or pick the install location.
               </div>
             </div>
           )}
@@ -382,7 +376,7 @@ const DesktopEmulatorPanel = () => {
                 {state?.customBinDir ? ` · custom dir: ${state.customBinDir}` : ""}
               </span>
               <button style={s.btnGhost} onClick={setCustomBin}>Custom QEMU folder…</button>
-              <button style={{ ...s.btn, marginLeft: "auto" }} disabled={!qemu.found} onClick={() => setShowCreate((v) => !v)}>
+              <button style={{ ...s.btn, marginLeft: "auto" }} disabled={!qemu.found || !state?.storageConfigured} onClick={() => setShowCreate((v) => !v)}>
                 <Plus size={13} /> New VM
               </button>
             </div>
@@ -457,6 +451,10 @@ const DesktopEmulatorPanel = () => {
                 </div>
               )}
 
+              <div style={{ gridColumn: "1 / -1", padding: "var(--space-8)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)", color: "var(--text-secondary)", fontSize: "var(--fs-small-plus)", lineHeight: 1.5 }}>
+                Each VM’s disk, settings, and logs stay in its own subfolder under the selected storage folder. No host folders, devices, or network are shared with the guest. QEMU still runs as a normal host process, so this is not a full security sandbox; use trusted VM images.
+              </div>
+
               <div style={{ gridColumn: "1 / -1", display: "flex", gap: "var(--space-8)" }}>
                 <button style={s.btn} disabled={busy === "create"} onClick={doCreate}>{busy === "create" ? "Creating…" : "Create VM"}</button>
                 <button style={s.btnGhost} onClick={() => setShowCreate(false)}><X size={13} /> Cancel</button>
@@ -466,7 +464,7 @@ const DesktopEmulatorPanel = () => {
 
           {vms.length === 0 && !loading && (
             <div style={{ padding: 24, color: "var(--text-secondary)", fontSize: "var(--fs-body)" }}>
-              No VMs yet. {!qemu.found ? "Install QEMU first (above), then create a VM and boot any ISO." : "Click “New VM”, pick an ISO (e.g. Linux or Windows), and Start it — the guest screen appears right here."}
+              No VMs yet. {!qemu.found ? "Select an existing QEMU folder, then choose VM storage and create a VM." : !state?.storageConfigured ? "Choose a VM storage folder first; VM data will stay under that folder." : "Click “New VM”, pick an ISO (e.g. Linux or Windows), and Start it — the guest screen appears right here."}
             </div>
           )}
 
@@ -477,6 +475,7 @@ const DesktopEmulatorPanel = () => {
                 <div style={{ fontWeight: 600 }}>{vm.name}</div>
                 <div style={{ fontSize: "var(--fs-small)", color: "var(--text-secondary)" }}>
                   {vm.arch} · {vm.memoryMb >= 1024 ? `${vm.memoryMb / 1024} GB` : `${vm.memoryMb} MB`} RAM · {vm.cpus} CPU · disk {fmtBytes(vm.diskBytes)}
+                  {vm.storageDir ? ` · ${vm.storageDir}` : ""}
                   {vm.iso ? ` · ISO: ${String(vm.iso).split(/[\\/]/).pop()}` : ""}
                   {vm.recoveryError ? ` · Recovery: ${vm.recoveryError}` : ""}
                 </div>
@@ -530,12 +529,13 @@ const DesktopEmulatorPanel = () => {
       <EmulatorDisclaimer
         storageKey="idiotbox.disclaimer.desktop"
         title="Desktop Emulator — Disclaimer"
-        summary="Unofficial panel — not affiliated with, endorsed by or sponsored by the QEMU project. QEMU is third-party free software (GPL-2.0) that you install and license separately."
+        summary="Unofficial panel — not affiliated with, endorsed by or sponsored by the QEMU project. QEMU is third-party free software (GPL-2.0); use an existing or portable QEMU build."
         items={[
-          "This app does not bundle, download or redistribute QEMU or any operating-system image. \"Download QEMU\" only fetches the official installer (or opens the official page) and hands control to it — the installer runs separately under its own licence.",
+          "This app does not bundle, download, install, or run a QEMU installer. It checks an existing QEMU build and launches it for VM use.",
           "ISO buttons open the vendor's official download page or file in your system browser. Nothing is downloaded, cached or redistributed by Idiot Box.",
           "Each guest operating system remains under its own licence and terms. Windows requires a valid Microsoft licence; Linux and BSD images carry their distribution's terms. You are responsible for complying with them.",
-          "Virtual machines and disks are stored locally as ordinary files under .appdata/qemu. Deleting a VM deletes its disk, so back up anything you need first.",
+          "Each VM's disk, configuration, runtime state, and logs are stored in that VM's subfolder under the selected storage folder. The selected path preference is saved in app settings. Deleting a VM deletes its VM folder, so back up anything you need first.",
+          "Guests have no host-folder or host-device passthrough and networking is disabled by default. QEMU still runs as a normal host process; this is not a security sandbox, and no VM can guarantee zero risk to the host.",
           "Hardware virtualisation (WHPX, Hypervisor.framework or KVM) is used when available. Performance and device support depend on your host, firmware settings and the QEMU build you installed.",
           "Running untrusted or unlicensed images is at your own risk. This panel is provided \"as is\", without warranty of any kind. Idiot Box itself is free software under GPL-3.0.",
         ]}

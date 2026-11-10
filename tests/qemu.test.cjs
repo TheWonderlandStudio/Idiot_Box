@@ -9,8 +9,6 @@ const {
   sanitizeVmName,
   parseQemuVersion,
   hmpKeyName,
-  qemuDownloadTarget,
-  parseQemuInstallerIndex,
   makeQmpClient,
   buildInputAction,
   createVncWebSocketProxy,
@@ -63,9 +61,12 @@ test("buildQemuArgs boots x86 with in-app VNC display, monitor, tablet and cdrom
   assert.ok(joined.includes("-cdrom C:/os/linux.iso"));
   assert.ok(joined.includes("-boot order=d"));
   assert.ok(joined.includes("-display none"));
+  assert.ok(joined.includes("-net none"));
   assert.ok(joined.includes("-vnc 127.0.0.1:7"));
   assert.ok(joined.includes("-qmp tcp:127.0.0.1:5901,server,nowait"));
   assert.ok(joined.includes("usb-tablet"));
+  assert.ok(!joined.includes("-virtfs"));
+  assert.ok(!joined.includes("usb-host"));
   assert.ok(joined.includes("-serial file:C:/logs/a-serial.log"));
 });
 
@@ -79,6 +80,9 @@ test("buildQemuArgs uses virt machine for aarch64 and boot order c without ISO",
   assert.ok(joined.includes("if=virtio"));
   assert.ok(joined.includes("qemu-xhci"));
   assert.ok(joined.includes("usb-tablet"));
+  assert.ok(joined.includes("-net none"));
+  assert.ok(!joined.includes("-virtfs"));
+  assert.ok(!joined.includes("usb-host"));
   assert.ok(joined.includes("-boot order=c"));
   assert.ok(!joined.includes("-cdrom"));
   assert.ok(!joined.includes("-serial"));
@@ -267,19 +271,4 @@ test("ISO catalog links are official https, unique, and match known arches", () 
   assert.ok(hosts.includes("releases.ubuntu.com"));
   assert.ok(hosts.includes("cdimage.debian.org"));
   assert.ok(hosts.includes("alpinelinux.org"));
-});
-
-test("qemuDownloadTarget: Windows gets an installer, others get the page + command", () => {
-  const win = qemuDownloadTarget("win32", "x64");
-  assert.equal(win.kind, "installer");
-  assert.equal(win.indexUrl, "https://qemu.weilnetz.de/w64/");
-  assert.equal(qemuDownloadTarget("win32", "arm64").indexUrl, win.indexUrl);
-  assert.equal(parseQemuInstallerIndex('<a href="qemu-w64-setup-20260805.exe">old</a><a href="qemu-w64-setup-20260811.exe">latest</a>'), "qemu-w64-setup-20260811.exe");
-  assert.throws(() => parseQemuInstallerIndex("<html>no installer</html>"), /No Windows QEMU installer/);
-  const mac = qemuDownloadTarget("darwin", "arm64");
-  assert.equal(mac.kind, "page");
-  assert.equal(mac.command, "brew install qemu");
-  const lin = qemuDownloadTarget("linux", "x64");
-  assert.equal(lin.kind, "page");
-  assert.match(lin.command, /qemu-system/);
 });
