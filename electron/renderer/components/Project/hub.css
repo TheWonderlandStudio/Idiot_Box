@@ -2578,7 +2578,7 @@
 .phub__wallbtn {
   width: 30px;
   height: 30px;
-  border-radius: var(--radius-pill);
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
