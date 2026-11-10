@@ -548,7 +548,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   qemuDeleteVm:         (name) => ipcRenderer.invoke("qemu:deleteVm", { name }),
   qemuStartVm:          (name) => ipcRenderer.invoke("qemu:startVm", { name }),
   qemuStopVm:           (name) => ipcRenderer.invoke("qemu:stopVm", { name }),
-  qemuFrame:            (name) => ipcRenderer.invoke("qemu:frame", { name }),
+  qemuGetLog:           (name) => ipcRenderer.invoke("qemu:getLog", { name }),
   qemuInput:            (name, action) => ipcRenderer.invoke("qemu:input", { name, action }),
   qemuPickIso:          () => ipcRenderer.invoke("qemu:pickIso"),
   qemuDownload:         () => ipcRenderer.invoke("qemu:downloadQemu"),

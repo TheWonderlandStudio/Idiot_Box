@@ -6,15 +6,22 @@ const {
   buildQemuArgs,
   validateVmConfig,
   sanitizeVmName,
-  parsePpm,
   parseQemuVersion,
   hmpKeyName,
   qemuDownloadTarget,
   makeQmpClient,
   buildInputAction,
+  createVncWebSocketProxy,
+  closeVncWebSocketProxy,
+  readQemuLog,
   ISO_CATALOG,
 } = require("../electron/main/qemu");
 const net = require("node:net");
+const { once } = require("node:events");
+const { WebSocket } = require("ws");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 test("sanitizeVmName accepts safe names and rejects traversal", () => {
   assert.equal(sanitizeVmName("linux-x64"), "linux-x64");
@@ -41,10 +48,10 @@ test("validateVmConfig clamps resources and defaults the arch", () => {
   assert.throws(() => validateVmConfig({ name: "vm1", iso: "/no/such/file.iso" }), /ISO not found/);
 });
 
-test("buildQemuArgs boots x86 headless with monitor, tablet and cdrom", () => {
+test("buildQemuArgs boots x86 with in-app VNC display, monitor, tablet and cdrom", () => {
   const args = buildQemuArgs(
     { arch: "x86_64", memoryMb: 4096, cpus: 4, diskFormat: "qcow2", iso: "C:/os/linux.iso" },
-    { disk: "C:/vms/a/disk.qcow2", iso: "C:/os/linux.iso", monitorPort: 5901, serialLog: "C:/logs/a-serial.log" }
+    { disk: "C:/vms/a/disk.qcow2", iso: "C:/os/linux.iso", monitorPort: 5901, vncDisplay: 7, serialLog: "C:/logs/a-serial.log" }
   );
   const joined = args.join(" ");
   assert.ok(joined.includes("-m 4096"));
@@ -54,6 +61,7 @@ test("buildQemuArgs boots x86 headless with monitor, tablet and cdrom", () => {
   assert.ok(joined.includes("-cdrom C:/os/linux.iso"));
   assert.ok(joined.includes("-boot order=d"));
   assert.ok(joined.includes("-display none"));
+  assert.ok(joined.includes("-vnc 127.0.0.1:7"));
   assert.ok(joined.includes("-qmp tcp:127.0.0.1:5901,server,nowait"));
   assert.ok(joined.includes("usb-tablet"));
   assert.ok(joined.includes("-serial file:C:/logs/a-serial.log"));
@@ -62,7 +70,7 @@ test("buildQemuArgs boots x86 headless with monitor, tablet and cdrom", () => {
 test("buildQemuArgs uses virt machine for aarch64 and boot order c without ISO", () => {
   const args = buildQemuArgs(
     { arch: "aarch64", memoryMb: 2048, cpus: 2, diskFormat: "raw", iso: null },
-    { disk: "/vms/a/disk.img", iso: null, monitorPort: 1234, serialLog: null }
+    { disk: "/vms/a/disk.img", iso: null, monitorPort: 1234, vncDisplay: 8, serialLog: null }
   );
   const joined = args.join(" ");
   assert.ok(joined.includes("-machine virt"));
@@ -74,15 +82,47 @@ test("buildQemuArgs uses virt machine for aarch64 and boot order c without ISO",
   assert.ok(!joined.includes("-serial"));
 });
 
-test("parsePpm reads a P6 frame and rejects garbage", () => {
-  const px = Buffer.from([255, 0, 0, 0, 255, 0]); // 2x1 red, green
-  const ppm = Buffer.concat([Buffer.from("P6\n2 1\n255\n", "ascii"), px]);
-  const { w, h, rgb } = parsePpm(ppm);
-  assert.equal(w, 2);
-  assert.equal(h, 1);
-  assert.deepEqual(Buffer.from(rgb), px);
-  assert.throws(() => parsePpm(Buffer.from("P3\n1 1\n255\nxxx")), /Not a PPM/);
-  assert.throws(() => parsePpm(Buffer.from("P6\n2 1\n255\n\x00")), /Truncated/);
+test("VNC WebSocket proxy forwards binary display data and guest input", async () => {
+  const tcpServer = net.createServer((socket) => {
+    socket.on("data", (data) => socket.write(Buffer.concat([Buffer.from("reply:"), data])));
+  });
+  await new Promise((resolve) => tcpServer.listen(0, "127.0.0.1", resolve));
+  const proxy = await createVncWebSocketProxy(tcpServer.address().port);
+  const client = new WebSocket(`ws://127.0.0.1:${proxy.port}`);
+  try {
+    await once(client, "open");
+    const expected = Buffer.from("reply:guest-input");
+    const reply = new Promise((resolve) => {
+      let received = Buffer.alloc(0);
+      client.on("message", (data) => {
+        received = Buffer.concat([received, Buffer.from(data)]);
+        if (received.length >= expected.length) resolve(received.subarray(0, expected.length));
+      });
+    });
+    client.send(Buffer.from("guest-input"));
+    assert.deepEqual(await reply, expected);
+  } finally {
+    client.terminate();
+    await closeVncWebSocketProxy(proxy);
+    await new Promise((resolve) => tcpServer.close(resolve));
+  }
+});
+
+test("QEMU log reader returns the saved tail and reports missing logs", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "idiot-box-qemu-log-"));
+  try {
+    assert.deepEqual(readQemuLog("vm1", dir), { ok: true, text: "", truncated: false });
+    const contents = `${"x".repeat(200001)}tail`;
+    fs.writeFileSync(path.join(dir, "vm1.log"), contents);
+    const log = readQemuLog("vm1", dir);
+    assert.equal(log.ok, true);
+    assert.equal(log.truncated, true);
+    assert.equal(log.text.length, 200000);
+    assert.ok(log.text.endsWith("tail"));
+    assert.throws(() => readQemuLog("../outside", dir), /VM name/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("parseQemuVersion and hmpKeyName map common inputs", () => {
@@ -179,9 +219,9 @@ test("QMP client matches replies by id (no prompt-desync) and survives events", 
     const a = await new Promise((resolve, reject) => {
       const id = ++client.seq;
       client.pending.set(id, { resolve, reject });
-      client.socket.write(JSON.stringify({ execute: "screendump", arguments: { filename: "x.ppm" }, id }) + "\n");
+      client.socket.write(JSON.stringify({ execute: "query-status", id }) + "\n");
     });
-    assert.equal(a.echo, "screendump");
+    assert.equal(a.echo, "query-status");
     // back-to-back commands must each get their own reply
     const results = await Promise.all(["first", "second", "third"].map((name) => new Promise((resolve, reject) => {
       const id = ++client.seq;

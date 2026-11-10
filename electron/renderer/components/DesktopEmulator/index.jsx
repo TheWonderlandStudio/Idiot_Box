@@ -1,10 +1,9 @@
 // Desktop Emulator Panel — QEMU VMs rooted at <userData>/.appdata/qemu
 // Mirrors the Android Emulator panel: list VMs, Create (arch/RAM/CPU/disk/ISO),
-// Start/Stop headless, and a live guest screen streamed into the panel via
-// HMP `screendump` (PPM frames drawn on a canvas). Click = guest mouse click,
-// the key box sends QEMU `sendkey` chords.
+// Start/Stop QEMU VMs and render their live VNC display inside the app.
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, ArrowLeft, Monitor, Download, Terminal, X, Info } from "lucide-react";
+import RFB from "@novnc/novnc/core/rfb.js";
 import EmulatorDisclaimer from "../shared/EmulatorDisclaimer.jsx";
 
 const s = {
@@ -41,12 +40,11 @@ const DesktopEmulatorPanel = () => {
   const [showIsoList, setShowIsoList] = useState(false);
   const [form, setForm] = useState({ name: "linux-x64", arch: "x86_64", memoryMb: 2048, cpus: 2, diskGb: 20, iso: "" });
   const [view, setView] = useState(null); // { name }
+  const [displayStatus, setDisplayStatus] = useState({ state: "connecting", error: null });
+  const [qemuLog, setQemuLog] = useState(null);
   const [keyText, setKeyText] = useState("");
   const busyRef = useRef(false);
-  const canvasRef = useRef(null);
-  const screenBoxRef = useRef(null);
-  const frameSizeRef = useRef(null); // { w, h } guest px of latest frame
-  const moveAtRef = useRef(0);
+  const screenRef = useRef(null);
 
   const showToast = useCallback((text, isError = false) => {
     setToast({ text, isError });
@@ -96,85 +94,43 @@ const DesktopEmulatorPanel = () => {
     return unsub;
   }, [pushLog, showToast, fetchState]);
 
-  // ── Frame polling while the viewer is open ──────────────────────────────
   useEffect(() => {
-    if (!view) return;
-    let alive = true;
-    const draw = async () => {
-      if (!alive || document.hidden) return;
-      try {
-        const r = await window.electronAPI?.qemuFrame?.(view.name);
-        if (!alive) return;
-        if (r?.ok && !r.unchanged && r.rgb && canvasRef.current) {
-          const bin = atob(r.rgb);
-          const rgb = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) rgb[i] = bin.charCodeAt(i);
-          frameSizeRef.current = { w: r.w, h: r.h };
-          const cv = canvasRef.current;
-          if (cv.width !== r.w || cv.height !== r.h) { cv.width = r.w; cv.height = r.h; }
-          const ctx = cv.getContext("2d");
-          const img = ctx.createImageData(r.w, r.h);
-          const d = img.data;
-          for (let i = 0, j = 0; i < rgb.length; i += 3, j += 4) {
-            d[j] = rgb[i]; d[j + 1] = rgb[i + 1]; d[j + 2] = rgb[i + 2]; d[j + 3] = 255;
-          }
-          ctx.putImageData(img, 0, 0);
-        }
-      } catch {}
+    if (!view || !screenRef.current) return;
+    let active = true;
+    if (!view.websocketPort) {
+      setDisplayStatus({ state: "disconnected", error: "No in-app display stream is available. Stop and restart this VM." });
+      return () => { active = false; };
+    }
+    setDisplayStatus({ state: "connecting", error: null });
+    const rfb = new RFB(screenRef.current, `ws://127.0.0.1:${view.websocketPort}`);
+    rfb.scaleViewport = true;
+    rfb.resizeSession = true;
+    rfb.focusOnClick = true;
+    const onConnect = () => {
+      if (active) setDisplayStatus({ state: "connected", error: null });
     };
-    draw();
-    const iv = setInterval(draw, 600);
-    // Focus the screen so the keyboard reaches the guest without an extra click.
-    setTimeout(() => { try { screenBoxRef.current?.focus(); } catch {} }, 80);
-    return () => { alive = false; clearInterval(iv); };
+    const onDisconnect = (event) => {
+      if (!active) return;
+      setDisplayStatus({
+        state: "disconnected",
+        error: event.detail?.clean ? "The display stream disconnected." : "Could not connect to the VM display.",
+      });
+    };
+    const onSecurityFailure = (event) => {
+      if (active) setDisplayStatus({ state: "disconnected", error: event.detail?.reason || "VNC security negotiation failed." });
+    };
+    rfb.addEventListener("connect", onConnect);
+    rfb.addEventListener("disconnect", onDisconnect);
+    rfb.addEventListener("securityfailure", onSecurityFailure);
+    return () => {
+      active = false;
+      rfb.removeEventListener("connect", onConnect);
+      rfb.removeEventListener("disconnect", onDisconnect);
+      rfb.removeEventListener("securityfailure", onSecurityFailure);
+      rfb.disconnect();
+      screenRef.current?.replaceChildren();
+    };
   }, [view]);
-
-  // Map canvas pixels → QMP absolute pointer range (0..32767).
-  const ABS_MAX = 32767;
-  const canvasToGuest = (e) => {
-    const cv = canvasRef.current;
-    if (!cv) return null;
-    const rect = cv.getBoundingClientRect();
-    if (!rect.width || !rect.height) return null;
-    return {
-      x: Math.round(((e.clientX - rect.left) / rect.width) * ABS_MAX),
-      y: Math.round(((e.clientY - rect.top) / rect.height) * ABS_MAX),
-    };
-  };
-
-  const onCanvasClick = async (e) => {
-    if (!view) return;
-    const p = canvasToGuest(e);
-    if (!p) return;
-    await window.electronAPI?.qemuInput?.(view.name, { type: "click", ...p, button: e.button === 2 ? "right" : e.button === 1 ? "middle" : "left" });
-  };
-
-  const onCanvasWheel = async (e) => {
-    if (!view) return;
-    const p = canvasToGuest(e);
-    if (!p) return;
-    await window.electronAPI?.qemuInput?.(view.name, { type: "wheel", ...p, delta: e.deltaY });
-  };
-  const onCanvasMove = (e) => {
-    if (!view) return;
-    const now = Date.now();
-    if (now - moveAtRef.current < 60) return; // ~16 moves/sec is plenty for an absolute pointer
-    moveAtRef.current = now;
-    const p = canvasToGuest(e);
-    if (p) window.electronAPI?.qemuInput?.(view.name, { type: "move", ...p });
-  };
-
-  // Real keyboard: every keydown/keyup goes straight to the guest.
-  const onCanvasKey = async (e, down) => {
-    if (!view) return;
-    // Let the app keep its own window-level shortcuts, but swallow everything
-    // else so typing reaches the guest instead of triggering IDE commands.
-    if (down && (e.key === "F11" || e.key === "F12")) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const r = await window.electronAPI?.qemuInput?.(view.name, { type: down ? "keydown" : "keyup", key: e.key });
-    if (down && r?.ok === false && r.error && !/Unsupported key/.test(r.error)) showToast(r.error, true);
-  };
 
   const sendKey = async (keys) => {
     if (!view) return;
@@ -188,14 +144,44 @@ const DesktopEmulatorPanel = () => {
     else setKeyText("");
   };
 
+  const openLog = async (name = view?.name || state?.vms?.find((vm) => vm.running)?.name || state?.vms?.[0]?.name) => {
+    if (!name) {
+      showToast("Create or select a VM before opening its log.", true);
+      return;
+    }
+    try {
+      const result = await window.electronAPI?.qemuGetLog?.(name);
+      if (result?.ok === false) throw new Error(result.error || "Failed to read QEMU log.");
+      setQemuLog({ name, text: result?.text || "", truncated: !!result?.truncated });
+    } catch (e) {
+      showToast(e?.message || String(e), true);
+    }
+  };
+
   const doStart = async (name) => {
     setBusy(name);
     pushLog(`[start] ${name}…`);
     try {
       const r = await window.electronAPI.qemuStartVm(name);
-      if (r?.ok) { setView({ name }); pushLog(`[start] ${name} booting (pid ${r.pid})`); }
-      else { showToast(r?.error || "Start failed", true); pushLog(`[start:error] ${r?.error}`); }
-    } catch (e) { showToast(e?.message || String(e), true); }
+      if (r?.ok) {
+        setView({ name, websocketPort: r.websocketPort });
+        setError(null);
+        pushLog(`[start] ${name} booting (pid ${r.pid})`);
+      }
+      else {
+        const message = r?.error || "Start failed";
+        showToast(message, true);
+        pushLog(`[start:error] ${message}`);
+        setError(`${name}: ${message}`);
+        openLog(name);
+      }
+    } catch (e) {
+      const message = e?.message || String(e);
+      showToast(message, true);
+      pushLog(`[start:error] ${message}`);
+      setError(`${name}: ${message}`);
+      openLog(name);
+    }
     setBusy(null); fetchState(true);
   };
   const doStop = async (name) => {
@@ -259,16 +245,6 @@ const DesktopEmulatorPanel = () => {
     setDownloading(false);
     fetchState(true);
   };
-  const openLog = () => window.dispatchEvent(new CustomEvent("add-qemu-log-panel"));
-  const downloadPng = () => {
-    const cv = canvasRef.current;
-    if (!cv || !view) return;
-    const a = document.createElement("a");
-    a.href = cv.toDataURL("image/png");
-    a.download = `${view.name}-${Date.now()}.png`;
-    a.click();
-  };
-
   const qemu = state?.qemu || {};
   const vms = state?.vms || [];
 
@@ -284,7 +260,7 @@ const DesktopEmulatorPanel = () => {
         </div>
         <div style={{ display: "flex", gap: "var(--space-6)" }}>
           <button style={s.iconBtn} title="Disclaimer" onClick={() => window.dispatchEvent(new CustomEvent("show-emulator-disclaimer", { detail: { key: "idiotbox.disclaimer.desktop" } }))}><Info size={14} /></button>
-          <button style={s.iconBtn} title="Open QEMU log (Terminal)" onClick={openLog}><Terminal size={14} /></button>
+          <button style={s.iconBtn} title="Open QEMU log" onClick={() => openLog()}><Terminal size={14} /></button>
           <button style={s.iconBtn} title="Reveal .appdata/qemu folder" onClick={() => window.electronAPI?.qemuRevealFolder?.()}><FolderOpen size={14} /></button>
           <button style={s.iconBtn} title="Refresh" onClick={() => fetchState(false)}><RefreshCw size={14} /></button>
         </div>
@@ -295,6 +271,7 @@ const DesktopEmulatorPanel = () => {
           {toast.text}
         </div>
       )}
+      {error && <div style={{ padding: "var(--space-6) var(--space-10)", background: "var(--danger-bg, #3a1d1d)", color: "var(--danger)", fontSize: "var(--fs-small-plus)" }}>{error}</div>}
 
       {view ? (
         <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
@@ -302,26 +279,18 @@ const DesktopEmulatorPanel = () => {
             <button style={s.iconBtn} title="Back to VM list" onClick={() => setView(null)}><ArrowLeft size={14} /></button>
             <strong style={{ fontSize: "var(--fs-body)" }}>{view.name}</strong>
             <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-6)" }}>
-              <button style={s.btnGhost} onClick={downloadPng}><Download size={13} /> PNG</button>
               <button style={s.btnGhost} onClick={() => doStop(view.name)}><Square size={13} /> Stop</button>
             </div>
           </div>
-          <div
-            ref={screenBoxRef}
-            tabIndex={0}
-            onKeyDown={(e) => onCanvasKey(e, true)}
-            onKeyUp={(e) => onCanvasKey(e, false)}
-            onMouseDown={() => { try { screenBoxRef.current?.focus(); } catch {} }}
-            onMouseMove={onCanvasMove}
-            onWheel={onCanvasWheel}
-            style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#000", overflow: "hidden", outline: "none" }}
-          >
-            <canvas
-              ref={canvasRef}
-              onClick={onCanvasClick}
-              onContextMenu={(e) => { e.preventDefault(); onCanvasClick(e); }}
-              style={{ maxWidth: "100%", maxHeight: "100%", imageRendering: "pixelated", cursor: "crosshair" }}
-            />
+          <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden", background: "#000" }}>
+            <div ref={screenRef} style={{ width: "100%", height: "100%", overflow: "hidden" }} />
+            {displayStatus.state !== "connected" && (
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--space-10)", padding: "var(--space-20)", background: "rgba(0, 0, 0, 0.88)", textAlign: "center" }}>
+                <Monitor size={28} />
+                <strong>{displayStatus.state === "connecting" ? "Connecting to VM display…" : "VM display disconnected"}</strong>
+                {displayStatus.error && <span style={{ maxWidth: 520, color: "var(--text-secondary)", fontSize: "var(--fs-small-plus)" }}>{displayStatus.error}</span>}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", flexWrap: "wrap", alignItems: "center" }}>
             <input style={{ ...s.input, flex: "1 1 160px" }} placeholder="Type text + Enter to send…" value={keyText}
@@ -336,8 +305,6 @@ const DesktopEmulatorPanel = () => {
       ) : (
         <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
           {loading && <div style={{ padding: 16, color: "var(--text-secondary)" }}>Loading QEMU state…</div>}
-          {error && <div style={{ padding: 16, color: "var(--danger)" }}>{error}</div>}
-
           {!loading && !qemu.found && (
             <div style={{ margin: "var(--space-10)", padding: "var(--space-10)", border: "1px solid var(--danger)", borderRadius: "var(--radius-md)" }}>
               <strong>QEMU is not installed or not found.</strong>
@@ -466,12 +433,13 @@ const DesktopEmulatorPanel = () => {
               </div>
               {vm.running ? (
                 <>
-                  <button style={s.btn} onClick={() => setView({ name: vm.name })}><Monitor size={13} /> View</button>
+                  <button style={s.btn} onClick={() => setView({ name: vm.name, websocketPort: vm.websocketPort })}><Monitor size={13} /> View</button>
                   <button style={s.btnGhost} disabled={busy === vm.name} onClick={() => doStop(vm.name)}><Square size={13} /> Stop</button>
                 </>
               ) : (
                 <button style={s.btn} disabled={busy === vm.name || !qemu.found} onClick={() => doStart(vm.name)}><Play size={13} /> Start</button>
               )}
+              <button style={s.iconBtn} title={`Open ${vm.name} QEMU log`} onClick={() => openLog(vm.name)}><Terminal size={13} /></button>
               <button style={s.iconBtn} title="Delete VM" disabled={busy === vm.name} onClick={() => doDelete(vm.name)}><Trash2 size={13} /></button>
             </div>
           ))}
@@ -481,7 +449,7 @@ const DesktopEmulatorPanel = () => {
               <div style={{ padding: "var(--space-6) var(--space-10)", fontSize: "var(--fs-small)", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between" }}>
                 <span>Log</span>
                 <span>
-                  <button style={s.iconBtn} title="Full QEMU log in Terminal" onClick={openLog}><Terminal size={12} /></button>{" "}
+                  <button style={s.iconBtn} title="Open QEMU log" onClick={() => openLog()}><Terminal size={12} /></button>{" "}
                   <button style={s.iconBtn} title="Clear log" onClick={() => setLog([])}><X size={12} /></button>
                 </span>
               </div>
@@ -491,6 +459,22 @@ const DesktopEmulatorPanel = () => {
             </div>
           )}
         </div>
+      )}
+
+      {qemuLog && (
+        <section style={{ flex: "0 0 auto", maxHeight: 240, margin: "var(--space-8) var(--space-10)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "var(--space-6) var(--space-10)", borderBottom: "1px solid var(--border-row)" }}>
+            <strong style={{ fontSize: "var(--fs-small-plus)" }}>QEMU log · {qemuLog.name}</strong>
+            <div style={{ display: "flex", gap: "var(--space-6)" }}>
+              <button style={s.iconBtn} title="Refresh log" onClick={() => openLog(qemuLog.name)}><RefreshCw size={12} /></button>
+              <button style={s.iconBtn} title="Close log" onClick={() => setQemuLog(null)}><X size={12} /></button>
+            </div>
+          </div>
+          <pre style={{ maxHeight: 190, overflow: "auto", margin: 0, padding: "var(--space-8) var(--space-10)", fontFamily: "var(--font-mono, monospace)", fontSize: "var(--fs-small)", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-secondary)" }}>
+            {qemuLog.truncated ? "[Earlier output omitted]\n" : ""}
+            {qemuLog.text || "No QEMU output has been recorded for this VM yet."}
+          </pre>
+        </section>
       )}
 
       <EmulatorDisclaimer

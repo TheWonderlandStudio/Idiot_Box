@@ -4,18 +4,18 @@
 //   <userData>/.appdata/qemu/
 //   ├── settings.json   ← optional { "qemuBinDir": "C:/path/to/qemu" }
 //   ├── vms/<name>/     ← vm.json + disk.qcow2 (one folder per VM, like AVDs)
-//   ├── downloads/      ← screendump .ppm scratch files
+//   ├── downloads/      ← optional QEMU installer downloads
 //   └── logs/           ← per-VM serial + stdout logs
 //
 // QEMU itself is NOT bundled (no single official portable zip) — the panel
 // auto-detects qemu-system-<arch> from the custom dir, the app-data bin/,
 // the standard install locations, or PATH, and shows install help if missing.
-// The guest screen is embedded in the panel: QEMU runs headless (-display
-// none) and the panel polls HMP `screendump` over a localhost monitor socket,
-// exactly like the Android panel polls adb screencap.
+// QEMU's VNC framebuffer is streamed into the panel over a loopback WebSocket;
+// QMP remains available for lifecycle and keyboard input.
 const path = require("path");
 const fs = require("fs");
 const net = require("net");
+const { WebSocket, WebSocketServer } = require("ws");
 const https = require("https");
 const http = require("http");
 const { spawn, execFile } = require("child_process");
@@ -390,7 +390,8 @@ function describeVm(name) {
   const disk = path.join(vmDir(name), cfg.diskFormat === "raw" ? "disk.img" : "disk.qcow2");
   let diskBytes = 0;
   try { diskBytes = fs.statSync(disk).size; } catch {}
-  return { ...cfg, disk, diskBytes, running: runningVms.has(name), pid: runningVms.get(name)?.pid || null };
+  const running = runningVms.get(name);
+  return { ...cfg, disk, diskBytes, running: !!running, pid: running?.pid || null, websocketPort: running?.websocketPort || null };
 }
 
 // ─── Progress broadcast (mirrors android:progress) ──────────────────────────
@@ -406,8 +407,8 @@ const progress = (op, phase, message, percent = null, extra = null) =>
   broadcast({ op, phase, message, percent, ...(extra || {}), at: Date.now() });
 
 // ─── QEMU args ──────────────────────────────────────────────────────────────
-// Pure (exported for tests): everything needed to boot a VM headless.
-function buildQemuArgs(vm, { disk, iso, monitorPort, serialLog }) {
+// Pure (exported for tests): everything needed to boot a VM with in-app VNC.
+function buildQemuArgs(vm, { disk, iso, monitorPort, vncDisplay, serialLog }) {
   const args = [];
   if (ARCH_MACHINE[vm.arch]) args.push(...ARCH_MACHINE[vm.arch]);
   args.push("-m", String(vm.memoryMb), "-smp", String(vm.cpus));
@@ -415,11 +416,11 @@ function buildQemuArgs(vm, { disk, iso, monitorPort, serialLog }) {
   args.push("-drive", `file=${disk},format=${vm.diskFormat === "raw" ? "raw" : "qcow2"},if=${isX86 ? "ide" : "virtio"}`);
   if (iso) args.push("-cdrom", iso, "-boot", "order=d");
   else args.push("-boot", "order=c");
-  // Absolute pointer (usb-tablet) so panel clicks land exactly where clicked.
+  // Use a localhost VNC server; noVNC renders its incremental framebuffer in-app.
   // x86 has UHCI by default; other machines need an explicit XHCI controller.
   if (isX86) args.push("-usb", "-device", "usb-tablet");
   else args.push("-device", "qemu-xhci", "-device", "usb-tablet", "-device", "usb-kbd");
-  args.push("-display", "none");
+  args.push("-display", "none", "-vnc", `127.0.0.1:${vncDisplay}`);
   // QMP (JSON) instead of the human monitor: deterministic replies, and it
   // exposes input-send-event for real mouse/keyboard input.
   args.push("-qmp", `tcp:127.0.0.1:${monitorPort},server,nowait`);
@@ -440,6 +441,95 @@ function getFreePort() {
       s.close(() => resolve(port));
     });
   });
+}
+async function getFreeVncDisplay() {
+  for (let display = 0; display < 100; display++) {
+    const server = net.createServer();
+    const available = await new Promise((resolve) => {
+      server.once("error", () => resolve(false));
+      server.listen(5900 + display, "127.0.0.1", () => server.close(() => resolve(true)));
+    });
+    if (available) return display;
+  }
+  throw new Error("No free local VNC display is available (ports 5900–5999).");
+}
+function createVncWebSocketProxy(vncPort) {
+  const server = new WebSocketServer({ host: "127.0.0.1", port: 0, perMessageDeflate: false });
+  server.on("connection", (ws) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port: vncPort });
+    socket.on("data", (chunk) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(chunk, { binary: true });
+    });
+    socket.on("error", () => {
+      if (ws.readyState === WebSocket.OPEN) ws.close(1011, "QEMU VNC connection failed");
+    });
+    socket.on("close", () => {
+      if (ws.readyState === WebSocket.OPEN) ws.close();
+    });
+    ws.on("message", (data) => {
+      if (!socket.destroyed) socket.write(data);
+    });
+    ws.on("close", () => socket.destroy());
+    ws.on("error", () => socket.destroy());
+  });
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.once("listening", () => {
+      server.removeListener("error", reject);
+      resolve({ server, port: server.address().port });
+    });
+  });
+}
+function closeVncWebSocketProxy(proxy) {
+  if (!proxy) return Promise.resolve();
+  if (proxy.closing) return proxy.closing;
+  for (const client of proxy.server.clients) client.terminate();
+  proxy.closing = new Promise((resolve) => proxy.server.close(() => resolve()));
+  return proxy.closing;
+}
+function waitForTcpPort(port, child, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    let timer = null;
+    let settled = false;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      child.removeListener("error", onError);
+      child.removeListener("exit", onExit);
+    };
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+    const onError = (error) => finish(new Error(`Could not launch QEMU: ${error.message}`));
+    const onExit = (code, signal) => finish(new Error(`QEMU exited before its display was ready (code ${code ?? "unknown"}${signal ? `, signal ${signal}` : ""}).`));
+    child.once("error", onError);
+    child.once("exit", onExit);
+    const attempt = () => {
+      const socket = net.createConnection({ host: "127.0.0.1", port });
+      socket.once("connect", () => { socket.destroy(); finish(); });
+      socket.once("error", () => {
+        socket.destroy();
+        if (settled) return;
+        if (child.exitCode !== null || child.signalCode !== null) return onExit(child.exitCode, child.signalCode);
+        timer = setTimeout(attempt, 100);
+      });
+    };
+    attempt();
+    timer = setTimeout(() => finish(new Error(`QEMU's VNC display did not become ready within ${Math.ceil(timeoutMs / 1000)} seconds.`)), timeoutMs);
+  });
+}
+function readQemuLog(name, logDir = getLogsDir()) {
+  const file = path.join(logDir, `${sanitizeVmName(name)}.log`);
+  try {
+    const contents = fs.readFileSync(file, "utf8");
+    return { ok: true, text: contents.slice(-200000), truncated: contents.length > 200000 };
+  } catch (error) {
+    if (error.code === "ENOENT") return { ok: true, text: "", truncated: false };
+    throw error;
+  }
 }
 function forwardOut(name, chunk, logFile) {
   try {
@@ -468,9 +558,11 @@ async function startVmProcess(name) {
   const disk = describeVm(name).disk;
   if (!fs.existsSync(disk)) throw new Error(`Disk image missing for "${name}" — recreate the VM.`);
   const monitorPort = await getFreePort();
+  const vncDisplay = await getFreeVncDisplay();
+  const vncPort = 5900 + vncDisplay;
   const logFile = path.join(getLogsDir(), `${name}.log`);
   const serialLog = path.join(getLogsDir(), `${name}-serial.log`);
-  const args = buildQemuArgs(cfg, { disk, iso: cfg.iso, monitorPort, serialLog });
+  const args = buildQemuArgs(cfg, { disk, iso: cfg.iso, monitorPort, vncDisplay, serialLog });
   const child = spawn(bin, args, {
     env: { ...process.env },
     detached: true,
@@ -482,10 +574,12 @@ async function startVmProcess(name) {
   const pid = child.pid;
   try { child.stdout.on("data", (d) => forwardOut(name, d, logFile)); } catch {}
   try { child.stderr.on("data", (d) => forwardOut(name, d, logFile)); } catch {}
+  let vncProxy = null;
   const t0 = Date.now();
   child.on("exit", (code) => {
     if (runningVms.get(name)?.pid === child.pid) runningVms.delete(name);
     qmpClose(name);
+    closeVncWebSocketProxy(vncProxy);
     try {
       const { BrowserWindow } = deps();
       for (const win of BrowserWindow.getAllWindows()) {
@@ -496,10 +590,18 @@ async function startVmProcess(name) {
       progress("start", "error", `${name}: QEMU exited too quickly (code ${code}) — check the log (panel → Log tab).`, null, { vm: name });
     }
   });
-  const entry = { pid, startedAt: Date.now(), monitorPort, logFile };
+  try {
+    await waitForTcpPort(vncPort, child);
+    vncProxy = await createVncWebSocketProxy(vncPort);
+  } catch (e) {
+    try { child.kill(); } catch {}
+    await closeVncWebSocketProxy(vncProxy);
+    throw new Error(`Could not start the in-app VNC stream: ${e?.message || String(e)}`);
+  }
+  const entry = { pid, startedAt: Date.now(), monitorPort, logFile, websocketPort: vncProxy.port, vncProxy };
   runningVms.set(name, entry);
   forwardOut(name, Buffer.from(`[${name}] QEMU starting (pid ${pid}) — ${bin} ${args.join(" ")}\n`), logFile);
-  progress("start", "started", `${name} starting (pid ${pid}) — screen appears in the panel…`, null, { vm: name });
+  progress("start", "started", `${name} starting (pid ${pid}) — opening the in-app display…`, null, { vm: name });
   return entry;
 }
 
@@ -519,8 +621,8 @@ async function stopVmProcess(name) {
       }
     } catch {}
     qmpClose(name);
+    await closeVncWebSocketProxy(entry.vncProxy);
     runningVms.delete(name);
-    lastFrames.delete(name);
     return { ok: true };
   }
   return { ok: false, error: `VM "${name}" is not running.` };
@@ -621,65 +723,6 @@ function qmpClose(name) {
   qmpClients.delete(name);
   try { c.socket.destroy(); } catch {}
   c.dead = true;
-}
-
-// ─── Screendump (PPM P6) ────────────────────────────────────────────────────
-// Parse a binary PPM (P6) into { w, h, rgb: Buffer }.
-function parsePpm(buf) {
-  if (!buf || buf.length < 11 || buf.toString("ascii", 0, 2) !== "P6") {
-    throw new Error("Not a PPM frame.");
-  }
-  let i = 2;
-  const nextToken = () => {
-    while (i < buf.length) {
-      const c = buf[i];
-      if (c === 0x23) { // '#' comment — skip to EOL
-        while (i < buf.length && buf[i] !== 0x0a) i++;
-      } else if (c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d) i++;
-      else break;
-    }
-    const start = i;
-    while (i < buf.length && !(buf[i] === 0x20 || buf[i] === 0x09 || buf[i] === 0x0a || buf[i] === 0x0d)) i++;
-    return buf.toString("ascii", start, i);
-  };
-  const w = parseInt(nextToken(), 10);
-  const h = parseInt(nextToken(), 10);
-  const max = parseInt(nextToken(), 10);
-  i++; // single whitespace after maxval
-  if (!(w > 0) || !(h > 0) || w > 8192 || h > 8192 || max !== 255) {
-    throw new Error(`Unsupported frame (${w}x${h} max ${max}).`);
-  }
-  const need = w * h * 3;
-  if (buf.length < i + need) throw new Error("Truncated frame.");
-  return { w, h, rgb: buf.subarray(i, i + need) };
-}
-const lastFrames = new Map(); // name -> hash
-function fnv1a(buf) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < buf.length; i++) { h ^= buf[i]; h = Math.imul(h, 0x01000193); }
-  return (h >>> 0).toString(36);
-}
-async function captureFrame(name) {
-  ensureDirs();
-  const file = path.join(getDownloadsDir(), `screen-${name}-${Date.now()}.ppm`);
-  try {
-    await qmpCommand(name, "screendump", { filename: file }, 15000);
-    const t0 = Date.now();
-    while (!fs.existsSync(file) && Date.now() - t0 < 6000) {
-      await new Promise((r) => setTimeout(r, 150));
-    }
-    if (!fs.existsSync(file)) throw new Error("screendump produced no file (guest still booting?).");
-    // QEMU writes the file after the command returns; give the flush a beat.
-    await new Promise((r) => setTimeout(r, 120));
-    const raw = fs.readFileSync(file);
-    const { w, h, rgb } = parsePpm(raw);
-    const hash = fnv1a(rgb);
-    if (lastFrames.get(name) === hash) return { ok: true, unchanged: true, w, h };
-    lastFrames.set(name, hash);
-    return { ok: true, w, h, rgb: Buffer.from(rgb).toString("base64") };
-  } finally {
-    try { fs.unlinkSync(file); } catch {}
-  }
 }
 
 // ─── Input (QMP input-send-event) ───────────────────────────────────────────
@@ -855,7 +898,6 @@ async function deleteVm(name) {
   if (!readVmConfig(n)) return { ok: false, error: `VM "${n}" not found.` };
   await stopVmProcess(n).catch(() => {});
   qmpClose(n);
-  lastFrames.delete(n);
   try { fs.rmSync(vmDir(n), { recursive: true, force: true }); } catch (e) {
     return { ok: false, error: e.message || String(e) };
   }
@@ -910,8 +952,16 @@ function setupQemuIpc() {
     try {
       const n = sanitizeVmName(name);
       const entry = await startVmProcess(n);
-      return { ok: true, pid: entry.pid };
-    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
+      return { ok: true, pid: entry.pid, websocketPort: entry.websocketPort };
+    } catch (e) {
+      const message = (e?.message || String(e)).slice(0, 1200);
+      try {
+        const n = sanitizeVmName(name);
+        ensureDirs();
+        fs.appendFileSync(path.join(getLogsDir(), `${n}.log`), `\r\n[QEMU start error] ${message}\r\n`);
+      } catch {}
+      return { ok: false, error: message };
+    }
   });
 
   ipcMain.handle("qemu:stopVm", async (_e, { name } = {}) => {
@@ -923,20 +973,17 @@ function setupQemuIpc() {
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
   });
 
-  ipcMain.handle("qemu:frame", async (_e, { name } = {}) => {
-    try {
-      const n = sanitizeVmName(name);
-      if (!runningVms.has(n)) return { ok: false, error: "VM is not running." };
-      return await captureFrame(n);
-    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
-  });
-
   ipcMain.handle("qemu:input", async (_e, { name, action } = {}) => {
     try {
       const n = sanitizeVmName(name);
       if (!runningVms.has(n)) return { ok: false, error: "VM is not running." };
       return await sendInput(n, action || {});
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("qemu:getLog", async (_e, { name } = {}) => {
+    try { return readQemuLog(name); }
+    catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
   });
 
   ipcMain.handle("qemu:pickIso", async () => {
@@ -980,9 +1027,11 @@ module.exports = {
   ISO_CATALOG,
   archBinary,
   buildQemuArgs,
+  createVncWebSocketProxy,
+  closeVncWebSocketProxy,
+  readQemuLog,
   validateVmConfig,
   sanitizeVmName,
-  parsePpm,
   parseQemuVersion,
   hmpKeyName,
   makeQmpClient,
