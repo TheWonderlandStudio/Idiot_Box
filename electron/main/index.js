@@ -5279,12 +5279,29 @@ ipcMain.handle("notebook:restart", async (_e, { filePath, cwd } = {}) => {
 });
 
 try {
-  app.on("before-quit", () => {
+  let qemuShutdownInProgress = false;
+  let allowAppQuit = false;
+  app.on("before-quit", (event) => {
+    if (allowAppQuit) return;
+    event.preventDefault();
+    if (qemuShutdownInProgress) return;
+    qemuShutdownInProgress = true;
     try {
       for (const [, s] of notebookSessions) { try { s.proc?.kill(); } catch {} }
       notebookSessions.clear();
       try { debuggerService.stopAll(); } catch {}
     } catch {}
+    Promise.resolve(qemuManager?.stopAllVms?.())
+      .then((failures) => {
+        for (const failure of failures || []) {
+          console.warn(`[qemu] shutdown failed for ${failure.name}: ${failure.error}`);
+        }
+      })
+      .catch((error) => console.warn("[qemu] shutdown failed:", error?.message || error))
+      .finally(() => {
+        allowAppQuit = true;
+        app.quit();
+      });
   });
 } catch {}
 

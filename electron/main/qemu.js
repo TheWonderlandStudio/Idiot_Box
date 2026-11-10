@@ -791,17 +791,22 @@ async function stopVmProcess(name) {
   const entry = runningVms.get(name);
   if (entry) {
     try { await qmpCommand(name, "quit", null, 3000); } catch {}
-    await new Promise((r) => setTimeout(r, 1200));
-    try {
-      process.kill(entry.pid, 0);
+    if (!await waitForProcessExit(entry.pid, 5000)) {
       if (isWin()) {
-        await new Promise((r) => execFile("taskkill", ["/PID", String(entry.pid), "/F", "/T"], { timeout: 10000, windowsHide: true }, () => r()));
+        await execFileAsync("taskkill", ["/PID", String(entry.pid), "/F", "/T"], {
+          encoding: "utf8", timeout: 10000, windowsHide: true,
+        }).catch(() => {});
       } else {
         try { process.kill(entry.pid, "SIGTERM"); } catch {}
-        await new Promise((r) => setTimeout(r, 1200));
-        try { process.kill(entry.pid, 0); process.kill(entry.pid, "SIGKILL"); } catch {}
+        if (!await waitForProcessExit(entry.pid, 2000)) {
+          try { process.kill(entry.pid, "SIGKILL"); } catch {}
+        }
       }
-    } catch {}
+      await waitForProcessExit(entry.pid, 3000);
+    }
+    if (await isProcessRunning(entry.pid)) {
+      throw new Error(`Could not stop QEMU for "${name}". Its VM disk is still in use.`);
+    }
     qmpClose(name);
     await closeVncWebSocketProxy(entry.vncProxy);
     runningVms.delete(name);
@@ -809,6 +814,18 @@ async function stopVmProcess(name) {
     return { ok: true };
   }
   return { ok: false, error: `VM "${name}" is not running.` };
+}
+
+async function stopAllVms() {
+  const results = await Promise.all([...runningVms.keys()].map(async (name) => {
+    try {
+      const result = await stopVmProcess(name);
+      return result.ok ? null : { name, error: result.error };
+    } catch (error) {
+      return { name, error: error?.message || String(error) };
+    }
+  }));
+  return results.filter(Boolean);
 }
 
 // ─── QMP client (JSON, newline-delimited) ───────────────────────────────────
@@ -1207,6 +1224,7 @@ function setupQemuIpc() {
 
 module.exports = {
   setupQemuIpc,
+  stopAllVms,
   getQemuRoot,
   getVmsDir,
   getDownloadsDir,
