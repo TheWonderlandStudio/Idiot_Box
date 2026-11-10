@@ -174,7 +174,7 @@ npm start
 
 ## AI Control (MCP)
 
-The app runs a local MCP endpoint at `http://127.0.0.1:39271/mcp` while active. The endpoint is also written to `mcp.json` in the app's user data folder.
+The app runs a local MCP endpoint at `http://127.0.0.1:39271/mcp` while active. The endpoint is also written to `mcp.json` in the app's user data folder. 
 
 Connect any Streamable HTTP MCP client to let AI use the IDE. Available tools include files, git, shell, editor tabs, extensions, notebooks and the Android emulator.
 
@@ -215,12 +215,6 @@ build/              esbuild configs and worker asset copy
 **Discord:** https://discord.gg/Z9DynuSxRY
 
 Other sites offering Idiot Box downloads are not official.
-
-## Sponsor
-
-[![Sponsor on GitHub Sponsors](https://img.shields.io/badge/Sponsor_on_GitHub_Sponsors-pink?style=flat-square&logo=githubsponsors)](https://github.com/sponsors/Jignesh1236)
-
-Idiot Box is free and open source. You can support its development through [GitHub Sponsors](https://github.com/sponsors/Jignesh1236).
 
 ## License
 
