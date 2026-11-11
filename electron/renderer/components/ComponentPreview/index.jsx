@@ -344,6 +344,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   const [sampleMode, setSampleMode] = useState(false);
   const [pickedSnapshot, setPickedSnapshot] = useState(null);
   const [copiedPart, setCopiedPart] = useState(null);
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
   // HTML docs: no bundler — the raw doc (+<base>) goes straight into srcDoc.
   const [htmlDoc, setHtmlDoc] = useState(null);
 
@@ -360,6 +361,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   const fsReloadTimerRef = useRef(null);
   const loadSeqRef = useRef(0); // for discarding stale bundle results
   const copyTimerRef = useRef(null);
+  const copyMenuRef = useRef(null);
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
 
@@ -398,6 +400,22 @@ const ComponentPreview = ({ nodeId, config }) => {
       try { channel?.close(); } catch {}
     };
   }, []);
+
+  useEffect(() => {
+    if (!copyMenuOpen) return undefined;
+    const onPointerDown = (event) => {
+      if (!copyMenuRef.current?.contains(event.target)) setCopyMenuOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setCopyMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [copyMenuOpen]);
 
   // ── Setup iframe isolation: inject React runtime for independent mounting ──
   // Stronger origin isolation: component code runs inside iframe's window (via iframe's Function),
@@ -1258,6 +1276,7 @@ const ComponentPreview = ({ nodeId, config }) => {
       if (window.electronAPI?.clipboardWrite) window.electronAPI.clipboardWrite(text);
       else await navigator.clipboard.writeText(text);
       setCopiedPart(part);
+      setCopyMenuOpen(false);
       clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopiedPart(null), 1400);
     } catch {}
@@ -1334,33 +1353,38 @@ const ComponentPreview = ({ nodeId, config }) => {
           </button>
 
           {pickedSnapshot && (
-            <>
+            <div ref={copyMenuRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
               <button
-                onClick={() => copySnapshotPart("html")}
-                title="Copy selected component HTML"
-                style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", display: "inline-flex", alignItems: "center", gap: "var(--space-4)" }}
+                onClick={() => setCopyMenuOpen((open) => !open)}
+                title="Copy selected component HTML or CSS"
+                aria-label="Copy selected component"
+                aria-haspopup="menu"
+                aria-expanded={copyMenuOpen}
+                style={{ background: copyMenuOpen ? "var(--bg-active)" : "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-4)", width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: "var(--radius-sm)" }}
               >
-                {copiedPart === "html" ? <Check size={13} /> : <Copy size={13} />} Copy HTML
+                <Copy size={14} />
               </button>
-              <button
-                onClick={() => copySnapshotPart("css")}
-                disabled={!pickedSnapshot.css}
-                title="Copy selected component CSS"
-                style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: pickedSnapshot.css ? "pointer" : "default", opacity: pickedSnapshot.css ? 1 : 0.5, padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", display: "inline-flex", alignItems: "center", gap: "var(--space-4)" }}
-              >
-                {copiedPart === "css" ? <Check size={13} /> : <Copy size={13} />} Copy CSS
-              </button>
-            </>
+              {copyMenuOpen && (
+                <div role="menu" style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20, minWidth: 150, padding: 4, background: "var(--bg-surface)", border: "1px solid var(--border-strong)", borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-pop)" }}>
+                  <button
+                    role="menuitem"
+                    onClick={() => copySnapshotPart("html")}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "6px 8px", color: "var(--text-primary)", background: "transparent", border: 0, borderRadius: "var(--radius-xs)", cursor: "pointer", textAlign: "left", font: "inherit", fontSize: "var(--fs-small)" }}
+                  >
+                    Copy HTML {copiedPart === "html" && <Check size={13} />}
+                  </button>
+                  <button
+                    role="menuitem"
+                    disabled={!pickedSnapshot.css}
+                    onClick={() => copySnapshotPart("css")}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "6px 8px", color: "var(--text-primary)", background: "transparent", border: 0, borderRadius: "var(--radius-xs)", cursor: pickedSnapshot.css ? "pointer" : "default", opacity: pickedSnapshot.css ? 1 : 0.5, textAlign: "left", font: "inherit", fontSize: "var(--fs-small)" }}
+                  >
+                    Copy CSS {copiedPart === "css" && <Check size={13} />}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
-
-          {/* Sample Component Button */}
-          <button
-            onClick={() => { setPickedSnapshot(null); setSampleMode(true); }}
-            title="Show sample component with temp data"
-            style={{ background: sampleMode ? "var(--bg-active)" : "transparent", border: "none", color: sampleMode ? "var(--teal)" : "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", borderRadius: "var(--radius-sm)" }}
-          >
-            Sample
-          </button>
 
           {/* Refresh Button */}
           <button

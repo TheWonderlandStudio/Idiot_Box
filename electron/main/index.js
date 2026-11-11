@@ -4019,9 +4019,10 @@ ipcMain.handle("browser:pickComponent", async (event, webContentsId) => {
             objectId,
             functionDeclaration: `function(){
               const root=this;
-              const nodes=[root,...root.querySelectorAll('*')].slice(0,240);
+              const nodes=[root,...root.querySelectorAll('*')];
+              if(nodes.length>1200) throw new Error('Selected component contains too many nested elements. Select a smaller part.');
               const clone=root.cloneNode(true);
-              const copies=[clone,...clone.querySelectorAll('*')].slice(0,nodes.length);
+              const copies=[clone,...clone.querySelectorAll('*')];
               const rules=[];
               const customProperties=new Set();
               for(let el=root;el&&el.nodeType===1;el=el.parentElement){
@@ -4032,7 +4033,7 @@ ipcMain.handle("browser:pickComponent", async (event, webContentsId) => {
                 }
               }
               let cssLength=0;
-              const maxCssLength=512*1024;
+              const maxCssLength=6*1024*1024;
               nodes.forEach((el,index)=>{
                 const copy=copies[index];
                 if(!copy) return;
@@ -4050,7 +4051,7 @@ ipcMain.handle("browser:pickComponent", async (event, webContentsId) => {
                 });
                 if(!declarations.length) return;
                 const rule='[data-ibx-picked="'+index+'"]{'+declarations.join(';')+'}';
-                if(cssLength+rule.length>maxCssLength) return;
+                if(cssLength+rule.length>maxCssLength) throw new Error('Selected component styles exceed the preview size limit. Select a smaller part.');
                 rules.push(rule);
                 cssLength+=rule.length;
               });
@@ -4063,7 +4064,7 @@ ipcMain.handle("browser:pickComponent", async (event, webContentsId) => {
                 }
               });
               const html=String(clone.outerHTML||'');
-              if(html.length>250000) throw new Error('Selected element is too large to preview. Select a smaller component.');
+              if(html.length>1024*1024) throw new Error('Selected element is too large to preview. Select a smaller component.');
               return JSON.stringify({
                 html:html,
                 css:rules.join('\\n'),
