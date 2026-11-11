@@ -9,6 +9,7 @@ import EditorPage      from "./pages/EditorPage.jsx";
 import TerminalPage    from "./pages/TerminalPage.jsx";
 import GitPage         from "./pages/GitPage.jsx";
 import CanvasPage      from "./pages/CanvasPage.jsx";
+import PreviewPage     from "./pages/PreviewPage.jsx";
 import KeybindingsPage from "./pages/KeybindingsPage.jsx";
 import ExtensionsPage  from "./pages/ExtensionsPage.jsx";
 import "../../variables.css";
@@ -242,6 +243,7 @@ const SettingsWindow = () => {
       case "terminal":    return <TerminalPage settings={settings} onSave={updateSettings} />;
       case "git":         return <GitPage settings={settings} onSave={updateSettings} />;
       case "canvas":      return <CanvasPage settings={settings} onSave={updateSettings} />;
+      case "preview":     return <PreviewPage settings={settings} onSave={updateSettings} />;
       case "keybindings": return <KeybindingsPage />;
       case "extensions":  return <ExtensionsPage />;
       default:            return null;

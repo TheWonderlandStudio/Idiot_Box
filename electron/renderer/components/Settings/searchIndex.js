@@ -5,6 +5,7 @@ export const SETTINGS_INDEX = [
   { kind: "page", page: "terminal",    label: "Terminal",    desc: "Font, cursor, scrollback and shell preferences.", kw: "settings" },
   { kind: "page", page: "git",         label: "Git",         desc: "Commit, fetch and gutter preferences.", kw: "settings" },
   { kind: "page", page: "canvas",      label: "Canvas",      desc: "Drawing surface and preview preferences.", kw: "settings" },
+  { kind: "page", page: "preview",     label: "Preview",     desc: "Component Viewer appearance preferences.", kw: "settings component viewer" },
   { kind: "page", page: "keybindings", label: "Keybindings", desc: "Keyboard shortcuts.", kw: "settings shortcuts hotkeys" },
   { kind: "page", page: "extensions",  label: "Extensions",  desc: "Manage installed extensions.", kw: "settings chrome crx browser" },
 
@@ -71,4 +72,5 @@ export const SETTINGS_INDEX = [
   { kind: "row", page: "canvas", label: "Autosave", desc: "Automatically save the drawing after each change.", kw: "drawing save excalidraw" },
   { kind: "row", page: "canvas", label: "Background", desc: "Drawing canvas background: solid black, solid white, or grid.", kw: "grid black white stage" },
   { kind: "row", page: "canvas", label: "Storage", desc: "The scratch drawing saves per-project (drawing.excalidraw).", kw: "file project save location" },
+  { kind: "row", page: "preview", label: "Preview Background", desc: "Background behind rendered components in Component Viewer.", kw: "dark light grid stage" },
 ];

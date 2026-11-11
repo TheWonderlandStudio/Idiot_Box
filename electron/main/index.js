@@ -12,6 +12,27 @@ const localHistory = require("./local-history");
 const testRunner = require("./test-runner");
 const debuggerService = require("./debugger");
 const browserRegistry = require("./browser-registry");
+const browserPickSessions = new Map();
+
+const finishBrowserPick = async (pick, payload) => {
+  if (pick.finished) return;
+  pick.finished = true;
+  if (browserPickSessions.get(pick.webContentsId) === pick) browserPickSessions.delete(pick.webContentsId);
+  try { pick.wc.debugger.removeListener("message", pick.onMessage); } catch {}
+  try { await pick.wc.debugger.sendCommand("Overlay.setInspectMode", { mode: "none" }); } catch {}
+  try { await pick.wc.debugger.sendCommand("Overlay.disable"); } catch {}
+  if (pick.ownsDebugger) {
+    try { if (pick.wc.debugger.isAttached()) pick.wc.debugger.detach(); } catch {}
+  }
+  try {
+    if (payload && pick.host && !pick.host.isDestroyed()) {
+      pick.host.webContents.send("browser:componentPicked", {
+        webContentsId: pick.webContentsId,
+        ...payload,
+      });
+    }
+  } catch {}
+};
 
 // ─── Dev builds get their own Chromium profile ──────────────────────────────
 // Chromium's HTTP cache, Service Worker and QuotaManager databases cannot be
@@ -3955,6 +3976,149 @@ ipcMain.handle("browser:registerGuest", (event, webContentsId) => {
     return marked;
   } catch {
     return false;
+  }
+});
+
+ipcMain.handle("browser:pickComponent", async (event, webContentsId) => {
+  const wc = browserRegistry.pick(webContentsId);
+  if (!wc) return { ok: false, error: "Browser tab is no longer available." };
+  const host = BrowserWindow.fromWebContents(event.sender);
+  const previous = browserPickSessions.get(wc.id);
+  if (previous) await finishBrowserPick(previous, { cancelled: true });
+
+  const pick = {
+    wc,
+    host,
+    webContentsId: wc.id,
+    ownsDebugger: false,
+    finished: false,
+    onMessage: null,
+  };
+  pick.onMessage = (_event, method, params) => {
+    if (method === "Overlay.inspectModeCanceled") {
+      finishBrowserPick(pick, { cancelled: true });
+      return;
+    }
+    if (method !== "Overlay.inspectNodeRequested" || pick.finished) return;
+    (async () => {
+      const backendNodeId = params?.backendNodeId;
+      if (!backendNodeId) throw new Error("DevTools did not return a selected element.");
+      const described = await wc.debugger.sendCommand("DOM.describeNode", { backendNodeId });
+      const node = described?.node;
+      if (!node || node.nodeType !== 1) throw new Error("Select an HTML element in the page.");
+      if (["script", "style", "iframe", "frame", "object", "embed"].includes(String(node.localName || "").toLowerCase())) {
+        throw new Error("Select a visible component instead of an embedded document or code element.");
+      }
+      let snapshot = null;
+      let objectId = null;
+      try {
+        const resolved = await wc.debugger.sendCommand("DOM.resolveNode", { backendNodeId });
+        objectId = resolved?.object?.objectId || null;
+        if (objectId) {
+          const value = await wc.debugger.sendCommand("Runtime.callFunctionOn", {
+            objectId,
+            functionDeclaration: `function(){
+              const root=this;
+              const nodes=[root,...root.querySelectorAll('*')].slice(0,240);
+              const clone=root.cloneNode(true);
+              const copies=[clone,...clone.querySelectorAll('*')].slice(0,nodes.length);
+              const rules=[];
+              const customProperties=new Set();
+              for(let el=root;el&&el.nodeType===1;el=el.parentElement){
+                const inherited=getComputedStyle(el);
+                for(let i=0;i<inherited.length;i++){
+                  const name=inherited[i];
+                  if(name&&name.startsWith('--')) customProperties.add(name);
+                }
+              }
+              let cssLength=0;
+              const maxCssLength=512*1024;
+              nodes.forEach((el,index)=>{
+                const copy=copies[index];
+                if(!copy) return;
+                copy.setAttribute('data-ibx-picked',String(index));
+                const style=getComputedStyle(el);
+                const declarations=[];
+                for(let i=0;i<style.length;i++){
+                  const name=style[i];
+                  const value=style.getPropertyValue(name);
+                  if(name&&value) declarations.push(name+':'+value);
+                }
+                customProperties.forEach((name)=>{
+                  const value=style.getPropertyValue(name);
+                  if(value) declarations.push(name+':'+value);
+                });
+                if(!declarations.length) return;
+                const rule='[data-ibx-picked="'+index+'"]{'+declarations.join(';')+'}';
+                if(cssLength+rule.length>maxCssLength) return;
+                rules.push(rule);
+                cssLength+=rule.length;
+              });
+              clone.querySelectorAll('script,style,iframe,frame,object,embed,link,meta,base').forEach((el)=>el.remove());
+              [clone,...clone.querySelectorAll('*')].forEach((el)=>{
+                for(const attr of [...el.attributes]){
+                  const name=attr.name.toLowerCase();
+                  const value=String(attr.value||'').trim();
+                  if(name.startsWith('on') || name==='contenteditable' || name==='spellcheck' || ((name==='href'||name==='src'||name==='xlink:href'||name==='formaction') && /^javascript:/i.test(value))) el.removeAttribute(attr.name);
+                }
+              });
+              const html=String(clone.outerHTML||'');
+              if(html.length>250000) throw new Error('Selected element is too large to preview. Select a smaller component.');
+              return JSON.stringify({
+                html:html,
+                css:rules.join('\\n'),
+                text:String(root.innerText||root.textContent||'').trim().slice(0,4000),
+              });
+            }`,
+            returnByValue: true,
+          });
+          if (value?.exceptionDetails) throw new Error(value.exceptionDetails.text || "Could not capture selected element styles.");
+          snapshot = JSON.parse(String(value?.result?.value || "null"));
+          if (!snapshot) throw new Error("Could not capture selected element styles.");
+        }
+      } catch (error) {
+        throw error;
+      } finally {
+        if (objectId) {
+          try { await wc.debugger.sendCommand("Runtime.releaseObject", { objectId }); } catch {}
+        }
+      }
+      await finishBrowserPick(pick, {
+        url: wc.getURL(),
+        tagName: String(node.localName || node.nodeName || "").toLowerCase(),
+        html: String(snapshot?.html || ""),
+        css: String(snapshot?.css || ""),
+        text: String(snapshot?.text || ""),
+      });
+    })().catch((error) => {
+      finishBrowserPick(pick, { error: error?.message || "Could not read the selected element." });
+    });
+  };
+
+  try {
+    if (!wc.debugger.isAttached()) {
+      wc.debugger.attach("1.3");
+      pick.ownsDebugger = true;
+    }
+    wc.debugger.on("message", pick.onMessage);
+    browserPickSessions.set(wc.id, pick);
+    await wc.debugger.sendCommand("DOM.enable");
+    await wc.debugger.sendCommand("Overlay.enable");
+    await wc.debugger.sendCommand("Overlay.setInspectMode", {
+      mode: "searchForNode",
+      highlightConfig: {
+        showInfo: true,
+        showStyles: true,
+        contentColor: { r: 111, g: 168, b: 220, a: 0.62 },
+        paddingColor: { r: 147, g: 196, b: 125, a: 0.58 },
+        borderColor: { r: 255, g: 229, b: 153, a: 0.62 },
+        marginColor: { r: 246, g: 178, b: 107, a: 0.58 },
+      },
+    });
+    return { ok: true };
+  } catch (error) {
+    await finishBrowserPick(pick, null);
+    return { ok: false, error: error?.message || "Could not start the DevTools element picker." };
   }
 });
 

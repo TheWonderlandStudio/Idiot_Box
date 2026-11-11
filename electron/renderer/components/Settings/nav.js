@@ -1,4 +1,4 @@
-import { Settings2, LayoutGrid, CodeXml, Terminal, GitBranch, Palette, Keyboard, Blocks } from "lucide-react";
+import { Settings2, LayoutGrid, CodeXml, Terminal, GitBranch, Palette, Monitor, Keyboard, Blocks } from "lucide-react";
 
 export const NAV_GROUPS = ["Preferences", "Workspace", "System"];
 
@@ -9,6 +9,7 @@ export const NAV = [
   { id: "terminal",    label: "Terminal",    desc: "Font, cursor, scrollback and shell preferences.", group: "Preferences", icon: Terminal, keywords: "font size family cursor style blink scrollback buffer copy on select shell" },
   { id: "git",         label: "Git",         desc: "Commit, fetch and gutter preferences.", group: "Workspace", icon: GitBranch, keywords: "auto fetch stash commit confirm gutter inline blame source control" },
   { id: "canvas",      label: "Canvas",      desc: "Drawing surface and preview preferences.", group: "Workspace", icon: Palette, keywords: "excalidraw drawing background autosave storage grid" },
+  { id: "preview",     label: "Preview",     desc: "Component Viewer appearance preferences.", group: "Workspace", icon: Monitor, keywords: "component viewer background dark light grid" },
   { id: "keybindings", label: "Keybindings", desc: "Keyboard shortcuts.", group: "System", icon: Keyboard, keywords: "keyboard shortcuts hotkeys keys bindings command palette" },
   { id: "extensions",  label: "Extensions",  desc: "Manage installed extensions.", group: "System", icon: Blocks, keywords: "chrome crx browser unpacked load extension" },
 ];

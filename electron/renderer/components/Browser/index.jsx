@@ -551,6 +551,54 @@ const BrowserPanel = (props) => {
       return p || null;
     } catch { return null; }
   }, []);
+
+  useEffect(() => {
+    const onPickComponent = (e) => {
+      if (e.detail?.nodeId !== nodeId) return;
+      const webContentsId = webviewRef.current?.getWebContentsId?.();
+      if (typeof webContentsId !== "number") {
+        showToast("Browser page is not ready yet.", "error");
+        return;
+      }
+      window.electronAPI?.browserPickComponent?.(webContentsId).then((result) => {
+        if (result?.ok) showToast("DevTools picker is active. Click a component in the page.", "info");
+        else showToast(result?.error || "Could not start the DevTools picker.", "error");
+      }).catch((error) => showToast(error?.message || "Could not start the DevTools picker.", "error"));
+    };
+    window.addEventListener("browser:pickComponent", onPickComponent);
+    return () => window.removeEventListener("browser:pickComponent", onPickComponent);
+  }, [nodeId, showToast]);
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onBrowserComponentPicked?.((picked) => {
+      const webContentsId = webviewRef.current?.getWebContentsId?.();
+      if (picked?.webContentsId !== webContentsId) return;
+      if (picked.cancelled) {
+        showToast("Component selection cancelled.", "info");
+        return;
+      }
+      if (picked.error) {
+        showToast(picked.error, "error");
+        return;
+      }
+      if (!picked.html) {
+        showToast("The selected element could not be captured.", "error");
+        return;
+      }
+      window.dispatchEvent(new CustomEvent("componentPreview:loadSnapshot", {
+        detail: {
+          html: picked.html,
+          css: picked.css || "",
+          url: picked.url || "",
+          tagName: picked.tagName || "element",
+          text: picked.text || "",
+        },
+      }));
+      showToast(`Captured <${picked.tagName || "element"}> from ${picked.url || "website"}`, "success");
+    });
+    return () => { try { unsubscribe?.(); } catch {} };
+  }, [showToast]);
+
   const guestTool = useCallback((name) => {
     runGuest(`window.__ibxEditAction && window.__ibxEditAction(${JSON.stringify(name)})`);
   }, [runGuest]);

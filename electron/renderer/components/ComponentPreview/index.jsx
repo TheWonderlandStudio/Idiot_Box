@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom/client";
 import * as ReactDOMPkg from "react-dom";
 import * as ReactJSXRuntime from "react/jsx-runtime";
+import DOMPurify from "dompurify";
+import { MousePointer2, Copy, Check } from "lucide-react";
 import { prepareHtmlDocument } from "../shared/previewCss.js";
 import { PREVIEW_IFRAME_CSP } from "../shared/previewCsp.js";
 
@@ -313,6 +315,23 @@ const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>htm
 <\/script>
 </body></html>`;
 
+const buildCapturedPreviewDocument = (snapshot, bgMode) => {
+  let baseTag = "";
+  try {
+    const url = new URL(snapshot.url || "");
+    if (["http:", "https:"].includes(url.protocol)) {
+      const href = url.href.replace(/&/g, "&amp;").replace(/\"/g, "&quot;");
+      baseTag = `<base href="${href}">`;
+    }
+  } catch {}
+  const html = DOMPurify.sanitize(String(snapshot.html || ""), { ADD_ATTR: ["data-ibx-picked"] });
+  const css = String(snapshot.css || "").replace(/</g, "\\3C ");
+  const background = bgMode === "light" ? "#ffffff" : bgMode === "grid"
+    ? "#ffffff;background-image:linear-gradient(#e5e7eb 1px,transparent 1px),linear-gradient(90deg,#e5e7eb 1px,transparent 1px);background-size:20px 20px"
+    : "#1e1e1e";
+  return `<!doctype html><html><head><meta charset="utf-8">${baseTag}<style>html,body{margin:0;min-height:100%;}body{box-sizing:border-box;padding:12px;background:${background};}#ibx-captured-root{width:max-content;max-width:100%;}</style><style>${css}</style></head><body><main id="ibx-captured-root">${html}</main></body></html>`;
+};
+
 const ComponentPreview = ({ nodeId, config }) => {
   const [filePath, setFilePath] = useState(config?.filePath || null);
   const [projectFiles, setProjectFiles] = useState([]);
@@ -323,6 +342,8 @@ const ComponentPreview = ({ nodeId, config }) => {
   const [ComponentToRender, setComponentToRender] = useState(null); // legacy, not used in iframe isolated mode
   const [lastUpdateKey, setLastUpdateKey] = useState(0);
   const [sampleMode, setSampleMode] = useState(false);
+  const [pickedSnapshot, setPickedSnapshot] = useState(null);
+  const [copiedPart, setCopiedPart] = useState(null);
   // HTML docs: no bundler — the raw doc (+<base>) goes straight into srcDoc.
   const [htmlDoc, setHtmlDoc] = useState(null);
 
@@ -338,6 +359,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   const liveReloadTimerRef = useRef(null);
   const fsReloadTimerRef = useRef(null);
   const loadSeqRef = useRef(0); // for discarding stale bundle results
+  const copyTimerRef = useRef(null);
   const filePathRef = useRef(filePath);
   filePathRef.current = filePath;
 
@@ -354,6 +376,28 @@ const ComponentPreview = ({ nodeId, config }) => {
     if (!doc) return null;
     return doc.getElementById("preview_mount");
   }, [getIframeDoc]);
+
+  useEffect(() => {
+    let active = true;
+    const applyMode = (mode) => {
+      if (["dark", "light", "grid"].includes(mode)) setBgMode(mode);
+    };
+    const onMessage = (event) => applyMode(event.data?.componentPreviewBgMode);
+    let channel = null;
+    try {
+      channel = new BroadcastChannel("component-preview-settings");
+      channel.onmessage = onMessage;
+    } catch {}
+    try {
+      window.electronAPI?.readSettings?.().then((settings) => {
+        if (active) applyMode(settings?.componentPreviewBgMode);
+      }).catch(() => {});
+    } catch {}
+    return () => {
+      active = false;
+      try { channel?.close(); } catch {}
+    };
+  }, []);
 
   // ── Setup iframe isolation: inject React runtime for independent mounting ──
   // Stronger origin isolation: component code runs inside iframe's window (via iframe's Function),
@@ -394,7 +438,6 @@ const ComponentPreview = ({ nodeId, config }) => {
   }, [getIframeDoc, getIframeWin]);
 
   // ── Preview CSS store (iframe reloads wipe <head>, so re-apply) ──────────
-  const [loadedCssFiles, setLoadedCssFiles] = useState([]);
   const loadedCssRef = useRef(new Map()); // cssKey -> cssContent
   const tailwindNeededRef = useRef(false);
   const projectCssCacheRef = useRef({ root: null, globals: [], hasTailwind: false });
@@ -563,8 +606,8 @@ const ComponentPreview = ({ nodeId, config }) => {
     };
     const onClose = () => {
       setSampleMode(false); setFilePath(null); setProjectFiles([]);
+      setPickedSnapshot(null);
       setComponentToRender(null); setPreviewCode(null);
-      setLoadedCssFiles([]);
       loadedCssRef.current.clear();
       tailwindNeededRef.current = false;
       projectCssCacheRef.current = { root: null, globals: [], hasTailwind: false };
@@ -583,11 +626,44 @@ const ComponentPreview = ({ nodeId, config }) => {
       const path = e.detail?.path || e.detail?.filePath;
       if (path && /\.(jsx|tsx|html|htm)$/i.test(path)) {
         setSampleMode(false);
+        setPickedSnapshot(null);
         setFilePath(path);
       }
     };
     window.addEventListener("open-file-in-editor", onOpenFile);
     return () => window.removeEventListener("open-file-in-editor", onOpenFile);
+  }, []);
+
+  useEffect(() => {
+    const onSnapshot = (e) => {
+      const snapshot = e.detail;
+      if (!snapshot?.html) return;
+      setSampleMode(false);
+      setPickedSnapshot({
+        html: DOMPurify.sanitize(String(snapshot.html), { ADD_ATTR: ["data-ibx-picked"] }),
+        css: String(snapshot.css || ""),
+        url: String(snapshot.url || ""),
+        tagName: String(snapshot.tagName || "element"),
+        text: String(snapshot.text || ""),
+      });
+      try {
+        const model = window.__flexModel?.current;
+        if (model && nodeId) model.doAction(window.__flexActions.selectTab(nodeId));
+      } catch {}
+    };
+    window.addEventListener("componentPreview:loadSnapshot", onSnapshot);
+    return () => window.removeEventListener("componentPreview:loadSnapshot", onSnapshot);
+  }, [nodeId]);
+
+  useEffect(() => {
+    const onSelectFile = (e) => {
+      const path = e.detail?.path;
+      if (!path || !/\.(jsx|tsx|js|ts|html|htm)$/i.test(path)) return;
+      setSampleMode(false);
+      setFilePath(path);
+    };
+    window.addEventListener("componentPreview:selectFile", onSelectFile);
+    return () => window.removeEventListener("componentPreview:selectFile", onSelectFile);
   }, []);
 
   // ── Project-aware CSS auto-detect ─────────────────────────────────────────
@@ -684,7 +760,6 @@ const ComponentPreview = ({ nodeId, config }) => {
     if (isLive && !force && cache.root === rootPosix && cache.globals?.length) {
       clearPreviewCss(true); // remove only the old bundle css, re-apply globals
       for (const g of cache.globals) injectPreviewCss(g.key, g.content);
-      setLoadedCssFiles(cache.globals.map((g) => g.key));
       return;
     }
 
@@ -828,10 +903,10 @@ const ComponentPreview = ({ nodeId, config }) => {
     // A very large single stylesheet (MBs) injected into the iframe repeatedly can cause OOM —
     // hence the per-file cap.
     clearPreviewCss();
-    const loaded = [];
+    let loadedCount = 0;
     let bytes = 0;
     for (const key of orderedKeys.slice(0, 40)) {
-      if (loaded.length >= 12 || bytes > 600 * 1024) break;
+      if (loadedCount >= 12 || bytes > 600 * 1024) break;
       let raw = null;
       try { raw = await tryRead(key); } catch {}
       if (raw == null || !raw.trim()) continue;
@@ -844,9 +919,7 @@ const ComponentPreview = ({ nodeId, config }) => {
       bytes += (finalCss || "").length;
       contents.set(key, finalCss);
       injectPreviewCss(key, finalCss);
-      // short display name: root-relative when inside
-      const rel = stripRoot(rootPosix, key);
-      loaded.push(rel ? (rel === "." ? key : rel) : key);
+      loadedCount++;
     }
     // tailwind is a dep but no tailwind css was found -> keep the browser CDN ready
     if (hasTailwind && ![...contents.values()].some((c) => isTailwindCss(c))) {
@@ -858,7 +931,6 @@ const ComponentPreview = ({ nodeId, config }) => {
       globals: [...contents.entries()].map(([key, content]) => ({ key, content })),
       hasTailwind,
     };
-    setLoadedCssFiles(loaded);
   }, [injectPreviewCss, clearPreviewCss, resolveCssImports, readPackageInfo, getIframeDoc, ensureTailwindScript, isTailwindCss]);
 
   // ── Transpile & Load Component ────────────────────────────────────────────
@@ -891,7 +963,6 @@ const ComponentPreview = ({ nodeId, config }) => {
       setComponentToRender(null);
       setTranspileError(null);
       clearPreviewCss();
-      setLoadedCssFiles([]);
       try {
         const { html } = prepareHtmlDocument(source, path);
         setHtmlDoc(html);
@@ -1087,6 +1158,7 @@ const ComponentPreview = ({ nodeId, config }) => {
     const doc = getIframeDoc();
     if (!win || !doc) return;
     setupIframeGuard();
+    if (pickedSnapshot) return;
     // HTML docs already live in srcDoc — no React mount needed.
     if (!sampleMode && htmlDoc) return;
     // srcDoc reload wipes the head — re-apply the cached CSS
@@ -1118,11 +1190,12 @@ const ComponentPreview = ({ nodeId, config }) => {
       // Never let iframe mount failure affect parent UI
       console.error("Preview mount failed (isolated):", e);
     }
-  }, [sampleMode, transpileError, filePath, previewCode, zoom, bgMode, lastUpdateKey, htmlDoc, getIframeWin, getIframeDoc, getMount, setupIframeGuard, reapplyPreviewCss]);
+  }, [sampleMode, transpileError, filePath, previewCode, zoom, bgMode, lastUpdateKey, htmlDoc, pickedSnapshot, getIframeWin, getIframeDoc, getMount, setupIframeGuard, reapplyPreviewCss]);
 
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
+      clearTimeout(copyTimerRef.current);
       iframeReadyRef.current = false;
       const doc = getIframeDoc();
       if (doc && doc.__previewPoll) {
@@ -1139,6 +1212,57 @@ const ComponentPreview = ({ nodeId, config }) => {
     renderPreview();
   }, [renderPreview]);
 
+  const pickFromBrowser = () => {
+    const findBrowser = () => {
+      const model = window.__flexModel?.current;
+      if (!model) return null;
+      const isBrowserTab = (node) => node?.getType?.() === "tab"
+        && (node.getComponent?.() === "panel3" || node.getConfig?.()?.type === "browser");
+      try {
+        const lastTabset = window.__lastBrowserTabsetId && model.getNodeById(window.__lastBrowserTabsetId);
+        const selected = lastTabset?.getSelectedNode?.();
+        if (isBrowserTab(selected)) return selected;
+      } catch {}
+      const walk = (node) => {
+        if (!node) return null;
+        if (isBrowserTab(node)) return node;
+        for (const child of node.getChildren?.() || []) {
+          const found = walk(child);
+          if (found) return found;
+        }
+        return null;
+      };
+      try { return walk(model.getRoot()); } catch { return null; }
+    };
+    const requestPick = () => {
+      const model = window.__flexModel?.current;
+      const browserTab = findBrowser();
+      if (!model || !browserTab) return false;
+      try { model.doAction(window.__flexActions.selectTab(browserTab.getId())); } catch {}
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("browser:pickComponent", { detail: { nodeId: browserTab.getId() } }));
+      }, 120);
+      return true;
+    };
+    if (requestPick()) return;
+    window.dispatchEvent(new CustomEvent("add-browser-panel", {
+      detail: { config: { type: "browser", title: "Browser", url: "https://www.google.com" } },
+    }));
+    setTimeout(requestPick, 180);
+  };
+
+  const copySnapshotPart = async (part) => {
+    const text = pickedSnapshot?.[part];
+    if (!text) return;
+    try {
+      if (window.electronAPI?.clipboardWrite) window.electronAPI.clipboardWrite(text);
+      else await navigator.clipboard.writeText(text);
+      setCopiedPart(part);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedPart(null), 1400);
+    } catch {}
+  };
+
   const fileName = filePath ? filePath.split(/[\\/]/).pop() : "No file selected";
 
   const getCanvasBg = () => {
@@ -1152,19 +1276,13 @@ const ComponentPreview = ({ nodeId, config }) => {
       {/* ── Header Toolbar ─────────────────────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", padding: "var(--space-4) var(--space-10)", background: "var(--bg-vscode)", borderBottom: "var(--space-1) solid var(--bg-active)", fontSize: "var(--fs-body)", color: "var(--text-bright)", flexShrink: 0, gap: "var(--space-8)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", flex: "1 1 180px", minWidth: 0 }}>
-          <span style={{ fontWeight: "var(--fw-semibold)", color: "var(--teal)", display: "flex", alignItems: "center", gap: "var(--space-4)", flexShrink: 0 }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path style={{ stroke: "var(--teal)" }} d="M4 2.5L1.5 8L4 13.5M12 2.5L14.5 8L12 13.5M9.5 2L6.5 14" strokeWidth="1.2" strokeLinecap="round" />
-            </svg>
-            Preview:
-          </span>
-
           {/* File selector dropdown */}
           <select
             value={filePath || ""}
             onChange={(e) => {
               const p = e.target.value || null;
               setSampleMode(false);
+              setPickedSnapshot(null);
               setFilePath(p);
               // Link back to the code editor: open the selected component there.
               if (p) {
@@ -1207,51 +1325,49 @@ const ComponentPreview = ({ nodeId, config }) => {
 
         {/* Action Controls */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--space-6)", maxWidth: "100%" }}>
+          <button
+            onClick={pickFromBrowser}
+            title="Use the DevTools selector to choose a component from the Browser"
+            style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", borderRadius: "var(--radius-sm)", display: "inline-flex", alignItems: "center", gap: "var(--space-4)" }}
+          >
+            <MousePointer2 size={13} /> Select component from browser
+          </button>
+
+          {pickedSnapshot && (
+            <>
+              <button
+                onClick={() => copySnapshotPart("html")}
+                title="Copy selected component HTML"
+                style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", display: "inline-flex", alignItems: "center", gap: "var(--space-4)" }}
+              >
+                {copiedPart === "html" ? <Check size={13} /> : <Copy size={13} />} Copy HTML
+              </button>
+              <button
+                onClick={() => copySnapshotPart("css")}
+                disabled={!pickedSnapshot.css}
+                title="Copy selected component CSS"
+                style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: pickedSnapshot.css ? "pointer" : "default", opacity: pickedSnapshot.css ? 1 : 0.5, padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", display: "inline-flex", alignItems: "center", gap: "var(--space-4)" }}
+              >
+                {copiedPart === "css" ? <Check size={13} /> : <Copy size={13} />} Copy CSS
+              </button>
+            </>
+          )}
+
           {/* Sample Component Button */}
           <button
-            onClick={() => setSampleMode(true)}
+            onClick={() => { setPickedSnapshot(null); setSampleMode(true); }}
             title="Show sample component with temp data"
             style={{ background: sampleMode ? "var(--bg-active)" : "transparent", border: "none", color: sampleMode ? "var(--teal)" : "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-8)", fontSize: "var(--fs-small)", borderRadius: "var(--radius-sm)" }}
           >
             Sample
           </button>
 
-          {/* Background Mode Toggle */}
-          <div style={{ display: "flex", background: "var(--bg-surface)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: "var(--space-1)" }}>
-            <button
-              onClick={() => setBgMode("dark")}
-              title="Dark Background"
-              style={{ background: bgMode === "dark" ? "var(--bg-thumb)" : "transparent", color: bgMode === "dark" ? "var(--text-inverse)" : "var(--icon-muted)", border: "none", borderRadius: "var(--radius-xs)", padding: "var(--space-2) var(--space-6)", fontSize: "var(--fs-tiny)", cursor: "pointer" }}
-            >
-              Dark
-            </button>
-            <button
-              onClick={() => setBgMode("light")}
-              title="Light Background"
-              style={{ background: bgMode === "light" ? "var(--bg-thumb)" : "transparent", color: bgMode === "light" ? "var(--text-inverse)" : "var(--icon-muted)", border: "none", borderRadius: "var(--radius-xs)", padding: "var(--space-2) var(--space-6)", fontSize: "var(--fs-tiny)", cursor: "pointer" }}
-            >
-              Light
-            </button>
-            <button
-              onClick={() => setBgMode("grid")}
-              title="Grid Background"
-              style={{ background: bgMode === "grid" ? "var(--bg-thumb)" : "transparent", color: bgMode === "grid" ? "var(--text-inverse)" : "var(--icon-muted)", border: "none", borderRadius: "var(--radius-xs)", padding: "var(--space-2) var(--space-6)", fontSize: "var(--fs-tiny)", cursor: "pointer" }}
-            >
-              Grid
-            </button>
-          </div>
-
-          {/* Auto CSS indicator */}
-          <span
-            title={loadedCssFiles.length ? `Auto-loaded CSS (${loadedCssFiles.length}):\n${loadedCssFiles.join("\n")}` : "No global CSS detected — component imports (bundler) still apply"}
-            style={{ fontSize: "var(--fs-tiny)", color: loadedCssFiles.length ? "var(--teal)" : "var(--icon-muted)", background: loadedCssFiles.length ? "var(--teal-a15)" : "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-pill)", padding: "var(--space-2) var(--space-8)", whiteSpace: "nowrap", cursor: "default" }}
-          >
-            CSS {loadedCssFiles.length ? `· ${loadedCssFiles.length}` : "· auto"}
-          </span>
-
           {/* Refresh Button */}
           <button
-            onClick={() => { if (filePath) loadAndTranspile(filePath, undefined, { forceCss: true }); }}
+            onClick={() => {
+              if (pickedSnapshot) setPickedSnapshot(null);
+              if (filePath) loadAndTranspile(filePath, undefined, { forceCss: true });
+            }}
             title="Reload Preview (rescan CSS)"
             style={{ background: "transparent", border: "none", color: "var(--icon-hover)", cursor: "pointer", padding: "var(--space-2) var(--space-4)", fontSize: "var(--fs-body)" }}
           >
@@ -1278,7 +1394,7 @@ const ComponentPreview = ({ nodeId, config }) => {
           title="Component Preview"
           sandbox="allow-scripts allow-same-origin allow-forms"
           csp={PREVIEW_IFRAME_CSP}
-          srcDoc={!sampleMode && htmlDoc ? htmlDoc : IFRAME_HTML}
+          srcDoc={pickedSnapshot ? buildCapturedPreviewDocument(pickedSnapshot, bgMode) : !sampleMode && htmlDoc ? htmlDoc : IFRAME_HTML}
           onLoad={handleIframeLoad}
           style={{ width: "100%", height: "100%", border: "none", display: "block", background: "transparent" }}
         />
