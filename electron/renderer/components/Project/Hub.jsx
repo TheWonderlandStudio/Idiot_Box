@@ -1,4 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import {
+  getRepoNameFromChat,
+  getRepoSearchQuery,
+  hasCloneIntent,
+  hasRepoSearchIntent,
+} from "./chat-intent.cjs";
 import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical, Copy, Check, MousePointer2 } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 import { playClick, setClickEnabled } from "../shared/clickSound.js";
@@ -248,8 +254,33 @@ const normalizeSetupProposal = (raw) => {
     panels: panels.map((k) => ({ key: k, label: PANEL_LABELS[k] })),
   };
 };
-const stripSetupBlock = (raw) =>
-  String(raw || "").replace(/```setup\b[\s\S]*?```/g, "").replace(/\n{3,}/g, "\n\n").trim();
+const stripChatActionBlocks = (raw) =>
+  String(raw || "")
+    .replace(/```setup\b[\s\S]*?```/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const searchGitHubRepositories = async (query, page = 1) => {
+  const q = String(query || "").trim();
+  if (!q) throw new Error("Enter a repository search query.");
+  const res = await fetch(
+    `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=30&page=${page}`
+  );
+  if (!res.ok) throw new Error(`GitHub search failed (HTTP ${res.status}).`);
+  const data = await res.json();
+  return {
+    items: Array.isArray(data.items) ? data.items : [],
+    totalCount: Number(data.total_count) || 0,
+  };
+};
+const getGitHubRepository = async (owner, name) => {
+  const res = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GitHub repository lookup failed (HTTP ${res.status}).`);
+  return res.json();
+};
 
 const buildFullPath = (name, loc) => {
   if (!name) return "";
@@ -1103,17 +1134,17 @@ const ProjectHub = () => {
     setChatMsgs(chatMsgsRef.current);
   };
   // AI call — append the user message → the streaming reply shows LIVE (chunks
-  // keep arriving); the ```setup fence only goes to the proposal card when final.
+  // keep arriving); action fences are handled after the final response.
   const askAiReply = async (text) => {
     pushChatMsg({ role: "user", content: text });
     setChatBusy(true);
     const id = "c" + Date.now() + Math.random().toString(36).slice(2, 6);
     let acc = "";
     let streamed = false;
-    // never show the setup fence in the live view — only the text before it
+    // Never show the setup fence in the live view.
     const liveBody = (raw) => {
-      const i = raw.indexOf("```setup");
-      return i >= 0 ? raw.slice(0, i) : raw;
+      const start = raw.indexOf("```setup");
+      return start >= 0 ? raw.slice(0, start) : raw;
     };
     const renderLive = () => {
       const msgs = [...chatMsgsRef.current];
@@ -1130,7 +1161,7 @@ const ProjectHub = () => {
         setChatBusy(false);
         resolve();
       };
-      unsub = window.electronAPI.onAiChatEvent((type, p) => {
+      unsub = window.electronAPI.onAiChatEvent(async (type, p) => {
         if (!p || p.id !== id) return;
         if (type === "chunk") {
           acc += String(p.text || "");
@@ -1138,11 +1169,12 @@ const ProjectHub = () => {
         } else if (type === "done") {
           const raw = acc || String(p.text || "");
           const proposal = normalizeSetupProposal(raw);
-          const body = stripSetupBlock(raw);
+          const body = stripChatActionBlocks(raw);
           const final = body || (proposal ? "Setup ready — you can create the project from the card below." : raw.trim());
           const msgs = [...chatMsgsRef.current];
-          if (streamed) msgs[msgs.length - 1] = { role: "assistant", content: final };
-          else msgs.push({ role: "assistant", content: final });
+          const assistantMessage = { id, role: "assistant", content: final };
+          if (streamed) msgs[msgs.length - 1] = assistantMessage;
+          else msgs.push(assistantMessage);
           chatMsgsRef.current = msgs;
           setChatMsgs(msgs);
           if (proposal) setChatProposal(proposal);
@@ -1158,7 +1190,13 @@ const ProjectHub = () => {
           finish();
         }
       });
-      window.electronAPI.aiChatStart(id, chatMsgsRef.current.slice(-10));
+      const context = chatMsgsRef.current.slice(-10).map((message) => ({
+        role: message.role,
+        content: message.repositories?.length
+          ? `${message.content}\nGitHub search results:\n${message.repositories.map((repo) => `- ${repo.full_name}: ${repo.html_url}`).join("\n")}`
+          : message.content,
+      }));
+      window.electronAPI.aiChatStart(id, context);
     });
   };
   // ── Mic voice input: record (webm) → WAV 16k mono → Windows
@@ -1240,6 +1278,131 @@ const ProjectHub = () => {
     if (!text || chatBusy) return;
     setHubChatText("");
     setChatOpen(true);
+    const repoUrl = text.match(/https?:\/\/(?:www\.)?github\.com\/[\w.-]+\/[\w.-]+(?:\.git)?/i)?.[0]?.replace(/[.,!?;:)]+$/, "");
+    if (repoUrl && /\b(clone|download|checkout|open)\b/i.test(text)) {
+      pushChatMsg({ role: "user", content: text });
+      const cloneMessageId = `clone-${Date.now()}`;
+      const cloneMessage = { id: cloneMessageId, role: "assistant", content: `Cloning ${repoUrl}…` };
+      pushChatMsg(cloneMessage);
+      setChatBusy(true);
+      try {
+        const cloned = await handleClone(repoUrl);
+        const updated = chatMsgsRef.current.map((message) => message.id === cloneMessageId
+          ? { ...message, content: cloned ? "Repository cloned and opened successfully." : "Repository was not cloned. You can try again from Clone Repository." }
+          : message);
+        chatMsgsRef.current = updated;
+        setChatMsgs(updated);
+      } finally {
+        setChatBusy(false);
+      }
+      return;
+    }
+    if (hasCloneIntent(text)) {
+      const userMessage = { role: "user", content: text };
+      pushChatMsg(userMessage);
+      const cloneMessageId = `clone-${Date.now()}`;
+      pushChatMsg({
+        id: cloneMessageId,
+        role: "assistant",
+        content: "Checking your repository…",
+      });
+      setChatBusy(true);
+      const updateCloneMessage = (content, extra = {}) => {
+        const updated = chatMsgsRef.current.map((message) => message.id === cloneMessageId
+          ? { ...message, content, ...extra }
+          : message);
+        chatMsgsRef.current = updated;
+        setChatMsgs(updated);
+      };
+      try {
+        const repoName = getRepoNameFromChat(chatMsgsRef.current, text);
+        if (!repoName) {
+          updateCloneMessage("Which repository should I clone? Tell me its name or paste its GitHub URL.");
+          return;
+        }
+
+        const username = await resolveGhUser();
+        const exactMatches = username
+          ? [await getGitHubRepository(username, repoName)].filter(Boolean)
+          : (await searchGitHubRepositories(`${repoName} in:name`)).items.filter(
+              (repo) => repo.name?.toLowerCase() === repoName.toLowerCase(),
+            );
+        if (exactMatches.length === 1) {
+          updateCloneMessage(`Cloning ${exactMatches[0].full_name}…`);
+          const cloned = await handleClone(exactMatches[0].clone_url);
+          updateCloneMessage(
+            cloned
+              ? `Cloned and opened ${exactMatches[0].full_name}.`
+              : `Could not clone ${exactMatches[0].full_name}. Check the clone dialog for details and try again.`,
+          );
+        } else if (exactMatches.length > 1) {
+          updateCloneMessage(
+            `I found several repositories named “${repoName}”. Choose the right one to clone.`,
+            { repositories: exactMatches.slice(0, 5) },
+          );
+        } else {
+          updateCloneMessage(
+            username
+              ? `I couldn't find a public repository named “${repoName}” under @${username}. Check the name or paste its GitHub URL.`
+              : `I couldn't find a public repository named “${repoName}”. Check the name, add your GitHub username in Hub settings, or paste its GitHub URL.`,
+          );
+        }
+      } catch (error) {
+        updateCloneMessage(
+          "I couldn't look up that repository.",
+          { repoSearchError: error?.message || String(error) },
+        );
+      } finally {
+        setChatBusy(false);
+      }
+      return;
+    }
+    if (hasRepoSearchIntent(text)) {
+      const query = getRepoSearchQuery(text);
+      if (!query) {
+        pushChatMsg({ role: "user", content: text });
+        pushChatMsg({
+          role: "assistant",
+          content: "What kind of repository should I look for? Add a framework, language, or project type.",
+        });
+        return;
+      }
+      pushChatMsg({ role: "user", content: text });
+      const searchMessageId = `search-${Date.now()}`;
+      pushChatMsg({
+        id: searchMessageId,
+        role: "assistant",
+        content: `Searching GitHub for “${query}”…`,
+      });
+      setChatBusy(true);
+      try {
+        const results = await searchGitHubRepositories(query);
+        const updated = chatMsgsRef.current.map((message) => message.id === searchMessageId
+          ? {
+              ...message,
+              content: results.items.length
+                ? `GitHub repositories matching “${query}”:`
+                : `No public repositories found for “${query}”. Try adding a framework or language.`,
+              repositories: results.items.slice(0, 5),
+            }
+          : message);
+        chatMsgsRef.current = updated;
+        setChatMsgs(updated);
+      } catch (error) {
+        const updated = chatMsgsRef.current.map((message) => message.id === searchMessageId
+          ? {
+              ...message,
+              content: `Could not search GitHub for “${query}”.`,
+              repoSearchError: error?.message || String(error),
+            }
+          : message);
+        chatMsgsRef.current = updated;
+        setChatMsgs(updated);
+      } finally {
+        setChatBusy(false);
+      }
+      return;
+    }
     await askAiReply(text);
   };
   // Chat list — scroll down as new messages arrive
@@ -2519,14 +2682,10 @@ const ProjectHub = () => {
     }
     setSearchLoading(true);
     try {
-      const res = await fetch(
-        `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=30&page=${page}`
-      );
-      if (!res.ok) throw new Error(`GitHub ${res.status}`);
-      const data = await res.json();
-      setSearchResults(data.items || []);
+      const data = await searchGitHubRepositories(q, page);
+      setSearchResults(data.items);
       setSearchPage(page);
-      const total = data.total_count || 0;
+      const total = data.totalCount;
       setSearchHasMore(page * 30 < Math.min(total, 1000));
     } catch (err) {
       console.warn("GitHub search failed", err);
@@ -2539,7 +2698,7 @@ const ProjectHub = () => {
 
   const handleClone = useCallback(async (url) => {
     const targetUrl = (url || cloneUrl || "").trim();
-    if (!targetUrl) return;
+    if (!targetUrl) return false;
     let destParent = newProjectLocation.trim() || projectPath || "";
     try {
       const picked = await window.electronAPI.browseFolder();
@@ -2548,7 +2707,7 @@ const ProjectHub = () => {
     if (!destParent) {
       try { destParent = await window.electronAPI.getDefaultLocation?.(); } catch {}
     }
-    if (!destParent) return;
+    if (!destParent) return false;
     const repoName = targetUrl.split("/").pop()?.replace(/\.git$/, "").replace(/\/$/, "") || "repo";
     const cleanParent = destParent.replace(/[\\/]+$/, "");
     const sep = cleanParent.includes("\\") ? "\\" : "/";
@@ -2559,13 +2718,16 @@ const ProjectHub = () => {
     try {
       const r = await window.electronAPI.gitClone(targetUrl, destPath);
       if (!r || r.ok === false) throw new Error(r?.error || "Clone failed");
-      await window.electronAPI.menuNewProject(destPath);
+      const opened = await window.electronAPI.menuNewProject(destPath);
+      if (opened?.ok === false) throw new Error(opened.error || "Could not open the cloned repository.");
       setShowCloneDialog(false);
       setSearchQuery("");
       setSearchResults([]);
       setCloneUrl("");
+      return true;
     } catch (err) {
       await window.electronAPI.showAlert(`Clone failed:\n${err.message || String(err)}`);
+      return false;
     } finally {
       setCloning(false);
       setCloningTarget(null);
@@ -3471,6 +3633,24 @@ const ProjectHub = () => {
                             </button>
                           </div>
                         )}
+                        {m.repositories?.length > 0 && (
+                          <div className="phub__chat-repos">
+                            {m.repositories.map((repo) => (
+                              <RepoCard
+                                key={repo.id}
+                                repo={repo}
+                                cloning={cloning}
+                                cloningTarget={cloningTarget}
+                                onClone={handleClone}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {m.repoSearchError && (
+                          <div className="phub__chat-repo-error" role="alert">
+                            {m.repoSearchError}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -3582,7 +3762,7 @@ const ProjectHub = () => {
               sendHubMessage();
             }
           }}
-          placeholder="Ask anything…"
+          placeholder="Ask AI, or find a GitHub repo…"
           rows={1}
           spellCheck={false}
           aria-label="Ask AI"

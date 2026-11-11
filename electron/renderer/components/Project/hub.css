@@ -3691,6 +3691,19 @@
   user-select: none !important;
   -webkit-user-select: none !important;
 }
+.phub__chat-repos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(440px, 100%);
+}
+.phub__chat-repos .phub__dialog-result--card { min-height: 0; }
+.phub__chat-repo-error {
+  max-width: 440px;
+  color: var(--danger);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
 .phub__msg-toolbar--user {
   justify-content: flex-end;
 }
@@ -4191,5 +4204,4 @@
 .phub__layout-opt--on { background: var(--color-accent-muted); border-color: var(--color-accent); }
 .phub__layout-opt--on .phub__layout-opt-svg { background: var(--color-accent-muted); border-color: var(--color-accent); }
 /* ghColor() teal steps + var(--bg-active) empty cells adapt — kept as-is */
-
 

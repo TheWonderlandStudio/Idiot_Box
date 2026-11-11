@@ -1681,11 +1681,14 @@
 /* ── Inline blame (status bar) ────────────────────────────────────────────── */
 .ed-panel { min-width: 0; container: editor-panel / inline-size; }
 .ed-status {
-  position: relative; display: flex; align-items: center; gap: var(--space-6);
-  padding: var(--space-2) var(--space-6); height: var(--bar-h-sm); flex-shrink: 0;
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: var(--z-popover);
+  display: flex; align-items: center; gap: var(--space-6);
+  padding: var(--space-2) var(--space-6); height: var(--bar-h-sm);
   min-width: 0; background: var(--accent); color: var(--text-inverse);
   font-size: var(--fs-small); user-select: none;
+  opacity: 0; pointer-events: none; transition: opacity 150ms ease;
 }
+.ed-panel:hover > .ed-status, .ed-status:focus-within { opacity: 1; pointer-events: auto; }
 .ed-status__left { display: flex; align-items: center; gap: var(--space-8); flex: 1; min-width: 0; }
 .ed-status__location, .ed-status__message { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ed-status__location { flex-shrink: 0; }
