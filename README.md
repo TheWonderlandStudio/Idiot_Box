@@ -95,6 +95,14 @@ Other sites offering "Idiot Box" for download are not official.
 
 Idiot Box is free and open source. If it helps you, consider sponsoring its development via [GitHub Sponsors](https://github.com/sponsors/Jignesh1236).
 
+### Current sponsors
+
+Thanks to everyone supporting Idiot Box!
+
+<a href="https://github.com/mihsanalam" title="Mihsan"><img src="https://avatars.githubusercontent.com/u/175799515?s=120&v=4" width="64" height="64" alt="Mihsan (@mihsanalam)" /></a>
+
+- **Mihsan** — [@mihsanalam](https://github.com/mihsanalam)
+
 ## License
 
 Source code is licensed under the [GNU General Public License v3](LICENSE). See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
