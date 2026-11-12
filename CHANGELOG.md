@@ -3,6 +3,58 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.31] - 2026-11-12
+
+### Added
+- **Desktop Emulator** - create and manage QEMU virtual machines from a new
+  panel: live VNC screen, keyboard and mouse input, official ISO download links
+  in the Create form, runtime state tracking, QEMU process listing, graceful VM
+  shutdown on app exit, configurable VM storage roots with sanitized folder
+  names, and latest-QEMU detection from the installer index. Both emulator
+  panels show their disclaimers in a modal.
+- **Hub redesign** - the Hub now uses the Astryx design system with a native
+  path display, an adjustable (and overlay-mode) sidebar, recent projects,
+  bundled default wallpapers, a random wallpaper option with fallback, and a
+  custom cursor toggle.
+- **Git panel** - hunk-level staging, multi-select file actions with shift-range
+  selection, a dedicated Sync action (pull then push), a switchable main action
+  between Commit and Sync, operation controls, and paged history.
+- **Browser element picking** - pick elements from the Browser panel for
+  component preview and AI context, with debugger detach and session cleanup.
+  Component preview accepts larger payloads and protects its copy menu.
+- **AI chat repository search** - GitHub repository search through a
+  `repo-search` directive.
+- **Editor and navigation** - Ctrl+Tab / Ctrl+Shift+Tab cycle open editors,
+  reopen closed tabs, copy relative paths, recent files, and safer keyboard
+  search.
+- **Tabs** - new tab and close tab actions with keyboard shortcuts.
+- **Output** - copy logs and keep shared views in sync.
+- **Project** - safer file browsing and easier renaming.
+- **Community** - GitHub Sponsors button, Code of Conduct, and the Idiot Box
+  Contributor License Agreement v1.0 with CLA Assistant.
+
+### Changed
+- **Titlebar** - top toolbar height reduced to 24px for a tighter layout.
+- **Status bar removed** - the app-wide status bar is gone; pane-level controls
+  keep the same information.
+- **MCP docs** - rewritten around tool economy and the restructured tool
+  definitions.
+- **Release notes** - now include a contributor list and a sponsor section.
+- **README** - restructured with new branding and a feature showcase.
+
+### Fixed
+- **Browser tab crash** - Ctrl+W on a browser tab no longer crashes the app.
+- **Layout** - tab drag layers stay inside the workspace, and controls remain
+  usable in narrow and short panes.
+- **Search replace undo** - undoing a replacement no longer discards later
+  saves.
+- **MCP startup sync** - existing OpenCode settings are preserved.
+- **Install** - postinstall no longer requires Visual Studio for node-pty.
+- **Icons** - app icons are always generated and the dev taskbar icon is
+  stamped.
+- **CI/CLA** - repaired the CLA Assistant workflow (pinned action, token
+  passing, recheck/sign triggers) and restored PR checks.
+
 ## [0.1.30] - 2026-10-28
 
 ### Added

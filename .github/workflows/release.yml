@@ -130,11 +130,12 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Extract release notes from CHANGELOG
-        # Pull the tagged version's (e.g. v0.1.28) "## [0.1.28]" section from
-        # CHANGELOG.md as the release body — no auto "Full Changelog" link.
-        run: |
-          node -e 'const fs=require("fs");const md=fs.readFileSync("CHANGELOG.md","utf8");const ver=String(process.env.GITHUB_REF_NAME||"").replace(/^v/,"");const lines=md.split(/\r?\n/);let out=[],cap=false;for(const ln of lines){const m=ln.match(/^## \[(.+?)\]/);if(m){if(cap)break;if(m[1]===ver){cap=true;continue;}}else if(cap)out.push(ln);}let body=out.join("\n").trim();if(!body)body="See CHANGELOG.md for details.";fs.writeFileSync("release-notes.md",body+"\n");console.log("notes for v"+ver+":",body.length,"chars");'
+      - name: Build release notes
+        # CHANGELOG highlights + GitHub-native contributor mentions
+        # (generate-notes + compare API) + sponsors from docs/SPONSORS.md.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/build-release-notes.cjs
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
