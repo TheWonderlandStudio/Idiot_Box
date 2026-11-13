@@ -290,9 +290,8 @@ app
                 "(()=>{const r=document.getElementById('audit-target')?.getBoundingClientRect()||[...document.querySelectorAll('.flexlayout__tab')].find(el=>el.getBoundingClientRect().width>1)?.getBoundingClientRect();return r?{x:Math.floor(r.x),y:Math.floor(r.y),width:Math.ceil(r.width),height:Math.ceil(r.height)}:null})()",
               )
             : null;
-        const screenshot = await win.webContents.capturePage(
-          bounds || undefined,
-        );
+        await run("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))");
+        const screenshot = await win.webContents.capturePage(bounds || undefined);
         fs.writeFileSync(
           path.join(dir, label.replace(/[^a-z0-9]+/gi, "-") + ".png"),
           screenshot.toPNG(),
@@ -361,6 +360,21 @@ app
             await wait(`!!document.querySelector(${JSON.stringify(ready)})`);
           await delay(panel === "editor" ? 700 : 250);
           await inspect(`${panel} @ ${paneWidth}`);
+          if (panel === "panel3" && paneWidth <= 360) {
+            await run("document.querySelector('.browser__edit-toggle').click()");
+            await wait("!!document.querySelector('.dv-panel')");
+            await inspect(`Browser visual editor @ ${paneWidth}`);
+            const layout = await run(`(() => {
+              const browser = document.querySelector(".browser");
+              const width = (selector) => browser.querySelector(selector).getBoundingClientRect().width;
+              return { pane: browser.getBoundingClientRect().width, page: width(".browser__view-wrap"), address: width(".browser__url") };
+            })()`);
+            const current = report[report.length - 1];
+            if (layout.page < Math.min(96, layout.pane / 3) || layout.address < 48) {
+              current.failures.push({ label: "Web page or address field has no usable width", layout });
+              console.log("FAIL: Browser visual editor widths", layout);
+            }
+          }
           if (panel === "editor" && paneWidth === 180) {
             await run(
               "document.querySelector('[title=\"Show document outline\"]').click()",

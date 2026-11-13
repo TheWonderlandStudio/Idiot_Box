@@ -657,6 +657,7 @@ body,
   height: 100%;
   background: var(--bg-panel);
   position: relative;
+  container: browser / inline-size;
 }
 .browser__bar {
   display: flex;
@@ -695,6 +696,7 @@ body,
 .browser__url-wrap {
   position: relative;
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   margin: 0 var(--space-3);
@@ -713,6 +715,7 @@ body,
 .browser__lock:hover { color: var(--text-bright); background: var(--bg-header); }
 .browser__url {
   width: 100%;
+  min-width: 0;
   height: 24px;
   padding: 0 var(--space-6);
   border: none;
@@ -1512,8 +1515,8 @@ body,
   overflow: hidden;
 }
 .dv-color-swatch input[type="color"] {
-  position: absolute; inset: -6px;
-  width: 30px; height: 30px;
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
   padding: 0; border: none; background: transparent;
   cursor: pointer; opacity: 0;
 }
@@ -1627,10 +1630,31 @@ body,
 .browser__apply:hover { background: #2f74e8; }
 .browser__apply:active { background: #2a68d4; }
 
-/* Narrow panel: keep controls usable (wrap toolbars, tighter labels) */
+/* Keep a usable page next to the 344px inspector, or dock it below. */
+@container browser (max-width: 520px) {
+  .browser__main { flex-direction: column; }
+  .dv-panel {
+    width: 100%;
+    height: min(48%, 320px);
+    box-sizing: border-box;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@container browser (max-width: 380px) {
+  .browser__bar:has(.browser__apply) { flex-wrap: wrap; }
+  .browser__bar:has(.browser__apply) .browser__url-wrap {
+    flex: 1 1 calc(100% - 100px);
+    margin: 0;
+  }
+}
+
 @container (max-width: 300px) {
   .dv-row { flex-wrap: wrap; }
   .dv-row-label { width: 46px; }
+  .dv-row .dv-select { max-width: 100%; }
+  .dv-sides { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 
