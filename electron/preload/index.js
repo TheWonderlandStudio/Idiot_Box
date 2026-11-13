@@ -249,6 +249,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "menu:newTerminal","menu:splitTerminalRight","menu:splitTerminalDown",
       "menu:clearTerminal","menu:killTerminal",
       "menu:openPorts","menu:openGit","menu:openAndroid","menu:openDesktop","menu:openExtensions",
+      "menu:localHistory","menu:testExplorer","menu:debugPanel","menu:debugCurrent",
       "menu:runAuto","menu:runStop","menu:openRunPanel"
     ];
     if (!valid.includes(channel)) return () => {};
