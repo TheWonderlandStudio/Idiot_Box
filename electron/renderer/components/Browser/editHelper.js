@@ -44,6 +44,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
         // v7: DOM tree panel (sidebar) — tree selection + highlight + id map
         let treeSelEl = null;
         let treeHiEl = null;
+        // v8: Cursor-style visual selection (click selects, double-click edits)
+        let selEl = null;
+        let selBar = null;
+        let selBarEl = null;
+        let selMenu = null;
         // During a mutation, a real mouse re-hover must not re-apply the hover class
         // (otherwise an artifact lands in the anchor snapshot and file matching breaks).
         let busy = 0;
@@ -64,17 +69,17 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{
             root.removeAttribute('contenteditable');
             root.removeAttribute('spellcheck');
-            root.classList.remove('__ibx-edit-hover','__ibx-edit-active');
+            root.classList.remove('__ibx-edit-hover','__ibx-edit-active','__ibx-edit-selected');
             stripEmptyClass(root);
           }catch{}
           try{
-            const nodes=root.querySelectorAll('.__ibx-edit-hover,.__ibx-edit-active,[contenteditable],[spellcheck="false"]');
+            const nodes=root.querySelectorAll('.__ibx-edit-hover,.__ibx-edit-active,.__ibx-edit-selected,[contenteditable],[spellcheck="false"]');
             for(let i=0;i<nodes.length;i++){
               try{
                 const n=nodes[i];
                 n.removeAttribute('contenteditable');
                 n.removeAttribute('spellcheck');
-                n.classList.remove('__ibx-edit-hover','__ibx-edit-active');
+                n.classList.remove('__ibx-edit-hover','__ibx-edit-active','__ibx-edit-selected');
                 stripEmptyClass(n);
               }catch{}
             }
@@ -96,16 +101,24 @@ export const EDIT_HELPER_SOURCE = `(() => {
           // Values match the CENTRAL sheet: --teal (#4ec9b0),
           // --teal-a08, --teal-a14. If tokens change, update them here too.
           styleEl.textContent = \`
-            .__ibx-edit-hover { outline: 2px dashed #4ec9b0 !important; outline-offset: 2px !important; cursor: text !important; background: rgba(78,201,176,0.08) !important; }
-            .__ibx-edit-active { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; background: rgba(78,201,176,0.14) !important; }
-            .__ibx-hint { position: fixed !important; z-index: 2147483647 !important; background: #111111 !important; color: #9cdcfe !important; font: 11px/1.5 system-ui, sans-serif !important; padding: 2px 8px !important; border-radius: 4px !important; pointer-events: none !important; white-space: nowrap !important; max-width: 340px !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+            .__ibx-edit-hover { outline: 1px solid #3b82f6 !important; outline-offset: 0px !important; background: rgba(59,130,246,0.05) !important; cursor: default !important; }
+            .__ibx-edit-selected { outline: 1.5px solid #3b82f6 !important; outline-offset: 0px !important; cursor: default !important; }
+            .__ibx-edit-active { outline: 2px solid #3b82f6 !important; outline-offset: 1px !important; background: rgba(59,130,246,0.07) !important; cursor: text !important; }
+            .__ibx-hint { position: fixed !important; z-index: 2147483647 !important; background: #3b82f6 !important; color: #ffffff !important; border: none !important; font: 10px/17px ui-monospace, SFMono-Regular, Menlo, monospace !important; padding: 0 6px !important; border-radius: 3px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.3) !important; pointer-events: none !important; white-space: nowrap !important; max-width: 340px !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+            .__ibx-chip { position: fixed !important; z-index: 2147483647 !important; background: #3b82f6 !important; color: #ffffff !important; border: none !important; border-radius: 3px !important; padding: 0 1px 0 6px !important; display: flex !important; align-items: center !important; gap: 1px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.35) !important; font: 10px/18px ui-monospace, SFMono-Regular, Menlo, monospace !important; white-space: nowrap !important; max-width: 320px !important; }
+            .__ibx-chip-label { max-width: 280px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+            .__ibx-chip-more { border: none !important; background: transparent !important; color: #dbeafe !important; font: 12px/1 system-ui, sans-serif !important; padding: 2px 4px !important; border-radius: 2px !important; cursor: pointer !important; }
+            .__ibx-chip-more:hover { background: rgba(255,255,255,0.22) !important; color: #ffffff !important; }
+            .__ibx-menu { position: fixed !important; z-index: 2147483647 !important; background: #1c1c1c !important; border: 1px solid #3a3a3a !important; border-radius: 6px !important; padding: 3px !important; display: flex !important; flex-direction: column !important; gap: 1px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.45) !important; font: 11px/1.4 system-ui, sans-serif !important; min-width: 100px !important; }
+            .__ibx-menu button { text-align: left !important; background: transparent !important; border: none !important; color: #dddddd !important; padding: 4px 18px 4px 9px !important; border-radius: 4px !important; font: 11px/1.4 system-ui, sans-serif !important; cursor: pointer !important; white-space: nowrap !important; }
+            .__ibx-menu button:hover { background: #2a2a2a !important; color: #ffffff !important; }
             .__ibx-popup { position: fixed !important; z-index: 2147483647 !important; background: #ffffff !important; color: #111111 !important; font: 13px/1.5 system-ui, sans-serif !important; border: 1px solid #999999 !important; border-radius: 8px !important; box-shadow: 0 8px 28px rgba(0,0,0,0.35) !important; padding: 10px 12px !important; width: 290px !important; }
             .__ibx-popup label { display: block !important; font-weight: bold !important; font-size: 11px !important; color: #555555 !important; margin: 6px 0 1px !important; }
             .__ibx-popup input { width: 100% !important; box-sizing: border-box !important; padding: 4px 6px !important; border: 1px solid #bbbbbb !important; border-radius: 4px !important; font: inherit !important; color: #111111 !important; background: #ffffff !important; }
             .__ibx-popup button { font: inherit !important; padding: 3px 12px !important; margin: 8px 6px 0 0 !important; border-radius: 4px !important; border: 1px solid #999999 !important; background: #f0f0f0 !important; color: #111111 !important; cursor: pointer !important; }
             .__ibx-popup button.__ibx-primary { background: #4ec9b0 !important; border-color: #4ec9b0 !important; color: #06281f !important; font-weight: bold !important; }
             .__ibx-stylebar { position: fixed !important; z-index: 2147483647 !important; background: #111111 !important; border-radius: 6px !important; padding: 3px 5px !important; display: flex !important; gap: 3px !important; align-items: center !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; flex-wrap: nowrap !important; white-space: nowrap !important; max-width: none !important; }
-            body { cursor: text !important; }
+            body { cursor: default !important; }
             .__ibx-stylebar button { background: transparent !important; color: #eeeeee !important; border: 1px solid transparent !important; border-radius: 4px !important; font: 12px/1.5 system-ui, sans-serif !important; padding: 2px 7px !important; cursor: pointer !important; min-width: 24px !important; }
             .__ibx-stylebar button:hover { background: #333333 !important; }
             .__ibx-stylebar input[type=color] { width: 26px !important; height: 20px !important; border: none !important; background: none !important; padding: 0 !important; cursor: pointer !important; }
@@ -162,19 +175,199 @@ export const EDIT_HELPER_SOURCE = `(() => {
           hoverEl=null; hideHint();
         }
         function isUiNode(n){ try{ return !!(n && n.closest && n.closest('[data-ibx-ui]')); }catch{ return false; } }
+        // Cursor-style selector label: tag#id.class (one class max, ibx artifacts removed)
+        function domLabel(el){
+          try{
+            if(!el || !el.tagName) return '';
+            let s=String(el.tagName).toLowerCase();
+            try{ if(el.id) s+='#'+String(el.id).slice(0,24); }catch{}
+            try{
+              const cl=(typeof el.className==='string') ? el.className : '';
+              const words=cl.split(/\\s+/).filter(function(w){ return !!w && w.indexOf('__ibx-')!==0; }).slice(0,1);
+              if(words.length) s+='.'+words[0].slice(0,24);
+            }catch{}
+            return s.slice(0,48);
+          }catch{ return ''; }
+        }
+        // Full selector chain for the Cursor-style chip (all classes, artifacts removed).
+        function selChain(el){
+          try{
+            if(!el || !el.tagName) return '';
+            let s=String(el.tagName).toLowerCase();
+            try{ if(el.id) s+='#'+String(el.id).slice(0,24); }catch{}
+            try{
+              const cl=(typeof el.className==='string') ? el.className : '';
+              const words=cl.split(/\\s+/).filter(function(w){ return !!w && w.indexOf('__ibx-')!==0; });
+              if(words.length) s+='.'+words.join('.').slice(0,80);
+            }catch{}
+            return s.slice(0,100);
+          }catch{ return ''; }
+        }
+        // Hover target: the element under the cursor (walk up to 2 levels for text nodes)
+        function hoverCandidate(start){
+          let el=start;
+          if(el && el.nodeType===3) el=el.parentElement;
+          let d=0;
+          while(el && el!==document.body && el!==document.documentElement && d<2){
+            if(el.nodeType===1 && el.tagName){
+              const tg=String(el.tagName).toUpperCase();
+              if(['SCRIPT','STYLE','NOSCRIPT','HEAD','META','LINK','TEMPLATE'].indexOf(tg)===-1 && !isUiNode(el)) return el;
+            }
+            el=el.parentElement; d++;
+          }
+          return null;
+        }
+        function hideHint(){ try{ if(hintBadge) hintBadge.remove(); }catch{} hintBadge=null; }
+        // Instant selector chip on hover (the locate reply later appends the file name)
+        function showHoverLabel(el){
+          try{
+            hideHint();
+            if(!el || !document.contains(el)) return;
+            const r=el.getBoundingClientRect();
+            const b=document.createElement('div');
+            b.setAttribute('data-ibx-ui','1');
+            b.className='__ibx-hint';
+            b.textContent=selChain(el)||domLabel(el);
+            b.style.left=Math.max(4, Math.min((vw())-120, r.left))+'px';
+            b.style.top=Math.max(4, r.top-20)+'px';
+            document.body.appendChild(b);
+            hintBadge=b;
+          }catch{}
+        }
+        // ── v8: selection overlay + floating element toolbar ─────────────
+        function hideSelMenu(){ try{ if(selMenu) selMenu.remove(); }catch{} selMenu=null; }
+        function hideSelBar(){ hideSelMenu(); try{ if(selBar) selBar.remove(); }catch{} selBar=null; selBarEl=null; }
+        function clearSelection(){
+          try{
+            if(selEl){ selEl.classList.remove('__ibx-edit-selected'); stripEmptyClass(selEl); }
+          }catch{}
+          selEl=null;
+          hideSelBar();
+        }
+        function positionSelMenu(){
+          try{
+            if(!selMenu || !selBar) return;
+            const r=selBar.getBoundingClientRect();
+            const w=selMenu.offsetWidth||130;
+            const hgt=selMenu.offsetHeight||210;
+            let left=Math.max(4, Math.min((vw())-w-6, r.left));
+            let top=r.bottom+4;
+            if(top+hgt>(window.innerHeight||600)) top=Math.max(4, r.top-hgt-4);
+            selMenu.style.left=Math.round(left)+'px';
+            selMenu.style.top=Math.round(top)+'px';
+          }catch{}
+        }
+        function positionSelBar(){
+          if(!selBar || !selBarEl) return;
+          try{
+            if(!document.contains(selBarEl)){ hideSelBar(); return; }
+            const r=selBarEl.getBoundingClientRect();
+            const w=selBar.offsetWidth||160;
+            const left=Math.max(2, Math.min((vw())-w-6, r.left));
+            let top=r.top-19;
+            if(top<2) top=Math.max(2, r.top+1);
+            selBar.style.left=Math.round(left)+'px';
+            selBar.style.top=Math.round(top)+'px';
+            if(selMenu) positionSelMenu();
+          }catch{}
+        }
+        function onViewportChange(){ try{ positionSelBar(); }catch{} }
+        function showSelMenu(el){
+          hideSelMenu();
+          if(!el || !document.contains(el)) return;
+          const menu=document.createElement('div');
+          menu.setAttribute('data-ibx-ui','1');
+          menu.className='__ibx-menu';
+          const add=function(label, title, fn){
+            const b=document.createElement('button');
+            b.type='button';
+            b.textContent=label;
+            b.title=title;
+            b.addEventListener('mousedown', function(e){ try{ e.preventDefault(); e.stopPropagation(); }catch{} }, true);
+            b.addEventListener('click', function(e){
+              try{ e.preventDefault(); e.stopPropagation(); }catch{}
+              hideSelMenu();
+              try{ fn(); }catch{}
+            });
+            menu.appendChild(b);
+          };
+          const editTarget=(function(){ try{ return findEditableTarget(el)||(isLeafEditable(el)?el:null); }catch{ return null; } })();
+          if(editTarget) add('Edit text', 'Double-click / Enter', function(){ selectElement(editTarget); activateEl(editTarget); });
+          add('Duplicate', 'Ctrl+D', function(){ hoverEl=el; duplicateHovered(); clearSelection(); });
+          add('Delete', 'Del', function(){ hoverEl=el; deleteHovered(); clearSelection(); });
+          add('Move up', 'Alt+↑', function(){ hoverEl=el; moveHovered(-1); positionSelBar(); });
+          add('Move down', 'Alt+↓', function(){ hoverEl=el; moveHovered(1); positionSelBar(); });
+          add('Wrap in link', 'Ctrl+K', function(){ openLinkWrap(el); });
+          add('Edit HTML', 'Ctrl+E', function(){ openHtmlEditor(el); });
+          add('Attributes', 'Alt+click', function(){
+            let x=100, y=100;
+            try{ const r=el.getBoundingClientRect(); x=r.left; y=r.bottom+6; }catch{}
+            openAttrPopup(el, x, y);
+          });
+          document.body.appendChild(menu);
+          selMenu=menu;
+          positionSelMenu();
+        }
+        function showSelBar(el){
+          hideSelBar();
+          if(!el || !document.contains(el) || !window.__ibxEditEnabled) return;
+          const chip=document.createElement('div');
+          chip.setAttribute('data-ibx-ui','1');
+          chip.className='__ibx-chip';
+          const label=document.createElement('span');
+          label.className='__ibx-chip-label';
+          label.textContent=selChain(el)||'element';
+          chip.appendChild(label);
+          const more=document.createElement('button');
+          more.type='button';
+          more.className='__ibx-chip-more';
+          more.textContent='⋯';
+          more.title='Element actions';
+          more.addEventListener('mousedown', function(e){ try{ e.preventDefault(); e.stopPropagation(); }catch{} }, true);
+          more.addEventListener('click', function(e){
+            try{ e.preventDefault(); e.stopPropagation(); }catch{}
+            if(selMenu){ hideSelMenu(); return; }
+            showSelMenu(el);
+          });
+          chip.appendChild(more);
+          chip.addEventListener('mousedown', function(e){ try{ e.stopPropagation(); }catch{} }, true);
+          document.body.appendChild(chip);
+          selBar=chip;
+          selBarEl=el;
+          positionSelBar();
+        }
+        function selectElement(el){
+          try{
+            if(!el || !document.contains(el)) return false;
+            if(activeEl && activeEl!==el){
+              try{ commitEdit(); }catch{}
+              try{ if(activeEl) cleanupActive(false); }catch{}
+            }
+            clearHover();
+            if(selEl && selEl!==el){ try{ selEl.classList.remove('__ibx-edit-selected'); stripEmptyClass(selEl); }catch{} }
+            selEl=el;
+            treeSelEl=el;
+            try{ el.classList.add('__ibx-edit-selected'); }catch{}
+            showSelBar(el);
+            return true;
+          }catch{ return false; }
+        }
         function onMouseOver(e){
           if(!window.__ibxEditEnabled || activeEl || busy) return;
           if(isUiNode(e.target)) return;
           try{ lastPt={ x:e.clientX, y:e.clientY }; }catch{}
           // No hover outline in drag mode — the ghost/drop-line is the only feedback.
           if(dragMode) return;
-          let t=null; try{ t=findEditableTarget(e.target); }catch{}
+          let t=null; try{ t=hoverCandidate(e.target); }catch{}
           if(t===hoverEl) return;
           clearHover();
-          // Pointed at a new element on the page → clear the old tree selection
-          // (otherwise sidebar tools keep running on the stale tree target).
-          try{ if(t && treeSelEl && t!==treeSelEl) treeSelEl=null; }catch{}
-          if(t){ hoverEl=t; try{ hoverEl.classList.add('__ibx-edit-hover'); }catch{} queueLocate(t); }
+          // Selection persists while hovering other elements (Cursor-like).
+          if(t && t!==selEl){
+            hoverEl=t;
+            try{ hoverEl.classList.add('__ibx-edit-hover'); }catch{}
+            showHoverLabel(t);
+            queueLocate(t);
+          }
         }
         function onMouseOut(e){
           if(!window.__ibxEditEnabled || activeEl || dragMode) return;
@@ -273,12 +466,16 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{ capturePrevTitle(); }catch{}
           lastCommitEl=el;
           sendPayload({ mode:'html', oldHtml: oldHtml, newHtml: cur, tagName: String(el.tagName||''), url: location.href });
+          try{ selectElement(el); }catch{}
         }
         function detachActiveListeners(el){
           try{ el.removeEventListener('keydown', onEditKey); }catch{}
           try{ el.removeEventListener('blur', onEditBlur); }catch{}
         }
         function restoreOriginal(el){
+          try{
+            if(selEl && (selEl===el || (el.contains && el.contains(selEl)))) clearSelection();
+          }catch{}
           try{
             const html=el.__ibxOrigHTML;
             if(html!=null){ el.outerHTML=html; return true; }
@@ -300,7 +497,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               el.classList.remove('__ibx-edit-active');
               stripEmptyClass(el);
               el.style.outline='';
-              try{ if(document.contains(el)) treeSelEl=el; }catch{}
+              try{ if(document.contains(el)) selectElement(el); }catch{}
             }
           }catch{}
         }
@@ -346,6 +543,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{ capturePrevTitle(); }catch{}
           lastCommitEl=el;
           sendPayload(payload);
+          try{ selectElement(el); }catch{}
         }
         window.__ibxCommitPendingEdit = function(){
           try{
@@ -432,6 +630,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           hideHint();
           if(activeEl) cleanupActive(true);
           lastCommitEl=null;
+          try{ if(selEl){ selEl.classList.remove('__ibx-edit-selected'); stripEmptyClass(selEl); } }catch{}
+          selEl=t; treeSelEl=t;
+          hideSelBar();
           activeEl=t;
           try{
             snapshot(activeEl);
@@ -475,12 +676,31 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(t && document.contains(t) && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable)) return;
           }catch{}
           const mod=(e.ctrlKey||e.metaKey);
+          const actTarget=selEl||hoverEl;
+          if(e.key==='Escape' && selEl){
+            e.preventDefault(); e.stopPropagation();
+            try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+            clearSelection(); clearHover(); hideStyleBar();
+            return;
+          }
+          if(e.key==='Enter' && selEl && !mod && !e.altKey && !e.shiftKey){
+            let t=null;
+            try{ t=findEditableTarget(selEl); }catch{}
+            if(!t){ try{ if(isLeafEditable(selEl)) t=selEl; }catch{} }
+            if(t){
+              e.preventDefault(); e.stopPropagation();
+              try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              selectElement(t);
+              activateEl(t);
+              return;
+            }
+          }
           if(e.key!=='Tab'){
-            // ── v4 shortcuts (on the hovered element; hover outline = target) ──
+            // ── v4 shortcuts (on the hovered/selected element) ──
             if(mod && !e.shiftKey && (e.key==='e'||e.key==='E')){
               e.preventDefault(); e.stopPropagation();
               try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
-              let t=hoverEl;
+              let t=actTarget;
               if(!t && lastPt){ try{ t=findEditableTarget(document.elementFromPoint(lastPt.x, lastPt.y)); }catch{} t=t||null; }
               if(!t){ try{ t=findEditableTarget(e.target); }catch{} t=t||null; }
               if(t) openHtmlEditor(t);
@@ -495,26 +715,32 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(e.altKey && (e.key==='ArrowUp'||e.key==='ArrowDown')){
               e.preventDefault(); e.stopPropagation();
               try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              if(actTarget) hoverEl=actTarget;
               moveHovered(e.key==='ArrowUp' ? -1 : 1);
+              positionSelBar();
               return;
             }
-            // ── v3 shortcuts (on the hovered element; hover outline = target) ──
-            if(e.key==='Delete' && !mod && hoverEl){
+            // ── v3 shortcuts (on the hovered/selected element) ──
+            if(e.key==='Delete' && !mod && actTarget){
               e.preventDefault(); e.stopPropagation();
               try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              hoverEl=actTarget;
               deleteHovered();
+              clearSelection();
               return;
             }
-            if(mod && (e.key==='d'||e.key==='D') && hoverEl){
+            if(mod && (e.key==='d'||e.key==='D') && actTarget){
               e.preventDefault(); e.stopPropagation();
               try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+              hoverEl=actTarget;
               duplicateHovered();
+              positionSelBar();
               return;
             }
-            if(mod && (e.key==='k'||e.key==='K') && hoverEl){
+            if(mod && (e.key==='k'||e.key==='K') && actTarget){
               e.preventDefault(); e.stopPropagation();
               try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
-              openLinkWrap(hoverEl);
+              openLinkWrap(actTarget);
               return;
             }
             return;
@@ -578,13 +804,36 @@ export const EDIT_HELPER_SOURCE = `(() => {
               if(a) return;
             }catch{}
           }
-          const t=findEditableTarget(e.target);
-          if(!t) return;
+          // While text editing, clicks inside the active element place the caret
+          // natively — do not turn them into a new selection.
           if(activeEl && activeEl.contains(e.target)) return;
-          e.preventDefault(); e.stopPropagation(); if(typeof e.stopImmediatePropagation==='function') try{e.stopImmediatePropagation();}catch{}
-          activateEl(t);
+          // Cursor-like selection: a single click selects the element.
+          // Double-click (or Enter) starts text editing.
+          let t=null; try{ t=hoverCandidate(e.target); }catch{}
+          if(!t) return;
+          e.preventDefault(); e.stopPropagation();
+          try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+          if(t===selEl){ showSelBar(t); return; }
+          selectElement(t);
         }
-        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ treeSelEl=null; setTreeHi(null); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} try{ closeInspect(); }catch{} try{ closeLinkPopup(); }catch{} try{ closeHtmlPopup(); }catch{} }
+        function onDblClick(e){
+          if(!window.__ibxEditEnabled || dragMode || activeEl) return;
+          try{ if(e.target && e.target.closest && e.target.closest('[data-ibx-ui]')) return; }catch{}
+          let t=null;
+          try{ t=findEditableTarget(e.target); }catch{}
+          if(!t){
+            let h=e.target;
+            if(h && h.nodeType===3) h=h.parentElement;
+            try{ if(h && isLeafEditable(h)) t=h; }catch{}
+          }
+          if(!t) return;
+          e.preventDefault(); e.stopPropagation();
+          try{ if(typeof e.stopImmediatePropagation==='function') e.stopImmediatePropagation(); }catch{}
+          selEl=t; treeSelEl=t;
+          activateEl(t);
+          try{ t.scrollIntoView({block:'nearest'}); }catch{}
+        }
+        function onPageHide(){ try{ if(activeEl){ const el=activeEl; activeEl=null; committing=false; detachActiveListeners(el); } }catch{} try{ clearHover(); }catch{} try{ treeSelEl=null; setTreeHi(null); }catch{} try{ clearSelection(); }catch{} try{ closeAttrPopup(); }catch{} try{ hideStyleBar(); }catch{} try{ hideHint(); }catch{} try{ closeInspect(); }catch{} try{ closeLinkPopup(); }catch{} try{ closeHtmlPopup(); }catch{} }
         // ── Attribute editor (Alt+click) ─────────────────────────────
         const ATTR_DEFS=[
           {k:'href',label:'Link URL'},
@@ -1406,6 +1655,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
         function resolveStyleTarget(){
           try{
             if(activeEl && document.contains(activeEl)) return activeEl;
+            if(selEl && document.contains(selEl)) return selEl;
             if(treeSelEl && document.contains(treeSelEl)) return treeSelEl;
             if(hoverEl && document.contains(hoverEl)) return hoverEl;
             if(!lastPt) return null;
@@ -1413,8 +1663,6 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(!hit || hit.nodeType!==1 || isUiNode(hit)) return null;
             const tg=String(hit.tagName||'').toUpperCase();
             if(tg==='HTML'||tg==='HEAD'||tg==='BODY') return null;
-            const t=findEditableTarget(hit);
-            if(t) return t;
             return hit;
           }catch{ return null; }
         }
@@ -1746,6 +1994,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             }
             if(name==='tt'){
               const tts=['none','uppercase','lowercase','capitalize'];
+              if(val != null){
+                const v=String(val);
+                if(tts.indexOf(v)!==-1){ el.style.textTransform=v; return true; }
+                return false;
+              }
               let cur='none';
               try{ cur=window.getComputedStyle(el).textTransform||'none'; }catch{}
               let i=tts.indexOf(cur); if(i<0) i=0;
@@ -1812,6 +2065,120 @@ export const EDIT_HELPER_SOURCE = `(() => {
               el.style.flexWrap=(val==='wrap') ? 'wrap' : 'nowrap';
               return true;
             }
+            // ── Per-side spacing / size / border / effects (Cursor inspector) ──
+            const SIDES={ pt:'paddingTop', pr:'paddingRight', pb:'paddingBottom', pl:'paddingLeft',
+                          mt:'marginTop', mr:'marginRight', mb:'marginBottom', ml:'marginLeft' };
+            if(SIDES[name]){
+              const v=Math.round(num(0,0,400));
+              el.style[SIDES[name]]=v+'px';
+              return true;
+            }
+            if(name==='w' || name==='h'){
+              const prop=(name==='w')?'width':'height';
+              const raw=String(val==null?'':val).trim();
+              if(!raw){ try{ el.style.removeProperty(prop); }catch{} return true; }
+              let v=parseFloat(raw);
+              if(!isFinite(v)) return false;
+              v=Math.max(0,Math.min(9999,v));
+              el.style[prop]=(v===0 && raw==='0') ? '0px' : v+'px';
+              return true;
+            }
+            if(name==='bw'){
+              const v=Math.round(num(0,0,40));
+              if(v<=0){
+                try{ el.style.removeProperty('border-width'); el.style.removeProperty('border-style'); }catch{}
+                return true;
+              }
+              el.style.borderStyle='solid';
+              el.style.borderWidth=v+'px';
+              return true;
+            }
+            if(name==='bc'){ if(val){ el.style.borderColor=String(val); return true; } return false; }
+            if(name==='shadow'){
+              if(!val || val==='off'){ try{ el.style.removeProperty('box-shadow'); }catch{} return true; }
+              const shadows={
+                sm:'0 1px 2px rgba(0,0,0,0.24)',
+                md:'0 4px 12px rgba(0,0,0,0.32)',
+                lg:'0 12px 32px rgba(0,0,0,0.42)'
+              };
+              const v=shadows[String(val)];
+              if(!v) return false;
+              el.style.boxShadow=v;
+              return true;
+            }
+            if(name==='disp'){
+              const dv=String(val==null?'':val);
+              if(!dv || dv==='off'){ try{ el.style.removeProperty('display'); }catch{} return true; }
+              const allowed=['block','flex','inline-flex','inline-block','grid','inline-grid','none','contents'];
+              if(allowed.indexOf(dv)===-1) return false;
+              el.style.display=dv;
+              return true;
+            }
+            if(name==='ta'){
+              if(val){ el.style.textAlign=String(val); return true; }
+              return false;
+            }
+            // ── Cursor inspector: position / transform / box model ──
+            if(name==='pos'){
+              const p=String(val||'');
+              const allowed=['static','relative','absolute','fixed','sticky'];
+              if(!p || p==='static'){ try{ el.style.removeProperty('position'); }catch{} return true; }
+              if(allowed.indexOf(p)===-1) return false;
+              el.style.position=p;
+              return true;
+            }
+            if(name==='x' || name==='y'){
+              try{ if(String(window.getComputedStyle(el).position||'')==='static') el.style.position='relative'; }catch{}
+              const prop=(name==='x')?'left':'top';
+              const raw=String(val==null?'':val).trim();
+              if(!raw){ try{ el.style.removeProperty(prop); }catch{} return true; }
+              const v=parseFloat(raw);
+              if(!isFinite(v)) return false;
+              el.style[prop]=Math.round(v)+'px';
+              return true;
+            }
+            if(name==='z'){
+              const raw=String(val==null?'':val).trim();
+              if(!raw){ try{ el.style.removeProperty('z-index'); }catch{} return true; }
+              const v=parseInt(raw,10);
+              if(!isFinite(v)) return false;
+              el.style.zIndex=String(Math.round(v));
+              return true;
+            }
+            if(name==='rot'){
+              const v=Math.round(num(0,-360,360));
+              if(v===0){ try{ el.style.removeProperty('rotate'); }catch{} return true; }
+              try{ el.style.rotate=v+'deg'; }catch{ return false; }
+              return true;
+            }
+            if(name==='clip'){
+              const v=String(val||'');
+              if(!v || v==='off' || v==='visible'){ try{ el.style.removeProperty('overflow'); }catch{} return true; }
+              const allowed=['hidden','auto','scroll','clip'];
+              if(allowed.indexOf(v)===-1) return false;
+              el.style.overflow=v;
+              return true;
+            }
+            if(name==='bbox'){
+              const v=String(val||'');
+              if(v!=='border-box' && v!=='content-box') return false;
+              el.style.boxSizing=v;
+              return true;
+            }
+            if(name==='rgap' || name==='cgap'){
+              const prop=(name==='rgap')?'rowGap':'columnGap';
+              el.style[prop]=Math.round(num(0,0,240))+'px';
+              return true;
+            }
+            // Whole inline-style text (CSS tab).
+            if(name==='css'){
+              const s=String(val==null?'':val).slice(0,4000);
+              try{
+                if(!s.trim()) el.removeAttribute('style');
+                else el.setAttribute('style', s);
+              }catch{ return false; }
+              return true;
+            }
             if(name==='clear'){ try{ el.removeAttribute('style'); }catch{} return true; }
           }catch{}
           return false;
@@ -1838,15 +2205,31 @@ export const EDIT_HELPER_SOURCE = `(() => {
             return true;
           }catch{ return false; }
         };
+        // Ancestor path (root → target) for the sidebar breadcrumb
+        function selPath(el){
+          const out=[];
+          try{
+            let x=el, g=0;
+            while(x && x.nodeType===1 && g++<8 && x!==document.documentElement){
+              if(x===document.body){ out.push({ t:'body' }); break; }
+              let c='';
+              try{
+                c=(typeof x.className==='string' ? x.className : '').split(/\\s+/).filter(function(w){ return !!w && w.indexOf('__ibx-')!==0; }).slice(0,1).join(' ');
+              }catch{}
+              out.push({ t:String(x.tagName||'').toLowerCase(), x:String(x.id||'').slice(0,24), c:c });
+              x=x.parentElement;
+            }
+          }catch{}
+          return out.reverse();
+        }
         // The host sidebar STYLE panel reads highlight/state from here (host poll).
         window.__ibxStyleState=function(){
           try{
-            // Target chain: active text edit → tree selection → hover →
-            // last pointed element (keeps the sidebar poll live too).
+            // Selection-driven (Cursor-like): active text edit → selected element →
+            // tree selection. Hover alone never changes the inspector.
             let el=activeEl;
+            if(!el || !document.contains(el)) el=selEl;
             if(!el || !document.contains(el)) el=treeSelEl;
-            if(!el || !document.contains(el)) el=hoverEl;
-            if(!el || !document.contains(el)) el=resolveStyleTarget();
             if(!el || !document.contains(el)) return { active:false, drag: dragMode };
             const is=window.getComputedStyle(el);
             const deco=String(el.style.textDecorationLine||'');
@@ -1856,7 +2239,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
               const b=String(is.backgroundColor||'');
               if(b && b!=='rgba(0, 0, 0, 0)' && b!=='rgba(0,0,0,0)' && b!=='transparent') bg=rgbToHex(b);
             }catch{}
-            // ── visual controls readback (slider/select values) ──
+            // ── visual controls readback (numeric fields / selects) ──
             let fs=16, fw=400, lh=1.2, ls=0;
             try{ fs=Math.round(parseFloat(is.fontSize)||16); }catch{}
             try{ fw=parseInt(is.fontWeight,10)||400; }catch{}
@@ -1868,22 +2251,46 @@ export const EDIT_HELPER_SOURCE = `(() => {
               const lsv=parseFloat(is.letterSpacing);
               ls = isFinite(lsv) ? Math.round(lsv*2)/2 : 0;
             }catch{}
-            let pad=0, mg=0, rad=0, op=100, gap=0;
-            try{ pad=Math.round(parseFloat(is.paddingTop)||0); }catch{}
-            try{ mg=Math.round(parseFloat(is.marginTop)||0); }catch{}
+            let rad=0, op=100, gap=0;
             try{ rad=Math.round(parseFloat(String(is.borderRadius||'').split(' ')[0])||0); }catch{}
             try{ op=Math.round((parseFloat(is.opacity)||0)*100); if(op<0) op=0; if(op>100) op=100; }catch{}
             try{ gap=Math.round(parseFloat(el.style.gap||is.gap||'')||0); }catch{}
+            // ── spacing (4 sides) ──
+            const px=function(v){ const n=parseFloat(v); return isFinite(n)?Math.round(n):0; };
+            let pt=0,pr=0,pb=0,pl=0,mt=0,mr=0,mb=0,ml=0;
+            try{ pt=px(is.paddingTop); pr=px(is.paddingRight); pb=px(is.paddingBottom); pl=px(is.paddingLeft); }catch{}
+            try{ mt=px(is.marginTop); mr=px(is.marginRight); mb=px(is.marginBottom); ml=px(is.marginLeft); }catch{}
+            // ── size + border ──
+            let w=0, h=0, bw=0, bc='';
+            try{ const rr=el.getBoundingClientRect(); w=Math.round(rr.width); h=Math.round(rr.height); }catch{}
+            try{ bw=px(is.borderTopWidth); }catch{}
+            try{ if(bw>0) bc=rgbToHex(is.borderTopColor||''); }catch{}
             let jc=String(is.justifyContent||''); if(jc==='normal') jc='';
             let ai=String(is.alignItems||''); if(ai==='normal') ai='';
             let gcols='', grows='', wrap='';
             try{ gcols=String(el.style.gridTemplateColumns||''); }catch{}
             try{ grows=String(el.style.gridTemplateRows||''); }catch{}
             try{ wrap=String(is.flexWrap||''); if(wrap==='normal') wrap=''; }catch{}
+            const disp=String(is.display||'');
+            const layout=(disp==='flex'||disp==='inline-flex') ? 'flex' : (disp==='grid'||disp==='inline-grid' ? 'grid' : 'block');
+            // ── Cursor inspector: position / box model / inline CSS ──
+            let pos='static', x=0, y=0, z=0, rot=0, clip='visible', bbox='content-box', rgap=0, cgap=0, cssText='';
+            try{ pos=String(is.position||'static'); }catch{}
+            try{ x=Math.round(parseFloat(is.left)||0); y=Math.round(parseFloat(is.top)||0); }catch{}
+            try{ const zv=parseInt(is.zIndex,10); z=isFinite(zv)?zv:0; }catch{}
+            try{ const rv=parseFloat(String(is.rotate||'0deg')); rot=isFinite(rv)?Math.round(rv):0; }catch{}
+            try{ clip=String(is.overflow||'visible'); }catch{}
+            try{ bbox=String(is.boxSizing||'content-box'); }catch{}
+            try{ rgap=Math.round(parseFloat(is.rowGap)||0); }catch{}
+            try{ cgap=Math.round(parseFloat(is.columnGap)||0); }catch{}
+            try{ cssText=String(el.getAttribute('style')||''); }catch{}
             return {
               active: true,
+              sel: true,
               drag: dragMode,
               tag: String(el.tagName||'').toLowerCase(),
+              label: domLabel(el),
+              path: selPath(el),
               text: String(el.textContent||'').trim().slice(0,60),
               bold: String(el.style.fontWeight||'')==='bold',
               italic: String(el.style.fontStyle||'')==='italic',
@@ -1896,16 +2303,23 @@ export const EDIT_HELPER_SOURCE = `(() => {
               size: Math.round(parseFloat(is.fontSize)||16),
               fs: fs, fw: fw, lh: lh, ls: ls,
               ff: String(is.fontFamily||''),
-              pad: pad, mg: mg, rad: rad, op: op, gap: gap,
-              disp: String(is.display||''),
+              pt: pt, pr: pr, pb: pb, pl: pl,
+              mt: mt, mr: mr, mb: mb, ml: ml,
+              pad: pt, mg: mt,
+              w: w, h: h, bw: bw, bc: bc,
+              rad: rad, op: op, gap: gap,
+              shadow: String(is.boxShadow||'none')!=='none',
+              disp: disp, layout: layout,
               dir: String(is.flexDirection||''),
               jc: jc, ai: ai,
-              gcols: gcols, grows: grows, wrap: wrap
+              gcols: gcols, grows: grows, wrap: wrap,
+              pos: pos, x: x, y: y, z: z, rot: rot,
+              clip: clip, bbox: bbox, rgap: rgap, cgap: cgap,
+              cssText: cssText
             };
           }catch{ return { active:false, drag: dragMode }; }
         };
         // ── Hover locate hint (file guess badge) ───────────────────────
-        function hideHint(){ try{ if(hintBadge) hintBadge.remove(); }catch{} hintBadge=null; }
         function queueLocate(el){
           try{
             clearTimeout(locateTimer);
@@ -1943,9 +2357,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
               const b=document.createElement('div');
               b.setAttribute('data-ibx-ui','1');
               b.className='__ibx-hint';
-              b.textContent=String(label).slice(0,80);
+              b.textContent=(selChain(el) + (label ? '  ·  ' + String(label) : '')).slice(0,100);
               b.style.left=Math.max(4, Math.min((vw())-180, r.left))+'px';
-              b.style.top=Math.max(4, r.top-22)+'px';
+              b.style.top=Math.max(4, r.top-20)+'px';
               document.body.appendChild(b);
               hintBadge=b;
             }catch{}
@@ -2050,10 +2464,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
               return node;
             }
             const root=walk(document.body||document.documentElement, 0);
-            // Current target (page click / tree select / hover) + its path
+            // Current target (selection / tree select / hover) + its path
             let tgt=null;
             try{
               if(activeEl && document.contains(activeEl)) tgt=activeEl;
+              else if(selEl && document.contains(selEl)) tgt=selEl;
               else if(treeSelEl && document.contains(treeSelEl)) tgt=treeSelEl;
               else if(hoverEl && document.contains(hoverEl)) tgt=hoverEl;
             }catch{}
@@ -2077,14 +2492,32 @@ export const EDIT_HELPER_SOURCE = `(() => {
             const el=treeElOf(id);
             if(!el) return false;
             try{ clearHover(); }catch{}
-            treeSelEl=el;
+            selectElement(el);
             try{ el.scrollIntoView({block:'nearest'}); }catch{}
             return true;
           }catch{ return false; }
         };
         window.__ibxTreeClear=function(){
-          try{ treeSelEl=null; setTreeHi(null); }catch{}
+          try{ clearSelection(); treeSelEl=null; setTreeHi(null); }catch{}
           return true;
+        };
+        // Select an ancestor of the current selection (breadcrumb "up" navigation).
+        window.__ibxSelectParent=function(levels){
+          try{
+            if(!window.__ibxEditEnabled) return false;
+            let el=selEl || treeSelEl || activeEl;
+            if(!el || !document.contains(el)) return false;
+            let n=parseInt(levels,10); if(!isFinite(n)||n<1) n=1;
+            while(n-->0 && el && el.parentElement && el!==document.body) el=el.parentElement;
+            if(!el || el===document.documentElement) return false;
+            if(el===document.body && selEl!==document.body){
+              selectElement(document.body);
+              return true;
+            }
+            selectElement(el);
+            try{ el.scrollIntoView({block:'nearest'}); }catch{}
+            return true;
+          }catch{ return false; }
         };
         // Reorder by dragging from the tree — the same anchor-based HTML commit that
         // in-page drag (dragCommitMove) uses.
@@ -2111,9 +2544,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
         function resolvePropTarget(){
           try{
             if(activeEl && document.contains(activeEl)) return activeEl;
+            if(selEl && document.contains(selEl)) return selEl;
             if(treeSelEl && document.contains(treeSelEl)) return treeSelEl;
-            if(hoverEl && document.contains(hoverEl)) return hoverEl;
-            return resolveStyleTarget();
+            return null;
           }catch{ return null; }
         }
         window.__ibxPropState=function(){
@@ -2185,11 +2618,15 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ document.addEventListener('mouseover', onMouseOver, true); }catch{}
             try{ document.addEventListener('mouseout', onMouseOut, true); }catch{}
             try{ document.addEventListener('click', onClick, true); }catch{}
+            try{ document.addEventListener('dblclick', onDblClick, true); }catch{}
             try{ document.addEventListener('keydown', onDocKey, true); }catch{}
             // v6: drag-and-drop rearrange (sidebar Drag toggle)
             try{ document.addEventListener('mousedown', onDragDown, true); }catch{}
             try{ document.addEventListener('mousemove', onDragMove, true); }catch{}
             try{ document.addEventListener('mouseup', onDragUp, true); }catch{}
+            // Selection toolbar tracks scroll/resize
+            try{ window.addEventListener('scroll', onViewportChange, true); }catch{}
+            try{ window.addEventListener('resize', onViewportChange); }catch{}
             // NOTE: don't set the cursor inline style here — body.outerHTML should
             // match the file (body anchor commits). It lives in the CSS sheet.
             try{ window.addEventListener('pagehide', onPageHide); }catch{}
@@ -2198,10 +2635,13 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ document.removeEventListener('mouseover', onMouseOver, true); }catch{}
             try{ document.removeEventListener('mouseout', onMouseOut, true); }catch{}
             try{ document.removeEventListener('click', onClick, true); }catch{}
+            try{ document.removeEventListener('dblclick', onDblClick, true); }catch{}
             try{ document.removeEventListener('keydown', onDocKey, true); }catch{}
             try{ document.removeEventListener('mousedown', onDragDown, true); }catch{}
             try{ document.removeEventListener('mousemove', onDragMove, true); }catch{}
             try{ document.removeEventListener('mouseup', onDragUp, true); }catch{}
+            try{ window.removeEventListener('scroll', onViewportChange, true); }catch{}
+            try{ window.removeEventListener('resize', onViewportChange); }catch{}
             try{ window.removeEventListener('pagehide', onPageHide); }catch{}
             try{ window.__ibxSetDragMode && window.__ibxSetDragMode(false); }catch{}
             // Host already commits via __ibxCommitPendingEdit before disabling.
@@ -2212,6 +2652,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
             try{ closeLinkPopup(); }catch{}
             try{ closeHtmlPopup(); }catch{}
             try{ hideStyleBar(); }catch{}
+            try{ clearSelection(); }catch{}
             try{ treeSelEl=null; setTreeHi(null); }catch{}
             clearHover();
             removeStyle();
