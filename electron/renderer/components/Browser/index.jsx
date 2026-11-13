@@ -510,6 +510,8 @@ const BrowserPanel = (props) => {
   const [findMatchCase, setFindMatchCase] = useState(false);
   const findInputRef   = useRef(null);
   const findDebounceRef = useRef(null);
+  const findRequestRef = useRef(null);
+  const findSessionRef = useRef(null);
   const closeFindRef   = useRef(null);
   const [hasProject,   setHasProject]   = useState(() => { try { return !!window.__currentProjectPath; } catch { return false; } });
 
@@ -558,35 +560,40 @@ const BrowserPanel = (props) => {
   bumpZoomRef.current = bumpZoom;
 
   // ── Find in page helpers (Electron webview.findInPage) ────────────────
-  const runFind = useCallback((text, { forward = true, findNext = false, matchCase = findMatchCase } = {}) => {
+  const runFind = useCallback((text, { forward = true, matchCase = findMatchCase } = {}) => {
+    clearTimeout(findDebounceRef.current);
     const wv = webviewRef.current;
     if (!wv || !text) return;
+    const session = JSON.stringify([text, matchCase]);
     try {
-      const r = wv.findInPage(text, { forward, findNext, matchCase });
-      if (r && typeof r.catch === "function") r.catch(() => {});
+      // Electron uses findNext to start a session. Follow-up requests move within it.
+      findRequestRef.current = wv.findInPage(text, {
+        forward, findNext: findSessionRef.current !== session, matchCase,
+      });
+      findSessionRef.current = session;
     } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [findMatchCase]);
-  const closeFind = useCallback(() => {
+  const resetFind = useCallback(() => {
+    clearTimeout(findDebounceRef.current);
+    findRequestRef.current = null;
+    findSessionRef.current = null;
     try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
-    setFindOpen(false); setFindText(""); setFindActive(0); setFindMatches(0);
   }, []);
+  const closeFind = useCallback(() => {
+    resetFind();
+    setFindOpen(false); setFindText(""); setFindActive(0); setFindMatches(0);
+  }, [resetFind]);
   closeFindRef.current = closeFind;
   const openFind = useCallback(() => {
     setFindOpen(true);
     setTimeout(() => { try { findInputRef.current?.focus(); findInputRef.current?.select(); } catch {} }, 60);
   }, []);
   const onFindChange = useCallback((text) => {
+    resetFind();
     setFindText(text);
     setFindActive(0); setFindMatches(0);
-    clearTimeout(findDebounceRef.current);
-    if (!text) {
-      try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
-      return;
-    }
-    findDebounceRef.current = setTimeout(() => runFind(text, { forward: true, findNext: false }), 120);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runFind]);
+    if (text) findDebounceRef.current = setTimeout(() => runFind(text), 120);
+  }, [resetFind, runFind]);
 
   // ── Shortcut actions (both guest IPC + host keys arrive here) ───
   const runBrowserAction = useCallback((action) => {
@@ -1224,8 +1231,9 @@ const BrowserPanel = (props) => {
     wv.addEventListener("found-in-page", (e) => {
       try {
         const r = e.result || {};
-        if (typeof r.activeMatchOrdinal === "number") setFindActive(r.activeMatchOrdinal);
-        if (typeof r.matches === "number") setFindMatches(r.matches);
+        if (r.requestId !== findRequestRef.current) return;
+        if (r.activeMatchOrdinal >= 0) setFindActive(r.activeMatchOrdinal);
+        if (r.matches >= 0) setFindMatches(r.matches);
       } catch {}
     });
 
@@ -2129,10 +2137,7 @@ const BrowserPanel = (props) => {
   }, [runBrowserAction]);
 
   // ── Unmount: stop the pending find ──
-  useEffect(() => () => {
-    clearTimeout(findDebounceRef.current);
-    try { webviewRef.current?.stopFindInPage("clearSelection"); } catch {}
-  }, []);
+  useEffect(() => resetFind, [resetFind]);
 
   // ── Tab right-click ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -2437,7 +2442,7 @@ const BrowserPanel = (props) => {
               value={findText}
               onChange={(e) => onFindChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); runFind(findText, { forward: !e.shiftKey, findNext: true }); }
+                if (e.key === "Enter") { e.preventDefault(); runFind(findText, { forward: !e.shiftKey }); }
               }}
               placeholder="Find in page"
               spellCheck={false}
@@ -2457,16 +2462,16 @@ const BrowserPanel = (props) => {
               onClick={() => {
                 const next = !findMatchCase;
                 setFindMatchCase(next);
-                if (findText) runFind(findText, { forward: true, findNext: false, matchCase: next });
+                if (findText) runFind(findText, { matchCase: next });
               }}
               style={findMatchCase ? { background: "var(--select-blue)", color: "var(--text-inverse)" } : undefined}
             >
               <span style={{ fontSize: "var(--fs-small)", fontWeight: "var(--fw-bold)" }}>Aa</span>
             </button>
-            <button className="browser__btn" title="Previous (Shift+Enter)" onClick={() => runFind(findText, { forward: false, findNext: true })}>
+            <button className="browser__btn" title="Previous (Shift+Enter)" onClick={() => runFind(findText, { forward: false })}>
               <ChevronUp size={14} />
             </button>
-            <button className="browser__btn" title="Next (Enter)" onClick={() => runFind(findText, { forward: true, findNext: true })}>
+            <button className="browser__btn" title="Next (Enter)" onClick={() => runFind(findText)}>
               <ChevronDown size={14} />
             </button>
             <button className="browser__btn" title="Close (Esc)" onClick={closeFind}>✕</button>
