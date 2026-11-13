@@ -717,7 +717,7 @@ const BrowserPanel = (props) => {
         showToast("Browser page is not ready yet.", "error");
         return;
       }
-      window.electronAPI?.browserPickComponent?.(webContentsId).then((result) => {
+      window.electronAPI?.browserPickComponent?.(webContentsId, e.detail.previewId).then((result) => {
         if (result?.ok) showToast("DevTools picker is active. Click a component in the page.", "info");
         else showToast(result?.error || "Could not start the DevTools picker.", "error");
       }).catch((error) => showToast(error?.message || "Could not start the DevTools picker.", "error"));
@@ -744,6 +744,7 @@ const BrowserPanel = (props) => {
       }
       window.dispatchEvent(new CustomEvent("componentPreview:loadSnapshot", {
         detail: {
+          previewId: picked.previewId,
           html: picked.html,
           css: picked.css || "",
           url: picked.url || "",

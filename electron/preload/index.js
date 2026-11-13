@@ -182,7 +182,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showBrowserTabContextMenu: ()            => ipcRenderer.invoke("browser:tabContextMenu"),
   showBrowserWebviewContextMenu: (params) => ipcRenderer.invoke("browser:webviewContextMenu", params),
   browserGuestEdit: (params)              => ipcRenderer.invoke("browser:guestEdit", params),
-  browserPickComponent: (webContentsId)   => ipcRenderer.invoke("browser:pickComponent", webContentsId),
+  browserPickComponent: (webContentsId, previewId) => ipcRenderer.invoke("browser:pickComponent", webContentsId, previewId),
   registerBrowserGuest: (webContentsId)   => ipcRenderer.invoke("browser:registerGuest", webContentsId),
   onBrowserComponentPicked: (callback) => {
     const handler = (_e, payload) => callback(payload);

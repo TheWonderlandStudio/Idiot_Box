@@ -655,7 +655,7 @@ const ComponentPreview = ({ nodeId, config }) => {
   useEffect(() => {
     const onSnapshot = (e) => {
       const snapshot = e.detail;
-      if (!snapshot?.html) return;
+      if (!snapshot?.html || snapshot.previewId !== nodeId) return;
       setSampleMode(false);
       setPickedSnapshot({
         html: DOMPurify.sanitize(String(snapshot.html), { ADD_ATTR: ["data-ibx-picked"] }),
@@ -1258,7 +1258,9 @@ const ComponentPreview = ({ nodeId, config }) => {
       if (!model || !browserTab) return false;
       try { model.doAction(window.__flexActions.selectTab(browserTab.getId())); } catch {}
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("browser:pickComponent", { detail: { nodeId: browserTab.getId() } }));
+        window.dispatchEvent(new CustomEvent("browser:pickComponent", {
+          detail: { nodeId: browserTab.getId(), previewId: nodeId },
+        }));
       }, 120);
       return true;
     };

@@ -28,6 +28,7 @@ const finishBrowserPick = async (pick, payload) => {
     if (payload && pick.host && !pick.host.isDestroyed()) {
       pick.host.webContents.send("browser:componentPicked", {
         webContentsId: pick.webContentsId,
+        previewId: pick.previewId,
         ...payload,
       });
     }
@@ -3979,9 +3980,11 @@ ipcMain.handle("browser:registerGuest", (event, webContentsId) => {
   }
 });
 
-ipcMain.handle("browser:pickComponent", async (event, webContentsId) => {
+ipcMain.handle("browser:pickComponent", async (event, webContentsId, previewId) => {
   const wc = browserRegistry.pick(webContentsId);
-  if (!wc) return { ok: false, error: "Browser tab is no longer available." };
+  if (!Number.isInteger(webContentsId) || !wc || wc.hostWebContents !== event.sender) {
+    return { ok: false, error: "Browser tab is no longer available." };
+  }
   const host = BrowserWindow.fromWebContents(event.sender);
   const previous = browserPickSessions.get(wc.id);
   if (previous) await finishBrowserPick(previous, { cancelled: true });
@@ -3990,6 +3993,7 @@ ipcMain.handle("browser:pickComponent", async (event, webContentsId) => {
     wc,
     host,
     webContentsId: wc.id,
+    previewId,
     ownsDebugger: false,
     finished: false,
     onMessage: null,
