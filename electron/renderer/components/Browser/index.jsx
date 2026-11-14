@@ -3,10 +3,13 @@ import { Actions, DockLocation } from "flexlayout-react";
 import { EDIT_HELPER_SOURCE } from "./editHelper.js";
 import {
   ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
-  Search, ChevronUp, ChevronDown,   Pencil, PencilOff, MoreVertical,
+  Search, ChevronUp, ChevronDown,   Pencil, MoreVertical,
   Puzzle, Maximize2, ZoomIn, ZoomOut, Unplug, RotateCw, ExternalLink,
   Undo2, Check, Trash2, Copy, Code,
-  GripVertical
+  GripVertical, MousePointer2, Layers, Type, Palette, Square, Box,
+  ClipboardCopy, SlidersHorizontal, AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  Bold, Italic, Underline, Strikethrough, Plus, TextCursorInput,
+  Move3d, Grid2x2, StretchHorizontal, StretchVertical, RectangleVertical
 } from "lucide-react";
 
 // ── SVG icon paths ─────────────────────────────────────────────────────────────
@@ -176,11 +179,7 @@ const decodeB64 = (b) => {
 };
 
 // Edit-mode shortcut hints (in both the confirm bar + tooltip)
-const EDIT_HINTS = "Click text · Enter saves · Esc cancels · Tab next · Ctrl+E edit HTML · Ctrl+Z undo last save · Alt+click attributes · Alt+↑/↓ move · Del remove · Ctrl+D duplicate · Ctrl+K wrap link · Shift+click inspect";
-
-// Short labels for the sidebar style tiles
-const ALIGN_ABBR = { left: "L", center: "C", right: "R", justify: "J" };
-const TT_ABBR = { none: "TT", uppercase: "AA", lowercase: "aa", capitalize: "Aa" };
+const EDIT_HINTS = "Click element to select · double-click text to edit · Enter saves · Esc clears · Ctrl+E HTML · Ctrl+Z undo · Alt+↑/↓ move · Del remove · Ctrl+D duplicate · Ctrl+K link · Alt+click attributes · Shift+click inspect";
 
 // Options for the visual controls (Cursor-style property panel)
 const JC_OPTS = [
@@ -202,21 +201,21 @@ const PALETTE = [
   "#000000", "#ffffff", "#ef4444", "#f97316", "#eab308",
   "#22c55e", "#14b8a6", "#3b82f6", "#a855f7", "#6b7280",
 ];
-
-// Single-line slider row (label + range + live value)
-function EbSlider({ label, val, min, max, step, unit, display, disabled, onChange }) {
-  return (
-    <div className="eb-slider">
-      <span className="eb-slider-label">{label}</span>
-      <input
-        type="range" min={min} max={max} step={step || 1} value={val}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      <span className="eb-slider-val">{display != null ? display : `${val}${unit || ""}`}</span>
-    </div>
-  );
-}
+const DISP_OPTS = [
+  ["block", "Block"], ["flex", "Flex"], ["grid", "Grid"],
+  ["inline-block", "Inline block"], ["inline-flex", "Inline flex"],
+  ["inline-grid", "Inline grid"], ["contents", "Contents"],
+  ["none", "None"], ["off", "Auto"],
+];
+const SHADOW_OPTS = [["off", "None"], ["sm", "S"], ["md", "M"], ["lg", "L"]];
+// Cursor Design panel "Flow" buttons (display + flex direction in one click).
+const FLOW_OPTS = [
+  ["block", <RectangleVertical size={12} />],
+  ["flex", <StretchHorizontal size={12} />],
+  ["flex-col", <StretchVertical size={12} />],
+  ["grid", <Grid2x2 size={12} />],
+];
+const POS_OPTS = ["static", "relative", "absolute", "fixed", "sticky"];
 
 // One tree row (DOM node) — children render via recursion.
 // DnD: row drag → before/after/inside the target row (from Y-position).
@@ -312,6 +311,163 @@ function EbTextRow({ label, value, placeholder, onCommit }) {
   );
 }
 
+// ── Cursor-style inspector primitives ───────────────────────────────────────
+
+// Collapsible section with a chevron + optional right-side actions.
+function DvSection({ title, icon, children, defaultOpen = true, actions }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className={"dv-sec" + (open ? " dv-sec--open" : "")}>
+      <div className="dv-sec-head" onClick={() => setOpen((v) => !v)}>
+        <ChevronRight size={11} className="dv-sec-chev" />
+        {icon ? <span className="dv-sec-icon">{icon}</span> : null}
+        <span className="dv-sec-title">{title}</span>
+        {actions ? (
+          <span className="dv-sec-actions" onClick={(e) => e.stopPropagation()}>{actions}</span>
+        ) : null}
+      </div>
+      {open && <div className="dv-sec-body">{children}</div>}
+    </section>
+  );
+}
+
+// Segmented button group — value/label/icon triples.
+function DvSeg({ options, value, onChange, disabled, title }) {
+  return (
+    <div className="dv-seg" title={title || ""}>
+      {options.map(([v, label, ic]) => (
+        <button
+          key={String(v)}
+          type="button"
+          disabled={disabled}
+          className={"dv-seg-btn" + (String(value) === String(v) ? " dv-seg-btn--on" : "")}
+          onClick={() => onChange(v)}
+          title={String(v || "auto")}
+        >
+          {ic || label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Compact numeric field: type + Enter/blur, ArrowUp/Down, or Shift-drag to scrub.
+function DvNum({ label, value, min = -9999, max = 9999, step = 1, unit, disabled, onChange, title }) {
+  const [v, setV] = useState(value == null ? "" : String(value));
+  const focusRef = useRef(false);
+  const dragRef = useRef(null);
+  useEffect(() => { if (!focusRef.current) setV(value == null ? "" : String(value)); }, [value]);
+  const clamp = (n) => {
+    const snapped = Math.round(Math.max(min, Math.min(max, n)) / step) * step;
+    return Number(snapped.toFixed(2));
+  };
+  const commit = (raw) => {
+    const n = parseFloat(raw);
+    if (!isFinite(n)) return;
+    onChange(clamp(n));
+  };
+  return (
+    <label className="dv-num" title={title || `${label} — Shift-drag to scrub`}>
+      <span className="dv-num-label">{label}</span>
+      <input
+        className="dv-num-input"
+        value={v}
+        inputMode="decimal"
+        disabled={disabled}
+        spellCheck={false}
+        onFocus={() => { focusRef.current = true; }}
+        onBlur={(e) => { focusRef.current = false; commit(e.target.value); }}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(e.target.value); e.currentTarget.blur(); }
+          else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            e.preventDefault();
+            const cur = parseFloat(v) || 0;
+            setV(String(clamp(cur + (e.key === "ArrowUp" ? step : -step))));
+          }
+        }}
+        onPointerDown={(e) => {
+          if (disabled || e.button !== 0 || !e.shiftKey) return;
+          e.preventDefault();
+          dragRef.current = { x: e.clientX, base: parseFloat(value) || 0 };
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+        }}
+        onPointerMove={(e) => {
+          const d = dragRef.current;
+          if (!d) return;
+          setV(String(clamp(d.base + (e.clientX - d.x) * step)));
+        }}
+        onPointerUp={(e) => {
+          if (!dragRef.current) return;
+          dragRef.current = null;
+          try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+          commit(v);
+        }}
+      />
+      {unit ? <span className="dv-num-unit">{unit}</span> : null}
+    </label>
+  );
+}
+
+// Color row: click swatch to pick, hex shown at right.
+function DvColor({ label, value, disabled, onChange, title }) {
+  const v = String(value || "").toLowerCase();
+  const safe = /^#[0-9a-f]{6}$/.test(v) ? v : "#000000";
+  return (
+    <div className="dv-color" title={title || label}>
+      <span className="dv-color-swatch" style={{ background: v || "transparent" }}>
+        <input type="color" value={safe} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      </span>
+      <span className="dv-color-name">{label}</span>
+      <span className="dv-color-hex">{v || "—"}</span>
+    </div>
+  );
+}
+
+// Checkbox row (Clip content / Border box).
+function DvCheck({ label, checked, disabled, onChange, title }) {
+  return (
+    <label className="dv-check" title={title || label}>
+      <input type="checkbox" checked={!!checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+// CSS tab: edit the element's inline style text directly.
+function DvCssEditor({ value, disabled, onApply, onClear }) {
+  const [text, setText] = useState(value || "");
+  const focusRef = useRef(false);
+  useEffect(() => { if (!focusRef.current) setText(value || ""); }, [value]);
+  const dirty = String(text || "") !== String(value || "");
+  return (
+    <div className="dv-css">
+      <div className="dv-css-head">
+        <span>Inline style</span>
+        <span className="dv-css-state">{disabled ? "no selection" : dirty ? "modified" : "synced"}</span>
+      </div>
+      <textarea
+        className="dv-css-text"
+        value={text}
+        disabled={disabled}
+        spellCheck={false}
+        placeholder={"color: #111111;\npadding: 12px;\ndisplay: flex;\ngap: 8px;"}
+        onFocus={() => { focusRef.current = true; }}
+        onBlur={() => { focusRef.current = false; }}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); onApply(text); }
+        }}
+      />
+      <div className="dv-css-actions">
+        <button type="button" className="dv-btn dv-btn--primary" disabled={disabled || !dirty} onClick={() => onApply(text)}>Apply CSS</button>
+        <button type="button" className="dv-btn" disabled={disabled || !String(value || "").trim()} onClick={() => { setText(""); onClear(); }}>Clear</button>
+      </div>
+      <div className="dv-hint">Inline CSS only — Ctrl+Enter applies. Changes stay visual until you press Apply in the toolbar.</div>
+    </div>
+  );
+}
+
 const BrowserPanel = (props) => {
   const { nodeId, config } = props || {};
   const initialUrl = config?.url || "https://www.google.com";
@@ -332,6 +488,7 @@ const BrowserPanel = (props) => {
   const [editMode,     setEditMode]     = useState(false);
   // Edit sidebar — all edit-mode controls live here
   const [editSidebarOpen, setEditSidebarOpen] = useState(true);
+  const [dvTab,        setDvTab]        = useState("design");
   const [editStyle,    setEditStyle]    = useState({ active: false });
   const [toast,        setToast]        = useState(null);
   // ── v7: DOM tree panel (Cursor-style elements tree) ──
@@ -662,6 +819,21 @@ const BrowserPanel = (props) => {
     runGuest(`window.__ibxPropSet && window.__ibxPropSet(${JSON.stringify(String(name))}, ${JSON.stringify(String(val == null ? "" : val))})`);
     setTimeout(() => { refreshProps(); refreshStyleState(); }, 180);
   }, [runGuest, refreshProps, refreshStyleState]);
+  const selectParent = useCallback((levels) => {
+    runGuest(`window.__ibxSelectParent && window.__ibxSelectParent(${Number(levels) || 1})`);
+    setTimeout(() => { refreshStyleState(); refreshProps(); }, 120);
+  }, [runGuest, refreshStyleState, refreshProps]);
+  const copySelector = useCallback(() => {
+    let sel = String(editStyle.label || "");
+    try {
+      const path = Array.isArray(editStyle.path) ? editStyle.path : [];
+      if (path.length) {
+        sel = path.map((p) => String(p.t || "") + (p.x ? "#" + p.x : "") + (p.c ? "." + String(p.c).split(" ")[0] : "")).join(" > ");
+      }
+    } catch {}
+    if (!sel) return;
+    try { navigator.clipboard.writeText(sel); showToast(`Copied ${sel}`, "success"); } catch {}
+  }, [editStyle.label, editStyle.path, showToast]);
 
   // ── v7: design tokens (project-scope palette) ─────────────────────────────
   const loadTokens = useCallback(() => {
@@ -1631,14 +1803,16 @@ const BrowserPanel = (props) => {
     refreshStyleState();
     refreshTree();
     refreshProps();
-    const iv = setInterval(() => {
+    // Fast loop: inspector values follow selection/clicks promptly.
+    const fast = setInterval(() => {
       refreshStyleState();
       refreshProps();
-      // Refresh the tree only when DnD is not running (otherwise the row
-      // disappears and the drop target goes stale)
+    }, 300);
+    // Slow loop: the DOM tree is expensive — refresh less often, never mid-drag.
+    const slow = setInterval(() => {
       if (!treeDragRef.current) refreshTree();
-    }, 800);
-    return () => clearInterval(iv);
+    }, 1200);
+    return () => { clearInterval(fast); clearInterval(slow); };
   }, [editMode, editSidebarOpen, refreshStyleState, refreshTree, refreshProps]);
 
   // Edit mode off → reset all v7 panel state (the guest clears itself)
@@ -2002,6 +2176,22 @@ const BrowserPanel = (props) => {
     }
   }, []);
 
+  // Cursor Design panel readouts
+  const hasSel = !!editStyle.active;
+  const isFlex = editStyle.layout === "flex";
+  const isGrid = editStyle.layout === "grid";
+  const flowValue = !hasSel ? "" :
+    isGrid ? "grid" :
+    isFlex ? (String(editStyle.dir || "").indexOf("column") === 0 ? "flex-col" : "flex") :
+    "block";
+  const setFlow = (v) => {
+    if (v === "flex-col") guestStyle("dir", "col");
+    else if (v === "flex") guestStyle("dir", "row");
+    else guestStyle("disp", v);
+  };
+  const clipOn = ["hidden", "auto", "scroll", "clip"].indexOf(String(editStyle.clip || "")) !== -1;
+  const compPath = (Array.isArray(editStyle.path) ? editStyle.path : []).slice(-7);
+
   return (
     <div className="browser"
       onDragOver={(e) => { e.preventDefault(); }}
@@ -2047,29 +2237,55 @@ const BrowserPanel = (props) => {
             />
           </div>
 
+          {/* Extension actions (browser-action-list) — kept separate, not in ⋮ */}
+          <browser-action-list
+            ref={actionListRef}
+            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
+          />
+
+          {/* Visual edit mode — Cursor-style toolbar cluster */}
+          <button
+            className={"browser__btn browser__edit-toggle" + (editMode ? " browser__edit-toggle--on" : "")}
+            onClick={handleToggleEditMode}
+            title={editMode ? "Exit edit mode — saves the pending edit" : "Visual edit mode — click elements to inspect & edit"}
+          >
+            <MousePointer2 size={14} />
+          </button>
+          {editMode && (
+            <>
+              <button
+                className="browser__edit-count"
+                onClick={() => setEditSidebarOpen((v) => !v)}
+                title={editSidebarOpen ? "Hide inspector" : "Show inspector"}
+              >
+                {undoCount ? `${undoCount} Edit${undoCount === 1 ? "" : "s"}` : "Editing"}
+              </button>
+              <button
+                className="browser__btn"
+                disabled={!undoCount}
+                onClick={undoLiveEdit}
+                title={undoCount ? `Undo last saved change (${undoCount} in stack)` : "Nothing to undo"}
+              >
+                <Undo2 size={14} />
+              </button>
+              <button className="browser__apply" onClick={handleDoneEditMode} title="Apply edits and exit visual edit mode">
+                <Check size={13} /><span>Apply</span>
+              </button>
+            </>
+          )}
+
           {/* ⋮ More options — zoom lives here (not in the toolbar) */}
           <div ref={moreWrapRef} style={{ position: "relative", display: "flex", alignItems: "center", flexShrink: 0 }}>
             <button
               ref={moreBtnRef}
-              className={`browser__btn${moreOpen || editMode ? " browser__btn--active" : ""}`}
+              className={`browser__btn${moreOpen ? " browser__btn--active" : ""}`}
               onClick={(e) => { e.stopPropagation(); setMoreOpen((v) => !v); }}
               title="More options"
-              style={editMode && !moreOpen ? { background: "var(--teal-a18)", color: "var(--teal)", border: "1px solid var(--teal-a35)" } : undefined}
             >
               <MoreVertical size={14} />
-              {editMode && (
-                <span style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: "var(--radius-round)", background: "var(--teal)", pointerEvents: "none" }} />
-              )}
             </button>
             {moreOpen && (
               <div className="browser__more-menu" onClick={(e) => e.stopPropagation()}>
-                <button className="browser__more-item" onClick={handleToggleEditMode} title={editMode ? "Done — save pending edit & exit" : "Edit Mode — click text to edit · Ctrl+E raw HTML · Ctrl+Z undo · Alt+↑/↓ move"}>
-                  <span className="browser__more-icon" style={editMode ? { color: "var(--teal)" } : undefined}>
-                    {editMode ? <PencilOff size={14} /> : <Pencil size={14} />}
-                  </span>
-                  <span className="browser__more-label">{editMode ? "Done — exit edit mode" : "Edit mode"}</span>
-                  {editMode && <span className="browser__more-badge">ON</span>}
-                </button>
                 {editMode && (
                   <button
                     className="browser__more-item"
@@ -2079,7 +2295,17 @@ const BrowserPanel = (props) => {
                     <span className="browser__more-icon">
                       {editSidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                     </span>
-                    <span className="browser__more-label">{editSidebarOpen ? "Hide edit sidebar" : "Show edit sidebar"}</span>
+                    <span className="browser__more-label">{editSidebarOpen ? "Hide inspector" : "Show inspector"}</span>
+                  </button>
+                )}
+                {editMode && undoCount > 0 && (
+                  <button
+                    className="browser__more-item"
+                    onClick={handleCancelEditMode}
+                    title="Revert every saved edit from this session, then exit edit mode"
+                  >
+                    <span className="browser__more-icon"><Undo2 size={14} /></span>
+                    <span className="browser__more-label">Revert all &amp; exit</span>
                   </button>
                 )}
                 {/* Page zoom — Ctrl+Scroll alternative */}
@@ -2116,12 +2342,6 @@ const BrowserPanel = (props) => {
               </div>
             )}
           </div>
-
-          {/* Extension actions (browser-action-list) — kept separate, not in ⋮ */}
-          <browser-action-list
-            ref={actionListRef}
-            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
-          />
         </div>
       )}
 
@@ -2289,50 +2509,340 @@ const BrowserPanel = (props) => {
         )}
       </div>{/* /.browser__view-wrap */}
 
-        {/* ── Edit sidebar — docked panel, all edit-mode controls ── */}
+        {/* ── Edit sidebar — Cursor-style docked inspector ── */}
         {editMode && editSidebarOpen && (
-          <aside ref={editSidebarRef} className={`browser__edit-sidebar${isVisualOnlyUrl ? " browser__edit-sidebar--warn" : ""}`}>
-            <div className="eb-head">
-              <span className="eb-head-title"><Pencil size={12} /> EDIT MODE</span>
-              <span className={`eb-chip${isVisualOnlyUrl ? " eb-chip--warn" : ""}`}>{isVisualOnlyUrl ? "VISUAL" : "LIVE"}</span>
-              <button className="eb-iconbtn" onClick={() => setEditSidebarOpen(false)} title="Collapse sidebar">
-                <ChevronRight size={14} />
-              </button>
+          <aside ref={editSidebarRef} className={`dv-panel${isVisualOnlyUrl ? " dv-panel--warn" : ""}`}>
+            <div className="dv-top">
+              <div className="dv-tabs" role="tablist">
+                <button
+                  type="button" role="tab" aria-selected={dvTab === "design"}
+                  className={"dv-tab" + (dvTab === "design" ? " dv-tab--on" : "")}
+                  onClick={() => setDvTab("design")}
+                >Design</button>
+                <button
+                  type="button" role="tab" aria-selected={dvTab === "css"}
+                  className={"dv-tab" + (dvTab === "css" ? " dv-tab--on" : "")}
+                  onClick={() => setDvTab("css")}
+                >CSS</button>
+              </div>
+              <span className="dv-top-actions">
+                {isVisualOnlyUrl ? (
+                  <span className="dv-badge dv-badge--warn" title="No project folder — changes are visual only">Visual</span>
+                ) : null}
+                <button className="dv-iconbtn" onClick={() => setEditSidebarOpen(false)} title="Collapse inspector">
+                  <ChevronRight size={14} />
+                </button>
+              </span>
             </div>
 
-            <div className="eb-actions">
-              <button className="eb-btn eb-btn--primary" onClick={handleDoneEditMode} title="Save pending edit and exit edit mode">
-                <Check size={13} /> Done
-              </button>
-              <button className="eb-btn" onClick={handleCancelEditMode} title="Cancel edit and revert the page">
-                <X size={13} /> Cancel
-              </button>
-              <button
-                className="eb-btn"
-                disabled={!undoCount}
-                onClick={undoLiveEdit}
-                title={undoCount ? `Undo last save (${undoCount} in stack) — Ctrl+Z inside page` : "Nothing to undo — Ctrl+Z inside page"}
+            {dvTab === "css" ? (
+              <div className="dv-scroll dv-scroll--css">
+                <DvCssEditor
+                  value={editStyle.cssText || ""}
+                  disabled={!hasSel}
+                  onApply={(text) => guestStyle("css", text)}
+                  onClear={() => guestStyle("css", "")}
+                />
+              </div>
+            ) : (
+            <div className="dv-scroll">
+              {/* ── Components (ancestry list) ── */}
+              <DvSection
+                title="Components"
+                icon={<Layers size={12} />}
+                actions={hasSel ? (
+                  <button className="dv-mini" onClick={copySelector} title="Copy selector path">
+                    <ClipboardCopy size={10} />
+                  </button>
+                ) : null}
               >
-                <Undo2 size={13} />{undoCount > 1 ? ` Undo (${undoCount})` : " Undo"}
-              </button>
-            </div>
+                {hasSel ? (
+                  <div className="dv-comps">
+                    {compPath.map((p, i) => {
+                      const last = i === compPath.length - 1;
+                      const levels = compPath.length - 1 - i;
+                      return (
+                        <button
+                          key={i + ":" + (p.t || "") + (p.x || "")}
+                          type="button"
+                          className={"dv-comp" + (last ? " dv-comp--cur" : "")}
+                          style={{ paddingLeft: 8 + i * 9 }}
+                          onClick={() => { if (!last) selectParent(levels); }}
+                          title={p.c ? `<${p.t} class="${p.c}">` : `<${p.t}${p.x ? "#" + p.x : ""}>`}
+                        >
+                          <Square size={9} className="dv-comp-ic" />
+                          <span className="dv-comp-tag">{p.t}</span>
+                          {p.x ? <span className="dv-comp-id">#{p.x}</span> : null}
+                          {p.c ? <span className="dv-comp-cls">.{String(p.c).split(" ")[0]}</span> : null}
+                        </button>
+                      );
+                    })}
+                    <div className="dv-quick">
+                      <button className="dv-qbtn" disabled={!hasSel} onClick={() => guestTool("duplicate")} title="Duplicate element (Ctrl+D)"><Copy size={12} /></button>
+                      <button className="dv-qbtn" disabled={!hasSel} onClick={() => guestTool("delete")} title="Remove element (Del)"><Trash2 size={12} /></button>
+                      <button className="dv-qbtn" disabled={!hasSel} onClick={() => guestTool("html")} title="Edit element HTML (Ctrl+E)"><Code size={12} /></button>
+                      <button
+                        className={"dv-qbtn" + (editStyle.drag ? " dv-qbtn--on" : "")}
+                        onClick={() => { guestTool("dragToggle"); setTimeout(refreshStyleState, 150); }}
+                        title="Drag-to-reorder mode"
+                      ><GripVertical size={12} /></button>
+                      <button className="dv-qbtn" disabled={!hasSel} onClick={() => selectParent(1)} title="Select parent"><ChevronUp size={12} /></button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="dv-empty">Click an element in the page to inspect it</div>
+                )}
+              </DvSection>
 
-            <div className="eb-body">
-              {/* ── DOM tree (Cursor-style elements panel) ── */}
-              <div className="eb-section">
-                <div className="eb-label">
-                  Elements
-                  <span className="eb-label-actions">
-                    <button className="eb-mini" onClick={refreshTree} title="Refresh tree">
-                      <RefreshCw size={11} />
-                    </button>
-                    <button className="eb-mini" disabled={!treeSel} onClick={clearTreeSel} title="Clear selection">
-                      <X size={11} />
-                    </button>
-                  </span>
+              {/* ── Position ── */}
+              <DvSection title="Position" icon={<Move3d size={12} />}>
+                <div className="dv-row">
+                  <span className="dv-row-label">Mode</span>
+                  <select className="dv-select" value={String(editStyle.pos || "static")} disabled={!hasSel}
+                    onChange={(e) => guestStyle("pos", e.target.value)}>
+                    {POS_OPTS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 </div>
-                <div className="eb-hint">Click = select · drag row = reorder · hover = highlight in page</div>
-                <div className="eb-tree">
+                <div className="dv-trio">
+                  <DvNum label="X" value={editStyle.x ?? 0} min={-9999} max={9999} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("x", v)} />
+                  <DvNum label="Y" value={editStyle.y ?? 0} min={-9999} max={9999} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("y", v)} />
+                  <DvNum label="Z" value={editStyle.z ?? 0} min={-9999} max={9999} disabled={!hasSel} onChange={(v) => guestStyle("z", v)} />
+                </div>
+                <div className="dv-row">
+                  <span className="dv-row-label">Rotate</span>
+                  <DvNum label="°" value={editStyle.rot ?? 0} min={-360} max={360} unit="deg" disabled={!hasSel} onChange={(v) => guestStyle("rot", v)} />
+                </div>
+              </DvSection>
+
+              {/* ── Layout ── */}
+              <DvSection title="Layout" icon={<Box size={12} />}>
+                <div className="dv-row">
+                  <span className="dv-row-label">Flow</span>
+                  <DvSeg options={FLOW_OPTS} value={flowValue} disabled={!hasSel} onChange={setFlow} title="Display flow" />
+                </div>
+                <div className="dv-row">
+                  <span className="dv-row-label">Display</span>
+                  <select className="dv-select" value={String(editStyle.disp || "off")} disabled={!hasSel}
+                    onChange={(e) => guestStyle("disp", e.target.value)}>
+                    {DISP_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                </div>
+                {(isFlex || isGrid) && (
+                  <>
+                    <div className="dv-row">
+                      <span className="dv-row-label">Direction</span>
+                      <DvSeg
+                        options={[["row", "Row"], ["column", "Col"]]}
+                        value={(editStyle.dir || "row").indexOf("column") === 0 ? "column" : "row"}
+                        disabled={!hasSel}
+                        onChange={(v) => guestStyle("dir", v === "column" ? "col" : "row")}
+                      />
+                    </div>
+                    <div className="dv-row">
+                      <span className="dv-row-label">Justify</span>
+                      <select className="dv-select" value={editStyle.jc || ""} disabled={!hasSel}
+                        onChange={(e) => guestStyle("jc", e.target.value)}>
+                        {JC_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div className="dv-row">
+                      <span className="dv-row-label">Align</span>
+                      <select className="dv-select" value={editStyle.ai || ""} disabled={!hasSel}
+                        onChange={(e) => guestStyle("ai", e.target.value)}>
+                        {AI_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div className="dv-row">
+                      <span className="dv-row-label">Wrap</span>
+                      <select className="dv-select" value={editStyle.wrap || ""} disabled={!hasSel}
+                        onChange={(e) => guestStyle("wrap", e.target.value)}>
+                        <option value="">auto</option>
+                        <option value="nowrap">nowrap</option>
+                        <option value="wrap">wrap</option>
+                      </select>
+                    </div>
+                    <div className="dv-trio">
+                      <DvNum label="Row" value={editStyle.rgap ?? 0} min={0} max={240} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("rgap", v)} />
+                      <DvNum label="Col" value={editStyle.cgap ?? 0} min={0} max={240} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("cgap", v)} />
+                    </div>
+                  </>
+                )}
+                {isGrid && (
+                  <>
+                    <EbTextRow label="Grid cols" value={editStyle.gcols || ""} placeholder="3 or repeat(3, 1fr)"
+                      onCommit={(v) => guestStyle("gcols", v)} />
+                    <EbTextRow label="Grid rows" value={editStyle.grows || ""} placeholder="auto"
+                      onCommit={(v) => guestStyle("grows", v)} />
+                  </>
+                )}
+              </DvSection>
+
+              {/* ── Dimensions ── */}
+              <DvSection title="Dimensions" icon={<Maximize2 size={12} />}>
+                <div className="dv-row">
+                  <DvNum label="W" value={editStyle.w ?? 0} min={0} max={9999} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("w", v)} />
+                  <DvNum label="H" value={editStyle.h ?? 0} min={0} max={9999} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("h", v)} />
+                </div>
+                <div className="dv-meta">
+                  <span>Rendered</span>
+                  <span className="dv-dim">{hasSel ? `${editStyle.w || 0} × ${editStyle.h || 0}` : "—"}</span>
+                </div>
+              </DvSection>
+
+              {/* ── Padding ── */}
+              <DvSection title="Padding" icon={<Square size={12} />}>
+                <div className="dv-sides">
+                  <DvNum label="T" value={editStyle.pt ?? 0} min={0} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("pt", v)} />
+                  <DvNum label="R" value={editStyle.pr ?? 0} min={0} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("pr", v)} />
+                  <DvNum label="B" value={editStyle.pb ?? 0} min={0} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("pb", v)} />
+                  <DvNum label="L" value={editStyle.pl ?? 0} min={0} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("pl", v)} />
+                </div>
+              </DvSection>
+
+              {/* ── Margin + box model ── */}
+              <DvSection title="Margin" icon={<Square size={12} />}>
+                <div className="dv-sides">
+                  <DvNum label="T" value={editStyle.mt ?? 0} min={-400} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("mt", v)} />
+                  <DvNum label="R" value={editStyle.mr ?? 0} min={-400} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("mr", v)} />
+                  <DvNum label="B" value={editStyle.mb ?? 0} min={-400} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("mb", v)} />
+                  <DvNum label="L" value={editStyle.ml ?? 0} min={-400} max={400} unit="px" disabled={!hasSel} onChange={(v) => guestStyle("ml", v)} />
+                </div>
+                <div className="dv-checks">
+                  <DvCheck label="Clip content" checked={clipOn} disabled={!hasSel}
+                    onChange={(on) => guestStyle("clip", on ? "hidden" : "visible")} title="overflow: hidden" />
+                  <DvCheck label="Border box" checked={String(editStyle.bbox || "") === "border-box"} disabled={!hasSel}
+                    onChange={(on) => guestStyle("bbox", on ? "border-box" : "content-box")} title="box-sizing: border-box" />
+                </div>
+              </DvSection>
+
+              {/* ── Typography ── */}
+              <DvSection title="Typography" icon={<Type size={12} />}>
+                <div className="dv-row">
+                  <span className="dv-row-label">Style</span>
+                  <div className="dv-seg">
+                    <button type="button" className={"dv-seg-btn dv-seg-btn--icon" + (editStyle.bold ? " dv-seg-btn--on" : "")} disabled={!editStyle.active} onClick={() => guestStyle("bold")} title="Bold"><Bold size={12} /></button>
+                    <button type="button" className={"dv-seg-btn dv-seg-btn--icon" + (editStyle.italic ? " dv-seg-btn--on" : "")} disabled={!editStyle.active} onClick={() => guestStyle("italic")} title="Italic"><Italic size={12} /></button>
+                    <button type="button" className={"dv-seg-btn dv-seg-btn--icon" + (editStyle.underline ? " dv-seg-btn--on" : "")} disabled={!editStyle.active} onClick={() => guestStyle("underline")} title="Underline"><Underline size={12} /></button>
+                    <button type="button" className={"dv-seg-btn dv-seg-btn--icon" + (editStyle.strike ? " dv-seg-btn--on" : "")} disabled={!editStyle.active} onClick={() => guestStyle("strike")} title="Strikethrough"><Strikethrough size={12} /></button>
+                  </div>
+                </div>
+                <div className="dv-row">
+                  <span className="dv-row-label">Align</span>
+                  <div className="dv-seg">
+                    {[["left", <AlignLeft key="l" size={12} />], ["center", <AlignCenter key="c" size={12} />], ["right", <AlignRight key="r" size={12} />], ["justify", <AlignJustify key="j" size={12} />]].map(([v, ic]) => (
+                      <button key={v} type="button" className={"dv-seg-btn dv-seg-btn--icon" + ((editStyle.align || "left") === v ? " dv-seg-btn--on" : "")}
+                        disabled={!editStyle.active} onClick={() => guestStyle("ta", v)} title={v}>
+                        {ic}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="dv-row">
+                  <span className="dv-row-label">Size</span>
+                  <DvNum label="Aa" value={editStyle.fs ?? 16} min={6} max={240} unit="px"
+                    disabled={!editStyle.active} onChange={(v) => guestStyle("fs", v)} />
+                  <select className="dv-select dv-select--sm"
+                    value={FW_OPTS.indexOf(editStyle.fw) !== -1 ? String(editStyle.fw) : ""}
+                    disabled={!editStyle.active}
+                    onChange={(e) => { if (e.target.value) guestStyle("fw", e.target.value); }}
+                    title="Font weight">
+                    <option value="">auto</option>
+                    {FW_OPTS.map((w) => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+                <div className="dv-row">
+                  <span className="dv-row-label">Line</span>
+                  <DvNum label="↕" value={editStyle.lh ?? 1.2} min={0.5} max={4} step={0.1}
+                    disabled={!editStyle.active} onChange={(v) => guestStyle("lh", v)} />
+                  <DvNum label="↔" value={editStyle.ls ?? 0} min={-10} max={40} step={0.5} unit="px"
+                    disabled={!editStyle.active} onChange={(v) => guestStyle("ls", v)} />
+                </div>
+                <div className="dv-row">
+                  <span className="dv-row-label">Font</span>
+                  <select className="dv-select"
+                    value={(function () {
+                      const ff = String(editStyle.ff || "").toLowerCase();
+                      if (!ff || !editStyle.active) return "";
+                      const m = FF_OPTS.find(([tok]) => ff.indexOf(tok) !== -1);
+                      return m ? m[0] : "";
+                    })()}
+                    disabled={!editStyle.active}
+                    onChange={(e) => { if (e.target.value) guestStyle("ff", e.target.value); }}>
+                    <option value="">auto</option>
+                    {FF_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  </select>
+                  <select className="dv-select dv-select--sm" value={editStyle.tt || "none"}
+                    disabled={!editStyle.active} onChange={(e) => guestStyle("tt", e.target.value)}
+                    title="Text transform">
+                    <option value="none">TT</option>
+                    <option value="uppercase">AA</option>
+                    <option value="lowercase">aa</option>
+                    <option value="capitalize">Aa</option>
+                  </select>
+                </div>
+              </DvSection>
+
+              {/* ── Fill ── */}
+              <DvSection title="Fill" icon={<Palette size={12} />}>
+                <DvColor label="Text" value={editStyle.color} disabled={!editStyle.active} onChange={(v) => guestStyle("color", v)} />
+                <DvColor label="Background" value={editStyle.bg} disabled={!editStyle.active} onChange={(v) => guestStyle("bg", v)} />
+                <div className="dv-swatches">
+                  {tokens.map((c) => (
+                    <button key={"tok-" + c} type="button" className="dv-swatch dv-swatch--tok" style={{ background: c }}
+                      disabled={!editStyle.active}
+                      onClick={(e) => { if (e.altKey || e.shiftKey) guestStyle("bg", c); else guestStyle("color", c); }}
+                      onContextMenu={(e) => { e.preventDefault(); removeToken(c); }}
+                      title={`Project token ${c} — click: text · Alt+click: background · right-click: remove`} />
+                  ))}
+                  {PALETTE.map((c) => (
+                    <button key={c} type="button" className="dv-swatch" style={{ background: c }}
+                      disabled={!editStyle.active}
+                      onClick={(e) => { if (e.altKey || e.shiftKey) guestStyle("bg", c); else guestStyle("color", c); }}
+                      title={`${c} — click: text · Alt+click: background`} />
+                  ))}
+                  <button type="button" className="dv-swatch dv-swatch--add" disabled={!editStyle.active} onClick={addToken}
+                    title="Save the current color as a project token">
+                    <Plus size={11} />
+                  </button>
+                </div>
+              </DvSection>
+
+              {/* ── Appearance ── */}
+              <DvSection title="Appearance" icon={<SlidersHorizontal size={12} />}>
+                <div className="dv-row">
+                  <span className="dv-row-label">Opacity</span>
+                  <DvNum label="%" value={editStyle.op ?? 100} min={0} max={100} unit=""
+                    disabled={!hasSel} onChange={(v) => guestStyle("op", v)} />
+                  <span className="dv-row-label">Radius</span>
+                  <DvNum label="R" value={editStyle.rad ?? 0} min={0} max={240} unit="px"
+                    disabled={!hasSel} onChange={(v) => guestStyle("rad", v)} />
+                </div>
+                <div className="dv-row">
+                  <span className="dv-row-label">Border</span>
+                  <DvNum label="W" value={editStyle.bw ?? 0} min={0} max={40} unit="px"
+                    disabled={!hasSel} onChange={(v) => guestStyle("bw", v)} />
+                  <DvSeg
+                    options={SHADOW_OPTS}
+                    value={editStyle.shadow ? "md" : "off"}
+                    disabled={!hasSel}
+                    onChange={(v) => guestStyle("shadow", v)}
+                    title="Shadow"
+                  />
+                </div>
+                <DvColor label="Border color" value={editStyle.bc} disabled={!hasSel} onChange={(v) => guestStyle("bc", v)} />
+              </DvSection>
+
+              {/* ── Layers (DOM tree) ── */}
+              <DvSection title="Layers" icon={<Layers size={12} />} defaultOpen={false}
+                actions={
+                  <>
+                    <button className="dv-mini" onClick={refreshTree} title="Refresh tree"><RefreshCw size={10} /></button>
+                    <button className="dv-mini" disabled={!treeSel} onClick={clearTreeSel} title="Clear selection"><X size={10} /></button>
+                  </>
+                }
+              >
+                <div className="dv-hint">Click = select · drag row = reorder · hover = highlight</div>
+                <div className="dv-tree">
                   {treeData && treeData.on && treeData.nodes.length ? (
                     treeData.nodes.map((n) => (
                       <EbTreeRow
@@ -2346,192 +2856,16 @@ const BrowserPanel = (props) => {
                       />
                     ))
                   ) : (
-                    <div className="eb-hint">Let the page load…</div>
+                    <div className="dv-hint">Let the page load…</div>
                   )}
-                  {treeData && treeData.trunc && <div className="eb-hint">… truncated (part of a large page)</div>}
+                  {treeData && treeData.trunc && <div className="dv-hint">… truncated (large page)</div>}
                 </div>
-              </div>
+              </DvSection>
 
-              <div className="eb-section">
-                <div className="eb-label">Element tools</div>
-                <div className="eb-grid eb-grid--4">
-                  <button className="eb-tbtn" onClick={() => guestTool("delete")} title="Remove element (Del)">
-                    <Trash2 size={14} /><span>Del</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={() => guestTool("duplicate")} title="Duplicate element (Ctrl+D)">
-                    <Copy size={14} /><span>Dup</span>
-                  </button>
-                  <button className="eb-tbtn" onClick={() => guestTool("html")} title="Edit element as raw HTML (Ctrl+E)">
-                    <Code size={14} /><span>HTML</span>
-                  </button>
-                  <button
-                    className={`eb-tbtn${editStyle.drag ? " eb-tbtn--on" : ""}`}
-                    onClick={() => { guestTool("dragToggle"); setTimeout(refreshStyleState, 150); }}
-                    title="Drag-to-reorder mode — drag elements in the page onto each other"
-                  >
-                    <GripVertical size={14} /><span>Drag</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="eb-section">
-                <div className="eb-label">Style {editStyle.active && editStyle.tag ? `· <${editStyle.tag}>` : ""}</div>
-                {!editStyle.active && <div className="eb-hint">Click text in the page to style it</div>}
-                <div className="eb-grid eb-grid--4">
-                  <button className={`eb-tbtn${editStyle.bold ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("bold")} title="Bold"><b>B</b></button>
-                  <button className={`eb-tbtn${editStyle.italic ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("italic")} title="Italic"><i>I</i></button>
-                  <button className={`eb-tbtn${editStyle.underline ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("underline")} title="Underline"><span style={{ textDecoration: "underline" }}>U</span></button>
-                  <button className={`eb-tbtn${editStyle.strike ? " eb-tbtn--on" : ""}`} disabled={!editStyle.active} onClick={() => guestStyle("strike")} title="Strikethrough"><span style={{ textDecoration: "line-through" }}>S</span></button>
-                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("size+")} title="Bigger text (+2px)">A+</button>
-                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("size-")} title="Smaller text (−2px)">A−</button>
-                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("align")} title={`Text align — now: ${editStyle.align || "left"}`}>{ALIGN_ABBR[editStyle.align] || "L"}</button>
-                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("tt")} title={`Text transform — now: ${editStyle.tt || "none"}`}>{TT_ABBR[editStyle.tt] || "TT"}</button>
-                  <input className="eb-color" type="color" title="Text color" disabled={!editStyle.active} value={editStyle.color || "#000000"} onChange={(e) => guestStyle("color", e.target.value)} />
-                  <input className="eb-color" type="color" title="Background color" disabled={!editStyle.active} value={editStyle.bg || "#ffffff"} onChange={(e) => guestStyle("bg", e.target.value)} />
-                  <button className="eb-tbtn" disabled={!editStyle.active} onClick={() => guestStyle("clear")} title="Clear inline styles">✕</button>
-                </div>
-              </div>
-
-              <div className="eb-section">
-                <div className="eb-label">Visual controls</div>
-                {!editStyle.active && (
-                  <div className="eb-hint">Point at an element in the page, then click it</div>
-                )}
-
-                <div className="eb-sub">Layout</div>
-                <div className="eb-grid eb-grid--4">
-                  <button
-                    className={`eb-tbtn${editStyle.disp === "flex" && (editStyle.dir || "").indexOf("row") === 0 ? " eb-tbtn--on" : ""}`}
-                    disabled={!editStyle.active} onClick={() => guestStyle("dir", "row")}
-                    title="display: flex — row"
-                  ><span>Row</span></button>
-                  <button
-                    className={`eb-tbtn${editStyle.disp === "flex" && (editStyle.dir || "").indexOf("column") === 0 ? " eb-tbtn--on" : ""}`}
-                    disabled={!editStyle.active} onClick={() => guestStyle("dir", "col")}
-                    title="display: flex — column"
-                  ><span>Col</span></button>
-                  <button
-                    className={`eb-tbtn${editStyle.disp === "grid" ? " eb-tbtn--on" : ""}`}
-                    disabled={!editStyle.active} onClick={() => guestStyle("grid")}
-                    title="display: grid (click again = remove)"
-                  ><span>Grid</span></button>
-                  <button
-                    className={`eb-tbtn${editStyle.disp && editStyle.disp !== "flex" && editStyle.disp !== "grid" ? " eb-tbtn--on" : ""}`}
-                    disabled={!editStyle.active} onClick={() => guestStyle("dir", "off")}
-                    title="Remove display override"
-                  ><span>Off</span></button>
-                </div>
-                {editStyle.disp === "grid" && (
-                  <>
-                    <EbTextRow label="Cols" value={editStyle.gcols || ""} placeholder="3 or repeat(3, 1fr)"
-                      onCommit={(v) => guestStyle("gcols", v)} />
-                    <EbTextRow label="Rows" value={editStyle.grows || ""} placeholder="auto"
-                      onCommit={(v) => guestStyle("grows", v)} />
-                  </>
-                )}
-                <div className="eb-srow">
-                  <span>Justify</span>
-                  <select className="eb-select" value={editStyle.jc || ""} disabled={!editStyle.active}
-                    onChange={(e) => guestStyle("jc", e.target.value)}>
-                    {JC_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="eb-srow">
-                  <span>Align</span>
-                  <select className="eb-select" value={editStyle.ai || ""} disabled={!editStyle.active}
-                    onChange={(e) => guestStyle("ai", e.target.value)}>
-                    {AI_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="eb-srow">
-                  <span>Wrap</span>
-                  <select className="eb-select" value={editStyle.wrap || ""} disabled={!editStyle.active}
-                    onChange={(e) => guestStyle("wrap", e.target.value)}
-                    title="flex-wrap — wrap items to the next line">
-                    <option value="">auto</option>
-                    <option value="nowrap">nowrap</option>
-                    <option value="wrap">wrap</option>
-                  </select>
-                </div>
-                <EbSlider label="Gap" val={editStyle.gap ?? 0} min={0} max={96} unit="px"
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("gap", v)} />
-
-                <div className="eb-sub">Type</div>
-                <EbSlider label="Size" val={editStyle.fs ?? 16} min={8} max={96} unit="px"
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("fs", v)} />
-                <EbSlider label="Line-h" val={Math.round((editStyle.lh ?? 1.2) * 100)} min={50} max={300} step={5}
-                  display={(editStyle.lh ?? 1.2).toFixed(1)}
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("lh", String(Number(v) / 100))} />
-                <EbSlider label="Letter" val={editStyle.ls ?? 0} min={-5} max={20} step={0.5} unit="px"
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("ls", v)} />
-                <div className="eb-srow">
-                  <span>Weight</span>
-                  <select className="eb-select"
-                    value={FW_OPTS.indexOf(editStyle.fw) !== -1 ? String(editStyle.fw) : ""}
-                    disabled={!editStyle.active}
-                    onChange={(e) => { if (e.target.value) guestStyle("fw", e.target.value); }}>
-                    <option value="">auto</option>
-                    {FW_OPTS.map((w) => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </div>
-                <div className="eb-srow">
-                  <span>Font</span>
-                  <select className="eb-select"
-                    value={(function () {
-                      const ff = String(editStyle.ff || "").toLowerCase();
-                      if (!ff || !editStyle.active) return "";
-                      const m = FF_OPTS.find(([tok]) => ff.indexOf(tok) !== -1);
-                      return m ? m[0] : "";
-                    })()}
-                    disabled={!editStyle.active}
-                    onChange={(e) => { if (e.target.value) guestStyle("ff", e.target.value); }}>
-                    <option value="">auto</option>
-                    {FF_OPTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                  </select>
-                </div>
-
-                <div className="eb-sub">Space &amp; shape</div>
-                <EbSlider label="Pad" val={editStyle.pad ?? 0} min={0} max={96} unit="px"
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("pad", v)} />
-                <EbSlider label="Margin" val={editStyle.mg ?? 0} min={0} max={96} unit="px"
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("mg", v)} />
-                <EbSlider label="Radius" val={editStyle.rad ?? 0} min={0} max={96} unit="px"
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("rad", v)} />
-                <EbSlider label="Opacity" val={editStyle.op ?? 100} min={0} max={100} unit="%"
-                  disabled={!editStyle.active} onChange={(v) => guestStyle("op", v)} />
-
-                <div className="eb-sub">Palette</div>
-                <div className="eb-swatches">
-                  {tokens.map((c) => (
-                    <button key={"tok-" + c} className="eb-swatch eb-swatch--tok" style={{ background: c }}
-                      disabled={!editStyle.active}
-                      onClick={(e) => { if (e.altKey || e.shiftKey) guestStyle("bg", c); else guestStyle("color", c); }}
-                      onContextMenu={(e) => { e.preventDefault(); removeToken(c); }}
-                      title={`Project token ${c} — click: text color · Alt+click: background · right-click: remove`} />
-                  ))}
-                  {PALETTE.map((c) => (
-                    <button key={c} className="eb-swatch" style={{ background: c }}
-                      disabled={!editStyle.active}
-                      onClick={(e) => { if (e.altKey || e.shiftKey) guestStyle("bg", c); else guestStyle("color", c); }}
-                      title={`Text color ${c} (Alt+click = background)`} />
-                  ))}
-                  <button className="eb-swatch eb-swatch--add" disabled={!editStyle.active} onClick={addToken}
-                    title="Save the current text color as a project token (+)">
-                    +
-                  </button>
-                </div>
-                {!tokens.length && (
-                  <div className="eb-hint">+ saves the color to the project (right-click to remove)</div>
-                )}
-              </div>
-
-              {/* ── Properties: selected element ke attributes + source ── */}
-              <div className="eb-section">
-                <div className="eb-label">
-                  Properties{propState.active && propState.tag ? ` · <${propState.tag}>` : ""}
-                </div>
+              {/* ── Attributes ── */}
+              <DvSection title="Attributes" icon={<TextCursorInput size={12} />} defaultOpen={false}>
                 {!propState.active && (
-                  <div className="eb-hint">Select an element in the page or tree</div>
+                  <div className="dv-hint">Select an element in the page or tree</div>
                 )}
                 {propState.active && (
                   <>
@@ -2545,14 +2879,14 @@ const BrowserPanel = (props) => {
                         <EbTextRow key={a.n} label={a.n} value={a.v} placeholder=""
                           onCommit={(v) => propSet(a.n, v)} />
                       ))}
-                    <div className="eb-sub">Source</div>
+                    <div className="dv-sides-label">Source</div>
                     {propLoc && propLoc.ok ? (
-                      <div className="eb-srow">
-                        <span className="eb-src" title={String(propLoc.filePath || "")}>
+                      <div className="dv-row">
+                        <span className="dv-src" title={String(propLoc.filePath || "")}>
                           {propLoc.rel}{propLoc.candidates > 1 ? ` (+${propLoc.candidates - 1})` : ""}
                         </span>
                         <button
-                          className="eb-mini"
+                          className="dv-mini"
                           title="Open in editor"
                           onClick={() => {
                             try {
@@ -2564,15 +2898,21 @@ const BrowserPanel = (props) => {
                         </button>
                       </div>
                     ) : (
-                      <div className="eb-hint">
+                      <div className="dv-hint">
                         {propState.text ? "Source file not found" : "Source matches on elements with text"}
                       </div>
                     )}
                   </>
                 )}
-              </div>
+              </DvSection>
 
+              <div className="dv-foot-hint">
+                {isVisualOnlyUrl
+                  ? "Visual only — open a project folder or local file to save edits"
+                  : "Changes are written to source · Apply exits edit mode"}
+              </div>
             </div>
+            )}
           </aside>
         )}
       </div>
