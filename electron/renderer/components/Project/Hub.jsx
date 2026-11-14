@@ -897,7 +897,7 @@ const GreetingDoodleHoverCard = ({ title, description, cursor, onPointerActivate
       )}
       <span
         ref={anchorRef}
-        role="img"
+        role="button"
         tabIndex={0}
         aria-label={title}
         aria-description={description}
