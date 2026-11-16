@@ -24,6 +24,49 @@ function getCliPath() {
   return cliPath;
 }
 
+// By default `opencode serve` uses ~/.local/share/opencode/opencode.db — the
+// same file a globally installed OpenCode uses. A newer release migrates that
+// file to a schema the bundled runtime cannot open (session_v2, no `session`
+// table), which killed the panel on startup with "Database is not empty and
+// has no session table". Keep the panel's data under the app's userData so it
+// can never collide with another install, and override OPENCODE_DB from the
+// parent environment for the same reason we ignore OPENCODE_SERVER_PASSWORD.
+function getPanelDatabasePath() {
+  const dir = path.join(app.getPath("userData"), "opencode");
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, "opencode.db");
+}
+
+function isIncompatibleDatabaseFailure(logs) {
+  return (logs || []).some((line) => /Database is not empty and has no session table/i.test(line));
+}
+
+// Move a database the runtime refuses to open out of the way. The -wal/-shm
+// siblings must travel with it or SQLite revives a half-written database.
+function quarantineDatabase(dbPath) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const file = `${dbPath}${suffix}`;
+    try {
+      if (fs.existsSync(file)) fs.renameSync(file, `${file}.incompatible-${stamp}`);
+    } catch (error) {
+      console.warn(`[OpenCode panel] Could not move ${file} aside:`, error && error.message);
+    }
+  }
+}
+
+function resetInstanceForRetry(instance, workspace) {
+  instance.failure = null;
+  instance.stopping = false;
+  instance.stopPromise = null;
+  instance.child = null;
+  instance.childLogs = [];
+  instance.port = "";
+  instance.url = "";
+  instance.lastSessionId = null;
+  instances.set(workspace, instance);
+}
+
 function reservePort(port) {
   return new Promise((resolve, reject) => {
     const listener = createServer();
@@ -152,51 +195,70 @@ async function latestSessionId(instance) {
 
 async function startInstance(workspace, instance) {
   const cliPath = getCliPath();
-  const port = await getAvailablePort(workspace);
-  if (instance.stopping) throw new Error("OpenCode startup was cancelled.");
-  instance.url = `http://127.0.0.1:${port}`;
-  instance.port = String(port);
-  instance.credentials = getServerCredentials();
-  if (instance.credentials) {
-    panelCredentials.set(instance.port, instance.credentials);
-    installPanelAuthorization();
-  }
+  const dbPath = getPanelDatabasePath();
   try {
     const mcpUrl = getMcpUrl?.();
     if (mcpUrl && syncOpenCodeConfig) syncOpenCodeConfig(mcpUrl, workspace);
   } catch (syncErr) {
     console.warn("[OpenCode panel] Failed to sync MCP config:", syncErr && syncErr.message);
   }
-  const childLogs = [];
-  const child = spawn(cliPath, [
-    "serve",
-    "--hostname", "127.0.0.1",
-    "--port", String(port),
-  ], {
-    cwd: workspace,
-    env: process.env,
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  });
-  instance.childLogs = childLogs;
-  child.stdout?.on("data", (d) => { childLogs.push(d.toString().trim()); if (childLogs.length > 80) childLogs.shift(); });
-  child.stderr?.on("data", (d) => { childLogs.push(`stderr: ${d.toString().trim()}`); if (childLogs.length > 80) childLogs.shift(); });
-  instance.child = child;
-  child.once("error", (error) => { instance.failure = error; });
-  child.once("exit", (code, signal) => {
-    if (!instance.stopping) {
-      instance.failure = new Error(`OpenCode exited before the panel closed (code ${code ?? "unknown"}, signal ${signal || "none"}).`);
-      if (instances.get(workspace) === instance) instances.delete(workspace);
-    }
-  });
 
-  try {
-    await waitForOpenCode(instance);
-    instance.lastSessionId = await latestSessionId(instance);
-  } catch (error) {
-    await stopInstance(instance);
-    const tail = instance.childLogs ? `\nOpenCode server log tail:\n${instance.childLogs.slice(-20).join("\n")}` : "";
-    throw new Error(`Could not start OpenCode: ${error.message}${tail}`);
+  for (let attempt = 0; ; attempt++) {
+    const port = await getAvailablePort(workspace);
+    if (instance.stopping) throw new Error("OpenCode startup was cancelled.");
+    instance.url = `http://127.0.0.1:${port}`;
+    instance.port = String(port);
+    instance.credentials = getServerCredentials();
+    if (instance.credentials) {
+      panelCredentials.set(instance.port, instance.credentials);
+      installPanelAuthorization();
+    }
+    const childLogs = [];
+    const child = spawn(cliPath, [
+      "serve",
+      "--hostname", "127.0.0.1",
+      "--port", String(port),
+    ], {
+      cwd: workspace,
+      env: { ...process.env, OPENCODE_DB: dbPath },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    instance.childLogs = childLogs;
+    child.stdout?.on("data", (d) => { childLogs.push(d.toString().trim()); if (childLogs.length > 80) childLogs.shift(); });
+    child.stderr?.on("data", (d) => { childLogs.push(`stderr: ${d.toString().trim()}`); if (childLogs.length > 80) childLogs.shift(); });
+    instance.child = child;
+    child.once("error", (error) => { instance.failure = error; });
+    child.once("exit", (code, signal) => {
+      if (!instance.stopping) {
+        instance.failure = new Error(`OpenCode exited before the panel closed (code ${code ?? "unknown"}, signal ${signal || "none"}).`);
+        // Keep the entry while startup is still running: a retry may recreate
+        // the database, and a concurrent acquire must await this same attempt.
+        if (instances.get(workspace) === instance && !instance.ready) instances.delete(workspace);
+      }
+    });
+
+    try {
+      await waitForOpenCode(instance);
+      instance.lastSessionId = await latestSessionId(instance);
+      return;
+    } catch (error) {
+      await stopInstance(instance);
+      // A database left behind by an incompatible runtime can be moved aside
+      // and recreated; any other failure is reported as-is. Give the stderr
+      // pipe a moment to flush — the exit event can beat the last data chunks.
+      if (attempt === 0) {
+        await delay(100);
+        if (isIncompatibleDatabaseFailure(instance.childLogs)) {
+          console.warn("[OpenCode panel] Panel database is incompatible — recreating it.");
+          quarantineDatabase(dbPath);
+          resetInstanceForRetry(instance, workspace);
+          continue;
+        }
+      }
+      const tail = instance.childLogs ? `\nOpenCode server log tail:\n${instance.childLogs.slice(-20).join("\n")}` : "";
+      throw new Error(`Could not start OpenCode: ${error.message}${tail}`);
+    }
   }
 }
 

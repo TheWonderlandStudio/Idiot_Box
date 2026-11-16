@@ -19,6 +19,7 @@ import {
   crosshairCursor,
   highlightActiveLine,
   keymap,
+  ViewPlugin,
 } from "@codemirror/view";
 import {
   history,
@@ -71,6 +72,27 @@ export const themeExtensionFor = (theme) => {
   if (theme === "oneDark") return oneDark;
   return vscodeDark; // "dark" default
 };
+
+// CodeMirror's a11y "tab focus mode": pressing Escape (e.g. to dismiss the
+// completion popup) makes the next 2 seconds of Tab do nothing — no accept,
+// no indent. That reads as broken suggestions, so clear the window as soon as
+// Tab is pressed and let the normal Tab keymap run.
+const tabAfterEscapeGuard = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.view = view;
+    this.onKeyDown = (event) => {
+      if (event.key !== "Tab") return;
+      try {
+        const input = this.view.inputState;
+        if (input && input.tabFocusMode > 0 && Date.now() <= input.tabFocusMode) input.tabFocusMode = -1;
+      } catch {}
+    };
+    view.contentDOM.addEventListener("keydown", this.onKeyDown, true);
+  }
+  destroy() {
+    this.view.contentDOM.removeEventListener("keydown", this.onKeyDown, true);
+  }
+});
 
 const withMonoFallback = (f) => {
   const s = String(f || "").trim();
@@ -171,6 +193,7 @@ export const buildCmExtensions = ({ settings, languageSupport = [], languageId =
   if (s.tabAcceptsCompletion !== false) {
     ext.push(Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])));
   }
+  try { ext.push(tabAfterEscapeGuard); } catch {}
 
   // ── Custom keys (VS Code-style: comment / multi-cursor / delete / move line) ──
   ext.push(keymap.of([
