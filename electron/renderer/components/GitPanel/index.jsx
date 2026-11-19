@@ -1141,6 +1141,9 @@ export default function GitPanel({ nodeId }){
                 <button onClick={()=>setCollapsed(c=>({...c,staged:!c.staged}))} style={{display:"flex",alignItems:"center",gap:7,padding:0,background:"transparent",border:0,color:"inherit",font:"inherit",cursor:"pointer"}}>
                   {collapsed.staged?<ChevronRight size={15}/>:<ChevronDown size={15}/>}<span>Staged</span><span style={{background:"var(--editor-blue)",color:"var(--text-inverse)",padding:"1px 7px",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-bold)",lineHeight:"16px"}}>{stagedListedFiles.length}</span>
                 </button>
+                {!collapsed.staged&&<span style={{display:"flex",alignItems:"center",gap:"var(--space-4)"}}>
+                  <button onClick={()=>doUnstageAll()} disabled={!!busy} title="Unstage all" aria-label="Unstage all" style={{...s.iconBtn,opacity:busy?0.45:1}}><Minus size={15}/></button>
+                </span>}
               </div>
               {!collapsed.staged && stagedListedFiles.map((it,index)=>renderFileRow(it,index,stagedListedFiles))}
               {!collapsed.staged && stagedListedFiles.length===0 && <div style={{padding:"var(--space-10) var(--space-12)",fontSize:"var(--fs-small)",color:"var(--text-muted)"}}>{filter?"No matching files":"No staged changes"}</div>}
@@ -1153,9 +1156,7 @@ export default function GitPanel({ nodeId }){
             {!collapsed.changes&&<span style={{display:"flex",alignItems:"center",gap:"var(--space-4)"}}>
               {fileFilterOpen && <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter files…" aria-label="Filter files" autoFocus style={{...s.input,width:150,padding:"var(--space-4) var(--space-6)",fontSize:"var(--fs-small)"}} />}
               <button onClick={()=>{setFileFilterOpen(v=>!v);if(fileFilterOpen)setFilter("");}} title="Filter files" aria-label="Filter files" style={s.iconBtn}><Search size={14}/></button>
-              {!collapsed.changes&&(hasStagedFiles
-                ? <button onClick={()=>doUnstageAll()} disabled={!!busy} title="Unstage all" aria-label="Unstage all" style={{...s.iconBtn,opacity:busy?0.45:1}}><Minus size={15}/></button>
-                : <button onClick={doDiscardAll} disabled={!allDiscardTargets.length||!!busy} title="Discard all files" aria-label="Discard all files" style={{...s.iconBtn,opacity:!allDiscardTargets.length||busy?0.45:1}}><Trash2 size={15}/></button>)}
+              {!collapsed.changes&&<button onClick={doDiscardAll} disabled={!allDiscardTargets.length||!!busy} title="Discard all files" aria-label="Discard all files" style={{...s.iconBtn,opacity:!allDiscardTargets.length||busy?0.45:1}}><Trash2 size={15}/></button>}
               {!collapsed.changes&&<button onClick={()=>doStageAll()} disabled={!unstagedFiles.length||!!busy} title="Stage all changes" aria-label="Stage all changes" style={{...s.iconBtn,opacity:!unstagedFiles.length?0.45:1}}><Plus size={16}/></button>}
             </span>}
           </div>
