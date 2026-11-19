@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Privacy Policy - Idiot Box</title>
+  <title>Privacy Policy: Idiot Box</title>
   <meta name="description" content="Privacy Policy for Idiot Box: what data the desktop app and this site store, what leaves your machine, and how to contact us." />
-  <meta name="keywords" content="Idiot Box privacy policy, data privacy, open source IDE" />
+  <meta name="keywords" content="Idiot Box privacy policy, data privacy, open-source IDE" />
   <meta name="author" content="The Wonderland Studio" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#1e1e1e" />
@@ -15,13 +15,13 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Idiot Box" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:title" content="Privacy Policy - Idiot Box" />
+  <meta property="og:title" content="Privacy Policy: Idiot Box" />
   <meta property="og:description" content="What data Idiot Box stores, what leaves your machine, and how to contact us." />
   <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/privacy.html" />
   <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <meta property="og:image:alt" content="Idiot Box logo" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Privacy Policy - Idiot Box" />
+  <meta name="twitter:title" content="Privacy Policy: Idiot Box" />
   <meta name="twitter:description" content="What data Idiot Box stores, what leaves your machine, and how to contact us." />
   <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -68,7 +68,7 @@
         <h2 class="doc-title">Privacy Policy</h2>
         <p class="doc-meta"><strong>Effective:</strong> October 8, 2026<br><strong>App:</strong> Idiot Box by The Wonderland Studio</p>
 
-        <p>Idiot Box is a free, open-source desktop IDE. Your code, settings, projects, and chats stay on your machine. We do not run user accounts or servers that collect your data.</p>
+        <p>Idiot Box is an open-source desktop IDE. Your code, settings, projects, and chats stay on your machine. We do not run user accounts or servers that collect your data.</p>
 
         <h3>1. What stays on your device</h3>
         <p>Idiot Box stores its app data locally in your system's app-data folder, such as <code>%AppData%/idiot-box</code> on Windows.</p>
@@ -77,7 +77,7 @@
           <li><strong>Settings:</strong> A local <code>settings.json</code> holds your theme, fonts, layout presets, terminal, git, canvas and cursor preferences, your GitHub username, and the telemetry toggle.</li>
           <li><strong>Projects:</strong> Recent and pinned project paths, open tabs, canvas drawings, and project-specific app state under <code>projects/</code>. Your actual project files are never moved or copied.</li>
           <li><strong>Install ID:</strong> A random 24-character id in <code>install-id.json</code>, used only for the anonymous stats described below. It never identifies you.</li>
-          <li><strong>Sessions and extensions:</strong> Window/session restore, layout presets, recent-project lists, and any browser extensions you choose to install — all stored locally.</li>
+          <li><strong>Sessions and extensions:</strong> Window/session restore, layout presets, recent-project lists, and any browser extensions you choose to install, all stored locally.</li>
           <li><strong>Chats:</strong> The Hub assistant chat is held in memory only while the app is open and disappears when you close it. OpenCode agent sessions are saved locally by the bundled OpenCode runtime in its own storage.</li>
           <li><strong>Voice input:</strong> Microphone audio is transcribed offline using your operating system's built-in speech recognition. The recording never leaves your device and the temporary audio file is deleted immediately afterwards.</li>
           <li><strong>Toolchains:</strong> If you run Android setup or need a runtime for the Run panel, the Android SDK, JDK and the mise binary are downloaded into the same app-data folder.</li>
@@ -88,14 +88,14 @@
         <p>Idiot Box can work offline. Apart from the automatic update check below, internet access is only used by features you choose to use.</p>
         <p>Depending on what you use, the app may connect to:</p>
         <ul>
-          <li><strong>Anonymous usage stats</strong> (opt-out, on by default): one hit on a public install counter per install, then a heartbeat every 30 seconds while the app is open. The whole payload is your random install ID, the app version, and a timestamp — no file paths, no project names, no personal data. This powers the "total users" counter and the "online now" number on our download page. The relay is public by design, so anyone can see that a random ID is currently online; that is the trade-off for a counter we cannot tamper with. Turn it all off any time in <em>Settings → General → Telemetry</em>.</li>
+          <li><strong>Anonymous usage stats</strong> (opt-out, on by default): one hit on a public install counter per install, then a heartbeat every 30 seconds while the app is open. The whole payload is your random install ID, the app version, and a timestamp. No file paths, no project names, no personal data. This powers the "total users" counter and the "online now" number on our download page. The relay is public by design, so anyone can see that a random ID is currently online; that is the trade-off for a counter we cannot tamper with. Turn it all off any time in <em>Settings → General → Telemetry</em>.</li>
           <li><strong>Update checks:</strong> roughly every six hours, and shortly after launch, the app asks GitHub Releases whether a new version exists. A download only starts after you approve it.</li>
           <li><strong>Built-in assistant:</strong> the project-setup chat and AI commit messages are sent to <strong>Pollinations</strong> (text.pollinations.ai) and, when that is unavailable, to <strong>OVHcloud AI Endpoints</strong>' anonymous tier. No API key is involved. Whatever you type there is covered by those providers' own privacy policies.</li>
           <li><strong>GitHub:</strong> release and update information from api.github.com. If you enter a GitHub username and enable the Hub heatmap, your contribution graph is loaded through a third-party public proxy (github-contributions-api.jogruber.de) and your repository list through api.github.com.</li>
           <li><strong>Icon CDNs:</strong> file and framework icons from raw.githubusercontent.com (vscode-icons), cdn.jsdelivr.net (devicons), cdn.simpleicons.org, and the Tailwind browser build used by the component preview.</li>
           <li><strong>Tool downloads:</strong> when you press Setup or Run, the app fetches an Eclipse Temurin JDK from Adoptium, Android command-line tools and system images from Google, and the mise binary from GitHub releases.</li>
           <li><strong>Embedded web panels:</strong> the Community panel loads wonder-no-server-chat.pages.dev and the OpenPencil panel loads app.openpencil.dev. Both are third-party sites with their own privacy policies. The OpenCode agent itself runs as a local server on 127.0.0.1.</li>
-          <li><strong>Your own providers:</strong> anything you point the OpenCode agent at — including Ollama or other local servers — is contacted directly from your machine.</li>
+          <li><strong>Your own providers:</strong> anything you point the OpenCode agent at, including Ollama or other local servers, is contacted directly from your machine.</li>
         </ul>
         <p>When using an AI provider, your prompts, attached files, and tool results may be sent to that provider. Each provider has its own privacy policy.</p>
         <p>Idiot Box contains no analytics SDKs, no advertising code, and no crash reporting that uploads. Crash dumps are written to disk locally and never sent anywhere.</p>
@@ -108,7 +108,7 @@
 
         <h3>4. Browsing inside the app</h3>
         <p>The built-in Browser panel allows you to browse the web directly, and any Chrome extensions you install run inside it.</p>
-        <p>Websites you visit through it — and the extensions themselves — are responsible for their own privacy practices. Idiot Box does not proxy, record, or monitor your browser traffic.</p>
+        <p>Websites you visit through it, and the extensions themselves, are responsible for their own privacy practices. Idiot Box does not proxy, record, or monitor your browser traffic.</p>
 
         <h3>5. Children</h3>
         <p>Idiot Box is a general-purpose developer tool and is not specifically designed for children under 13.</p>
@@ -121,7 +121,7 @@
 
         <h3>7. Your responsibility</h3>
         <p>Idiot Box is just a tool. What you do with it is entirely your own responsibility. That includes the code you write, the files you open, edit, delete or share, the projects you work on, and anything you send to AI providers.</p>
-        <p>The creators of Idiot Box and everyone else involved have no part in any of that. The app collects no personal data — only the anonymous, opt-out usage stats described above — so there is nothing on our side that can be misused, leaked or held against anyone.</p>
+        <p>The creators of Idiot Box and everyone else involved have no part in any of that. The app collects no personal data, only the anonymous, opt-out usage stats described above, so there is nothing on our side that can be misused, leaked or held against anyone.</p>
         <p><strong>The Wonderland Studio</strong></p>
       </article>
     </main>

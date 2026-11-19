@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Download — Idiot Box</title>
-  <meta name="description" content="Download Idiot Box for Windows and Linux: every available installer format with live download totals, update counts and online users." />
-  <meta name="keywords" content="Idiot Box download, Windows installer, AppImage, deb, open source IDE" />
+  <title>Download Idiot Box: Desktop IDE</title>
+  <meta name="description" content="Download Idiot Box for Windows, Linux or macOS. An open-source desktop IDE with editor, terminal, browser preview and AI agent in one window." />
+  <meta name="keywords" content="Idiot Box download, desktop IDE, open-source IDE download, Windows IDE, Linux IDE, macOS IDE, AI coding assistant" />
   <meta name="author" content="The Wonderland Studio" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#1e1e1e" />
@@ -15,14 +15,14 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Idiot Box" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:title" content="Download — Idiot Box" />
-  <meta property="og:description" content="Every Idiot Box format in one place: Windows installer, Linux AppImage and deb, with live download stats." />
+  <meta property="og:title" content="Download Idiot Box: Desktop IDE" />
+  <meta property="og:description" content="Get Idiot Box for your desktop. Open source, with your editor, terminal, browser preview and AI agent in one window." />
   <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/download.html" />
   <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <meta property="og:image:alt" content="Idiot Box logo" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Download — Idiot Box" />
-  <meta name="twitter:description" content="Every Idiot Box format in one place, with live download stats." />
+  <meta name="twitter:title" content="Download Idiot Box: Desktop IDE" />
+  <meta name="twitter:description" content="Get Idiot Box for your desktop. Open source, with your editor, terminal, browser preview and AI agent in one window." />
   <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="download.css" />
@@ -62,7 +62,7 @@
     </div>
 
     <main class="dl-feed" id="dl-main">
-      <h1 class="sr-only">Download Idiot Box — all formats and live stats</h1>
+      <h1 class="sr-only">Download Idiot Box, an open-source desktop IDE for Windows, Linux and macOS</h1>
 
       <section class="stats-strip" id="stats-strip" aria-label="Live project stats">
         <div class="stat">
@@ -87,7 +87,7 @@
       <section class="dl-hero">
         <p class="dl-kicker">Latest release <span class="dl-version" id="dl-version">…</span></p>
         <h2 class="dl-title" id="dl-title">Loading releases…</h2>
-        <p class="dl-sub">Every published format is listed below — pick the one that matches your system.</p>
+        <p class="dl-sub">Every published format is listed below. Pick the one that matches your system.</p>
         <div class="dl-actions">
           <a class="dl-btn dl-btn-primary" id="dl-primary" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">Download latest</a>
           <a class="dl-btn dl-btn-ghost" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">All releases on GitHub</a>
@@ -110,7 +110,7 @@
 
       <noscript>
         <section class="dl-section">
-          <div class="dl-card">JavaScript is off — grab the installers from
+          <div class="dl-card">JavaScript is off. Grab the installers from
             <a class="dl-inline-link" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">GitHub Releases</a>.
           </div>
         </section>
@@ -199,11 +199,11 @@
           if (!IS_MAC && !IS_LINUX) {
             // Windows → Microsoft Store (direct exe/msi/msix stay listed below)
             document.getElementById('dl-primary').href = STORE_URL;
-            document.getElementById('dl-primary').textContent = 'Download for Windows — Microsoft Store';
+            document.getElementById('dl-primary').textContent = 'Download for Windows from Microsoft Store';
           } else {
             document.getElementById('dl-primary').href = hero.browser_download_url;
             document.getElementById('dl-primary').textContent =
-              (IS_MAC ? 'Download for macOS — ' : 'Download for Linux — ') + hero.name;
+              (IS_MAC ? 'Download for macOS: ' : 'Download for Linux: ') + hero.name;
           }
         }
 
@@ -215,7 +215,7 @@
           ? assets.map(function (a) { return assetCard(a); }).join('')
           : '<div class="dl-card">No files attached to this release.</div>';
 
-        // earlier releases — all files of each release + that release's total
+        // earlier releases: all files of each release + that release's total
         var past = releases.slice(1);
         document.getElementById('dl-past').innerHTML = past.length
           ? past.map(function (r) {

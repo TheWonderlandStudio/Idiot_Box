@@ -4,30 +4,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Features — Idiot Box Code Editor &amp; IDE</title>
-  <meta name="description" content="Explore Idiot Box features: OpenCode's native coding-agent web interface inside the workspace, plus editor, terminal and more." />
-  <meta name="keywords" content="Idiot Box features, code editor, Monaco, integrated terminal, browser panel, visual project map, open source IDE" />
+  <title>Features: Idiot Box Desktop IDE</title>
+  <meta name="description" content="Explore Idiot Box: code editor, AI agent, terminal, browser, Git, port forwarding, debugger, test runner, notebooks and emulators in one open-source desktop IDE." />
+  <meta name="keywords" content="Idiot Box features, desktop IDE features, code editor, AI coding agent, integrated terminal, browser preview, project map, git panel, port forwarding, debugger, test explorer, notebooks, emulators, open-source developer workspace" />
   <meta name="author" content="The Wonderland Studio" />
   <meta name="robots" content="index, follow" />
-  <meta name="theme-color" content="#1e1e1e" />
+  <meta name="theme-color" content="#050505" />
   <link rel="canonical" href="https://thewonderlandstudio.github.io/Idiot_Box/features.html" />
   <link rel="icon" type="image/png" href="./logo.png" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Idiot Box" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:title" content="Features — Idiot Box Code Editor & IDE" />
-  <meta property="og:description" content="Code editor, AI coding agent, terminal, browser panel, project manager, media viewer and visual project map — everything side by side in one window." />
+  <meta property="og:title" content="Features: Idiot Box Desktop IDE" />
+  <meta property="og:description" content="Write, run, debug, preview and ship in one window. Explore the editor, AI agent, terminal, browser, Git, Dev Tunnels, tests, notebooks and emulators that make up Idiot Box." />
   <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/features.html" />
   <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <meta property="og:image:alt" content="Idiot Box logo" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Features — Idiot Box Code Editor & IDE" />
-  <meta name="twitter:description" content="Code editor, AI coding agent, terminal, browser panel, project manager, media viewer and visual project map — everything side by side in one window." />
+  <meta name="twitter:title" content="Features: Idiot Box Desktop IDE" />
+  <meta name="twitter:description" content="Write, run, debug, preview and ship in one window. Explore the editor, AI agent, terminal, browser, Git, Dev Tunnels, tests, notebooks and emulators that make up Idiot Box." />
   <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="preload" as="image" href="features/overview.png" />
   <link rel="stylesheet" href="features.css" />
-  <link rel="stylesheet" href="vendor/monaco.bundle.css" />
-  <link rel="stylesheet" href="vendor/xterm.css" />
   <link rel="stylesheet" href="page-transition.css" />
 </head>
 
@@ -35,9 +36,6 @@
   <div class="wipe" aria-hidden="true"><span>Idiot Box</span></div>
 
   <div class="background">
-    <div class="bg-video-wrap" aria-hidden="true">
-      <video id="features-bg" src="https://files.catbox.moe/uoawmd.mp4" muted autoplay loop playsinline preload="metadata"></video>
-    </div>
     <a class="card" href="index.html">Features</a>
     <nav class="nav-card">
       <div class="nav-links">
@@ -64,154 +62,310 @@
       <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
       <a href="download.html" data-download-latest>Download</a>
     </div>
-    <main class="showcase">
-      <header class="feat-hero">
-        <p class="feat-kicker">Features</p>
-        <h1>One window.<br />Every tool.</h1>
-        <p class="feat-lede">Map, code, preview and ship without juggling five apps. The editor, AI agent, terminal, browser, project map and media viewer sit side by side and stay in sync — so you never lose the thread.</p>
-        <div class="hero-actions">
-          <a class="btn-solid log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download .exe</a>
-          <a class="btn-quiet" href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">View source</a>
-        </div>
-        <ol class="feat-index">
-          <li><a href="#f-workflow"><span>01</span> Workflow</a></li>
-          <li><a href="#f-editor"><span>02</span> Editor</a></li>
-          <li><a href="#f-browser"><span>03</span> Browser</a></li>
-          <li><a href="#f-project"><span>04</span> Project</a></li>
-          <li><a href="#f-terminal"><span>05</span> Terminal</a></li>
-          <li><a href="#f-media"><span>06</span> Media</a></li>
-          <li><a href="#f-ai-agent"><span>07</span> AI Agent</a></li>
-        </ol>
-      </header>
 
-      <section class="feat" id="f-workflow">
-        <div class="feat-text">
-          <span class="feat-num">01 / Workflow</span>
-          <h2>One window, whole workflow</h2>
-          <p>Map, code, preview and ship without juggling five tools. Everything lives side by side and stays in sync — no alt-tab, no lost context.</p>
+    <main class="feed">
+      <h1 class="sr-only">Idiot Box features, an open-source desktop IDE</h1>
+
+      <section class="intro">
+        <p class="kicker">Idiot Box · Features</p>
+        <h2 class="intro-title">Every tool, one window.</h2>
+        <p class="intro-copy">Map, code, preview and ship without juggling five apps. The editor, AI agent, terminal, browser, project map and media viewer sit side by side and stay in sync, so you never lose the thread.</p>
+        <div class="intro-actions">
+          <a class="btn-primary js-download" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download for Windows</a>
+          <a class="btn-ghost" href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">View on GitHub</a>
         </div>
-        <div class="feat-visual">
-          <img class="shot" src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box app overview" loading="lazy" />
-        </div>
+        <figure class="overview-shot">
+          <img src="features/overview.png" alt="Idiot Box workspace with media viewer, browser preview, code editor, project files and terminal" loading="eager" />
+          <figcaption>Workspace · media viewer, preview, editor, files and terminal in one frame</figcaption>
+        </figure>
       </section>
 
-      <section class="feat flip" id="f-editor">
-        <div class="feat-text">
-          <span class="feat-num">02 / Editor</span>
-          <h2>Code Editor</h2>
-          <p>A VS Code grade editor. 50 plus languages, minimap, autosave, and files that refresh live when something else changes them.</p>
-          <p class="feat-hint">Type below — this is the real editor</p>
-        </div>
-        <div class="feat-visual">
-          <figure class="demo">
-            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — welcome.js</figcaption>
-            <div id="demo-editor"><pre class="editor-fallback">// welcome to Idiot Box
-function buildSomething(great) {
-  const app = { canvas: true, editor: 'monaco', flow: 100 };
-  return [app, great].filter(Boolean).join(' + ');
-}
-buildSomething('your idea');</pre></div>
+      <section class="feature-list" aria-label="Features">
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <span class="feature-num">01</span>
+            <h3>One window, whole workflow</h3>
+          </div>
+          <p class="feature-copy">Map, code, preview and ship without juggling five tools. Everything lives side by side and stays in sync, with no alt-tab and no lost context.</p>
+          <ul class="chip-list">
+            <li>Map</li><li>Code</li><li>Preview</li><li>Ship</li>
+          </ul>
+          <figure class="feature-shot">
+            <img src="features/workflow.png" alt="Idiot Box with all workspace panels open at once" loading="lazy" />
           </figure>
-        </div>
-      </section>
+        </article>
 
-      <section class="feat" id="f-browser">
-        <div class="feat-text">
-          <span class="feat-num">03 / Browser</span>
-          <h2>Browser Panel</h2>
-          <p>Your dev servers in tabs. Open localhost previews with automatic port detection, right next to your code.</p>
-          <p class="feat-hint">Try the address bar</p>
-        </div>
-        <div class="feat-visual">
-          <figure class="demo">
-            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — browser panel</figcaption>
-            <div class="addr-bar"><input id="demo-url" value="my-portfolio.local" spellcheck="false" /><button id="demo-go" type="button">Go</button></div>
-            <iframe id="demo-frame" title="browser preview" srcdoc="<html><body style='margin:0;background:#0b0b0e;color:#fff;font-family:sans-serif'><nav style='display:flex;gap:18px;padding:18px 24px;border-bottom:1px solid #222'><b>S.</b><a href='#work' style='color:#fff;text-decoration:none'>Work</a><a href='#about' style='color:#fff;text-decoration:none'>About</a><a href='#contact' style='color:#fff;text-decoration:none'>Contact</a></nav><section id='work' style='padding:48px 24px'><h1 style='font-size:40px;margin:0 0 12px'>Design-minded.<br>Engineering-first.</h1><p style='opacity:.7'>Selected work below.</p></section><section id='about' style='padding:48px 24px;border-top:1px solid #222'><h2>About</h2><p style='opacity:.7'>Interfaces that feel fast, not just look fast.</p></section><section id='contact' style='padding:48px 24px;border-top:1px solid #222'><h2>Contact</h2><p style='opacity:.7'>Say hello. This page runs entirely inside the demo.</p></section></body></html>"></iframe>
+        <article class="feature-card">
+          <div class="feature-head">
+            <span class="feature-num">02</span>
+            <h3>A real code editor</h3>
+          </div>
+          <p class="feature-copy">A professional-grade editor with syntax highlighting for 50+ languages, minimap, autosave, and files that refresh live when something else changes them.</p>
+          <ul class="chip-list">
+            <li>50+ languages</li><li>Minimap</li><li>Autosave</li><li>Live reload</li>
+          </ul>
+          <figure class="feature-shot">
+            <img src="features/editor.png" alt="Idiot Box code editor with JavaScript syntax highlighting" loading="lazy" />
           </figure>
-        </div>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <span class="feature-num">03</span>
+            <h3>Local preview, built in</h3>
+          </div>
+          <p class="feature-copy">Your dev servers in tabs. Open localhost previews with automatic port detection, right next to your code, and keep the page you are building in view.</p>
+          <ul class="chip-list">
+            <li>localhost</li><li>Tabs</li><li>Port detection</li>
+          </ul>
+          <figure class="feature-shot">
+            <img src="features/browser.png" alt="Idiot Box browser panel previewing a local site" loading="lazy" />
+          </figure>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <span class="feature-num">04</span>
+            <h3>The whole project tree</h3>
+          </div>
+          <p class="feature-copy">Files without friction. Drag and drop, multi select, clipboard, undo and redo, all in a tree that keeps up with you and stays honest about what changed.</p>
+          <ul class="chip-list">
+            <li>Multi-select</li><li>Drag &amp; drop</li><li>Clipboard</li><li>Undo</li>
+          </ul>
+          <figure class="feature-shot">
+            <img src="features/project.png" alt="Idiot Box project panel showing an expandable file tree" loading="lazy" />
+          </figure>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <span class="feature-num">05</span>
+            <h3>A terminal where you work</h3>
+          </div>
+          <p class="feature-copy">A full terminal with splits and new panels, opened right where your project lives. Run the build, watch the log, fix the thing, all without leaving the window.</p>
+          <ul class="chip-list">
+            <li>Splits</li><li>Panels</li><li>Local shell</li>
+          </ul>
+          <figure class="feature-shot">
+            <img src="features/terminal.png" alt="Idiot Box terminal running inside the project" loading="lazy" />
+          </figure>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <span class="feature-num">06</span>
+            <h3>Media stays in flow</h3>
+          </div>
+          <p class="feature-copy">Zoom, rotate, flip and pan images and video without ever leaving the app. Check the asset against the layout you are building instead of opening another window.</p>
+          <ul class="chip-list">
+            <li>Zoom</li><li>Rotate</li><li>Flip</li><li>Pan</li>
+          </ul>
+          <figure class="feature-shot">
+            <img src="features/media.png" alt="Idiot Box media viewer with zoom, rotate and flip controls" loading="lazy" />
+          </figure>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-head">
+            <span class="feature-num">07</span>
+            <h3>An agent inside the project</h3>
+          </div>
+          <p class="feature-copy">Bring a coding assistant into the same window as your code. Start a session in the current project, choose the model or provider you prefer, and ask the agent to read, edit or run work alongside you.</p>
+          <ul class="chip-list">
+            <li>Sessions</li><li>Models</li><li>Tools</li><li>Review</li>
+          </ul>
+          <figure class="feature-shot">
+            <img src="features/agent.png" alt="Idiot Box AI agent panel with a session running in the current project" loading="lazy" />
+          </figure>
+        </article>
+
       </section>
 
-      <section class="feat flip" id="f-project">
-        <div class="feat-text">
-          <span class="feat-num">04 / Project</span>
-          <h2>Project Panel</h2>
-          <p>Files without friction. Drag and drop, multi select, clipboard, undo and redo, all in a tree that keeps up with you.</p>
-          <p class="feat-hint">Real repo structure — click around</p>
+      <section class="more" aria-labelledby="more-title">
+        <div class="more-head">
+          <p class="kicker">More in the box</p>
+          <h2 id="more-title">The rest of the toolkit.</h2>
         </div>
-        <div class="feat-visual">
-          <figure class="demo">
-            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — project tree</figcaption>
-            <div class="tree-body">
-              <div class="tree" id="demo-tree"></div>
-              <div class="tree-preview" id="tree-preview">Select a file to preview its path.</div>
+
+        <div class="more-grid">
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">08</span>
+              <h3>Git &amp; source control</h3>
             </div>
-          </figure>
-        </div>
-      </section>
+            <p class="feature-copy">Branch graph, staged and unstaged changes, stage or discard individual hunks, commit and amend, and push without leaving the window. Ask the agent to draft a commit message when you are done.</p>
+            <ul class="chip-list">
+              <li>Graph</li><li>Hunks</li><li>Commit</li><li>Push</li>
+            </ul>
+          </article>
 
-      <section class="feat" id="f-terminal">
-        <div class="feat-text">
-          <span class="feat-num">05 / Terminal</span>
-          <h2>Terminal</h2>
-          <p>A full terminal with splits and new panels, opened right where your project lives.</p>
-          <p class="feat-hint">Type help and press enter</p>
-        </div>
-        <div class="feat-visual">
-          <figure class="demo">
-            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — terminal</figcaption>
-            <div id="demo-term"></div>
-          </figure>
-        </div>
-      </section>
-
-      <section class="feat flip" id="f-media">
-        <div class="feat-text">
-          <span class="feat-num">06 / Media</span>
-          <h2>Media Viewer</h2>
-          <p>Media stays in flow. Zoom, rotate, flip and pan images and video without ever leaving the app.</p>
-          <p class="feat-hint">Try the buttons</p>
-        </div>
-        <div class="feat-visual">
-          <figure class="demo">
-            <figcaption class="demo-cap"><span class="cap-dot"></span>Live — media viewer</figcaption>
-            <div class="media-stage"><img id="media-img" src="https://files.catbox.moe/to6wz3.png" alt="Idiot Box media viewer demo" loading="lazy" /></div>
-            <div class="media-tools">
-              <button type="button" data-zoom="in">Zoom +</button>
-              <button type="button" data-zoom="out">Zoom -</button>
-              <button type="button" data-rotate="left">Rotate left</button>
-              <button type="button" data-rotate="right">Rotate right</button>
-              <button type="button" data-flip="h">Flip</button>
-              <button type="button" data-reset="1">Reset</button>
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">09</span>
+              <h3>Port forwarding</h3>
             </div>
-          </figure>
-        </div>
-      </section>
+            <p class="feature-copy">See every listening port, then share a local server through a Microsoft Dev Tunnels URL. Project-only or public access is one toggle away.</p>
+            <ul class="chip-list">
+              <li>Dev Tunnels</li><li>Public URL</li><li>Project-only</li>
+            </ul>
+          </article>
 
-      <section class="feat" id="f-ai-agent">
-        <div class="feat-text">
-          <span class="feat-num">07 / AI Agent</span>
-          <h2>OpenCode, built into your workspace</h2>
-          <p>Use OpenCode’s native web interface inside Idiot Box. Manage sessions, choose from OpenCode’s supported providers and models, and work with its agents and tools without leaving your project.</p>
-          <p>The panel opens a new session in the current Idiot Box project and hides OpenCode’s project-add and project-selection controls. The OpenCode runtime is bundled with the app; provider setup, permissions and agent settings stay in OpenCode’s native interface.</p>
-        </div>
-        <div class="feat-visual">
-          <figure class="demo agent-demo">
-            <figcaption class="demo-cap"><span class="cap-dot"></span>OpenCode <span class="agent-demo-provider">Native web interface</span></figcaption>
-            <div class="agent-demo-body">
-              <div class="agent-demo-profile"><span>Workspace</span><b>OpenCode · current project</b></div>
-              <div class="agent-demo-message"><span>OC</span><p>A new session starts in your current project. Select a provider and model, and ask OpenCode to work.</p></div>
-              <div class="agent-demo-command"><span class="cap-dot"></span><code>OpenCode Web</code><b>Running locally in this panel</b></div>
-              <div class="agent-demo-browser"><span>Sessions</span><b>Agents · Tools</b><b>Providers · Models</b></div>
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">10</span>
+              <h3>Local history</h3>
             </div>
-          </figure>
+            <p class="feature-copy">Every save, live edit and replace leaves a snapshot. Preview any earlier version of a file and restore it without touching Git.</p>
+            <ul class="chip-list">
+              <li>Snapshots</li><li>Preview</li><li>Restore</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">11</span>
+              <h3>Search &amp; replace</h3>
+            </div>
+            <p class="feature-copy">Search with literal text or regex, filter the matches, and replace across the whole project with a single undo step.</p>
+            <ul class="chip-list">
+              <li>Regex</li><li>Filters</li><li>Replace</li><li>Undo</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">12</span>
+              <h3>Visual canvas</h3>
+            </div>
+            <p class="feature-copy">Sketch architecture and flows on an infinite Excalidraw canvas, with live component previews embedded right in the drawing. Drawings save per project.</p>
+            <ul class="chip-list">
+              <li>Excalidraw</li><li>Infinite canvas</li><li>Embeds</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">13</span>
+              <h3>Live component preview</h3>
+            </div>
+            <p class="feature-copy">Render a component in an isolated preview. Changes show up immediately, before you save, with runtime errors caught in the preview itself.</p>
+            <ul class="chip-list">
+              <li>Isolated</li><li>Live</li><li>No save needed</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">14</span>
+              <h3>Run &amp; test</h3>
+            </div>
+            <p class="feature-copy">Discover Jest, Vitest, Mocha, node:test, pytest and unittest projects, run suites from the Test Explorer, and read streamed output with pass/fail summaries.</p>
+            <ul class="chip-list">
+              <li>Jest</li><li>Vitest</li><li>Python</li><li>Pass/fail</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">15</span>
+              <h3>Debugger</h3>
+            </div>
+            <p class="feature-copy">Debug Node.js and Python with breakpoints, call stack, variables, watches and an evaluate console, all inside the same workspace.</p>
+            <ul class="chip-list">
+              <li>Node</li><li>Python</li><li>Breakpoints</li><li>Watch</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">16</span>
+              <h3>Notebooks</h3>
+            </div>
+            <p class="feature-copy">Open .ipynb files in a Jupyter-like cell editor. Run Python cells against a persistent kernel, so variables and imports survive until you restart.</p>
+            <ul class="chip-list">
+              <li>.ipynb</li><li>Python cells</li><li>Persistent kernel</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">17</span>
+              <h3>Extensions</h3>
+            </div>
+            <p class="feature-copy">Run supported VS Code-compatible extensions in a local extension host, so familiar tools come along for the ride.</p>
+            <ul class="chip-list">
+              <li>VS Code API</li><li>Local host</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">18</span>
+              <h3>Emulators</h3>
+            </div>
+            <p class="feature-copy">Create QEMU desktop VMs and Android virtual devices, watch the live display and inspect logs without leaving the IDE.</p>
+            <ul class="chip-list">
+              <li>QEMU</li><li>Android</li><li>Live display</li><li>Logs</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">19</span>
+              <h3>Command palette</h3>
+            </div>
+            <p class="feature-copy">One palette for files and every app command. Ctrl+P for both, Ctrl+Shift+P or F1 for commands only.</p>
+            <ul class="chip-list">
+              <li>Ctrl+P</li><li>Commands</li><li>Files</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">20</span>
+              <h3>MCP server</h3>
+            </div>
+            <p class="feature-copy">Let compatible local AI clients drive the IDE: project files, Git, the shell, browser, editor tabs and other tools.</p>
+            <ul class="chip-list">
+              <li>Local</li><li>AI clients</li><li>Tools</li>
+            </ul>
+          </article>
+
+          <article class="more-card">
+            <div class="feature-head">
+              <span class="feature-num">21</span>
+              <h3>Session restore</h3>
+            </div>
+            <p class="feature-copy">Come back to the same window state, docked layout and open tabs after a restart. Terminal, browser and console titles restore too.</p>
+            <ul class="chip-list">
+              <li>Layout</li><li>Tabs</li><li>Workspace</li>
+            </ul>
+          </article>
+
         </div>
       </section>
 
-      <footer class="feat-end">
-        <p class="feat-kicker">Ready?</p>
+      <section class="closing">
         <h2>Build in one window.</h2>
-        <p>Free and open source. Grab the latest build and start mapping your project.</p>
-        <a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download .exe</a>
+        <p>Open source. Free to use. Grab the latest build and put your whole project on one calm surface.</p>
+        <div class="closing-actions">
+          <a class="btn-primary js-download" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener" data-download-latest>Download .exe</a>
+          <a class="btn-ghost" href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">View source</a>
+        </div>
+      </section>
+
+      <footer class="page-foot">
+        <span>© <span data-year>2026</span> The Wonderland Studio</span>
+        <nav aria-label="Footer">
+          <a href="index.html">Home</a>
+          <a href="chatlog.html">Chatlog</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="credits.html">Credits</a>
+          <a href="https://discord.gg/Z9DynuSxRY" target="_blank" rel="noopener">Discord</a>
+          <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+        </nav>
       </footer>
     </main>
   </div>
@@ -220,272 +374,16 @@ buildSomething('your idea');</pre></div>
   <script src="page-transition.js"></script>
   <script>
     (function () {
-      // mp4 background
-      const video = document.getElementById('features-bg');
-      video.play().catch(function () {});
-      video.addEventListener('canplay', function () { video.play().catch(function () {}); });
+      'use strict';
 
-      // Nav download — always the latest release installer (per OS: macOS → dmg, Linux → AppImage/deb, Windows → Microsoft Store)
-      const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
-      const STORE_URL = 'https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare';
-      let cachedUrl = null;
-      const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
-      const IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
-      function pickReleaseAsset(assets) {
-        const list = assets || [];
-        if (IS_MAC) {
-          return list.find(function (a) { return /\.dmg$/i.test(a.name); }) || list.find(function (a) { return /mac.*\.zip$/i.test(a.name); });
-        }
-        if (IS_LINUX) {
-          return list.find(function (a) { return /\.AppImage$/i.test(a.name); }) || list.find(function (a) { return /\.deb$/i.test(a.name); });
-        }
-        return list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
-      }
-      if (IS_MAC) {
-        document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download .dmg'; });
-      } else if (IS_LINUX) {
-        document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download .AppImage'; });
-      } else {
-        // Windows → Microsoft Store (href swap opts out of the GitHub
-        // direct-download interceptor below, which only binds github hrefs)
-        document.querySelectorAll('.log-dl[data-download-latest]').forEach(function (b) { b.textContent = 'Download from Microsoft Store'; b.href = STORE_URL; b.target = '_blank'; b.rel = 'noopener'; });
-      }
-      function resolveExeUrl() {
-        if (cachedUrl) return Promise.resolve(cachedUrl);
-        return fetch('https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest')
-          .then(function (res) { if (!res.ok) throw new Error('api failed'); return res.json(); })
-          .then(function (data) {
-            const exe = pickReleaseAsset(data.assets);
-            if (!exe) throw new Error('no installer');
-            cachedUrl = exe.browser_download_url;
-            return cachedUrl;
-          });
-      }
-      document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          const original = btn.textContent;
-          btn.textContent = 'Locating…';
-          resolveExeUrl().then(function (url) {
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = '';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-          }).catch(function () {
-            window.open(FALLBACK, '_blank', 'noopener');
-          }).finally(function () {
-            btn.textContent = original;
-          });
-        });
-      });
-      resolveExeUrl().catch(function () {});
+      var yearEl = document.querySelector('[data-year]');
+      if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-      // ---- real component demos (heavy libs lazy-load on scroll) ----
-      function loadScript(src) {
-        return new Promise(function (res, rej) {
-          const s = document.createElement('script');
-          s.src = src;
-          s.onload = res;
-          s.onerror = rej;
-          document.head.appendChild(s);
-        });
-      }
-
-      // Editor: real Monaco (workers off for static demo)
-      function initEditor() {
-        const el = document.getElementById('demo-editor');
-        if (!el || !window.monaco || el.dataset.live) return;
-        try {
-          window.MonacoEnvironment = {
-            getWorker: function () {
-              const src = 'self.onmessage = function () {};';
-              return new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
-            }
-          };
-          const code = el.innerText;
-          el.innerHTML = '';
-          window.monaco.editor.create(el, {
-            value: code,
-            language: 'javascript',
-            theme: 'vs-dark',
-            fontSize: 13,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            padding: { top: 12 }
-          });
-          el.dataset.live = '1';
-        } catch (e) { /* fallback pre stays */ }
-      }
-
-      // Browser demo: address bar drives the frame
+      // Hamburger menu
       (function () {
-        const input = document.getElementById('demo-url');
-        const go = document.getElementById('demo-go');
-        const frame = document.getElementById('demo-frame');
-        if (!input || !go || !frame) return;
-        function navigate() {
-          let url = input.value.trim();
-          if (!url) return;
-          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-          frame.removeAttribute('srcdoc');
-          frame.src = url;
-        }
-        go.addEventListener('click', navigate);
-        input.addEventListener('keydown', function (e) { if (e.key === 'Enter') navigate(); });
-      })();
-
-      // Project tree: real repo snapshot, expandable
-      (function () {
-        const tree = document.getElementById('demo-tree');
-        const preview = document.getElementById('tree-preview');
-        if (!tree) return;
-        const data = { name: 'Idiot_Box', open: true, kids: [
-          { name: 'electron', kids: [
-            { name: 'main' }, { name: 'preload' },
-            { name: 'renderer', kids: [
-              { name: 'components', kids: ['AIPanel','Blank','Browser','Canvas','CommandPalette','ComponentPreview','Editor','GitPanel','MediaViewer','Ports','Problems','Project','QuickOpen','SearchPanel','Settings','Terminal','UpdaterBanner','shared'].map(function (n) { return { name: n }; }) },
-              { name: 'workers' }, { name: 'extensions' },
-              { name: 'index.jsx' }, { name: 'index.html' }
-            ] }
-          ] },
-          { name: 'landing-page', kids: [
-            { name: 'index.html' }, { name: 'chatlog.html' }, { name: 'features.html' },
-            { name: 'style.css' }, { name: 'vendor' }
-          ] },
-          { name: 'build' }, { name: 'dist' },
-          { name: 'README.md' }, { name: 'package.json' }
-        ] };
-        function dot(n) { return (n.kids ? '&#128193; ' : '&#128196; '); }
-        function build(node, path, container, depth) {
-          const ul = document.createElement('ul');
-          (node.kids || []).forEach(function (kid) {
-            const name = typeof kid === 'string' ? kid : kid.name;
-            const full = path + '/' + name;
-            const li = document.createElement('li');
-            const row = document.createElement('div');
-            row.className = 'tree-item';
-            row.innerHTML = dot(kid) + name;
-            li.appendChild(row);
-            if (kid.kids) {
-              const sub = document.createElement('div');
-              sub.className = 'tree-kids' + (depth > 0 ? ' hidden' : '');
-              row.innerHTML = (depth > 0 ? '&#9654; ' : '&#9660; ') + dot(kid) + name;
-              build(kid, full, sub, depth + 1);
-              li.appendChild(sub);
-              row.addEventListener('click', function () {
-                const hidden = sub.classList.toggle('hidden');
-                row.innerHTML = (hidden ? '&#9654; ' : '&#9660; ') + dot(kid) + name;
-              });
-            } else {
-              row.addEventListener('click', function () {
-                tree.querySelectorAll('.tree-item').forEach(function (x) { x.classList.remove('active'); });
-                row.classList.add('active');
-                if (preview) preview.textContent = full + ' — opened in editor (demo).';
-              });
-            }
-            ul.appendChild(li);
-          });
-          container.appendChild(ul);
-        }
-        build(data, 'Idiot_Box', tree, 0);
-      })();
-
-      // Terminal: real xterm with a tiny shell
-      function initTerm() {
-        const el = document.getElementById('demo-term');
-        if (!el || el.dataset.live) return;
-        if (!window.Terminal) {
-          el.innerHTML = '<div style="padding:12px;font:13px monospace;color:#d4d4d4">idiot-box $ type help and press enter</div>';
-          return;
-        }
-        const term = new window.Terminal({ fontSize: 13, theme: { background: '#1e1e1e' }, cols: 80, rows: 12 });
-        term.open(el);
-        el.dataset.live = '1';
-        const PROMPT = 'idiot-box $ ';
-        let buf = '';
-        term.writeln('Welcome to Idiot Box. Type help.');
-        term.write(PROMPT);
-        term.onData(function (ch) {
-          if (ch === '\r') {
-            term.writeln('');
-            run(buf.trim());
-            buf = '';
-            term.write(PROMPT);
-          } else if (ch === '\u007f') {
-            if (buf.length) { buf = buf.slice(0, -1); term.write('\b \b'); }
-          } else if (ch >= ' ') {
-            buf += ch;
-            term.write(ch);
-          }
-        });
-        function run(cmd) {
-          const parts = cmd.split(/\s+/);
-          const c = parts[0];
-          if (!c) return;
-          if (c === 'help') term.writeln('commands: help, ls, echo, whoami, date, clear');
-          else if (c === 'ls') term.writeln('electron  landing-page  build  dist  README.md  package.json');
-          else if (c === 'echo') term.writeln(parts.slice(1).join(' '));
-          else if (c === 'whoami') term.writeln('builder');
-          else if (c === 'date') term.writeln(new Date().toString());
-          else if (c === 'clear') term.clear();
-          else term.writeln('unknown command: ' + c + ' (try help)');
-        }
-      }
-
-      // load heavy libs as soon as the demo becomes visible
-      (function () {
-        let editorRequested = false, termRequested = false;
-        function watch(id, load, init) {
-          const el = document.getElementById(id);
-          if (!el) return;
-          const go = function () { load().then(init).catch(init); };
-          if (!('IntersectionObserver' in window)) { go(); return; }
-          const io = new IntersectionObserver(function (entries) {
-            entries.forEach(function (en) {
-              if (en.isIntersecting) { io.disconnect(); go(); }
-            });
-          }, { rootMargin: '500px' });
-          io.observe(el);
-        }
-        watch('demo-editor', function () {
-          if (editorRequested || window.monaco) return Promise.resolve();
-          editorRequested = true;
-          return loadScript('vendor/monaco.bundle.js');
-        }, initEditor);
-        watch('demo-term', function () {
-          if (termRequested || window.Terminal) return Promise.resolve();
-          termRequested = true;
-          return loadScript('vendor/xterm.js');
-        }, initTerm);
-      })();
-
-      // Media viewer: zoom, rotate, flip, reset
-      (function () {
-        const img = document.getElementById('media-img');
-        if (!img) return;
-        let z = 1, r = 0, flip = 1;
-        function apply() { img.style.transform = 'scale(' + z + ') rotate(' + r + 'deg) scaleX(' + flip + ')'; }
-        document.querySelectorAll('.media-tools button').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            if (btn.dataset.zoom === 'in') z = Math.min(3, z + 0.25);
-            else if (btn.dataset.zoom === 'out') z = Math.max(0.5, z - 0.25);
-            else if (btn.dataset.rotate === 'left') r -= 90;
-            else if (btn.dataset.rotate === 'right') r += 90;
-            else if (btn.dataset.flip) flip *= -1;
-            else if (btn.dataset.reset) { z = 1; r = 0; flip = 1; }
-            apply();
-          });
-        });
-      })();
-
-      // Hamburger menu (mobile) — sized like the card
-      (function () {
-        const bg = document.querySelector('.background');
-        const btn = document.querySelector('.hamburger');
-        const panel = document.getElementById('menu-panel');
+        var bg = document.querySelector('.background');
+        var btn = document.querySelector('.hamburger');
+        var panel = document.getElementById('menu-panel');
         if (!btn || !panel) return;
 
         function setOpen(open) {
@@ -511,35 +409,65 @@ buildSomething('your idea');</pre></div>
         });
       })();
 
-      // scroll reveal — show sections only when they enter the viewport
-      (function () {
-        var showcase = document.querySelector('.showcase');
-        var items = document.querySelectorAll('.feat-hero, .feat, .feat-end');
-        if (!items.length) return;
-        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (reduce || !('IntersectionObserver' in window)) {
-          items.forEach(function (el) { el.classList.add('in'); });
-          return;
-        }
-        var io = new IntersectionObserver(function (entries) {
-          entries.forEach(function (en) {
-            if (en.isIntersecting) {
-              en.target.classList.add('in');
-              io.unobserve(en.target);
-            }
-          });
-        }, { root: showcase, threshold: 0.1, rootMargin: '0px 0px -6% 0px' });
-        items.forEach(function (el) { io.observe(el); });
-      })();
+      // Download: latest installer per OS
+      var FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
+      var STORE_URL = 'https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare';
+      var IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
+      var IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
+      var cachedUrl = null;
 
-      // Monaco leaves an 'underline-links' class on body — keep site links non-underlined
-      if (window.MutationObserver) {
-        new MutationObserver(function () {
-          if (document.body.classList.contains('underline-links')) {
-            document.body.classList.remove('underline-links');
-          }
-        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+      function pickReleaseAsset(assets) {
+        var list = assets || [];
+        if (IS_MAC) return list.find(function (a) { return /\.dmg$/i.test(a.name); }) || list.find(function (a) { return /mac.*\.zip$/i.test(a.name); });
+        if (IS_LINUX) return list.find(function (a) { return /\.AppImage$/i.test(a.name); }) || list.find(function (a) { return /\.deb$/i.test(a.name); });
+        return list.find(function (a) { return /\.exe$/i.test(a.name) && !/blockmap/i.test(a.name); });
       }
+
+      if (IS_MAC) {
+        document.querySelectorAll('.js-download').forEach(function (b) { b.textContent = 'Download for macOS'; });
+      } else if (IS_LINUX) {
+        document.querySelectorAll('.js-download').forEach(function (b) { b.textContent = 'Download for Linux'; });
+      } else {
+        document.querySelectorAll('.js-download').forEach(function (b) {
+          b.textContent = 'Download for Windows';
+          b.href = STORE_URL;
+          b.target = '_blank';
+          b.rel = 'noopener';
+        });
+      }
+
+      function resolveExeUrl() {
+        if (cachedUrl) return Promise.resolve(cachedUrl);
+        return fetch('https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest')
+          .then(function (res) { if (!res.ok) throw new Error('api failed'); return res.json(); })
+          .then(function (data) {
+            var exe = pickReleaseAsset(data.assets);
+            if (!exe) throw new Error('no installer');
+            cachedUrl = exe.browser_download_url;
+            return cachedUrl;
+          });
+      }
+
+      document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          var original = btn.textContent;
+          btn.textContent = 'Locating…';
+          resolveExeUrl().then(function (url) {
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          }).catch(function () {
+            window.open(FALLBACK, '_blank', 'noopener');
+          }).finally(function () {
+            btn.textContent = original;
+          });
+        });
+      });
+      resolveExeUrl().catch(function () {});
     })();
   </script>
 </body>

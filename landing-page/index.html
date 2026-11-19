@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Idiot Box — Free Open-Source Code Editor &amp; IDE for Windows</title>
-  <meta name="description" content="Idiot Box is a free, open-source desktop IDE for Windows: Monaco code editor, integrated terminal, browser panel, visual project map and file manager in one window." />
-  <meta name="keywords" content="Idiot Box, code editor, IDE, open source, Windows, Monaco editor, integrated terminal, developer tools" />
+  <title>Idiot Box: Open-Source Desktop IDE</title>
+  <meta name="description" content="Idiot Box is an open-source desktop IDE that keeps your code editor, terminal, browser preview, project map and AI coding agent in one calm window." />
+  <meta name="keywords" content="Idiot Box, desktop IDE, code editor, open-source IDE, all-in-one developer workspace, integrated terminal, browser preview, project map, AI coding agent, Windows IDE, Linux IDE" />
   <meta name="author" content="The Wonderland Studio" />
   <meta name="robots" content="index, follow" />
   <meta name="google-site-verification" content="v2Wgib5JpCJbfn1VeGqqDqSmFqXi9U5ZEa5d95lXcMY" />
@@ -16,14 +16,14 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Idiot Box" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:title" content="Idiot Box — Free Open-Source Code Editor & IDE for Windows" />
-  <meta property="og:description" content="Map your project, write code, run the terminal. A free, open-source desktop IDE for Windows in one calm window." />
+  <meta property="og:title" content="Idiot Box: Open-Source Desktop IDE" />
+  <meta property="og:description" content="Build, preview and ship without switching apps. Idiot Box brings your editor, terminal, browser, project map and AI agent together in one calm window." />
   <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/" />
   <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <meta property="og:image:alt" content="Idiot Box logo" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Idiot Box — Free Open-Source Code Editor & IDE for Windows" />
-  <meta name="twitter:description" content="Map your project, write code, run the terminal. A free, open-source desktop IDE for Windows in one calm window." />
+  <meta name="twitter:title" content="Idiot Box: Open-Source Desktop IDE" />
+  <meta name="twitter:description" content="Build, preview and ship without switching apps. Idiot Box brings your editor, terminal, browser, project map and AI agent together in one calm window." />
   <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <script type="application/ld+json">
   {
@@ -31,14 +31,22 @@
     "@type": "SoftwareApplication",
     "name": "Idiot Box",
     "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "Windows",
-    "isAccessibleForFree": true,
+    "operatingSystem": "Windows, Linux, macOS",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "url": "https://thewonderlandstudio.github.io/Idiot_Box/",
     "downloadUrl": "https://apps.microsoft.com/detail/9PB1J8PS17ZT?hl=en-us&gl=IN&ocid=pdpshare",
     "softwareVersion": "0.1.14",
     "author": { "@type": "Organization", "name": "The Wonderland Studio", "url": "https://github.com/TheWonderlandStudio" },
-    "description": "Free, open-source desktop IDE for Windows with a Monaco code editor, integrated terminal, browser panel, visual project map and file manager in one window."
+    "description": "Open-source desktop IDE that brings the code editor, terminal, browser preview, project map, file manager and AI coding agent together in one calm window.",
+    "featureList": [
+      "Code editor with syntax highlighting for 50+ languages",
+      "Integrated terminal with split panels",
+      "Built-in browser preview for local dev servers",
+      "Visual project map and file manager",
+      "AI coding agent that works inside the current project",
+      "Git and source control panel",
+      "Image and video viewer"
+    ]
   }
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -49,7 +57,7 @@
 <body class="is-entering" data-bgm="home">
   <svg class="crt-defs" width="0" height="0" aria-hidden="true" focusable="false">
     <defs>
-      <!-- CRT tube — curved sides from the middle, corners tucked inward -->
+      <!-- CRT tube: curved sides from the middle, corners tucked inward -->
       <clipPath id="crt-frame" clipPathUnits="objectBoundingBox">
         <path d="M .06 .014 C .3 -.002 .7 -.002 .94 .014 C .982 .014 .99 .042 .99 .09 C 1 .2 1 .8 .99 .91 C .99 .958 .982 .986 .94 .986 C .7 1.002 .3 1.002 .06 .986 C .018 .986 .01 .958 .01 .91 C 0 .8 0 .2 .01 .09 C .01 .042 .018 .014 .06 .014 Z" />
       </clipPath>
@@ -96,7 +104,7 @@
     </nav>
     <a class="side-tab" href="features.html">Features</a>
     <section class="hero">
-      <p class="hero-kicker">Idiot Box · <span data-release-version>v0.1.14</span> · Free &amp; open source <span class="new-pill" hidden>New</span></p>
+      <p class="hero-kicker">Idiot Box · <span data-release-version>v0.1.14</span> · Open-source <span class="new-pill" hidden>New</span></p>
       <h1 class="hero-title" style="gap: 74px;">Your whole project, in one window</h1>
       <p class="hero-sub">Map your project, write code, run the terminal. Everything you need in one calm window that stays out of your way, so you can just build.</p>
       <div class="hero-cta">
@@ -134,7 +142,7 @@
 
       function moveToCorner() {
         if (bg.classList.contains('moved')) return;
-        // move with animation — no direct jump, CSS transition handles it
+        // move with animation, no direct jump, CSS transition handles it
         bg.classList.add('moved');
         // after the card's 1s corner move finishes, bring the nav from top to bottom
         setTimeout(showNav, 1100);
@@ -148,7 +156,7 @@
         }
       });
 
-      // fallback — run the sequence even if animationend is missed
+      // fallback: run the sequence even if animationend is missed
       setTimeout(moveToCorner, 5500);
       setTimeout(showNav, 7500);
       setTimeout(showVideo, 8600);
@@ -183,7 +191,7 @@
         });
       })();
 
-      // Release tracker — auto-update UI + download when a new release arrives
+      // Release tracker: auto-update UI + download when a new release arrives
       (function () {
         const API = 'https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases/latest';
         const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
@@ -192,7 +200,7 @@
         let currentTag = null;
         let cachedUrl = null;
 
-        // OS-aware asset picker — macOS → dmg (else mac zip), Linux → AppImage (else deb), else Windows exe
+        // OS-aware asset picker: macOS → dmg (else mac zip), Linux → AppImage (else deb), else Windows exe
         const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
         const IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
         function pickReleaseAsset(assets) {
@@ -223,7 +231,7 @@
           const exe = pickReleaseAsset(data.assets);
           if (!exe) throw new Error('no installer found');
           if (currentTag && data.tag_name !== currentTag) {
-            // new release found — show the badge
+            // new release found, show the badge
             document.querySelectorAll('.new-pill').forEach((el) => { el.hidden = false; });
           }
           currentTag = data.tag_name;
@@ -239,7 +247,7 @@
           return checkRelease();
         }
 
-        // only direct-download buttons (github href) — nav Download = download.html
+        // only direct-download buttons (github href), nav Download = download.html
         document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach((btn) => {
           btn.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -294,7 +302,7 @@
       }
 
       drawNoise();
-      // ~8fps random flicker — cheap, no layout cost
+      // ~8fps random flicker, cheap, no layout cost
       setInterval(drawNoise, 120);
     })();
   </script>
