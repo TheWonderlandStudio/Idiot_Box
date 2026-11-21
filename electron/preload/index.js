@@ -383,6 +383,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
   killPort:       (pid) => ipcRenderer.invoke("ports:kill", pid),
   clearAutoDetectedPorts: () => ipcRenderer.invoke("ports:clearAutoDetected"),
 
+  // ── Microsoft Dev Tunnels (auth handled by the `devtunnel` CLI) ───────────
+  devTunnelsStatus: () => ipcRenderer.invoke("devtunnels:status"),
+  devTunnelsCheck:  () => ipcRenderer.invoke("devtunnels:check"),
+  devTunnelsLogin:  (provider) => ipcRenderer.invoke("devtunnels:login", provider),
+  devTunnelsLogout: () => ipcRenderer.invoke("devtunnels:logout"),
+  devTunnelsStart:  (port, opts) => ipcRenderer.invoke("devtunnels:start", port, opts),
+  devTunnelsStop:   (port) => ipcRenderer.invoke("devtunnels:stop", port),
+  devTunnelsStopAll: () => ipcRenderer.invoke("devtunnels:stopAll"),
+  devTunnelsInstall: () => ipcRenderer.invoke("devtunnels:install"),
+  onDevTunnelsEvent: (cb) => {
+    const h = (_e, evt) => cb(evt);
+    ipcRenderer.on("devtunnels:event", h);
+    return () => ipcRenderer.removeListener("devtunnels:event", h);
+  },
+
   // ── Open URL in browser ───────────────────────────────────────────────────
   openUrl: (url) => ipcRenderer.invoke("open:url", url),
 

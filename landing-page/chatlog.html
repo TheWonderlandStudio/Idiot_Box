@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Release Notes &amp; Updates — Idiot Box</title>
-  <meta name="description" content="Follow Idiot Box releases and updates: changelog, new features and Windows download links for the free, open-source desktop IDE." />
-  <meta name="keywords" content="Idiot Box changelog, release notes, updates, download, open source IDE" />
+  <title>Release Notes and Updates: Idiot Box</title>
+  <meta name="description" content="Stay up to date with Idiot Box: release notes, new features, improvements and download links for the open-source desktop IDE." />
+  <meta name="keywords" content="Idiot Box release notes, Idiot Box changelog, desktop IDE updates, new developer features, open-source IDE" />
   <meta name="author" content="The Wonderland Studio" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#1e1e1e" />
@@ -15,14 +15,14 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Idiot Box" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:title" content="Release Notes & Updates — Idiot Box" />
-  <meta property="og:description" content="Changelog, new features and Windows download links for Idiot Box, the free open-source desktop IDE." />
+  <meta property="og:title" content="Release Notes and Updates: Idiot Box" />
+  <meta property="og:description" content="Release notes, new features and download links for Idiot Box, the open-source desktop IDE." />
   <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/chatlog.html" />
   <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <meta property="og:image:alt" content="Idiot Box logo" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Release Notes & Updates — Idiot Box" />
-  <meta name="twitter:description" content="Changelog, new features and Windows download links for Idiot Box, the free open-source desktop IDE." />
+  <meta name="twitter:title" content="Release Notes and Updates: Idiot Box" />
+  <meta name="twitter:description" content="Release notes, new features and download links for Idiot Box, the open-source desktop IDE." />
   <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="chatlog.css" />
@@ -86,7 +86,7 @@
       <noscript>
         <div class="log-card">
           <h2 class="log-title">Idiot Box release notes</h2>
-          <div class="log-body"><p>Idiot Box is a free, open-source desktop IDE for Windows. See the full changelog and download the latest release on GitHub.</p></div>
+          <div class="log-body"><p>Idiot Box is an open-source desktop IDE for Windows. See the full changelog and download the latest release on GitHub.</p></div>
           <a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">Open releases on GitHub</a>
         </div>
       </noscript>
@@ -104,19 +104,19 @@
   <script src="page-transition.js"></script>
   <script>
     (function () {
-      // mp4 background — src is set in the tag, just play it
+      // mp4 background, src is set in the tag, just play it
       const video = document.getElementById('chatlog-bg');
       video.play().catch(function () {});
       video.addEventListener('canplay', function () { video.play().catch(function () {}); });
 
-      // Live stats strip — downloads, updates, total users, online users
+      // Live stats strip: downloads, updates, total users, online users
       if (window.IBXStats) {
         window.IBXStats.initStats(document.getElementById('stats-strip'));
       }
 
-      // Release feed — live from GitHub (cached by IBXStats)
+      // Release feed, live from GitHub (cached by IBXStats)
       const feed = document.getElementById('feed-list');
-      // OS-aware asset picker — macOS visitors get dmg (else mac zip),
+      // OS-aware asset picker: macOS visitors get dmg (else mac zip),
       // Linux visitors get AppImage (else deb), others get the Windows exe
       const IS_LINUX = /linux/i.test(navigator.userAgent || '') && !/android/i.test(navigator.userAgent || '');
       const IS_MAC = /macintosh|mac os x/i.test(navigator.userAgent || '');
@@ -143,9 +143,9 @@
         if (/\.zip$/i.test(n)) return 'Download .zip (macOS)';
         return 'Download';
       }
-      // All installer formats for each release — Windows (exe/msi/msix) +
+      // All installer formats for each release: Windows (exe/msi/msix) +
       // Linux (AppImage/deb/rpm/pacman) + macOS (dmg/zip) side by side.
-      // Skip .blockmap/.yml updater files — they are for the auto-updater,
+      // Skip .blockmap/.yml updater files, they are for the auto-updater,
       // not for manual download.
       function installerLinks(assets) {
         const list = (assets || []).filter(function (a) {
@@ -188,7 +188,7 @@
             card.className = 'log-card';
             card.innerHTML =
               '<div class="log-meta"><span class="tag-pill">' + esc(r.tag_name) + '</span>' +
-              (r.prerelease ? '<span class="test-pill" title="Test / pre-release build — not a stable release">Test</span>' : '') +
+              (r.prerelease ? '<span class="test-pill" title="Test / pre-release build, not a stable release">Test</span>' : '') +
               '<span class="log-date">' + esc((r.published_at || '').slice(0, 10)) + '</span>' +
               '<span class="dl-pill" title="Downloads of every file in this release">⬇ ' +
               esc(window.IBXStats ? window.IBXStats.formatNum(total) : String(total)) + ' downloads</span></div>' +
@@ -203,7 +203,7 @@
             '<a class="log-dl" href="https://github.com/TheWonderlandStudio/Idiot_Box/releases" target="_blank" rel="noopener">Open releases on GitHub</a></div>';
         });
 
-      // Nav download — always the latest release installer (per OS)
+      // Nav download: always the latest release installer (per OS)
       const FALLBACK = 'https://github.com/TheWonderlandStudio/Idiot_Box/releases';
       let cachedUrl = null;
       function resolveExeUrl() {
@@ -217,7 +217,7 @@
             return cachedUrl;
           });
       }
-      // direct-download buttons (with GitHub href) — the nav "Download" link
+      // direct-download buttons (with GitHub href): the nav "Download" link
       // now goes to download.html, so only intercept GitHub href ones
       document.querySelectorAll('[data-download-latest][href*="github.com"]').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -238,9 +238,9 @@
           });
         });
       });
-      // direct download now happens from the download page — no prefetch here
+      // direct download now happens from the download page, no prefetch here
 
-      // "Update my app" — trigger the updater of the installed Idiot Box app
+      // "Update my app": trigger the updater of the installed Idiot Box app
       // via idiotbox://update deep link (protocol handler in the app, v0.1.20+).
       // If the app is installed with the handler, the OS will open/focus the app and
       // run the update check. Otherwise show a fallback message + download hint.
@@ -268,14 +268,14 @@
             if (launched || document.hidden) {
               setLabel('✓ Check started in app');
             } else {
-              setLabel('App not found — download below ↓');
+              setLabel('App not found. Download below ↓');
             }
             timer = setTimeout(restore, 4000);
           }, 1600);
         });
       })();
 
-      // Hamburger menu (mobile) — sized like the card
+      // Hamburger menu (mobile), sized like the card
       (function () {
         const bg = document.querySelector('.background');
         const btn = document.querySelector('.hamburger');

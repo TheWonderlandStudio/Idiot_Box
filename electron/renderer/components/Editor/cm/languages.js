@@ -27,7 +27,7 @@ export const CM_LANG_IDS = [
 
 const EXT_MAP = {
   js: "javascript", mjs: "javascript", cjs: "javascript",
-  jsx: "jsx", ts: "typescript", tsx: "typescript", mts: "typescript", cts: "typescript",
+  jsx: "jsx", ts: "typescript", tsx: "tsx", mts: "typescript", cts: "typescript",
   json: "json", jsonc: "json", ipynb: "json",
   html: "html", htm: "html", vue: "html", svelte: "html", astro: "html",
   css: "css", scss: "css", sass: "css", less: "css",

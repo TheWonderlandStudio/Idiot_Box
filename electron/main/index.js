@@ -9,10 +9,19 @@ const { spawn, execFile } = require("child_process");
 const { setupTitlebarAndAttachToWindow } = require("custom-electron-titlebar/main");
 const projectSearch = require("./search");
 const localHistory = require("./local-history");
+const devTunnels = require("./dev-tunnels");
 const testRunner = require("./test-runner");
 const debuggerService = require("./debugger");
 const browserRegistry = require("./browser-registry");
 const browserPickSessions = new Map();
+
+devTunnels.subscribe((evt) => {
+  try {
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send("devtunnels:event", evt);
+    }
+  } catch {}
+});
 
 const finishBrowserPick = async (pick, payload) => {
   if (pick.finished) return;
@@ -5455,6 +5464,7 @@ try {
       for (const [, s] of notebookSessions) { try { s.proc?.kill(); } catch {} }
       notebookSessions.clear();
       try { debuggerService.stopAll(); } catch {}
+      try { devTunnels.stopAllSync(); } catch {}
     } catch {}
     Promise.resolve(qemuManager?.stopAllVms?.())
       .then((failures) => {
@@ -6461,6 +6471,16 @@ ipcMain.handle("ports:clearAutoDetected", async () => {
   autoDetectedPorts.clear();
   return { ok: true };
 });
+
+// Microsoft Dev Tunnels — forwarding driven by the official `devtunnel` CLI.
+ipcMain.handle("devtunnels:status", () => devTunnels.status());
+ipcMain.handle("devtunnels:check", () => devTunnels.checkCli());
+ipcMain.handle("devtunnels:login", (_e, provider) => devTunnels.login(provider));
+ipcMain.handle("devtunnels:logout", () => devTunnels.logout());
+ipcMain.handle("devtunnels:start", (_e, port, opts) => devTunnels.start(port, opts || {}));
+ipcMain.handle("devtunnels:stop", (_e, port) => devTunnels.stop(port));
+ipcMain.handle("devtunnels:stopAll", () => devTunnels.stopAll());
+ipcMain.handle("devtunnels:install", () => devTunnels.install());
 
 // helper to register terminal port sniffing — called from terminal onData
 function sniffPortsFromTerminalOutput(data) {

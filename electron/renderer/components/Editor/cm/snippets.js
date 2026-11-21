@@ -357,6 +357,14 @@ const buildKeywordCompletions = (defs) =>
     boost: 0,
   }));
 
+// Snippet packs are keyed by the base language; React variants reuse them so
+// .jsx/.tsx/.mdx keep their snippets while still getting their own parser.
+const SNIPPET_ALIASES = { jsx: "javascript", tsx: "typescript", mdx: "markdown" };
+const snippetLang = (languageId) => {
+  const lang = languageId || "plaintext";
+  return SNIPPET_ALIASES[lang] || lang;
+};
+
 const ALL_SNIPPET_COMPLETIONS = {};
 const ALL_KEYWORD_COMPLETIONS = {};
 
@@ -365,21 +373,63 @@ for (const [lang, defs] of Object.entries(SNIPPET_DEFS)) {
   ALL_KEYWORD_COMPLETIONS[lang] = buildKeywordCompletions(defs);
 }
 
-export const getSnippetCompletions = (languageId) => {
-  const lang = languageId || "plaintext";
-  return ALL_SNIPPET_COMPLETIONS[lang] || [];
+// ── User snippets (imported from VS Code) ─────────────────────────────────
+// settings.userSnippets is { languageId: [{ prefix, body, description }] }
+// with a special "_global" bucket for snippets without a language scope.
+let USER_COMPLETIONS = {};
+
+const buildUserCompletions = (list) => {
+  const out = [];
+  for (const s of Array.isArray(list) ? list : []) {
+    const prefix = String(s?.prefix || "").trim();
+    const body = String(s?.body || "");
+    if (!prefix || !body) continue;
+    try {
+      out.push(snippetCompletion(body, {
+        label: prefix,
+        detail: "User snippet",
+        type: "snippet",
+        info: String(s?.description || ""),
+        boost: 2,
+      }));
+    } catch {}
+  }
+  return out;
 };
 
-export const getKeywordCompletions = (languageId) => {
-  const lang = languageId || "plaintext";
-  return ALL_KEYWORD_COMPLETIONS[lang] || [];
+export const setUserSnippets = (data) => {
+  const next = {};
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    for (const [lang, list] of Object.entries(data)) {
+      const built = buildUserCompletions(list);
+      if (built.length) next[lang] = built;
+    }
+  }
+  USER_COMPLETIONS = next;
 };
+
+const userCompletionsFor = (lang) => {
+  const alias = SNIPPET_ALIASES[lang] || lang;
+  const scoped = [
+    ...(USER_COMPLETIONS[lang] || []),
+    ...(alias !== lang ? USER_COMPLETIONS[alias] || [] : []),
+  ];
+  const global = USER_COMPLETIONS._global || [];
+  return global.length ? [...scoped, ...global] : scoped;
+};
+
+export const getSnippetCompletions = (languageId) =>
+  ALL_SNIPPET_COMPLETIONS[snippetLang(languageId)] || [];
+
+export const getKeywordCompletions = (languageId) =>
+  ALL_KEYWORD_COMPLETIONS[snippetLang(languageId)] || [];
 
 export const getSnippetCompletionSource = (languageId) => {
-  const lang = languageId || "plaintext";
+  const lang = snippetLang(languageId);
   const snippets = ALL_SNIPPET_COMPLETIONS[lang] || [];
   const keywords = ALL_KEYWORD_COMPLETIONS[lang] || [];
-  const all = [...snippets, ...keywords];
+  const user = userCompletionsFor(languageId || "plaintext");
+  const all = [...user, ...snippets, ...keywords];
   if (!all.length) return null;
   const items = all.map((c) => ({
     ...c,
@@ -409,9 +459,7 @@ export const getAllSnippetCompletions = () => {
 
 export const isSnippetKeyword = (word) => SNIPPET_KEYWORDS_REGEX.test(word);
 
-export const getSnippetCount = (languageId) => {
-  const lang = languageId || "plaintext";
-  return (SNIPPET_DEFS[lang] || []).length;
-};
+export const getSnippetCount = (languageId) =>
+  (SNIPPET_DEFS[snippetLang(languageId)] || []).length;
 
 export const getSnippetLanguages = () => Object.keys(SNIPPET_DEFS);

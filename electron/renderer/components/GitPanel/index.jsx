@@ -166,7 +166,7 @@ export default function GitPanel({ nodeId }){
   const [logView,setLogView]=useState("graph"); // "list" | "graph"
   const [autoFollow,setAutoFollow]=useState(true);
   const [showCommitDetail,setShowCommitDetail]=useState(null); // {hash,diff,stat,loading}
-  const [collapsed,setCollapsed]=useState({ changes:false });
+  const [collapsed,setCollapsed]=useState({ changes:false, staged:false });
   const [lastRefresh,setLastRefresh]=useState(null);
   const [amend,setAmend]=useState(false);
   const [branchPickerOpen,setBranchPickerOpen]=useState(false);
@@ -454,6 +454,20 @@ export default function GitPanel({ nodeId }){
   };
   const doStageAll=async()=>{ await wrapAction("stageAll", ()=> window.electronAPI.gitStageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await invalidateAllDiffs(); };
   const doUnstageAll=async()=>{ await wrapAction("unstageAll", ()=> window.electronAPI.gitUnstageAll(projectPath).then(r=>{ if(r?.ok===false) throw new Error(r.error); })); await invalidateAllDiffs(); };
+  const doDiscardAll=async()=>{
+    if(busy) return;
+    const rels=allDiscardTargets;
+    if(!rels.length) return;
+    const ok = window.confirm ? window.confirm(`Discard all changes in ${rels.length} file(s)?\nThis cannot be undone.`) : true;
+    if(!ok) return;
+    await wrapAction("discardAll", async()=>{
+      for(const rel of rels){
+        const r=await window.electronAPI.gitDiscard(projectPath, rel);
+        if(r?.ok===false) throw new Error(r.error);
+      }
+    });
+    await invalidateAllDiffs();
+  };
   const doHunkAction=async(rel,patch,mode)=>{
     if(busy || !rel || !patch) return;
     if(mode==="discard" && window.confirm && !window.confirm(`Discard this hunk in "${rel}"?\nThis cannot be undone.`)) return;
@@ -754,6 +768,7 @@ export default function GitPanel({ nodeId }){
   }
 
   const total=status.length;
+  const hasStagedFiles=status.some(it=>Boolean(it.partiallyStaged || (!it.conflicted && it.x && it.x!==" " && it.x!=="?" && it.x!=="!" && it.x!=="U")));
   const syncDisabled=!!busy || loading || !branchInfo.branch || branchInfo.hasRemote===false;
   const syncAhead=Math.max(0,Number(branchInfo.ahead)||0);
   const syncBehind=Math.max(0,Number(branchInfo.behind)||0);
@@ -777,6 +792,9 @@ export default function GitPanel({ nodeId }){
   const bulkStageTargets=stageTargetsFor(selectedFiles);
   const bulkUnstageTargets=unstageTargetsFor(selectedFiles);
   const bulkDiscardTargets=discardTargetsFor(selectedFiles);
+  const allDiscardTargets=discardTargetsFor(status);
+  const stagedListedFiles=listedFiles.filter(it=>Boolean(it.partiallyStaged || isStagedEntry(it)));
+  const changesListedFiles=listedFiles.filter(it=>!it.partiallyStaged && !isStagedEntry(it));
 
   const clearSelection=()=>{ setSelected(new Set()); lastClickedRef.current=null; };
   const toggleSelect=(rel)=>{
@@ -932,6 +950,57 @@ export default function GitPanel({ nodeId }){
     {label:"Show Git Output",onClick:()=>{setGitMenuOpen(false);openGitOutput();}},
   ];
 
+  const renderFileRow=(it,index,files)=>{
+    const path=fileNameParts(it.rel);
+    const previousDirectory=index>0?fileNameParts(files[index-1].rel).directory:"";
+    const showDirectory=treeView&&path.directory&&path.directory!==previousDirectory;
+    const color=statusColor(it.status,it.x,it.y);
+    const untracked=it.status==="??";
+    const conflicted=Boolean(it.conflicted);
+    const staged=Boolean(it.x && it.x!==" " && it.x!=="?" && it.x!=="!" && it.x!=="U");
+    const isSelected=selected.has(it.rel);
+    return (
+      <div key={it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
+        {showDirectory&&<div style={{padding:"var(--space-4) var(--space-8)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-muted)",background:"var(--bg-surface)"}}><Folder size={11} style={{verticalAlign:"middle",marginRight:5}}/>{path.directory}</div>}
+        <div className="git-file-row" style={{...s.row, paddingLeft: treeView && path.directory ? 20 : "var(--space-10)", background:isSelected||(focusIdx>=0&&flatVisible[focusIdx]?.rel===it.rel)?"var(--bg-hover-strong)":"transparent", boxShadow:isSelected?"inset 2px 0 0 var(--editor-blue)":undefined}} onClick={(e)=>{ if(e.shiftKey){ e.preventDefault(); selectRange(it.rel,e.ctrlKey||e.metaKey); return; } if(e.ctrlKey||e.metaKey){ e.preventDefault(); toggleSelect(it.rel); return; } openFile(it.rel); }} onDoubleClick={()=>toggleDiff(it.rel)} title={`${it.rel} — click to open, Ctrl/Shift-click to select, double-click for diff`} onContextMenu={e=>{e.preventDefault();e.stopPropagation(); if(!selected.has(it.rel)){ setSelected(new Set([it.rel])); lastClickedRef.current=it.rel; } setCtxMenu({x:e.clientX,y:e.clientY,rel:it.rel});}}>
+          <button className="git-select-box" onClick={(e)=>{e.stopPropagation(); if(e.shiftKey) selectRange(it.rel,e.ctrlKey||e.metaKey); else toggleSelect(it.rel);}} aria-label={`${isSelected?"Deselect":"Select"} ${path.name}`} aria-pressed={isSelected} title={isSelected?"Deselect file":"Select file (Ctrl/Shift-click for multiple)"} style={{...selectBoxStyle, borderColor:isSelected?"var(--editor-blue)":"var(--border-light)", background:isSelected?"var(--editor-blue)":"transparent"}}>{isSelected&&<Check size={11} strokeWidth={3}/>}</button>
+          <VscodeIcon name={path.name} isDir={false} size={16}/>
+          <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"baseline"}} title={it.rel}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.name}</span>{path.directory&&<span style={{color:"var(--text-muted)",fontSize:"var(--fs-small)",marginLeft:"var(--space-6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.directory}</span>}</span>
+          <span className="git-file-actions" style={{display:"flex",alignItems:"center",gap:"var(--space-2)",flexShrink:0}}>
+            <button onClick={e=>{e.stopPropagation();toggleDiff(it.rel);}} title={openDiff===it.rel?"Hide diff":"Show diff"} aria-label={openDiff===it.rel?"Hide diff":"Show diff"} style={s.iconBtn}>{openDiff===it.rel?<X size={14}/>:<FileDiff size={14}/>}</button>
+            {conflicted
+              ? <button onClick={e=>{e.stopPropagation();markResolved(it.rel);}} disabled={!!busy} title="Mark as resolved and stage" aria-label="Mark as resolved" style={s.iconBtn}><Check size={15}/></button>
+              : <button onClick={e=>{e.stopPropagation();staged?doUnstage(it.rel):doStage(it.rel);}} disabled={!!busy} title={staged?"Unstage":"Stage"} aria-label={staged?"Unstage":"Stage"} style={s.iconBtn}>{staged?<Minus size={15}/>:<Plus size={15}/>}</button>}
+            <button onClick={e=>{e.stopPropagation();doDiscard(it.rel);}} disabled={!!busy} title={untracked?"Delete file":"Discard"} aria-label={untracked?"Delete file":"Discard"} style={s.iconBtn}>{untracked?<Trash2 size={14}/>:<RotateCcw size={14}/>}</button>
+          </span>
+          <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-bold)",color:conflicted?"var(--danger)":color,minWidth:13,textAlign:"center"}} title={statusLabel(it.status,it.x,it.y,it)}>{conflicted?"!":untracked?"U":it.status.trim()||"M"}</span>
+        </div>
+        {openDiff===it.rel && <div style={{background:"var(--bg-panel)",borderTop:"1px solid var(--border-row)",maxHeight:320,overflow:"auto",padding:"var(--space-6) 0"}}>{diffMap[it.rel]===undefined?<div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div>:(()=>{
+          const d = typeof diffMap[it.rel]==="string" ? {unstaged:diffMap[it.rel],staged:""} : (diffMap[it.rel]||{});
+          const un = String(d.unstaged||"");
+          const st = String(d.staged||"");
+          if(!un.trim() && !st.trim()){
+            return <div style={{padding:"var(--space-6) var(--space-10)",color:"var(--icon-muted)",fontSize:"var(--fs-small)",display:"flex",gap:"var(--space-8)",alignItems:"center",flexWrap:"wrap"}}>
+              <span>{untracked?"Untracked file — stage it to see a diff.":"No textual diff available."}</span>
+              {untracked && <button onClick={(e)=>{e.stopPropagation();doStage(it.rel);}} disabled={!!busy} style={hunkBtnStyle}>Stage file</button>}
+              <button onClick={(e)=>{e.stopPropagation();openFile(it.rel);}} style={hunkBtnStyle}>Open file</button>
+            </div>;
+          }
+          return <>
+            {un.trim() && <div>
+              <div style={{padding:"var(--space-4) var(--space-10)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-secondary)",background:"var(--bg-deep)",borderBottom:"1px solid var(--border-row)"}}>Unstaged — stage or discard individual hunks</div>
+              {renderPatch(un,it.rel,"unstaged",true,false)}
+            </div>}
+            {st.trim() && <div>
+              <div style={{padding:"var(--space-4) var(--space-10)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-secondary)",background:"var(--bg-deep)",borderBottom:"1px solid var(--border-row)",borderTop:un.trim()?"1px solid var(--border-row)":undefined}}>Staged — unstage individual hunks</div>
+              {renderPatch(st,it.rel,"staged",true,false)}
+            </div>}
+          </>;
+        })()}</div>}
+      </div>
+    );
+  };
+
   return (
     <div className="git-panel" style={{...s.wrap,overflowY:"auto"}} onKeyDown={onListKeyDown} tabIndex={0} onContextMenu={(e)=> e.preventDefault()}>
       {/* Header */}
@@ -1066,14 +1135,28 @@ export default function GitPanel({ nodeId }){
         )}
 
         <div>
+          {hasStagedFiles && (
+            <div>
+              <div className="git-staged-heading" style={{...s.sectionHead,position:"sticky",top:0,zIndex:1}}>
+                <button onClick={()=>setCollapsed(c=>({...c,staged:!c.staged}))} style={{display:"flex",alignItems:"center",gap:7,padding:0,background:"transparent",border:0,color:"inherit",font:"inherit",cursor:"pointer"}}>
+                  {collapsed.staged?<ChevronRight size={15}/>:<ChevronDown size={15}/>}<span>Staged</span><span style={{background:"var(--editor-blue)",color:"var(--text-inverse)",padding:"1px 7px",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-bold)",lineHeight:"16px"}}>{stagedListedFiles.length}</span>
+                </button>
+                {!collapsed.staged&&<span style={{display:"flex",alignItems:"center",gap:"var(--space-4)"}}>
+                  <button onClick={()=>doUnstageAll()} disabled={!!busy} title="Unstage all" aria-label="Unstage all" style={{...s.iconBtn,opacity:busy?0.45:1}}><Minus size={15}/></button>
+                </span>}
+              </div>
+              {!collapsed.staged && stagedListedFiles.map((it,index)=>renderFileRow(it,index,stagedListedFiles))}
+              {!collapsed.staged && stagedListedFiles.length===0 && <div style={{padding:"var(--space-10) var(--space-12)",fontSize:"var(--fs-small)",color:"var(--text-muted)"}}>{filter?"No matching files":"No staged changes"}</div>}
+            </div>
+          )}
           <div className="git-changes-heading" style={{...s.sectionHead,position:"sticky",top:0,zIndex:1}}>
             <button onClick={()=>setCollapsed(c=>({...c,changes:!c.changes}))} style={{display:"flex",alignItems:"center",gap:7,padding:0,background:"transparent",border:0,color:"inherit",font:"inherit",cursor:"pointer"}}>
-              {collapsed.changes?<ChevronRight size={15}/>:<ChevronDown size={15}/>}<span>Changes</span><span style={{background:"var(--editor-blue)",color:"var(--text-inverse)",padding:"1px 7px",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-bold)",lineHeight:"16px"}}>{listedFiles.length}</span>
+              {collapsed.changes?<ChevronRight size={15}/>:<ChevronDown size={15}/>}<span>Changes</span><span style={{background:"var(--editor-blue)",color:"var(--text-inverse)",padding:"1px 7px",borderRadius:"var(--radius-pill)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-bold)",lineHeight:"16px"}}>{changesListedFiles.length}</span>
             </button>
             {!collapsed.changes&&<span style={{display:"flex",alignItems:"center",gap:"var(--space-4)"}}>
               {fileFilterOpen && <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter files…" aria-label="Filter files" autoFocus style={{...s.input,width:150,padding:"var(--space-4) var(--space-6)",fontSize:"var(--fs-small)"}} />}
               <button onClick={()=>{setFileFilterOpen(v=>!v);if(fileFilterOpen)setFilter("");}} title="Filter files" aria-label="Filter files" style={s.iconBtn}><Search size={14}/></button>
-              {!collapsed.changes&&<button onClick={()=>doUnstageAll()} disabled={!groups.staged.length||!!busy} title="Unstage all" aria-label="Unstage all" style={{...s.iconBtn,opacity:!groups.staged.length?0.45:1}}><Minus size={15}/></button>}
+              {!collapsed.changes&&<button onClick={doDiscardAll} disabled={!allDiscardTargets.length||!!busy} title="Discard all files" aria-label="Discard all files" style={{...s.iconBtn,opacity:!allDiscardTargets.length||busy?0.45:1}}><Trash2 size={15}/></button>}
               {!collapsed.changes&&<button onClick={()=>doStageAll()} disabled={!unstagedFiles.length||!!busy} title="Stage all changes" aria-label="Stage all changes" style={{...s.iconBtn,opacity:!unstagedFiles.length?0.45:1}}><Plus size={16}/></button>}
             </span>}
           </div>
@@ -1088,57 +1171,8 @@ export default function GitPanel({ nodeId }){
               </span>
             </div>
           )}
-          {!collapsed.changes && listedFiles.map((it,index)=>{
-            const path=fileNameParts(it.rel);
-            const previousDirectory=index>0?fileNameParts(listedFiles[index-1].rel).directory:"";
-            const showDirectory=treeView&&path.directory&&path.directory!==previousDirectory;
-            const color=statusColor(it.status,it.x,it.y);
-            const untracked=it.status==="??";
-            const conflicted=Boolean(it.conflicted);
-            const staged=Boolean(it.x && it.x!==" " && it.x!=="?" && it.x!=="!" && it.x!=="U");
-            const isSelected=selected.has(it.rel);
-            return (
-              <div key={it.rel} style={{borderBottom:"1px solid var(--border-row)"}}>
-                {showDirectory&&<div style={{padding:"var(--space-4) var(--space-8)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-muted)",background:"var(--bg-surface)"}}><Folder size={11} style={{verticalAlign:"middle",marginRight:5}}/>{path.directory}</div>}
-                <div className="git-file-row" style={{...s.row, paddingLeft: treeView && path.directory ? 20 : "var(--space-10)", background:isSelected||(focusIdx>=0&&flatVisible[focusIdx]?.rel===it.rel)?"var(--bg-hover-strong)":"transparent", boxShadow:isSelected?"inset 2px 0 0 var(--editor-blue)":undefined}} onClick={(e)=>{ if(e.shiftKey){ e.preventDefault(); selectRange(it.rel,e.ctrlKey||e.metaKey); return; } if(e.ctrlKey||e.metaKey){ e.preventDefault(); toggleSelect(it.rel); return; } openFile(it.rel); }} onDoubleClick={()=>toggleDiff(it.rel)} title={`${it.rel} — click to open, Ctrl/Shift-click to select, double-click for diff`} onContextMenu={e=>{e.preventDefault();e.stopPropagation(); if(!selected.has(it.rel)){ setSelected(new Set([it.rel])); lastClickedRef.current=it.rel; } setCtxMenu({x:e.clientX,y:e.clientY,rel:it.rel});}}>
-                  <button className="git-select-box" onClick={(e)=>{e.stopPropagation(); if(e.shiftKey) selectRange(it.rel,e.ctrlKey||e.metaKey); else toggleSelect(it.rel);}} aria-label={`${isSelected?"Deselect":"Select"} ${path.name}`} aria-pressed={isSelected} title={isSelected?"Deselect file":"Select file (Ctrl/Shift-click for multiple)"} style={{...selectBoxStyle, borderColor:isSelected?"var(--editor-blue)":"var(--border-light)", background:isSelected?"var(--editor-blue)":"transparent"}}>{isSelected&&<Check size={11} strokeWidth={3}/>}</button>
-                  <VscodeIcon name={path.name} isDir={false} size={16}/>
-                  <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"baseline"}} title={it.rel}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.name}</span>{path.directory&&<span style={{color:"var(--text-muted)",fontSize:"var(--fs-small)",marginLeft:"var(--space-6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{path.directory}</span>}</span>
-                  <span className="git-file-actions" style={{display:"flex",alignItems:"center",gap:"var(--space-2)",flexShrink:0}}>
-                    <button onClick={e=>{e.stopPropagation();toggleDiff(it.rel);}} title={openDiff===it.rel?"Hide diff":"Show diff"} aria-label={openDiff===it.rel?"Hide diff":"Show diff"} style={s.iconBtn}>{openDiff===it.rel?<X size={14}/>:<FileDiff size={14}/>}</button>
-                    {conflicted
-                      ? <button onClick={e=>{e.stopPropagation();markResolved(it.rel);}} disabled={!!busy} title="Mark as resolved and stage" aria-label="Mark as resolved" style={s.iconBtn}><Check size={15}/></button>
-                      : <button onClick={e=>{e.stopPropagation();staged?doUnstage(it.rel):doStage(it.rel);}} disabled={!!busy} title={staged?"Unstage":"Stage"} aria-label={staged?"Unstage":"Stage"} style={s.iconBtn}>{staged?<Minus size={15}/>:<Plus size={15}/>}</button>}
-                    <button onClick={e=>{e.stopPropagation();doDiscard(it.rel);}} disabled={!!busy} title={untracked?"Delete file":"Discard"} aria-label={untracked?"Delete file":"Discard"} style={s.iconBtn}>{untracked?<Trash2 size={14}/>:<RotateCcw size={14}/>}</button>
-                  </span>
-                  <span style={{fontSize:"var(--fs-small)",fontWeight:"var(--fw-bold)",color:conflicted?"var(--danger)":color,minWidth:13,textAlign:"center"}} title={statusLabel(it.status,it.x,it.y,it)}>{conflicted?"!":untracked?"U":it.status.trim()||"M"}</span>
-                </div>
-                {openDiff===it.rel && <div style={{background:"var(--bg-panel)",borderTop:"1px solid var(--border-row)",maxHeight:320,overflow:"auto",padding:"var(--space-6) 0"}}>{diffMap[it.rel]===undefined?<div style={{padding:"var(--space-8) var(--space-10)",color:"var(--icon)",fontSize:"var(--fs-small)"}}>Loading diff…</div>:(()=>{
-                  const d = typeof diffMap[it.rel]==="string" ? {unstaged:diffMap[it.rel],staged:""} : (diffMap[it.rel]||{});
-                  const un = String(d.unstaged||"");
-                  const st = String(d.staged||"");
-                  if(!un.trim() && !st.trim()){
-                    return <div style={{padding:"var(--space-6) var(--space-10)",color:"var(--icon-muted)",fontSize:"var(--fs-small)",display:"flex",gap:"var(--space-8)",alignItems:"center",flexWrap:"wrap"}}>
-                      <span>{untracked?"Untracked file — stage it to see a diff.":"No textual diff available."}</span>
-                      {untracked && <button onClick={(e)=>{e.stopPropagation();doStage(it.rel);}} disabled={!!busy} style={hunkBtnStyle}>Stage file</button>}
-                      <button onClick={(e)=>{e.stopPropagation();openFile(it.rel);}} style={hunkBtnStyle}>Open file</button>
-                    </div>;
-                  }
-                  return <>
-                    {un.trim() && <div>
-                      <div style={{padding:"var(--space-4) var(--space-10)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-secondary)",background:"var(--bg-deep)",borderBottom:"1px solid var(--border-row)"}}>Unstaged — stage or discard individual hunks</div>
-                      {renderPatch(un,it.rel,"unstaged",true,false)}
-                    </div>}
-                    {st.trim() && <div>
-                      <div style={{padding:"var(--space-4) var(--space-10)",fontSize:"var(--fs-tiny)",fontWeight:"var(--fw-semibold)",color:"var(--text-secondary)",background:"var(--bg-deep)",borderBottom:"1px solid var(--border-row)",borderTop:un.trim()?"1px solid var(--border-row)":undefined}}>Staged — unstage individual hunks</div>
-                      {renderPatch(st,it.rel,"staged",true,false)}
-                    </div>}
-                  </>;
-                })()}</div>}
-              </div>
-            );
-          })}
-          {!collapsed.changes && listedFiles.length===0 && <div style={{padding:"var(--space-10) var(--space-12)",fontSize:"var(--fs-small)",color:"var(--text-muted)"}}>{filter?"No matching files":"No changes"}</div>}
+          {!collapsed.changes && changesListedFiles.map((it,index)=>renderFileRow(it,index,changesListedFiles))}
+          {!collapsed.changes && changesListedFiles.length===0 && <div style={{padding:"var(--space-10) var(--space-12)",fontSize:"var(--fs-small)",color:"var(--text-muted)"}}>{filter?"No matching files":hasStagedFiles?"No unstaged changes":"No changes"}</div>}
         </div>
 
       </div>
