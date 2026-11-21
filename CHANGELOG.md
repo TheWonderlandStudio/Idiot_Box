@@ -3,6 +3,43 @@
 All notable changes to Idiot Box are documented here.
 Older releases: see [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
 
+## [0.1.32] - 2026-11-21
+
+### Added
+- **Port forwarding** - the Ports panel can expose local ports through
+  Microsoft Dev Tunnels: sign in with the official CLI (device-code flow, so
+  credentials stay in the OS keychain and never touch Idiot Box), start and
+  stop a tunnel per port, choose private or public (anonymous) access, copy
+  public URLs, install the CLI from the panel, and clean up tunnels on sign-out
+  and app exit.
+- **Browser design tools** - the Browser panel's visual editor gains a
+  Cursor-style design inspector with layout/flow, spacing, sizing, typography,
+  color, shadow, border and position controls, a direct CSS tab, a DOM tree with
+  parent selection and selector copy, and inline text editing, element
+  move/duplicate/remove, link and attribute editing, undo and keyboard hints.
+- **Landing page** - the features page is rebuilt around the full app feature
+  set with a shared shell and real screenshots; the credits crawl now includes
+  QEMU, noVNC, MCP SDK, Astryx, Streamdown, Shiki, Emmet, Dev Tunnels and
+  debugpy.
+
+### Changed
+- **Git panel** - added Discard all changes with confirmation, reworked the
+  staged/unstaged change display, and kept Unstage all next to the staged
+  header.
+- **OpenCode panel** - runs on its own database under userData instead of
+  sharing the global OpenCode database, so newer OpenCode installs can no
+  longer break the bundled runtime; an incompatible leftover is moved aside and
+  the start retried once.
+
+### Fixed
+- **Editor suggestions** - Tab accepts suggestions (or indents) immediately
+  after Escape instead of waiting out CodeMirror's 2-second dead zone, and
+  `.tsx` files parse with the TSX parser while JSX/TSX/MDX get snippet packs.
+- **Native menus** - View > Local History, View > Test Explorer, View >
+  Debugger and Run > Debug Current File now reach the renderer; a regression
+  test keeps the preload channel allowlist in sync with the main process and
+  renderer.
+
 ## [0.1.31] - 2026-11-12
 
 ### Added
