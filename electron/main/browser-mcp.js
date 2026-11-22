@@ -15,13 +15,29 @@ const browserRegistry = require("./browser-registry");
 
 const states = new WeakMap();
 
+// Caps for CDP event buffers: DevTools-style history kept per panel, oldest
+// entries dropped first so a busy page cannot grow memory without bound.
+const MAX_NETWORK_ENTRIES = 300;
+const MAX_CONSOLE_ENTRIES = 200;
+const MAX_CONSOLE_TEXT = 500;
+
 function stateFor(wc) {
   let state = states.get(wc);
   if (!state) {
-    state = { refs: new Map(), enabled: false };
+    state = {
+      refs: new Map(),
+      enabled: false,
+      network: { requests: new Map(), blocked: [] },
+      console: [],
+      trace: null,
+    };
     states.set(wc, state);
   }
   return state;
+}
+
+function cdpEventsEnabled(state) {
+  return Boolean(state.listening);
 }
 
 function browserGuests() {
@@ -73,7 +89,107 @@ async function debuggerFor(wc) {
       throw new Error(`Could not initialize the browser panel: ${err.message}`);
     }
   }
+  if (!cdpEventsEnabled(state)) {
+    try {
+      await dbg.sendCommand("Network.enable", { maxTotalBufferSize: 20000000 });
+      await dbg.sendCommand("Log.enable");
+    } catch (err) {
+      throw new Error(`Could not enable network/console capture: ${err.message}`);
+    }
+    state.listening = true;
+    dbg.on("message", (_event, method, params) => handleCdpEvent(wc, method, params));
+  }
   return dbg;
+}
+
+function consoleTextFromArgs(args) {
+  return (args || [])
+    .map((a) => {
+      if (!a) return "";
+      if (a.value !== undefined) {
+        if (typeof a.value === "object") {
+          try { return JSON.stringify(a.value); } catch { return String(a.value); }
+        }
+        return String(a.value);
+      }
+      if (a.description) return String(a.description).replace(/^"|"$/g, "");
+      return "";
+    })
+    .join(" ")
+    .slice(0, MAX_CONSOLE_TEXT);
+}
+
+function handleCdpEvent(wc, method, params) {
+  const state = stateFor(wc);
+  const net = state.network;
+  switch (method) {
+    case "Network.requestWillBeSent":
+      net.requests.set(params.requestId, {
+        id: params.requestId,
+        method: params.request?.method || "",
+        url: params.request?.url || "",
+        type: params.type || "",
+        ts: params.timestamp || Date.now() / 1000,
+      });
+      if (net.requests.size > MAX_NETWORK_ENTRIES) {
+        net.requests.delete(net.requests.keys().next().value);
+      }
+      break;
+    case "Network.responseReceived": {
+      const entry = net.requests.get(params.requestId);
+      if (entry) {
+        entry.status = params.response?.status;
+        entry.statusText = params.response?.statusText || "";
+        entry.mimeType = params.response?.mimeType || "";
+        entry.fromCache = Boolean(params.response?.fromDiskCache || params.response?.fromPrefetchCache);
+        entry.remoteAddress = params.response?.remoteIPAddress
+          ? `${params.response.remoteIPAddress}:${params.response.remotePort}`
+          : "";
+        entry.headers = params.response?.headers || {};
+      }
+      break;
+    }
+    case "Network.loadingFinished": {
+      const entry = net.requests.get(params.requestId);
+      if (entry) {
+        entry.finished = true;
+        entry.encodedDataLength = params.encodedDataLength || 0;
+      }
+      break;
+    }
+    case "Network.loadingFailed": {
+      const entry = net.requests.get(params.requestId);
+      if (entry) {
+        entry.failed = true;
+        entry.errorText = params.errorText || "failed";
+      }
+      break;
+    }
+    case "Runtime.consoleAPICalled":
+      state.console.push({
+        level: params.type || "log",
+        text: consoleTextFromArgs(params.args),
+        ts: params.timestamp || Date.now() / 1000,
+      });
+      if (state.console.length > MAX_CONSOLE_ENTRIES) state.console.shift();
+      break;
+    case "Log.entryAdded": {
+      const entry = params.entry || {};
+      state.console.push({
+        level: entry.level || "info",
+        text: String(entry.text || "").slice(0, MAX_CONSOLE_TEXT),
+        source: entry.source || "",
+        ts: (entry.timestamp || Date.now()) / 1000,
+      });
+      if (state.console.length > MAX_CONSOLE_ENTRIES) state.console.shift();
+      break;
+    }
+    case "Tracing.dataCollected":
+      if (state.trace && Array.isArray(params.value)) state.trace.push(...params.value);
+      break;
+    default:
+      break;
+  }
 }
 
 function waitForEvent(dbg, method, timeoutMs) {
@@ -787,6 +903,216 @@ function listTabs() {
   return browserRegistry.list();
 }
 
+// --- Network inspection ------------------------------------------------
+
+function networkList(wc, limit) {
+  const cap = Math.max(1, Math.min(Number(limit) || 50, MAX_NETWORK_ENTRIES));
+  const entries = [...stateFor(wc).network.requests.values()];
+  const out = entries.slice(-cap).map((e) => ({
+    id: e.id,
+    method: e.method,
+    url: e.url.length > 200 ? e.url.slice(0, 200) + "..." : e.url,
+    status: e.failed ? "FAILED" : e.status || "pending",
+    type: e.type,
+    mimeType: e.mimeType || "",
+    fromCache: e.fromCache || undefined,
+    bytes: e.encodedDataLength || undefined,
+    error: e.errorText || undefined,
+  }));
+  return { total: entries.length, shown: out.length, requests: out };
+}
+
+async function networkDetail(wc, requestId) {
+  const entry = stateFor(wc).network.requests.get(String(requestId));
+  if (!entry) throw new Error(`Unknown request id "${requestId}". Call browser network list first.`);
+  const dbg = await debuggerFor(wc);
+  let body = null;
+  try {
+    const res = await dbg.sendCommand("Network.getResponseBody", { requestId: entry.id });
+    if (res.body) body = res.base64Encoded ? `<base64 ${Buffer.from(res.body, "base64").length} bytes>` : String(res.body).slice(0, 4000);
+  } catch (err) {
+    body = `<unavailable: ${err && err.message ? err.message : "no body"}>`;
+  }
+  return {
+    id: entry.id,
+    method: entry.method,
+    url: entry.url,
+    type: entry.type,
+    status: entry.status,
+    statusText: entry.statusText,
+    mimeType: entry.mimeType,
+    fromCache: entry.fromCache,
+    remoteAddress: entry.remoteAddress,
+    bytes: entry.encodedDataLength,
+    failed: entry.failed || undefined,
+    errorText: entry.errorText || undefined,
+    headers: entry.headers || {},
+    body,
+  };
+}
+
+async function networkBlock(wc, urlPattern, unblock) {
+  const state = stateFor(wc);
+  const dbg = await debuggerFor(wc);
+  let urls = state.network.blocked;
+  if (unblock) {
+    urls = urlPattern ? urls.filter((u) => u !== urlPattern) : [];
+  } else if (urlPattern && !urls.includes(urlPattern)) {
+    urls = [...urls, urlPattern];
+  } else if (!urlPattern) {
+    throw new Error("Pass urlPattern (e.g. https://example.com/ads/*) to block.");
+  }
+  await dbg.sendCommand("Network.setBlockedURLs", { urls });
+  state.network.blocked = urls;
+  return { blocked: urls };
+}
+
+async function networkClear(wc) {
+  stateFor(wc).network.requests.clear();
+  return { ok: true };
+}
+
+// --- Console -----------------------------------------------------------
+
+function consoleLogs(wc, limit) {
+  const entries = stateFor(wc).console;
+  const cap = Math.max(1, Math.min(Number(limit) || 50, MAX_CONSOLE_ENTRIES));
+  return { total: entries.length, shown: Math.min(cap, entries.length), entries: entries.slice(-cap) };
+}
+
+function consoleClear(wc) {
+  const state = stateFor(wc);
+  state.console.length = 0;
+  try { debuggerFor(wc).then((dbg) => dbg.sendCommand("Runtime.discardConsoleEntries")); } catch {}
+  return { ok: true };
+}
+
+// --- Cookies -----------------------------------------------------------
+
+async function cookiesList(wc, url) {
+  const dbg = await debuggerFor(wc);
+  const res = await dbg.sendCommand("Network.getCookies", url ? { urls: [url] } : {});
+  return (res.cookies || []).map((c) => ({
+    name: c.name,
+    value: String(c.value || "").slice(0, 200),
+    domain: c.domain,
+    path: c.path,
+    expires: c.expires,
+    httpOnly: c.httpOnly || undefined,
+    secure: c.secure || undefined,
+    session: c.session || undefined,
+    sameSite: c.sameSite || undefined,
+  }));
+}
+
+async function cookieSet(wc, { name, value, url, domain, path }) {
+  if (!name || !value || !url) throw new Error("name, value and url are required to set a cookie.");
+  const dbg = await debuggerFor(wc);
+  const res = await dbg.sendCommand("Network.setCookie", {
+    name, value, url,
+    ...(domain ? { domain } : {}),
+    ...(path ? { path } : {}),
+  });
+  return { ok: Boolean(res.success), url };
+}
+
+async function cookieClear(wc, { url, name }) {
+  const dbg = await debuggerFor(wc);
+  await dbg.sendCommand("Network.deleteCookies", {
+    ...(name ? { name } : {}),
+    ...(url ? { url } : {}),
+  });
+  return { ok: true };
+}
+
+// --- Local/session storage ---------------------------------------------
+
+const STORAGE_EVAL = (type, op, key, value) => {
+  const store = type === "session" ? "sessionStorage" : "localStorage";
+  const k = JSON.stringify(key || "");
+  const v = JSON.stringify(value ?? "");
+  switch (op) {
+    case "keys":
+      return `(() => { try { const s = ${store}; return Array.from({ length: s.length }, (_, i) => s.key(i)); } catch (e) { return { error: String(e && e.message || e) }; } })()`;
+    case "get":
+      return `(() => { try { const s = ${store}; return s.getItem(${k}); } catch (e) { return { error: String(e && e.message || e) }; } })()`;
+    case "set":
+      return `(() => { try { const s = ${store}; s.setItem(${k}, ${v}); return true; } catch (e) { return { error: String(e && e.message || e) }; } })()`;
+    case "clear":
+      return `(() => { try { ${store}.clear(); return true; } catch (e) { return { error: String(e && e.message || e) }; } })()`;
+    default:
+      throw new Error(`Unknown storage op: ${op}`);
+  }
+};
+
+async function storageAction(wc, { type, op, key, value }) {
+  const dbg = await debuggerFor(wc);
+  const { result, exceptionDetails } = await dbg.sendCommand("Runtime.evaluate", {
+    expression: STORAGE_EVAL(type, op, key, value),
+    returnByValue: true,
+    awaitPromise: true,
+  });
+  if (exceptionDetails) throw new Error(exceptionDetails.exception?.description || exceptionDetails.text || "Storage access failed");
+  const v = result?.value;
+  if (v && typeof v === "object" && v.error) throw new Error(`Storage access failed: ${v.error}`);
+  return op === "get" ? { key, value: v } : op === "keys" ? { keys: v } : { ok: true };
+}
+
+// --- Performance tracing ------------------------------------------------
+
+async function traceStart(wc, categories) {
+  const state = stateFor(wc);
+  const dbg = await debuggerFor(wc);
+  if (state.trace) return { alreadyRunning: true };
+  state.trace = [];
+  await dbg.sendCommand("Tracing.start", {
+    categories: String(categories || "devtools.timeline"),
+    transferMode: "ReportEvents",
+  });
+  return { running: true, categories: String(categories || "devtools.timeline") };
+}
+
+async function traceStop(wc) {
+  const state = stateFor(wc);
+  const dbg = await debuggerFor(wc);
+  if (!state.trace) throw new Error("No trace is running. Call browser trace start first.");
+  const events = state.trace;
+  state.trace = null;
+  await dbg.sendCommand("Tracing.end").catch(() => {});
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const file = path.join(os.tmpdir(), `idiotbox-trace-${Date.now()}.json`);
+  fs.writeFileSync(file, JSON.stringify({ traceEvents: events }));
+  return { file, events: events.length };
+}
+
+async function metricsList(wc) {
+  const dbg = await debuggerFor(wc);
+  const res = await dbg.sendCommand("Performance.getMetrics");
+  return (res.metrics || []).map((m) => ({ name: m.name, value: m.value }));
+}
+
+// --- Device emulation ----------------------------------------------------
+
+async function deviceSet(wc, { width, height, deviceScaleFactor, mobile }) {
+  const dbg = await debuggerFor(wc);
+  const w = Math.round(Number(width) || 0);
+  const h = Math.round(Number(height) || 0);
+  if (w < 200 || h < 200) throw new Error("width and height (>=200) are required for device emulation.");
+  await dbg.sendCommand("Emulation.setDeviceMetricsOverride", {
+    width: w,
+    height: h,
+    deviceScaleFactor: Number(deviceScaleFactor) || 1,
+    mobile: Boolean(mobile),
+  });
+  return { width: w, height: h, deviceScaleFactor: Number(deviceScaleFactor) || 1, mobile: Boolean(mobile) };
+}
+
+async function deviceClear(wc) {
+  const dbg = await debuggerFor(wc);
+  await dbg.sendCommand("Emulation.clearDeviceMetricsOverride");
+  return { ok: true };
+}
+
 function safeUrl(wc) {
   try { return wc.getURL() || ""; } catch { return ""; }
 }
@@ -907,9 +1233,9 @@ function registerBrowserTools(server, helpers) {
   // fewer schema tokens than 15 near-duplicate schemas, while the internal
   // snapshot/click/type workflow is unchanged.
   server.registerTool("browser", {
-    description: "Browser panel: action open|tabs|navigate|read|snapshot|click|type|press|scroll|screenshot|eval|wait|back|forward|reload. Workflow: open -> snapshot (refs e1..) -> click/type ref. Refs expire after navigation/snapshot. Read/snapshot are capped (maxChars 8000, maxNodes 120 default). tab=panel id (omit for focused).",
+    description: "Browser panel: action open|tabs|navigate|read|snapshot|click|type|press|scroll|screenshot|eval|wait|back|forward|reload|network|console|cookies|storage|trace|metrics|device. Workflow: open -> snapshot (refs e1..) -> click/type ref. Refs expire after navigation/snapshot. Read/snapshot capped (maxChars 8000, maxNodes 120). tab=panel id (omit for focused). network: op list|detail(reqId)|clear|block(urlPattern)|unblock. console: op logs|clear. cookies: op list|set(name,value,url)|clear(name?,url?). storage: op keys|get|set|clear with type local|session and key/value. trace: op start|stop (stop saves JSON to tmp). device: op set(width,height,deviceScaleFactor,mobile)|clear. metrics: no op.",
     inputSchema: {
-      action: z.enum(["open", "tabs", "navigate", "read", "snapshot", "click", "type", "press", "scroll", "screenshot", "eval", "wait", "back", "forward", "reload"]),
+      action: z.enum(["open", "tabs", "navigate", "read", "snapshot", "click", "type", "press", "scroll", "screenshot", "eval", "wait", "back", "forward", "reload", "network", "console", "cookies", "storage", "trace", "metrics", "device"]),
       url: z.string().optional(), tab: z.number().optional(),
       maxChars: z.number().optional(), maxNodes: z.number().optional(),
       ref: z.string().optional(), count: z.number().optional(),
@@ -919,10 +1245,18 @@ function registerBrowserTools(server, helpers) {
       fullPage: z.boolean().optional(),
       expression: z.string().optional(),
       selector: z.string().optional(), timeoutMs: z.number().optional(),
+      op: z.enum(["list", "detail", "clear", "block", "unblock", "logs", "keys", "get", "set", "start", "stop"]).optional(),
+      reqId: z.string().optional(), urlPattern: z.string().optional(),
+      name: z.string().optional(), value: z.string().optional(),
+      type: z.enum(["local", "session"]).optional(),
+      domain: z.string().optional(), path: z.string().optional(),
+      width: z.number().optional(), height: z.number().optional(),
+      deviceScaleFactor: z.number().optional(), mobile: z.boolean().optional(),
+      limit: z.number().optional(), categories: z.string().optional(),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   }, async (a) => {
-    const { action, url, tab: tabId, maxChars, maxNodes, ref, count, text, clear, key, deltaX, deltaY, fullPage, expression, selector, timeoutMs } = a || {};
+    const { action, url, tab: tabId, maxChars, maxNodes, ref, count, text, clear, key, deltaX, deltaY, fullPage, expression, selector, timeoutMs, op, reqId, urlPattern, name, value, type, domain, path, width, height, deviceScaleFactor, mobile, limit, categories } = a || {};
     try {
       switch (action) {
         case "open": {
@@ -957,6 +1291,42 @@ function registerBrowserTools(server, helpers) {
         case "back": return ok(await history(needGuest(tabId), -1));
         case "forward": return ok(await history(needGuest(tabId), 1));
         case "reload": return ok(await reload(needGuest(tabId)));
+        case "network": {
+          const wc = needGuest(tabId);
+          switch (op) {
+            case "detail": return ok(await networkDetail(wc, reqId));
+            case "clear": return ok(await networkClear(wc));
+            case "block": return ok(await networkBlock(wc, urlPattern, false));
+            case "unblock": return ok(await networkBlock(wc, urlPattern, true));
+            default: return ok(networkList(wc, limit));
+          }
+        }
+        case "console": {
+          const wc = needGuest(tabId);
+          return ok(op === "clear" ? await consoleClear(wc) : consoleLogs(wc, limit));
+        }
+        case "cookies": {
+          const wc = needGuest(tabId);
+          switch (op) {
+            case "set": return ok(await cookieSet(wc, { name, value, url, domain, path }));
+            case "clear": return ok(await cookieClear(wc, { url, name }));
+            default: return ok(await cookiesList(wc, url));
+          }
+        }
+        case "storage": {
+          const wc = needGuest(tabId);
+          if (!["keys", "get", "set", "clear"].includes(op)) throw new Error("storage needs op keys|get|set|clear and type local|session.");
+          return ok(await storageAction(wc, { type: type || "local", op, key, value }));
+        }
+        case "trace": {
+          const wc = needGuest(tabId);
+          return ok(op === "stop" ? await traceStop(wc) : await traceStart(wc, categories));
+        }
+        case "metrics": return ok(await metricsList(needGuest(tabId)));
+        case "device": {
+          const wc = needGuest(tabId);
+          return ok(op === "clear" ? await deviceClear(wc) : await deviceSet(wc, { width, height, deviceScaleFactor, mobile }));
+        }
         default: throw new Error(`Unknown browser action: ${action}`);
       }
     } catch (err) { return fail(err); }

@@ -4509,6 +4509,31 @@ ipcMain.handle("contextMenu:show", (event, { type, selectedPaths = [], clipboard
 // ─── Terminal ─────────────────────────────────────────────────────────────────
 const termProcesses = new Map();
 
+// Rolling output buffer per terminal key, so the MCP `terminal read` tool can
+// fetch what the panel printed without re-streaming it over IPC.
+const termBuffers = new Map();
+const TERM_BUFFER_MAX = 64 * 1024;
+
+function termBufferAppend(key, data) {
+  const entry = termBuffers.get(key) || { text: "" };
+  entry.text += data;
+  if (entry.text.length > TERM_BUFFER_MAX) entry.text = entry.text.slice(-TERM_BUFFER_MAX);
+  termBuffers.set(key, entry);
+}
+
+function getTerminalBufferFor(tabId) {
+  let key = `mcp:${tabId}`;
+  try {
+    const wins = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+    const main = wins.find((w) => {
+      const u = w.webContents?.getURL?.() || "";
+      return !u.includes("popout.html") && !u.includes("settings.html");
+    });
+    if (main && main.webContents && !main.webContents.isDestroyed()) key = `${main.webContents.id}:${tabId}`;
+  } catch {}
+  return (termBuffers.get(key) || { text: "" }).text;
+}
+
 function detectShell() {
   if (process.platform !== "win32") return process.env.SHELL || "/bin/bash";
   try { require("child_process").execSync("pwsh -c exit", { stdio: "ignore" }); return "pwsh.exe"; } catch {}
@@ -4597,6 +4622,7 @@ ipcMain.handle("terminal:open", async (event, { tabId, cwd, forceRestart }) => {
 
   p.onData((data) => {
     try { event.sender.send("terminal:data", { tabId, data }); } catch {}
+    try { termBufferAppend(key, data); } catch {}
     try { if (typeof sniffPortsFromTerminalOutput === "function") sniffPortsFromTerminalOutput(data); } catch {}
   });
 
@@ -4666,6 +4692,7 @@ ipcMain.handle("terminal:close", async (event, { tabId }) => {
     }
     termProcesses.delete(key);
   }
+  termBuffers.delete(key);
   return { ok: true };
 });
 
@@ -7858,6 +7885,7 @@ app.whenReady().then(async () => {
       getProjectPath: () => lastProjectPath,
       userDataPath: () => app.getPath("userData"),
       version: app.getVersion(),
+      getTerminalBuffer: getTerminalBufferFor,
     }).catch((e) => console.warn("[mcp] start failed:", e && e.message));
   }
   // Cold start with files: `IdiotBox.exe file1.js file2.ts …` (Open With /
