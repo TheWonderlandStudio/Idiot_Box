@@ -620,9 +620,9 @@ const getCanvasSettings = (settings = {}) => {
 
 // bgMode -> Excalidraw scene background. Grid bg is paper (theme-aware).
 const bgForMode = (mode) => {
-  if (mode === "black") return "#000000";
-  if (mode === "grid") return cssVar("--paper", "#ffffff");
-  return "#ffffff"; // white default
+  if (mode === "black") return cssVar("--black");
+  if (mode === "grid") return cssVar("--paper");
+  return cssVar("--paper"); // white default
 };
 
 const resolveTheme = (themeSetting) => {

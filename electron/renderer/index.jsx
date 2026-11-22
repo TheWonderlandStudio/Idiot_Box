@@ -15,6 +15,7 @@ try {
   }
 } catch {}
 import "./variables.css";
+import { applyThemeSettings } from "./components/shared/theme.js";
 // ── Astryx design system (Meta) — app-wide ──────────────────────────────────
 // The theme is anchored on <html data-astryx-theme="neutral"> so every window
 // (main, settings) renders Astryx components with the neutral theme. Legacy
@@ -511,21 +512,21 @@ const RunStatusButton = () => {
   };
 
   const base = {
-    background: hovered ? "linear-gradient(180deg, #43c35b, #2fa349)" : "linear-gradient(180deg, #3cb454, #2f9e44)",
-    border: "1px solid rgba(255, 255, 255, 0.16)", color: "#fff", fontSize: 11.5, letterSpacing: 0.01,
+    background: hovered ? "linear-gradient(180deg, var(--run-green-1), var(--run-green-2))" : "linear-gradient(180deg, var(--run-green-3), var(--run-green-4))",
+    border: "1px solid var(--white-a16)", color: "var(--text-inverse)", fontSize: 11.5, letterSpacing: 0.01,
     fontFamily: "inherit", fontWeight: 600,
     height: 18, boxSizing: "border-box", cursor: "pointer", WebkitAppRegion: "no-drag",
     transition: "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
     boxShadow: hovered
-      ? "0 6px 16px rgba(47, 158, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.22)"
-      : "0 3px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.14)",
+      ? "0 6px 16px var(--run-green-a40), inset 0 1px 0 var(--white-a22)"
+      : "0 3px 10px var(--overlay-a30), inset 0 1px 0 var(--white-a14)",
   };
   const stopBase = running ? {
     ...base,
-    background: hovered ? "linear-gradient(180deg, #ef5f57, #cf3535)" : "linear-gradient(180deg, #e5534b, #c92a2a)",
+    background: hovered ? "linear-gradient(180deg, var(--run-red-1), var(--run-red-2))" : "linear-gradient(180deg, var(--run-red-3), var(--run-red-4))",
     boxShadow: hovered
-      ? "0 6px 16px rgba(201, 42, 42, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.2)"
-      : "0 3px 10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+      ? "0 6px 16px var(--run-red-a42), inset 0 1px 0 var(--white-a20)"
+      : "0 3px 10px var(--overlay-a30), inset 0 1px 0 var(--white-a12)",
   } : base;
   const menuItem = {
     height: 34, display: "flex", alignItems: "center", gap: 10, width: "100%",
@@ -571,7 +572,7 @@ const RunStatusButton = () => {
         style={{
           ...stopBase,
           borderTopRightRadius: 5, borderBottomRightRadius: 5,
-          borderLeft: "1px solid rgba(255, 255, 255, 0.18)",
+          borderLeft: "1px solid var(--white-a18)",
           display: "inline-flex", alignItems: "center", padding: "0 6px",
         }}
       >
@@ -581,7 +582,7 @@ const RunStatusButton = () => {
         <div ref={menuRef} style={{
           ...menuPos, zIndex: 100000,
           background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 6,
-          boxShadow: "0 12px 35px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.25)",
+          boxShadow: "0 12px 35px var(--overlay-a45), 0 2px 8px var(--overlay-a25)",
           minWidth: 250, maxWidth: 340, padding: 5, overflow: "hidden", display: "flex", flexDirection: "column",
         }}>
           <button
@@ -1184,7 +1185,7 @@ const showPopoutBlockedToast = () => {
     if (!el) {
       el = document.createElement("div");
       el.id = "ibx-popout-blocked-toast";
-      el.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);max-width:min(520px,90vw);background:var(--bg-vscode,#1e1e1e);color:var(--text-hover,#ddd);border:1px solid var(--border-strong,#444);border-radius:8px;padding:10px 16px;font-size:12px;font-family:inherit;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:99999;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;";
+      el.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);max-width:min(520px,90vw);background:var(--bg-vscode);color:var(--text-hover);border:1px solid var(--border-strong);border-radius:8px;padding:10px 16px;font-size:12px;font-family:inherit;box-shadow:0 8px 28px var(--overlay);z-index:99999;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;";
       document.body.appendChild(el);
     }
     el.textContent = "Browser / webview panels can't be popped out — the embedded page must stay in the main window.";
@@ -1200,7 +1201,7 @@ const showLayoutToast = (msg) => {
     if (!el) {
       el = document.createElement("div");
       el.id = "ibx-layout-toast";
-      el.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);max-width:min(520px,90vw);background:var(--bg-vscode,#1e1e1e);color:var(--text-hover,#ddd);border:1px solid var(--border-strong,#444);border-radius:8px;padding:10px 16px;font-size:12px;font-family:inherit;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:99999;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;";
+      el.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);max-width:min(520px,90vw);background:var(--bg-vscode);color:var(--text-hover);border:1px solid var(--border-strong);border-radius:8px;padding:10px 16px;font-size:12px;font-family:inherit;box-shadow:0 8px 28px var(--overlay);z-index:99999;opacity:0;transition:opacity .2s;pointer-events:none;text-align:center;";
       document.body.appendChild(el);
     }
     el.textContent = msg;
@@ -1273,30 +1274,30 @@ const App = () => {
   }, []);
 
   // ── Theme handling (default dark) ──────────────────────────────────────
+  // Applies the light/dark mode *and* the user's custom color overrides
+  // (settings.customTheme) from the single token sheet.
   useEffect(() => {
-    const apply = (th) => {
-      const isLight = th === "light" || th === "lightPlus" || th === "lightModern" || th === "light2026"
-        || th === "Visual Studio Light" || th === "Light+" || th === "Light Modern" || th === "Light 2026";
-      document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
+    let current = {};
+    const apply = (patch) => {
+      if (patch && typeof patch === "object") current = { ...current, ...patch };
+      applyThemeSettings(current);
     };
     // initial load
     try {
-      window.electronAPI.readSettings().then((s) => {
-        const th = s?.theme || s?.editorTheme || "dark";
-        apply(th);
-      });
+      window.electronAPI.readSettings().then((s) => apply(s || {})).catch(() => {});
     } catch {}
     // listen to changes from Settings window
-    let bc, bc2;
+    let bc, bc2, unsub;
     try {
       bc = new BroadcastChannel("app-settings");
-      bc.onmessage = (e) => { if (e.data?.theme) apply(e.data.theme); if (e.data?.editorTheme) apply(e.data.editorTheme); };
+      bc.onmessage = (e) => apply(e.data);
     } catch {}
     try {
       bc2 = new BroadcastChannel("editor-settings");
-      bc2.onmessage = (e) => { if (e.data?.theme) apply(e.data.theme); if (e.data?.editorTheme) apply(e.data.editorTheme); };
+      bc2.onmessage = (e) => apply(e.data);
     } catch {}
-    return () => { try { bc?.close(); } catch {} try { bc2?.close(); } catch {} };
+    try { unsub = window.electronAPI?.onSettingsUpdated?.(apply); } catch {}
+    return () => { try { bc?.close(); } catch {} try { bc2?.close(); } catch {} try { unsub?.(); } catch {} };
   }, []);
 
   // Telemetry live (was dead — no consumer) — now at least wired

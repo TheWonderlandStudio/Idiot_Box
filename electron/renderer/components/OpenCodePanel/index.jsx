@@ -147,7 +147,7 @@ export default function OpenCodePanel() {
   return (
     <div className="opencode-panel">
       {webviewLoaded ? null : (
-        <section className="opencode-panel-status" role="status" aria-live="polite" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 10, background: "rgba(13, 13, 13, 0.85)" }}>
+        <section className="opencode-panel-status" role="status" aria-live="polite" style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 10, background: "var(--overlay-a85)" }}>
           <Loader2 size={18} className="opencode-panel-spinner" />
           <b>Loading OpenCode…</b>
           <p>Starting the OpenCode agent web interface for this project.</p>

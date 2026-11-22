@@ -47,56 +47,56 @@
 /* shadcn neutral tokens (light). The mount node gets .ai-scope (+ .dark). */
 .ai-scope {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --background: var(--bg-surface);
+  --foreground: var(--text-primary);
+  --card: var(--bg-raised);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-raised);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--text-primary);
+  --primary-foreground: var(--bg-app);
+  --secondary: var(--bg-hover);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-hover);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--bg-hover);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--danger);
+  --border: var(--border);
+  --input: var(--border-input);
+  --ring: var(--accent);
+  --chart-1: var(--code-orange);
+  --chart-2: var(--teal);
+  --chart-3: var(--code-blue);
+  --chart-4: var(--code-yellow);
+  --chart-5: var(--code-tan);
   color-scheme: light;
 }
 
 .ai-scope.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --background: var(--bg-surface);
+  --foreground: var(--text-primary);
+  --card: var(--bg-raised);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-raised);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--text-primary);
+  --primary-foreground: var(--bg-app);
+  --secondary: var(--bg-hover);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--bg-hover);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--bg-hover);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--danger);
+  --border: var(--border);
+  --input: var(--border-input);
+  --ring: var(--accent);
+  --chart-1: var(--code-orange);
+  --chart-2: var(--teal);
+  --chart-3: var(--code-blue);
+  --chart-4: var(--code-yellow);
+  --chart-5: var(--code-tan);
   color-scheme: dark;
 }
 
@@ -118,14 +118,14 @@
 }
 .ss-composer {
   flex-shrink: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid var(--white-a09);
   padding: 12px;
   background: transparent;
 }
 /* Input pill (textarea box) — neither transparent nor solid:
    a light translucent fill so the box stays visible and the wallpaper faintly shows through. */
 .ss-composer [class*="group/input-group"] {
-  background: rgba(10, 10, 12, 0.55);
+  background: var(--composer-veil);
 }
 .ss-hint {
   font-size: 10.5px;
@@ -141,8 +141,8 @@
 .ss-card {
   margin-top: 4px;
   width: min(540px, 100%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--white-a14);
+  background: var(--white-a05);
   border-radius: 12px;
   padding: 12px 14px;
   display: flex;
@@ -171,8 +171,8 @@
   font-size: 11px;
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--white-a16);
+  background: var(--white-a06);
   color: var(--foreground);
 }
 .ss-card-actions { display: flex; gap: 8px; margin-top: 2px; }
@@ -184,12 +184,12 @@
   font-weight: 600;
   padding: 7px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--white-a16);
   background: transparent;
   color: var(--foreground);
   cursor: pointer;
 }
-.ss-btn:hover:not([disabled]) { background: rgba(255, 255, 255, 0.08); }
+.ss-btn:hover:not([disabled]) { background: var(--white-a08); }
 .ss-btn[disabled] { opacity: 0.55; cursor: default; }
 .ss-btn--primary {
   background: var(--primary);

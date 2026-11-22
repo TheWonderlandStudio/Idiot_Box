@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Actions, DockLocation } from "flexlayout-react";
-import { EDIT_HELPER_SOURCE } from "./editHelper.js";
+import { buildEditHelperSource } from "./editHelper.js";
+import { cssVar } from "../shared/theme.js";
 import {
   ChevronLeft, ChevronRight, RefreshCw, X, Lock, Unlock, Globe, FileCode,
   Search, ChevronUp, ChevronDown,   Pencil, MoreVertical,
@@ -126,15 +127,12 @@ const getErrorInfo = (code, url) => {
 
 const buildErrorHtml = (info) => {
   const linesHtml = (info.lines || []).map((l) => `<p class="ln">${l}</p>`).join("");
-  const dark = typeof document !== "undefined"
-    ? !(/\b(light|theme-light)\b/i.test(document.documentElement?.className || "") || window.__ibxLightTheme)
-    : true;
 
-  const bg   = dark ? "#1a1a1a" : "#fafafa";
-  const fg   = dark ? "#d4d4d4" : "#1a1a1a";
-  const sub  = dark ? "#6b6b6b" : "#888";
-  const btn  = dark ? "#2a2a2a" : "#ebebeb";
-  const bord = dark ? "#333"    : "#d8d8d8";
+  const bg   = cssVar("--bg-header");
+  const fg   = cssVar("--text-highlight");
+  const sub  = cssVar("--icon-faint");
+  const btn  = cssVar("--bg-hover");
+  const bord = cssVar("--border");
 
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><title>${info.title}</title>
@@ -197,10 +195,11 @@ const FF_OPTS = [
   ["monospace", "Mono"], ["cursive", "Cursive"],
 ];
 const FW_OPTS = [300, 400, 500, 600, 700, 800];
-const PALETTE = [
-  "#000000", "#ffffff", "#ef4444", "#f97316", "#eab308",
-  "#22c55e", "#14b8a6", "#3b82f6", "#a855f7", "#6b7280",
+const PALETTE_TOKENS = [
+  "--swatch-black", "--swatch-white", "--swatch-red", "--swatch-orange", "--swatch-yellow",
+  "--swatch-green", "--swatch-teal", "--swatch-blue", "--swatch-purple", "--swatch-gray",
 ];
+const getPalette = () => PALETTE_TOKENS.map((t) => cssVar(t));
 const DISP_OPTS = [
   ["block", "Block"], ["flex", "Flex"], ["grid", "Grid"],
   ["inline-block", "Inline block"], ["inline-flex", "Inline flex"],
@@ -412,7 +411,7 @@ function DvNum({ label, value, min = -9999, max = 9999, step = 1, unit, disabled
 // Color row: click swatch to pick, hex shown at right.
 function DvColor({ label, value, disabled, onChange, title }) {
   const v = String(value || "").toLowerCase();
-  const safe = /^#[0-9a-f]{6}$/.test(v) ? v : "#000000";
+  const safe = /^#[0-9a-f]{6}$/.test(v) ? v : cssVar("--black");
   return (
     <div className="dv-color" title={title || label}>
       <span className="dv-color-swatch" style={{ background: v || "transparent" }}>
@@ -451,7 +450,7 @@ function DvCssEditor({ value, disabled, onApply, onClear }) {
         value={text}
         disabled={disabled}
         spellCheck={false}
-        placeholder={"color: #111111;\npadding: 12px;\ndisplay: flex;\ngap: 8px;"}
+        placeholder={"padding: 12px;\ndisplay: flex;\ngap: 8px;"}
         onFocus={() => { focusRef.current = true; }}
         onBlur={() => { focusRef.current = false; }}
         onChange={(e) => setText(e.target.value)}
@@ -1361,7 +1360,6 @@ const BrowserPanel = (props) => {
       } catch(e){ return true; }
     })()`;
     // ── Live Edit helper (guest script — see ./editHelper.js) ──
-    const EDIT_HELPER_SCRIPT = EDIT_HELPER_SOURCE;
     const injectGuest = (attempt) => {
       if (attempt > 3) return;
       try {
@@ -1375,7 +1373,7 @@ const BrowserPanel = (props) => {
     const injectEditHelper = (attempt) => {
       if (attempt > 3) return;
       try {
-        wv.executeJavaScript(EDIT_HELPER_SCRIPT)
+        wv.executeJavaScript(buildEditHelperSource())
           .then((ok)=>{
             if (!ok && attempt < 3) setTimeout(()=> injectEditHelper(attempt+1), 250);
             else if (editModeRef.current) {
@@ -2794,7 +2792,7 @@ const BrowserPanel = (props) => {
                       onContextMenu={(e) => { e.preventDefault(); removeToken(c); }}
                       title={`Project token ${c} — click: text · Alt+click: background · right-click: remove`} />
                   ))}
-                  {PALETTE.map((c) => (
+                  {getPalette().map((c) => (
                     <button key={c} type="button" className="dv-swatch" style={{ background: c }}
                       disabled={!editStyle.active}
                       onClick={(e) => { if (e.altKey || e.shiftKey) guestStyle("bg", c); else guestStyle("color", c); }}

@@ -6,6 +6,7 @@
 // double cursor appears. Apply the CSS that hides the native cursor only inside
 // the scope (hub: hub.css, onboarding: ONBOARD_CSS).
 import React, { useEffect, useRef } from "react";
+import { cssVar } from "./theme.js";
 
 const CURSOR_PATH_D =
   "M82 32 C75 33 68 39 65 46 C64 48 64 52 64.5 58 L71 204 " +
@@ -101,7 +102,7 @@ const CustomCursor = ({ scope = ".phub" }) => {
       while (current && current !== document.documentElement) {
         let background = null;
         try { background = window.getComputedStyle(current).backgroundColor; } catch { background = null; }
-        if (background && background !== "transparent" && !background.includes("rgba(0, 0, 0, 0)")) {
+        if (background) {
           const parsed = parseRGBA(background);
           // Only stop if sufficiently opaque (alpha >= 0.5) so subtle translucent glass/hover tints don't invert cursor
           if (parsed && parsed.a >= 0.5) {
@@ -123,17 +124,17 @@ const CustomCursor = ({ scope = ".phub" }) => {
         Boolean(element.getRootNode && element.getRootNode().host && element.getRootNode().host.closest && element.getRootNode().host.closest(".phub__chatfs, .phub__chat, .phub__chatfs-window"));
 
       if (inChat) {
-        cursorPath.style.fill = "#ffffff";
+        cursorPath.style.fill = cssVar("--text-inverse");
         return;
       }
 
       const color = findEffectiveBackground(element);
       if (!color) {
-        cursorPath.style.fill = "#ffffff";
+        cursorPath.style.fill = cssVar("--text-inverse");
         return;
       }
       // dark bg -> white cursor, light bg -> black cursor
-      cursorPath.style.fill = getBrightness(color.r, color.g, color.b) < 145 ? "#ffffff" : "#000000";
+      cursorPath.style.fill = getBrightness(color.r, color.g, color.b) < 145 ? cssVar("--text-inverse") : cssVar("--black");
     };
 
     const checkClickable = (x, y) => {

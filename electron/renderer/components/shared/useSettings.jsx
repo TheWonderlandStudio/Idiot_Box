@@ -77,7 +77,7 @@ const useSettings = () => {
       if (k === "terminal" || k.startsWith("terminal")) chans.add("terminal-settings");
       else if (k === "canvas" || k.startsWith("canvas")) chans.add("canvas-settings");
       else if (k === "git" || k.startsWith("git")) chans.add("git-settings");
-      else if (["theme","zoom","showHiddenFiles","confirmDelete","restoreTabs","telemetryEnabled","autoOpenMediaViewer"].includes(k)) chans.add("app-settings");
+      else if (["theme","customTheme","zoom","showHiddenFiles","confirmDelete","restoreTabs","telemetryEnabled","autoOpenMediaViewer"].includes(k)) chans.add("app-settings");
       else if (["minimap","wordWrap","lineNumbers","fontSize","fontFamily","tabSize","editorTheme","autoSave","defaultEditor","formatOnSave",
         // CodeMirror setup flags (24) + extras — editor-settings channel
         "highlightActiveLineGutter","highlightSpecialChars","history","foldGutter","drawSelection","dropCursor",

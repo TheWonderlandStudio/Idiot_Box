@@ -298,11 +298,11 @@ body,
 /* ── Built-in float panels (0.9+) — match app theme ─────────────────────── */
 .flexlayout__float_window {
   border: 1px solid var(--border);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 40px var(--overlay);
   --flexlayout-color-float-window-header-background: var(--bg-panel);
 }
 :root[data-theme="light"] .flexlayout__float_window {
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 12px 40px var(--overlay-a25);
 }
 
 /* ── Title bar right: Run button (left of the Layouts chip) ─────────────── */
@@ -331,10 +331,10 @@ body,
   height: 18px;
   margin: 0 10px 0 6px;
   padding: 0 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: var(--white-a05);
+  border: 1px solid var(--white-a09);
   border-radius: 5px;
-  color: #a6a6b2;
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 11px;
   font-weight: var(--fw-semibold);
@@ -346,14 +346,14 @@ body,
 }
 .tb-workspaces svg { flex-shrink: 0; opacity: 0.85; }
 .tb-workspaces:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: #f0f0f5;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: var(--white-a09);
+  border-color: var(--white-a16);
+  color: var(--text-highlight);
+  box-shadow: 0 4px 12px var(--overlay-a30);
 }
 .tb-workspaces:hover svg { opacity: 1; }
 .tb-workspaces:active {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--white-a12);
   transform: translateY(1px);
 }
 
@@ -363,7 +363,7 @@ body,
   background: var(--bg-surface);
   border: 1px solid var(--border-input);
   border-radius: 0;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px var(--overlay);
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -402,7 +402,7 @@ body,
   background: var(--accent);
   border: none;
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--text-inverse);
   font-family: inherit;
   font-size: 11px;
   font-weight: var(--fw-semibold);
@@ -461,7 +461,7 @@ body,
   background: var(--accent);
   flex-shrink: 0;
 }
-.tb-layouts-row.is-applied .tb-layouts-dot { background: #2ea043; }
+.tb-layouts-row.is-applied .tb-layouts-dot { background: var(--git-added-strong); }
 .tb-layouts-name {
   flex: 1;
   min-width: 0;
@@ -544,7 +544,7 @@ body,
   background: var(--bg-surface);
   border: 1px solid var(--border-input);
   border-radius: 8px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px var(--overlay);
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -1298,7 +1298,7 @@ body,
   font-size: 11px;
   line-height: 1.35;
   color: var(--text-primary);
-  --dv-blue: #3b82f6;
+  --dv-blue: var(--edit-blue);
   --dv-input: var(--bg-panel);
 }
 .dv-top {
@@ -1383,7 +1383,7 @@ body,
   overflow: hidden; white-space: nowrap;
 }
 .dv-comp:hover { background: var(--bg-hover); color: var(--text-bright); }
-.dv-comp--cur { background: rgba(59,130,246,0.12); color: var(--text-bright); cursor: default; }
+.dv-comp--cur { background: var(--edit-blue-a12); color: var(--text-bright); cursor: default; }
 .dv-comp--cur .dv-comp-ic { color: var(--dv-blue); }
 .dv-comp-ic { flex-shrink: 0; color: var(--text-disabled); }
 .dv-comp-tag { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; }
@@ -1399,7 +1399,7 @@ body,
 }
 .dv-qbtn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-bright); }
 .dv-qbtn:disabled { opacity: 0.3; cursor: default; }
-.dv-qbtn--on { background: rgba(59,130,246,0.16); color: var(--dv-blue); }
+.dv-qbtn--on { background: var(--edit-blue-a16); color: var(--dv-blue); }
 
 /* scroll body + sections */
 .dv-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-bottom: var(--space-10); }
@@ -1582,17 +1582,17 @@ body,
 }
 .dv-btn:hover:not(:disabled) { background: var(--bg-hover); }
 .dv-btn:disabled { opacity: 0.4; cursor: default; }
-.dv-btn--primary { background: var(--dv-blue); border-color: var(--dv-blue); color: #ffffff; }
-.dv-btn--primary:hover:not(:disabled) { background: #2f74e8; }
+.dv-btn--primary { background: var(--dv-blue); border-color: var(--dv-blue); color: var(--text-inverse); }
+.dv-btn--primary:hover:not(:disabled) { background: var(--edit-blue-hover); }
 
 /* toolbar edit-mode cluster */
 .browser__edit-toggle { flex-shrink: 0; }
 .browser__edit-toggle--on {
-  background: rgba(59,130,246,0.16) !important;
-  color: #7fb0ff !important;
+  background: var(--edit-blue-a16) !important;
+  color: var(--edit-blue-soft) !important;
 }
 :root[data-theme="light"] .browser__edit-toggle--on { color: var(--accent) !important; }
-.browser__edit-toggle--on:hover { background: rgba(59,130,246,0.26) !important; }
+.browser__edit-toggle--on:hover { background: var(--edit-blue-a26) !important; }
 .browser__edit-count {
   flex-shrink: 0;
   height: 22px;
@@ -1617,15 +1617,15 @@ body,
   padding: 0 10px;
   border: none;
   border-radius: 5px;
-  background: #3b82f6;
-  color: #ffffff;
+  background: var(--edit-blue);
+  color: var(--text-inverse);
   font-family: inherit;
   font-size: 11px;
   font-weight: var(--fw-semibold);
   cursor: pointer;
 }
-.browser__apply:hover { background: #2f74e8; }
-.browser__apply:active { background: #2a68d4; }
+.browser__apply:hover { background: var(--edit-blue-hover); }
+.browser__apply:active { background: var(--edit-blue-deep); }
 
 /* Narrow panel: keep controls usable (wrap toolbars, tighter labels) */
 @container (max-width: 300px) {
@@ -1658,7 +1658,7 @@ body,
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--accent, #38bdf8);
+  background: var(--accent, var(--code-sky));
   animation: browser-progress 1.2s ease-in-out infinite;
   z-index: var(--z-popover);
   pointer-events: none;
@@ -1724,7 +1724,7 @@ body,
 .flexlayout__floating_window_content {
   width: 100%;
   height: 100%;
-  background: var(--bg-app, #0d0d0d);
+  background: var(--bg-app, var(--bg-app));
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -1767,195 +1767,195 @@ li,
    specificity. CET injects several colors as inline styles (#171717 bar /
    menu bg, #2a2d2e item bg, #EEEEEE text), hence !important below. */
 :root[data-theme="light"] .cet-titlebar {
-  background-color: #f3f3f3 !important;
-  color: #1e1e1e !important;
+  background-color: var(--paper-dim) !important;
+  color: var(--text-primary) !important;
 }
 :root[data-theme="light"] .cet-titlebar .cet-title {
-  color: #1e1e1e !important;
+  color: var(--text-primary) !important;
 }
 :root[data-theme="light"] .cet-titlebar .cet-menubar-menu-button {
-  color: #1e1e1e !important;
+  color: var(--text-primary) !important;
 }
 :root[data-theme="light"] .cet-titlebar .cet-menubar .cet-menubar-menu-button:not(.disabled):hover,
 :root[data-theme="light"] .cet-titlebar .cet-menubar .cet-menubar-menu-button:not(.disabled).open {
-  background-color: rgb(0 0 0 / 12%) !important;
+  background-color: var(--overlay-a12) !important;
 }
 /* CET dropdown: container / items / separators / hover */
 :root[data-theme="light"] .cet-menubar-menu-container {
-  background-color: #ffffff !important;
-  color: #1e1e1e !important;
-  border: 1px solid #e0e0e0 !important;
+  background-color: var(--paper) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
 }
 :root[data-theme="light"] .cet-menubar-menu-container .cet-action-menu-item {
-  color: #1e1e1e !important;
+  color: var(--text-primary) !important;
   background-color: transparent !important;
 }
 :root[data-theme="light"] .cet-menubar-menu-container .cet-action-item.focused > .cet-action-menu-item,
 :root[data-theme="light"] .cet-menubar-menu-container .cet-action-menu-item:hover {
-  background-color: #e5e5e5 !important;
-  color: #000000 !important;
+  background-color: var(--bg-hover) !important;
+  color: var(--black) !important;
 }
 :root[data-theme="light"] .cet-menubar-menu-container .cet-action-label.separator {
   opacity: 1 !important;
-  border-bottom-color: #e0e0e0 !important;
+  border-bottom-color: var(--border) !important;
 }
 :root[data-theme="light"] .cet-menubar-menu-container .cet-action-label.separator.text {
-  color: #555555 !important;
+  color: var(--text-secondary) !important;
 }
 :root[data-theme="light"] .cet-menubar-menu-container .keybinding,
 :root[data-theme="light"] .cet-menubar-menu-container .cet-submenu-indicator,
 :root[data-theme="light"] .cet-menubar-menu-container .cet-menu-item-icon {
-  color: #555555 !important;
+  color: var(--text-secondary) !important;
 }
 /* CET window controls: dark icons on the light bar (mirrors the lib's own
    `.light` rules, which never apply — the app themes via data-theme) */
 :root[data-theme="light"] .cet-titlebar .cet-control-icon svg {
-  fill: #222222 !important;
+  fill: var(--bg-header-dark) !important;
 }
 :root[data-theme="light"] .cet-titlebar .cet-control-icon:not(.inactive):hover {
-  background-color: rgb(0 0 0 / 12%) !important;
+  background-color: var(--overlay-a12) !important;
 }
 :root[data-theme="light"] .cet-titlebar .cet-control-icon:not(.inactive):hover svg {
-  fill: #222222 !important;
+  fill: var(--bg-header-dark) !important;
 }
 :root[data-theme="light"] .cet-titlebar .cet-control-close:not(.inactive):hover {
-  background-color: rgb(232 17 35 / 90%) !important;
+  background-color: var(--window-close-a90) !important;
 }
 :root[data-theme="light"] .cet-titlebar .cet-control-close:not(.inactive):hover svg {
-  fill: #ffffff !important;
+  fill: var(--text-inverse) !important;
 }
 /* Layouts chip: dark-on-light (replaces #a6a6b2 / #f0f0f5, unreadable on light) */
 :root[data-theme="light"] .tb-workspaces {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.12);
-  color: #555555;
+  background: var(--overlay-a05);
+  border-color: var(--overlay-a12);
+  color: var(--text-secondary);
 }
 :root[data-theme="light"] .tb-workspaces:hover {
-  background: rgba(0, 0, 0, 0.09);
-  border-color: rgba(0, 0, 0, 0.2);
-  color: #111111;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: var(--overlay-a09);
+  border-color: var(--overlay-a20);
+  color: var(--hub-bg-elevated);
+  box-shadow: 0 4px 12px var(--overlay-a15);
 }
 :root[data-theme="light"] .tb-workspaces:active {
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--overlay-a12);
 }
 /* FlexLayout: light variable set (mirrors light.css; keeps this app's seamless
    transparent divider lines so no grid lines reappear) */
 :root[data-theme="light"] .flexlayout__layout {
-  --flexlayout-color-text: #1e1e1e;
-  --flexlayout-color-background: #ffffff;
-  --flexlayout-color-base: #ffffff;
-  --flexlayout-color-1: #f7f7f7;
-  --flexlayout-color-2: #efefef;
-  --flexlayout-color-3: #e8e8e8;
-  --flexlayout-color-4: #e0e0e0;
-  --flexlayout-color-5: #d8d8d8;
-  --flexlayout-color-6: #d1d1d1;
-  --flexlayout-color-drag1: rgb(95, 134, 196);
-  --flexlayout-color-drag2: rgb(119, 166, 119);
-  --flexlayout-color-drag1-background: rgba(95, 134, 196, 0.1);
-  --flexlayout-color-drag2-background: rgba(119, 166, 119, 0.075);
-  --flexlayout-color-overflow: #808080;
-  --flexlayout-color-icon: #808080;
-  --flexlayout-color-tabset-background: #ffffff;
-  --flexlayout-color-tabset-background-selected: #f7f7f7;
-  --flexlayout-color-tabset-background-maximized: #efefef;
+  --flexlayout-color-text: var(--text-primary);
+  --flexlayout-color-background: var(--bg-panel);
+  --flexlayout-color-base: var(--bg-panel);
+  --flexlayout-color-1: var(--bg-inset);
+  --flexlayout-color-2: var(--paper-dim);
+  --flexlayout-color-3: var(--bg-hover);
+  --flexlayout-color-4: var(--border);
+  --flexlayout-color-5: var(--bg-active);
+  --flexlayout-color-6: var(--bg-subtle);
+  --flexlayout-color-drag1: var(--emulator-blue);
+  --flexlayout-color-drag2: var(--emulator-green);
+  --flexlayout-color-drag1-background: var(--emulator-blue-a10);
+  --flexlayout-color-drag2-background: var(--emulator-green-a075);
+  --flexlayout-color-overflow: var(--icon);
+  --flexlayout-color-icon: var(--icon);
+  --flexlayout-color-tabset-background: var(--bg-panel);
+  --flexlayout-color-tabset-background-selected: var(--bg-inset);
+  --flexlayout-color-tabset-background-maximized: var(--paper-dim);
   --flexlayout-color-tabset-divider-line: transparent;
-  --flexlayout-color-tabset-header-background: #f3f3f3;
-  --flexlayout-color-tabset-header: #1e1e1e;
-  --flexlayout-color-border-tab-content: #ffffff;
-  --flexlayout-color-border-background: #f3f3f3;
-  --flexlayout-color-border-divider-line: #e0e0e0;
-  --flexlayout-color-tab-content: #ffffff;
-  --flexlayout-color-tab-selected: #1e1e1e;
-  --flexlayout-color-tab-selected-background: #ffffff;
-  --flexlayout-color-tab-unselected: #555555;
+  --flexlayout-color-tabset-header-background: var(--bg-header);
+  --flexlayout-color-tabset-header: var(--text-primary);
+  --flexlayout-color-border-tab-content: var(--bg-panel);
+  --flexlayout-color-border-background: var(--bg-header);
+  --flexlayout-color-border-divider-line: var(--border);
+  --flexlayout-color-tab-content: var(--bg-panel);
+  --flexlayout-color-tab-selected: var(--text-primary);
+  --flexlayout-color-tab-selected-background: var(--bg-panel);
+  --flexlayout-color-tab-unselected: var(--text-secondary);
   --flexlayout-color-tab-unselected-background: transparent;
-  --flexlayout-color-tab-textbox: #1e1e1e;
-  --flexlayout-color-tab-textbox-background: #e8e8e8;
-  --flexlayout-color-border-tab-selected: #1e1e1e;
-  --flexlayout-color-border-tab-selected-background: #ffffff;
-  --flexlayout-color-border-tab-unselected: #555555;
+  --flexlayout-color-tab-textbox: var(--text-primary);
+  --flexlayout-color-tab-textbox-background: var(--bg-hover);
+  --flexlayout-color-border-tab-selected: var(--text-primary);
+  --flexlayout-color-border-tab-selected-background: var(--bg-panel);
+  --flexlayout-color-border-tab-unselected: var(--text-secondary);
   --flexlayout-color-border-tab-unselected-background: transparent;
-  --flexlayout-color-splitter: #f3f3f3;
-  --flexlayout-color-splitter-hover: #e0e0e0;
-  --flexlayout-color-splitter-drag: #c8c8c8;
-  --flexlayout-color-drag-rect-border: #cccccc;
-  --flexlayout-color-drag-rect-background: #d8d8d8;
-  --flexlayout-color-drag-rect: #1e1e1e;
-  --flexlayout-color-popup-border: #d1d1d1;
-  --flexlayout-color-popup-unselected: #1e1e1e;
-  --flexlayout-color-popup-unselected-background: #ffffff;
-  --flexlayout-color-popup-selected: #1e1e1e;
-  --flexlayout-color-popup-selected-background: #e8e8e8;
-  --flexlayout-color-edge-marker: #aaaaaa;
-  --flexlayout-color-edge-icon: #555555;
-  --flexlayout-color-toolbar-button-hover: #e8e8e8;
+  --flexlayout-color-splitter: var(--bg-header);
+  --flexlayout-color-splitter-hover: var(--bg-hover-strong);
+  --flexlayout-color-splitter-drag: var(--border-strong);
+  --flexlayout-color-drag-rect-border: var(--border-strong);
+  --flexlayout-color-drag-rect-background: var(--bg-active);
+  --flexlayout-color-drag-rect: var(--text-primary);
+  --flexlayout-color-popup-border: var(--border-input);
+  --flexlayout-color-popup-unselected: var(--text-primary);
+  --flexlayout-color-popup-unselected-background: var(--bg-panel);
+  --flexlayout-color-popup-selected: var(--text-primary);
+  --flexlayout-color-popup-selected-background: var(--bg-hover);
+  --flexlayout-color-edge-marker: var(--icon-hover);
+  --flexlayout-color-edge-icon: var(--text-secondary);
+  --flexlayout-color-toolbar-button-hover: var(--bg-hover);
 }
 /* FlexLayout: explicit light element rules */
 :root[data-theme="light"] .flexlayout__tabset_header {
-  background-color: #f3f3f3;
-  color: #1e1e1e;
+  background-color: var(--paper-dim);
+  color: var(--text-primary);
   border-bottom: none;
   box-shadow: none;
 }
 :root[data-theme="light"] .flexlayout__tabset_tabbar_outer {
-  background-color: #f3f3f3;
+  background-color: var(--paper-dim);
 }
 :root[data-theme="light"] .flexlayout__tabset_tabbar_outer_top {
   border-bottom: none;
 }
 :root[data-theme="light"] .flexlayout__tabset_tabbar_outer_bottom {
-  border-top-color: #e0e0e0;
+  border-top-color: var(--border);
 }
 :root[data-theme="light"] .flexlayout__tab_button--unselected {
-  color: #555555;
+  color: var(--text-secondary);
   background-color: transparent;
 }
 :root[data-theme="light"] .flexlayout__tab_button--selected {
-  color: #1e1e1e;
-  background-color: #ffffff;
+  color: var(--text-primary);
+  background-color: var(--paper);
   box-shadow: none;
 }
 :root[data-theme="light"] .flexlayout__tab_button_stretch {
-  color: #1e1e1e;
+  color: var(--text-primary);
 }
 :root[data-theme="light"] .flexlayout__tabset {
-  background-color: #f3f3f3;
+  background-color: var(--paper-dim);
 }
 :root[data-theme="light"] .flexlayout__tabset-selected {
-  background-color: #ffffff;
+  background-color: var(--paper);
   background-image: none;
 }
 :root[data-theme="light"] .flexlayout__tabset_content {
-  background-color: #ffffff;
+  background-color: var(--paper);
 }
 :root[data-theme="light"] .flexlayout__tab {
-  background-color: #ffffff;
-  color: #1e1e1e;
+  background-color: var(--paper);
+  color: var(--text-primary);
 }
 :root[data-theme="light"] .flexlayout__splitter {
-  background-color: #f3f3f3;
+  background-color: var(--paper-dim);
 }
 :root[data-theme="light"] .flexlayout__splitter:hover {
-  background-color: #e0e0e0;
+  background-color: var(--bg-hover-strong);
 }
 :root[data-theme="light"] .flexlayout__tab_button_trailing {
-  color: #555555;
+  color: var(--text-secondary);
 }
 :root[data-theme="light"] .flexlayout__tab_button_trailing:hover {
-  background-color: #e0e0e0;
-  color: #1e1e1e;
+  background-color: var(--bg-hover-strong);
+  color: var(--text-primary);
 }
 :root[data-theme="light"] .flexlayout__tab_toolbar_button:hover {
-  background-color: #e8e8e8;
+  background-color: var(--bg-hover);
 }
 :root[data-theme="light"] .flexlayout__drag_rect {
-  color: #1e1e1e;
-  background-color: #d8d8d8;
-  border-color: #cccccc;
+  color: var(--text-primary);
+  background-color: var(--bg-active);
+  border-color: var(--border-strong);
 }
 :root[data-theme="light"] .flexlayout__outline_rect {
-  border-color: rgb(95, 134, 196);
-  background: rgba(95, 134, 196, 0.1);
+  border-color: var(--emulator-blue);
+  background: var(--emulator-blue-a10);
 }

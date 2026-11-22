@@ -6,6 +6,7 @@ import DOMPurify from "dompurify";
 import { MousePointer2, Copy, Check } from "lucide-react";
 import { prepareHtmlDocument } from "../shared/previewCss.js";
 import { PREVIEW_IFRAME_CSP } from "../shared/previewCsp.js";
+import { cssVar } from "../shared/theme.js";
 
 // Error Boundary to catch runtime errors inside previewed user components
 class PreviewErrorBoundary extends React.Component {
@@ -94,12 +95,10 @@ const SampleComponent = () => {
   );
 };
 
-// NOTE: IFRAME_HTML renders in a separate document — the app's
-// var(--tokens) do NOT resolve there, so literals are used.
-// Values match the CENTRAL sheet: --error-bg (#2a1717),
-// --error-border (#732222), --danger (#f44747), --border (#333).
-// If a token changes, change it here too.
-const IFRAME_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:#2a1717;border:1px solid #732222;border-radius:6px;color:#f44747;font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#333;border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
+// NOTE: this shell renders in a separate document — the app's var(--tokens)
+// do NOT resolve there, so tokens are resolved to concrete values at render
+// time (buildPreviewShell) and spliced into the markup.
+const buildPreviewShell = () => `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;height:100%;overflow:auto;background:transparent;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}#preview_mount{width:100%;min-height:100%;box-sizing:border-box;padding:0;}#preview_error{display:none;white-space:pre-wrap;word-break:break-all;padding:16px;background:${cssVar("--error-bg")};border:1px solid ${cssVar("--error-border")};border-radius:6px;color:${cssVar("--danger")};font-size:12px;font-family:Consolas,monospace;max-width:600px;margin:16px;}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:${cssVar("--border")};border-radius:4px}</style></head><body><div id="preview_mount"></div><div id="preview_error"></div>
 <script>
 (function(){
   const forwardNav = (url, target) => {
@@ -326,9 +325,9 @@ const buildCapturedPreviewDocument = (snapshot, bgMode) => {
   } catch {}
   const html = DOMPurify.sanitize(String(snapshot.html || ""), { ADD_ATTR: ["data-ibx-picked"] });
   const css = String(snapshot.css || "").replace(/</g, "\\3C ");
-  const background = bgMode === "light" ? "#ffffff" : bgMode === "grid"
-    ? "#ffffff;background-image:linear-gradient(#e5e7eb 1px,transparent 1px),linear-gradient(90deg,#e5e7eb 1px,transparent 1px);background-size:20px 20px"
-    : "#1e1e1e";
+  const background = bgMode === "light" ? cssVar("--paper") : bgMode === "grid"
+    ? `${cssVar("--paper")};background-image:linear-gradient(${cssVar("--border")} 1px,transparent 1px),linear-gradient(90deg,${cssVar("--border")} 1px,transparent 1px);background-size:20px 20px`
+    : cssVar("--bg-surface");
   return `<!doctype html><html><head><meta charset="utf-8">${baseTag}<style>html,body{margin:0;min-height:100%;}body{box-sizing:border-box;padding:12px;background:${background};}#ibx-captured-root{width:max-content;max-width:100%;}</style><style>${css}</style></head><body><main id="ibx-captured-root">${html}</main></body></html>`;
 };
 
@@ -1418,7 +1417,7 @@ const ComponentPreview = ({ nodeId, config }) => {
           title="Component Preview"
           sandbox="allow-scripts allow-same-origin allow-forms"
           csp={PREVIEW_IFRAME_CSP}
-          srcDoc={pickedSnapshot ? buildCapturedPreviewDocument(pickedSnapshot, bgMode) : !sampleMode && htmlDoc ? htmlDoc : IFRAME_HTML}
+          srcDoc={pickedSnapshot ? buildCapturedPreviewDocument(pickedSnapshot, bgMode) : !sampleMode && htmlDoc ? htmlDoc : buildPreviewShell()}
           onLoad={handleIframeLoad}
           style={{ width: "100%", height: "100%", border: "none", display: "block", background: "transparent" }}
         />
