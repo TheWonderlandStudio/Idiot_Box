@@ -1,0 +1,29 @@
+---
+title: "Live server"
+description: "The built-in live-reload preview server and live-edit bridge"
+---
+
+# Live server
+
+The built-in live server previews static web projects with automatic reload — no Node tooling required.
+
+## How it works
+
+- `liveServer:start` binds an HTTP server on **127.0.0.1 with a random port** (loopback only).
+- It serves the project folder with a directory-traversal guard and a MIME map.
+- A **chokidar** watcher tracks file changes.
+- **Live reload** — served HTML gets a small script injected that subscribes to the `/__live_reload` SSE endpoint; any watched change pushes a reload event to the page.
+- The URL is shown in the panel; open it in the embedded [Browser](browser.mdx) or any external browser.
+
+## Live edit bridge
+
+Beyond reload, the editor can patch a running preview in place:
+
+| Action | Channel | What it does |
+|---|---|---|
+| Apply text change | `liveEdit:applyTextChange` | Patches an edited source file's effect on the served page |
+| Apply HTML change | `liveEdit:applyHtmlChange` | Injects an HTML edit into the preview |
+| Locate | `liveEdit:locate` | Maps an editor position to the preview |
+| Revert | `liveEdit:revert` | Undoes live-edit patches |
+
+File changes (from edits, search-replace, or live edits) broadcast `liveEdit:fileChanged` so open editor views stay in sync.

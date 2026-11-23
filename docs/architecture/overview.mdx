@@ -1,0 +1,62 @@
+---
+title: "Architecture overview"
+description: "Electron architecture, process model, and data flow of Idiot Box"
+---
+
+# Architecture overview
+
+Idiot Box is an **Electron 43** app with a **React 19** renderer, bundled by **esbuild**, laid out with **FlexLayout**, and edited with **CodeMirror 6**.
+
+```
+┌───────────────────────────── Main process (Node.js) ─────────────────────────────┐
+│  electron/main/index.js — app shell, windows, menu, ~200 IPC handlers            │
+│  ┌─────────────┐ ┌──────────┐ ┌───────────┐ ┌───────────┐ ┌────────────────────┐ │
+│  │ ai-chat.js  │ │ debugger │ │ android   │ │ qemu      │ │ extensions/        │ │
+│  │ mcp-server  │ │ search   │ │ dev-tunnels│ │ test-runner│ │ browser-mcp        │ │
+│  │ local-history│ │ tracking │ │ db-manager│ │ opencode  │ │ terminal (node-pty)│ │
+│  └─────────────┘ └──────────┘ └───────────┘ └───────────┘ └────────────────────┘ │
+└──────────────────────────────────┬───────────────────────────────────────────────┘
+                                   │ contextBridge (window.electronAPI)
+┌──────────────────────────────────┴───────────────────────────────────────────────┐
+│  Preload (preload-bundle.cjs) — typed IPC surface, event whitelists              │
+└──────────────────────────────────┬───────────────────────────────────────────────┘
+                                   │
+┌──────────────────────────────────┴───────────────────────────────────────────────┐
+│  Renderer (React 19, FlexLayout) — index.jsx → bundle.js + lazy chunks/          │
+│  Panels: Editor, Terminal, Git, Browser, Debugger, Tests, Notebook, Android,     │
+│  QEMU, Search, History, Extensions, Settings, Hub, Canvas, OpenCode, AI chat…    │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Process model
+
+| Layer | Runtime | Files |
+|---|---|---|
+| Main | Node.js | `electron/main/` — 24 modules + `extensions/` + `proto/` |
+| Preload | Sandboxed bridge | `electron/preload/` — bundles to `preload-bundle.cjs` |
+| Renderer | Chromium + React | `electron/renderer/` — `bundle.js` + lazy chunks |
+| Settings window | Chromium + React | `renderer/settings.html` + `settings-bundle.js` |
+| Internal pages | Protocol-served HTML | `renderer/ibx-pages/extensions.html` via `idiotbox://` |
+
+The **extension host** runs inside the main process (native Node) — extensions are external folders loaded at runtime, never bundled (see [docs/extensions](../extensions/overview.mdx)).
+
+## Key flows
+
+1. **User action** → React panel calls `window.electronAPI.<fn>()` (preload) → `ipcMain.handle` channel in main → Node work (spawn git, node-pty, QEMU, esbuild…) → result or event back to renderer.
+2. **Broadcast events** (e.g. `fs:change`, `output:log`, `debug:event`) flow main → renderer through preload event subscriptions with whitelists.
+3. **Heavy panels** (git, notebook, android, qemu, canvas, community, opencode/excalidraw) are lazy esbuild chunks loaded on first open.
+4. **Persistence** — settings, sessions, projects, tabs, pins, canvas, history, extensions all live under `<userData>` (see [Data storage](storage.mdx)).
+
+## External surfaces
+
+- **Inbound**: MCP HTTP server on loopback (`127.0.0.1:39271`), `idiotbox://` deep links, file associations, Chrome extensions (`crx://`).
+- **Outbound**: AI endpoints, GitHub APIs (updates/releases/community), Google SDK downloads, Adoptium JDK, Dev Tunnels CLI, anonymous telemetry (opt-out) — full inventory in [Security & privacy](security-privacy.mdx).
+- **Loopback only**: live server, OpenCode panel, Android emulator gRPC, QEMU VNC/QMP, node inspector.
+
+## Next
+
+- [Main process](main-process.mdx) — module-by-module map
+- [Renderer](renderer.mdx) — UI structure and lazy chunks
+- [IPC & preload](ipc-preload.mdx) — bridge surface and protocols
+- [Data storage](storage.mdx) — on-disk layout
+- [Security & privacy](security-privacy.mdx) — CSP, sandbox, network

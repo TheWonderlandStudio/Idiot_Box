@@ -1,0 +1,35 @@
+---
+title: "Debugger"
+description: "Debug Node.js (CDP) and Python (debugpy) with breakpoints, scopes, and evaluation"
+---
+
+# Debugger
+
+The Debugger panel debugs **Node.js** and **Python** programs. Sessions start paused at the entry point and wait for the UI to attach, so no breakpoint is missed.
+
+## Node.js (Chrome DevTools Protocol)
+
+- The app spawns `node --inspect-brk=0 <program>` and connects to the inspector WebSocket on loopback.
+- Enables Runtime / NodeRuntime / Debugger domains with async stack depth 32.
+
+## Python (debugpy)
+
+- Spawns `python -m debugpy.adapter` and speaks DAP over the stdio protocol (framed `Content-Length:` messages).
+- Launch options: `justMyCode` filtering, internal console, output redirection.
+- **Install debugpy** action runs `pip install debugpy` (5-minute timeout). The availability check probes `python` → `py -3` and reports versions.
+
+## Controls & views
+
+| Action | What it does |
+|---|---|
+| Continue / Pause / Step over / Step in / Step out | Standard stepping (`debug:control`) |
+| Breakpoints | Set per file/line (**F9** in the editor); `setBreakpointByUrl` for Node, `setBreakpoints` for Python |
+| Call stack | Frames per paused thread (`debug:stack`) |
+| Scopes | local / closure / global / block / script / with / catch / eval / module |
+| Variables | Expandable property trees (`Runtime.getProperties` / DAP `variables`) |
+| Evaluate | Watch expressions in the paused frame (`Debugger.evaluateOnCallFrame` / DAP `evaluate`) |
+| Threads | List threads and select the active one |
+
+Events stream to the UI as `debug:event` (`started`, `ready`, `stopped`, `continued`, `breakpoint`, `output`, `terminated`). **Debug Current File** is available from the menu; **Debug Test** launches tests under the debugger (see [Testing](testing.mdx)).
+
+All sessions stop cleanly on app quit (`stopAll`), and multiple sessions can run side by side.

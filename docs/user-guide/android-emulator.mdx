@@ -1,0 +1,57 @@
+---
+title: "Android emulator"
+description: "Offline Android SDK setup, AVD management, and in-app screen streaming"
+---
+
+# Android emulator
+
+The Android panel manages a **fully offline Android toolchain** — no Android Studio required. Everything is self-contained under `<userData>/.appdata/android/` and never resolved from PATH.
+
+## Layout on disk
+
+| Folder | Contents |
+|---|---|
+| `sdk/` | Android SDK (`ANDROID_SDK_ROOT`): platform-tools, emulator, platforms, system images |
+| `avd/` | AVDs (`ANDROID_AVD_HOME`) |
+| `downloads/` | Downloaded artifacts, screenshots |
+| `jdk/` | Portable Temurin 17 JDK, downloaded from Adoptium |
+
+## Setup
+
+**Setup SDK** (`android:setupSdk`) orchestrates the whole chain:
+
+1. Downloads Google command-line tools (build `11076708_latest`) and extracts them (pure-Node zip extractor with zip-slip protection; `Expand-Archive` → `tar` → `jar` fallback chain).
+2. Ensures the bundled Temurin 17 JDK.
+3. Runs `sdkmanager` (serialized, license auto-accept) to install base packages: `platform-tools`, `emulator`, `platforms;android-35`, and a system image (`system-images;android-35;google_apis;x86_64` by default).
+
+Supported API levels: Android 11 → 16 (API 30–36), with `google_apis` and `google_apis_playstore` image variants.
+
+## AVDs
+
+- Device catalog: Pixel 6 through Pixel 9.
+- Create (`android:createAvd`), list, delete AVDs from the panel.
+- Keyboard diagnostics (`android:diagKeyboard`) inspect `hw.keyboard` config, `dumpsys input`, and IME state to fix keyboard issues.
+
+## Emulator control
+
+- **Start** (`android:startAvd`) — headless by default (`-no-window -no-audio -no-boot-anim`, ConPTY-spawned so no console window flashes); a `windowed` flag opens the native emulator window instead. Extra emulator args can be passed.
+- **Stop** (`android:stopAvd`) — `adb emu kill` or `taskkill /T /F`.
+- Boot state via `getprop sys.boot_completed`; `waitSerial` polls until the device is ready (150 s default).
+
+## Screen streaming
+
+The panel streams the emulator screen in-app, with a fallback chain:
+
+1. **gRPC** `EmulatorController.getScreenshot` / `streamScreenshot` (RGBA8888, bottom-up flipped; `-grpc localhost:<port>`)
+2. **adb raw framebuffer** via a persistent `adb shell` session with a frame-marker protocol
+3. One-shot `exec-out` fallback
+
+Display mode drops to 540 px wide for smooth streaming; unchanged frames are skipped by hash. **Screenshots** save PNGs to the downloads folder.
+
+## Input & packages
+
+Tap, swipe, key events, text input, and rotation are injected over adb. Install SDK packages by ID (`android:installPackage`) and reveal the SDK folder from the panel. Progress streams via `android:progress`; emulator stdout appears in the `android-emulator-log` terminal tab.
+
+## Network
+
+Downloads come from `dl.google.com` (SDK tools) and `api.adoptium.net` (JDK) only — the app never touches your PATH or global SDK.

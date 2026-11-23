@@ -1,0 +1,27 @@
+---
+title: "Database manager"
+description: "Inspect and edit SQLite databases without leaving the IDE"
+---
+
+# Database manager
+
+Opening a SQLite file (`.db`, `.db3`, `.sqlite`, `.sqlite3`) in the editor launches the built-in database inspector instead of a text view. It uses Node's `node:sqlite` (`DatabaseSync`), opening the DB per operation with `PRAGMA busy_timeout=3000` so long-lived locks are avoided.
+
+## Browsing
+
+- **Table list** with schema for each table.
+- **Rows view** — paged at 500 rows/page, 5000-row query cap in the grid. Text/values are returned via a `__idiotbox_rowid__` alias for stable identity.
+- Find other database files in the project via `db:list`.
+
+## Editing
+
+- **Edit a cell** (`db:updateCell`) — updates that row in place.
+- **Insert row** and **delete rows**.
+- **Create table** / **drop table**.
+
+## SQL & export
+
+- **Run arbitrary SQL** (`db:query`) with the same row caps.
+- **Export** a table or query result to **CSV, JSON, or SQL** via a save dialog — export row limit is 500,000.
+
+The backend is a self-contained module (`electron/main/db-manager.js`) registered from the main process; the UI lives in the editor's DB view.

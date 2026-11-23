@@ -1,0 +1,40 @@
+---
+title: "Git"
+description: "The Git panel: staging, branches, sync, merge, and clone"
+---
+
+# Git
+
+The Git panel is a full source-control UI backed by the system `git` binary (spawned from the main process). It supports both existing repositories and **Git → Clone Repository**.
+
+## Status & staging
+
+- Changes are split into **staged** and **unstaged** groups with per-file diffs (`git:diff`, `git:diffStaged`, `git:diffAll`).
+- Stage/unstage single files, multi-select with Shift+click range selection, **Stage All** / **Unstage All** (kept next to the staged header), and discard changes (bulk discard skips staged files by default).
+- **Apply hunk** patches specific hunks of a diff.
+- **Blame** shows line-by-line history.
+
+## Commits
+
+- Commit with **Ctrl+Enter** (message box), amend commits, and save drafts.
+- The primary **Sync** button runs pull → push with status/error states, `aria-busy` feedback, and duplicate-click prevention; with no remote it disables itself.
+- The button switches between **Commit** and **Sync** labels based on ahead/behind counts. A fetch in progress blocks Sync.
+
+## Branches & remote
+
+- List branches, create, switch, delete, rename.
+- Push / pull / fetch; **checkout remote** branches.
+- Branch context menu and **Git** application menu mirror the panel's actions (`git:menuAction`).
+
+## Merge & conflicts
+
+- In-progress merges show **Continue** / **Abort** actions.
+- Conflicts are listed (`git:conflicts`) and can be marked resolved per file.
+
+## Clone
+
+Clone a repository with a progress log (`git:clone:log` / `git:clone:done` events) — including clones triggered from the Hub's AI chat.
+
+## Failure handling
+
+Every operation surfaces errors in the panel; results are isolated per project switch (a slow operation from a closed project can't pollute the new one). Failed pulls never push; failed pushes still refresh status.

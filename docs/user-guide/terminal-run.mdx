@@ -1,0 +1,32 @@
+---
+title: "Terminal & Run"
+description: "Integrated terminals, the run engine, and the ports panel"
+---
+
+# Terminal & Run
+
+## Terminal
+
+The terminal panel runs real shells through **node-pty** (a persistent PTY per terminal tab), rendered with **xterm.js** (+ fit and web-links addons).
+
+- Shell selection order on Windows: `pwsh.exe` → `powershell.exe` → `%COMSPEC%` (cmd). macOS/Linux use the login shell.
+- Multiple terminal tabs; split right (**Ctrl+Shift+5**) or down (**Ctrl+Shift+\\**); **Ctrl+\`** opens a new terminal, **Ctrl+K** clears the buffer.
+- The terminal starts in the project folder (`terminal:chdir` on project open). Right-click gives paste/copy/clear and tab-management context menus.
+- Android emulator and QEMU logs are mirrored into dedicated terminal tabs (`android-emulator-log`, `qemu-log`).
+
+## Run engine
+
+The Run panel (Run/Debug) starts processes without leaving the IDE:
+
+- **Auto-detect** — the run engine probes the project (`run:probes`) and suggests commands, including a VS Code CLI preset (`code`).
+- Start / stop / write to stdin for any configured command; output streams into the panel with exit codes (`run:data` / `run:exit`).
+- Stop kills the process tree (`taskkill /T /F` on Windows).
+- **Run → Run Auto-Detected Command** runs the project or current file; **Stop Running Process** halts it.
+
+## Ports panel
+
+The Ports panel lists processes listening on ports, checks a specific port, forwards ports (see [Ports & Dev Tunnels](ports-tunnels.mdx)), kills processes, and clears auto-detected entries.
+
+## Notebooks & debug
+
+Python notebooks run through the notebook engine (see [Notebooks](notebooks.mdx)); the debugger integrates with the Run/Debug panel (see [Debugger](debugger.mdx)).

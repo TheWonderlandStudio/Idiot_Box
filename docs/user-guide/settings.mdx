@@ -1,0 +1,42 @@
+---
+title: "Settings"
+description: "The Settings window: appearance, theme tokens, keybindings, and per-area options"
+---
+
+# Settings
+
+**Ctrl+,** opens the Settings window (780×520) with full-text search across all options. Settings persist to `<userData>/settings.json` and broadcast `settings:updated` so the whole app reacts live.
+
+## Pages
+
+| Page | What's inside |
+|---|---|
+| **General** | App-wide behavior, telemetry opt-out (`telemetryEnabled`), UI zoom (0.25×–3.0×) |
+| **Appearance** | Light/dark theme, central **color token sheet** — every UI color is editable |
+| **Editor** | Editor options (word wrap, auto save, etc.) |
+| **Terminal** | Shell choice and terminal behavior |
+| **Git** | Git panel options |
+| **Hub** | Project Hub behavior |
+| **Preview** | Live preview / live server options |
+| **Canvas** | Canvas and drawing panel options |
+| **Keybindings** | Per-keybinding overrides for all registered shortcuts |
+| **Extensions** | Extension state and management |
+
+## Theme tokens
+
+The Appearance page is backed by a **single source of truth**: `electron/renderer/variables.css` defines all design tokens for dark (`:root`) and light (`:root[data-theme="light"]`) modes. The build step `npm run build:theme` generates `theme/tokens.generated.js` with the full token registry (name, label, group, both mode values, description) — the settings picker reads that registry, so there is no second hand-maintained palette.
+
+Tokens are grouped into: surfaces, text, borders, accent & links, teal/live, code & info, git & diff, danger & errors, warnings, success, overlays & selection, terminal, updater & modals, media viewer, and misc.
+
+Dev tools around them: `node tools/audit-colors.cjs` scans for hard-coded colors outside the token sheet; `node tools/tokenize-colors.cjs --write` bulk-migrates literals to `var(--token)`.
+
+## Keybindings
+
+All shortcuts come from the registry at `electron/shared/keybindings.json` (48 entries — see [Keybindings](../reference/keybindings.md)). The Keybindings page shows them grouped by category and lets you override any accelerator per user; the application menu rebuilds immediately when a binding changes.
+
+## Other settings surfaces
+
+- Zoom: **View → Zoom In/Out/Reset**.
+- Auto Save: **File → Auto Save**.
+- Layout: **View → Reset Layout** and saved Layout Presets.
+- Storage housekeeping: **Storage** menu (clear tabs/pins/canvas/trash per project or globally).

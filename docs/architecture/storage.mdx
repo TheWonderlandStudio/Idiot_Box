@@ -1,0 +1,57 @@
+---
+title: "Data storage"
+description: "Where the app persists settings, projects, caches, and user data"
+---
+
+# Data storage
+
+Everything lives under the Electron **userData** directory:
+
+| OS | Path |
+|---|---|
+| Windows | `%APPDATA%\Idiot Box\` |
+| macOS | `~/Library/Application Support/Idiot Box/` |
+| Linux | `~/.config/Idiot Box/` |
+
+## Core files
+
+| Path | Contents |
+|---|---|
+| `settings.json` | All settings incl. keybinding overrides, telemetry flag, zoom |
+| `session.json` | Window bounds / layout for the next launch |
+| `recent-projects.json` + `recent-projects-meta.json` | Recent project list (max 10) |
+| `project-pins.json` | Pinned projects |
+| `install-id.json` | Anonymous install id for telemetry |
+| `mcp.json` | MCP endpoint discovery file (written on every start) |
+
+## Projects
+
+`projects/` uses storage **v2**: `index.json` (`{version: 2, folders: {name: {path, addedAt}}}`) plus per-project:
+
+| File | Contents |
+|---|---|
+| `project.json` | Project metadata |
+| `tabs.json` | Open editor tabs per project |
+| `pinconfig.json` | Pinned tabs |
+| `canvas-layout.json` / `drawing.excalidraw` | Canvas layout + Excalidraw drawing |
+| `visual-tokens.json` | Visual token overrides |
+
+Legacy `<name>-<hash12>` folders are migrated to v2 on load. Trash (deleted project files) is kept for restore until cleared via the Storage menu.
+
+## Feature data
+
+| Path | Contents |
+|---|---|
+| `local-history/` | File snapshots (`index.json` + blobs keyed by path hash) |
+| `extensions-state.json` / `extensions-storage.json` | Extension enable state + memento storage |
+| `vsx-extensions/` | Installed extensions |
+| `opencode/opencode.db` | OpenCode panel database (`OPENCODE_DB` override) |
+| `mise/` | mise runtime binaries |
+| `.appdata/android/` | Android SDK, AVDs, downloads, bundled JDK |
+| `.appdata/qemu/` | QEMU VM storage + settings |
+
+## Dev/prod differences
+
+- Dev sessions use a `session-dev` partition; packaged builds use the default partition.
+- Dev icons are stamped into `node_modules/electron/dist/electron.exe` (fingerprint cache in `node_modules/.cache/idiot-box-dev-icon`).
+- Uninstalling the app does **not** delete user data (`deleteAppDataOnUninstall: false`) — extensions, projects, VMs, and settings survive updates and reinstall.

@@ -1,0 +1,28 @@
+---
+title: "Testing"
+description: "The Test Explorer: framework detection, collection, and test runs"
+---
+
+# Testing
+
+The Test Explorer panel discovers, runs, and debugs tests for JavaScript and Python projects.
+
+## Framework detection
+
+Detection (`test:detect`) is static, from `package.json` / config files / Python probes:
+
+| Ecosystem | Frameworks |
+|---|---|
+| JavaScript | vitest, jest, mocha, node:test |
+| Python | pytest, unittest |
+
+## Collect & run
+
+- **Collect** (`test:collect`) statically parses test files (JS and Python parsers) into a test tree — up to 600 files, 1 MB per file.
+- **Run** (`test:run`) executes the framework's test command with a clean environment (`CI=1 FORCE_COLOR=0 NO_COLOR=1 TERM=dumb PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1`) and parses output into per-test events (`test:event`: start / output / done).
+- **Stop** (`test:stop`) kills the whole process tree. Runs time out after 20 minutes.
+- **Debug Test** (`test:debugCommand`) builds a launch descriptor handed to the [Debugger](debugger.mdx).
+
+## Output
+
+Results stream into the panel with per-test status; the Output panel shows raw logs. The panel is a lazy-loaded renderer chunk, so it only loads when opened.

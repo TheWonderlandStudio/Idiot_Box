@@ -1,0 +1,37 @@
+---
+title: "Desktop VMs (QEMU)"
+description: "Create and control QEMU virtual machines with VNC streaming and QMP input"
+---
+
+# Desktop VMs (QEMU)
+
+The Desktop panel creates and boots full **QEMU virtual machines** and streams their screens into the app over a loopback VNC WebSocket proxy (rendered with noVNC). QEMU must be installed on the system — the app auto-detects it or accepts a custom binary directory.
+
+## Storage
+
+- Root: `<userData>/.appdata/qemu/` with `settings.json` (`vmStorageDir`, `vmStorageDirs`, `qemuBinDir`) and a default `vms/` folder.
+- Per VM: `<storage>/<name>/` containing `vm.json` (config), `disk.qcow2` (or raw `disk.img`), `runtime.json`, and `logs/qemu.log` + `logs/serial.log`.
+
+## Creating VMs
+
+Supported architectures: `x86_64`, `i386`, `aarch64`, `arm`, `riscv64`, `ppc64`, `s390x` — each with the right `-machine`/`-cpu` mapping. Configure memory (≤ 64 GB), CPUs (≤ 32), disk size (≤ 512 GB, qcow2 via `qemu-img`, raw sparse fallback), and attach an ISO.
+
+The **ISO catalog** lists Ubuntu, Debian, Fedora, Alpine, Arch, Kali, Mint, Windows 11, FreeBSD, and ReactOS with vendor download links — **the app never downloads ISOs**; you download the image yourself and pick it with the file dialog.
+
+## Running VMs
+
+- **Start** (`qemu:startVm`) boots QEMU with: `-display none -vnc 127.0.0.1:<display>` (display port from 5900–5999), `-qmp tcp:127.0.0.1:<port>,server,nowait`, `-serial file:`, `-net none` (no networking by default), and a USB tablet device. Returns the PID and the WebSocket proxy port.
+- **Stop** (`qemu:stopVm`) sends a QMP `quit`, then falls back to `taskkill`/SIGTERM/SIGKILL.
+- **Recovery** — on startup the app re-attaches to surviving QEMU processes by parsing their command lines, so VMs survive app restarts.
+
+## Input
+
+All keyboard and mouse input is sent through QMP (`input-send-event`): clicks, moves, wheel, key down/up with a key-name map (including shifted characters), and typed text with Shift batching. The absolute pointer range is 0–0x7FFF.
+
+## Logs & cleanup
+
+QEMU stdout mirrors into the `qemu-log` terminal tab; `qemu:getLog` tails the last 200 KB of a VM's log. Delete VMs (with their disks), reveal folders, and pick storage directories from the panel. All VMs stop on app quit (`stopAllVms`).
+
+## Security note
+
+VMs run with **no networking** (`-net none`) and **no host folder/device passthrough** by default — a guest OS can't reach your machine or network unless you deliberately change the QEMU arguments.

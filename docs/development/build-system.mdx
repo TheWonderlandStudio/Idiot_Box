@@ -1,0 +1,52 @@
+---
+title: "Build system"
+description: "The esbuild pipeline, theme token generation, and icon tooling"
+---
+
+# Build system
+
+All build scripts are plain Node CJS files under `build/` and `tools/`, wired via npm scripts. `npm run build` runs the full pipeline in order:
+
+| Step | Script | Output |
+|---|---|---|
+| 1. Theme tokens | `node tools/generate-theme-tokens.cjs` | `renderer/theme/tokens.generated.js` |
+| 2. AI CSS | `node build/build-ai-css.cjs` | `renderer/components/ai-elements/ai-tw-css.js` |
+| 3. Preload | `node build/build-preload.cjs` | `renderer/../preload/preload-bundle.cjs` |
+| 4. Renderer | `node build/build-renderer.cjs` | `renderer/bundle.js` + `renderer/chunks/*` |
+| 5. Settings | esbuild one-liner | `renderer/settings-bundle.js` |
+| 6. Icons | `node build/generate-icons.cjs` | `build/icons/*` + Store tiles |
+
+## Renderer bundling
+
+`build-renderer.cjs` uses **esbuild** with a two-phase, **mtime-cached** strategy:
+
+- **Phase 1** — `index.jsx` → `bundle.js` (IIFE, JSX automatic, minified, metafile printed with top-5 sizes; loaders for css/jsx/ts/tsx/images/fonts; React externals; `NODE_ENV=production`).
+- **Phase 2** — lazy IIFE chunks to `chunks/` (`__ibx_chunk_<name>` globals, React shared): `canvas`, `ai-agent`, `notebook`, `git`, `community`, `android`, `desktop`, `excalidraw`. Only existing entries are built.
+- **Cache** — the script skips work when outputs are newer than the newest source (walking `electron/renderer` + `package*.json`). Force with `--force` or `IBX_FORCE_BUILD=1`.
+
+## Preload bundling
+
+`build-preload.cjs` bundles `preload-entry.cjs` → `preload-bundle.cjs` (node platform, cjs, `electron` external) and injects the resolved `__WEBVIEW_PRELOAD__` path for `electron-chrome-extensions`.
+
+## Theme tokens
+
+`tools/generate-theme-tokens.cjs` parses `renderer/variables.css` (`:root` dark + `:root[data-theme="light"]` blocks) into `THEME_GROUPS`, `THEME_TOKENS`, `THEME_TOKEN_MAP`, `THEME_MODES`. Only colors are kept; tokens are grouped by rules (surfaces, text, borders, accent, git/diff, terminal, …). The Settings Appearance picker consumes this registry — no second palette copy.
+
+Auxiliary tools: `audit-colors.cjs` (find hard-coded colors outside the token sheet), `tokenize-colors.cjs --write` (bulk-migrate literals to `var(--token)`).
+
+## AI CSS
+
+`build-ai-css.cjs` runs the Tailwind 4 CLI on `components/ai-elements/ai-input.css` and embeds the result as an exported JS string (`ai-tw-css.js`) for Shadow DOM injection in the AI chat. The intermediate file is deleted; the module is gitignored and regenerated.
+
+## Icons
+
+`generate-icons.cjs` is a **pure-Node pipeline** (only `zlib`) from `renderer/assets/idot_box.png`: its own PNG decoder (all filter types), bilinear resizer, PNG encoder, ICO builder (16–256, PNG payloads), ICNS builder (16–1024), plus Microsoft Store tiles (`build/appx/`). `generate-file-icons.cjs` (manual) generates the 29 file-type `.ico`/`.icns` pairs from the vscode-icons set via headless Edge — outputs are committed so installer builds need no internet.
+
+## Postinstall & dev icon
+
+`tools/postinstall.cjs` skips `electron-builder install-app-deps` (native modules ship N-API prebuilds; `nativeModules.npmRebuild: false`) and regenerates icons + dev icon. `stamp-dev-icon.cjs` (Windows) stamps the app icon into the dev `electron.exe` with rcedit, fingerprinted in `node_modules/.cache/idiot-box-dev-icon` so re-stamps only happen when the icon or exe changed.
+
+## Dormant scripts
+
+- `build-node-host.cjs` — would bundle a Node extension host (`electron/host/`), but the folder doesn't exist; prints a skip notice. The active extension host is main-process based.
+- `tools/_brands.cjs`, `_edithelper.cjs`, `_strip-fallbacks.cjs` — one-shot historical refactors, kept for reference.

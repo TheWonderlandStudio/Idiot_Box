@@ -1,0 +1,49 @@
+---
+title: "Packaging"
+description: "electron-builder configuration, installers, signing, and release artifacts"
+---
+
+# Packaging
+
+electron-builder v27 config lives entirely in the `build` key of `package.json` (no separate yml). Key identity: `appId com.thewonderlandstudio.idiotbox`, product name **Idiot Box**, GPL-3.0-only.
+
+## Targets
+
+| OS | Script | Artifacts |
+|---|---|---|
+| Windows | `dist:win` | NSIS exe, MSI, MSIX (`.msixupload` for the Store) |
+| macOS | `dist:mac` | DMG + ZIP (x64 + arm64) |
+| Linux | `dist:linux` | AppImage, deb, rpm, pacman (x64) |
+
+Single-target variants exist (`dist:exe`, `dist:msi`, `dist:msix`, `dist:dmg`, `dist:deb`, …). `pack` does a quick unpacked `--dir` build.
+
+## Packaging specifics
+
+- **asar** with unpacked natives: node-pty, esbuild, `opencode-ai/bin` + platform binaries.
+- **extraResources**: `electron/renderer/assets/` → `assets/`.
+- **Protocols**: `idiotbox://` registered (deep links `update`, `extensions`).
+- **File associations**: 29 types with committed per-type icons from `build/file-icons/`.
+- **NSIS**: assisted installer, custom `include: build/installer.nsh` (editor-registration consent page with association backup/restore, silent flags `/NOASSOCIATIONS`, `/REGISTEREDITOR=0`), license text from `build/installer-license.txt`, differential packages, user data kept on uninstall.
+- **MSIX**: identity `TheWonderlandStudioJignes.IdiotBoxIDE`, min OS 10.0.17763, Store tiles in `build/appx/`, `createMsixupload: true`.
+- **macOS**: hardened runtime with entitlements (`build/entitlements.mac.plist`), notarization via the `afterSign` hook (`build/notarize.cjs`, `notarytool`) when Apple env vars are set.
+- **Publish**: GitHub Releases provider (feeds electron-updater with `latest*.yml` + blockmaps).
+
+## Signing environment
+
+| Variable | Used for |
+|---|---|
+| `CSC_LINK`, `CSC_KEY_PASSWORD` | Windows Authenticode (pfx path or base64) |
+| `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` | Windows aliases |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | macOS notarization |
+| `CSC_IDENTITY_AUTO_DISCOVERY=false` | Disable code-sign discovery in CI (unsigned builds) |
+
+Template: `.env.signing.example` (the real `.env.signing` is gitignored).
+
+## Installer metadata
+
+- Windows ProgIDs are deterministic (UUIDv5 of appId); `node build/print-progids.cjs` prints the mapping, `--nsis` regenerates the `IB_PROGID_*` defines if appId/product/associations change.
+- NSIS exit codes and silent flags: see [installer-exit-codes.md](../installer-exit-codes.md).
+
+## Releasing
+
+Tag `v<version>` (must equal `package.json` version) → CI matrix builds all targets unsigned → artifacts + updater metadata uploaded → release job assembles the GitHub Release with notes built from CHANGELOG + contributors + sponsors. See [CI/CD](ci-cd.mdx).

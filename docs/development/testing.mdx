@@ -1,0 +1,40 @@
+---
+title: "Testing"
+description: "Unit tests and Electron harnesses — what exists and how to run it"
+---
+
+# Testing
+
+Two layers: fast Node unit tests (`npm test`) and Electron harnesses that boot the real app with mocked IPC.
+
+## Unit tests — `npm test` (`node --test tests/*.test.cjs`)
+
+| File | Covers |
+|---|---|
+| `dev-tunnels.test.cjs` | Dev Tunnels output/login parsing (legacy + new formats, ANSI, partial URLs) |
+| `editor-tabs.test.cjs` | Relative project paths, closed-editor history (cap/MRU/dedupe), `acceleratorFor` |
+| `git-sync.test.cjs` | `git:menuAction` sync: pull → invalidate → push → invalidate; failure semantics |
+| `hub-chat-intent.test.cjs` | Repo search/clone intent detection in Hub chat |
+| `mcp-config.test.cjs` | `syncOpenCodeConfig`: JSON/JSONC preservation, legacy migration, no duplication |
+| `menu-channels.test.cjs` | Preload `onMenuEvent` allowlist invariant (every used channel whitelisted) |
+| `qemu.test.cjs` | VM name/config validation, QEMU args per arch, QMP client, input mapping, live VNC WS proxy round-trip, ISO catalog integrity |
+| `recent-files.test.cjs` | Palette recent files: bound 20, dedupe, project scoping, corrupt storage |
+| `search.test.cjs` | ripgrep UTF-16 column math, Node fallback, replace + undo semantics |
+
+## Electron harnesses — `electron tests/<name>.electron.cjs`
+
+| File | npm script | What it drives |
+|---|---|---|
+| `output.electron.cjs` | `test:output` | Output panel: buffering, shared views, clear, follow, copy |
+| `layout.electron.cjs` | `test:layout` | Real drag-and-drop of FlexLayout tabs (12 rounds), geometry invariance, themes, context menus, layout persistence |
+| `ui-overflow.electron.cjs` | `test:ui-overflow` | Mounts **every panel** at widths 180–1000 px and flags overflow; editor/Git/palette/settings at 480–900 px |
+| `git-sync.electron.cjs` | `test:git-sync` | Git panel Sync button: states, drafts, no-remote, merge continue/abort, multi-select staging |
+| `navigation.electron.cjs` | `test:navigation` | Palette + search: stale responses, replace-all guards, focus traps |
+| `project-files.electron.cjs` | `test:project-files` | File browser: rename, delete, clipboard, fallbacks, narrow panes |
+| `editor-tabs.electron.cjs` | `test:editor-tabs` | Tab lifecycle: dirty close, reopen, cycling, project switch races |
+
+Harness flags: `--baseline` (skip a subset), `--screenshots` (writes to gitignored `.appdata/`), `--scale=`, `--panels=` (subset), `--audit`, `--extras-only`, `--short-only`.
+
+## CI
+
+`ci.yml` runs `npm test` → `npm run build` → `node --check electron/main/index.js` on every PR and push to main. See [CI/CD](ci-cd.mdx).

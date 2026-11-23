@@ -1,0 +1,31 @@
+---
+title: "Search & local history"
+description: "Project-wide search/replace with undo, and automatic file snapshots"
+---
+
+# Search & local history
+
+## Project search
+
+**Ctrl+Shift+F** opens Find in Files; **Ctrl+Shift+H** opens Replace in Files. The panel (`SearchPanel.jsx`) searches the whole project:
+
+- **ripgrep fast path** — the backend shells out to `rg --json` when available, converting UTF-8 byte offsets to UTF-16 columns for the editor.
+- **Node fallback** — a pure-JS walker with glob filters when ripgrep is missing.
+- Limits: files over 1.5 MB are skipped, previews cap at 400 chars per line, and per-line occurrence caps prevent result flooding.
+- Ignored directories (e.g. `node_modules`) are excluded by default.
+- Stale responses from earlier queries are discarded; Replace All is disabled until the query is re-confirmed; switching projects mid-confirmation cancels the write.
+
+## Replace & undo
+
+- **Replace** writes matching files and broadcasts `liveEdit:fileChanged` so open editors refresh.
+- **Undo replace** (`search:undoReplace`) restores the previous contents — up to 25 undo records, content-hash verified. Saving a file after a replace blocks undoing it (the save becomes the new baseline).
+
+## Local history
+
+The Local History panel (**Ctrl+Alt+H**) keeps automatic snapshots of files you edit, no commits needed:
+
+- Snapshots are recorded before in-memory edits and on disk writes, stored under `<userData>/local-history/` keyed by path hash.
+- Limits: 40 entries per file, 4 MB per snapshot, 3000 entries total.
+- Browse a file's history (`history:list`), read any snapshot (`history:read`), **restore** it (replaces current content and saves a fresh snapshot), delete entries, or clear everything (`history:clear`).
+
+Local history is machine-local and per-user — it never touches your Git repo. For real versioning use the [Git panel](git.mdx).

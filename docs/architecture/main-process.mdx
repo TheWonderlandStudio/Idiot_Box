@@ -1,0 +1,55 @@
+---
+title: "Main process"
+description: "Module map of the Electron main process"
+---
+
+# Main process
+
+Entry point: `electron/main/index.js` (~7900 lines) — the app shell that wires every satellite module to IPC. All handlers are registered through `ipc-invoke.js`, which records them so other main-process code (chiefly the MCP server) can invoke channels directly.
+
+## Module map
+
+| Module | Responsibility |
+|---|---|
+| `index.js` | App shell: windows, menu, single-instance lock, deep links, protocols, zoom, session restore, projects/tabs/pins persistence, terminal (node-pty), run engine, notebook, live server, updater, ports, jump lists, "Open With" file queue |
+| `ai-chat.js` | AI chat backend (Pollinations + OVH endpoints, model fallback chain, SSE streaming), Windows speech-to-text (`System.Speech`) |
+| `android.js` | Offline Android SDK/emulator manager: SDK setup, AVDs, headless emulator, adb/gRPC screen streaming, input injection, package install |
+| `qemu.js` | QEMU VM manager: create/delete VMs, boot, VNC loopback WebSocket proxy, QMP input, restart recovery |
+| `debugger.js` | Node.js (CDP) and Python (debugpy/DAP) debugging: breakpoints, stack, scopes, variables, evaluate, threads |
+| `emulatorGrpc.js` | gRPC client for the Android emulator `EmulatorController` screenshot stream |
+| `browser-mcp.js` | MCP `browser` tool: CDP-driven inspect/click/type/scroll/screenshot/eval/network/console/storage/trace/device emulation (22 actions) |
+| `browser-registry.js` | Registry of embedded `<webview>` guests |
+| `csp.js` | Content-Security-Policy directives + header injection for `file://` |
+| `db-manager.js` | SQLite inspector on `node:sqlite` (list/table/query/edit/export) |
+| `dev-tunnels.js` | Microsoft Dev Tunnels wrapper (install, device-code login, host/stop, URL parsing) |
+| `extensions/` | Extension host: manifest loading, `context.ibox` API, commands/panels/menus/status bar/storage/formatters, community installs, scaffolding, built-in Prettier |
+| `ibx-pages.js` | `idiotbox://extensions/` internal page + its REST API |
+| `ipc-invoke.js` | Handler registry enabling direct IPC invocation from main/MCP |
+| `keybindings.js` | Keybinding registry loader + per-user overrides → Electron accelerators |
+| `local-history.js` | Automatic file snapshots with restore (40/file, 4 MB, 3000 total) |
+| `mcp-server.js` | MCP HTTP server on loopback (default port 39271): `project`, `file`, `git`, `tabs`, `shell`, `terminal`, `servers`, `extensions`, `notebook`, `android`, `ai`, `opencode`, `runtime`, `invoke` tools; opencode config sync |
+| `mise-service.js` | mise runtime manager provisioning (download/cache/trust) |
+| `opencode-panel.js` | OpenCode agent panel: spawns bundled `opencode serve`, health polling, per-workspace ports, own database |
+| `search.js` | Project search/replace with ripgrep fast path, Node fallback, undo store |
+| `test-runner.js` | Test explorer backend: framework detection, collection, execution with parsed events |
+| `tracking.js` | Anonymous opt-out telemetry (install id, EMQX MQTT heartbeat, install counter) |
+| `proto/` | Vendored `emulator_controller.proto` (Apache-2.0) for the gRPC client |
+
+## Window management
+
+| Window | Details |
+|---|---|
+| Main window | 1280×720 default, bounds restored from `session.json`, hidden titlebar + custom-electron-titlebar, `contextIsolation: true`, `webviewTag: true`, preload `preload-bundle.cjs` |
+| Settings | 780×520 child window (`settings.html` + `settings-bundle.js`) |
+| Popouts | `popout.html` (the only window `setWindowOpenHandler` permits) |
+| Internal pages | `idiotbox://extensions/` via `protocol.handle` |
+
+Navigation from the renderer is guarded: non-file URLs open in embedded browser panels, not new windows.
+
+## Menu
+
+Built from a template in `buildMenu()` with accelerators resolved through the keybinding registry + user overrides — see [Application menu](../reference/application-menu.md).
+
+## Lifecycle
+
+Single-instance lock (second launch exits or forwards deep links); `idiotbox://` actions (`update`, `extensions`); "Open With" pending-file queue (pull model via `editor:rendererReady` / `editor:takePendingFiles`); MCP server starts with the app and stops on quit; QEMU VMs, tunnels, OpenCode instances, and debug sessions are torn down on `will-quit`.
