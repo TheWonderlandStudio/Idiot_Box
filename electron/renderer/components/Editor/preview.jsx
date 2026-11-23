@@ -271,7 +271,7 @@ const transformMdxJsx = (src) => {
   });
 
   // Cards: <Card title="..." href="..." icon="...">body</Card>
-  text = text.replace(/<Card(?:\s+title=["']([^"']*)["'])?(?:\s+href=["']([^"']*)["'])?[^>]*>([\s\S]*?)<\/Card>/gi, (_, title = "Card", href, body) => {
+  text = text.replace(/<Card(?=[\s>])(?:\s+title=["']([^"']*)["'])?(?:\s+href=["']([^"']*)["'])?[^>]*>([\s\S]*?)<\/Card>/gi, (_, title = "Card", href, body) => {
     hasComp = true;
     const linkStart = href ? `<a href="${escapeAttr(href)}" class="mdx-card__link" target="_blank" rel="noreferrer noopener">` : "";
     const linkEnd = href ? `</a>` : "";
