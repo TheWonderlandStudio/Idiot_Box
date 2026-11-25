@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Search } from "lucide-react";
 import useSettings from "../shared/useSettings.jsx";
+import { applyThemeSettings } from "../shared/theme.js";
 import { NAV_GROUPS, NAV, NAV_BY_ID } from "./nav.js";
 import { SETTINGS_INDEX } from "./searchIndex.js";
 import GeneralPage     from "./pages/GeneralPage.jsx";
+import AppearancePage  from "./pages/AppearancePage.jsx";
 import HubPage         from "./pages/HubPage.jsx";
 import EditorPage      from "./pages/EditorPage.jsx";
 import TerminalPage    from "./pages/TerminalPage.jsx";
@@ -16,6 +18,7 @@ import "../../variables.css";
 import "@astryxdesign/core/astryx.css";
 import "@astryxdesign/theme-neutral/theme.css";
 import "./settings.css";
+import "./appearance.css";
 
 const urlParam = (name) => {
   try { return new URLSearchParams(window.location.search).get(name); } catch { return null; }
@@ -201,43 +204,19 @@ const SettingsWindow = () => {
     return () => { if (timer) clearTimeout(timer); };
   }, [focusReq, loading, activePage]);
 
-  // Apply theme to settings window itself (default dark)
+  // Apply theme + custom colors to the Settings window itself (default dark).
+  // useSettings already listens to every cross-window channel, so this effect
+  // covers live changes from the main window too.
   useEffect(() => {
     if (loading) return;
-    const th = settings.theme || settings.editorTheme || "dark";
-    const isLight = th === "light" || th === "lightPlus" || th === "lightModern" || th === "light2026" || th === "Visual Studio Light" || th === "Light+" || th === "Light Modern" || th === "Light 2026";
-    document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
-  }, [settings.theme, settings.editorTheme, loading]);
-
-  // Also listen to cross-window theme changes (e.g., from main window)
-  useEffect(() => {
-    const applyTheme = (th) => {
-      if (!th) return;
-      const isLight = th === "light" || th === "lightPlus" || th === "lightModern" || th === "light2026" || th === "Visual Studio Light" || th === "Light+" || th === "Light Modern" || th === "Light 2026";
-      document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
-    };
-    let bc, bc2;
-    try {
-      bc = new BroadcastChannel("app-settings");
-      bc.onmessage = (e) => {
-        const th = e.data?.theme || e.data?.editorTheme;
-        if (th) applyTheme(th);
-      };
-    } catch {}
-    try {
-      bc2 = new BroadcastChannel("editor-settings");
-      bc2.onmessage = (e) => {
-        const th = e.data?.theme || e.data?.editorTheme;
-        if (th) applyTheme(th);
-      };
-    } catch {}
-    return () => { try { bc?.close(); } catch {} try { bc2?.close(); } catch {} };
-  }, []);
+    applyThemeSettings(settings);
+  }, [settings, loading]);
 
   const renderPage = () => {
     if (loading) return <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-body)" }}>Loading...</div>;
     switch (activePage) {
       case "general":     return <GeneralPage settings={settings} onSave={updateSettings} />;
+      case "appearance":  return <AppearancePage settings={settings} onSave={updateSettings} />;
       case "hub":         return <HubPage settings={settings} onSave={updateSettings} />;
       case "editor":      return <EditorPage settings={settings} onSave={updateSettings} />;
       case "terminal":    return <TerminalPage settings={settings} onSave={updateSettings} />;

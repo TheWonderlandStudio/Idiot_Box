@@ -17,7 +17,7 @@ const s = {
   row: { display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-10)", fontSize: "var(--fs-body)", borderBottom: "var(--space-1) solid var(--border-row)" },
   act: (color, bg, border) => ({ width: 22, height: 22, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", background: bg || "var(--bg-active)", border: "1px solid " + (border || "var(--border-light)"), borderRadius: 4, color: color || "var(--text-soft)", cursor: "pointer", flexShrink: 0 }),
   chip: { display: "flex", alignItems: "center", gap: 5, background: "var(--bg-active)", border: "1px solid var(--border-light)", color: "var(--text-soft)", borderRadius: "var(--radius-md)", padding: "3px 7px", fontSize: "var(--fs-small)", cursor: "pointer" },
-  pop: { position: "absolute", top: 36, right: 8, width: 330, maxWidth: "calc(100% - 16px)", maxHeight: "calc(100% - 44px)", background: "var(--bg-raised)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)", boxShadow: "0 18px 50px rgba(0,0,0,.55)", zIndex: 40, display: "flex", flexDirection: "column", overflow: "hidden" },
+  pop: { position: "absolute", top: 36, right: 8, width: 330, maxWidth: "calc(100% - 16px)", maxHeight: "calc(100% - 44px)", background: "var(--bg-raised)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)", boxShadow: "0 18px 50px var(--overlay-a55)", zIndex: 40, display: "flex", flexDirection: "column", overflow: "hidden" },
   popHead: { display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderBottom: "1px solid var(--border-row)", fontSize: "var(--fs-small-plus, 12px)", fontWeight: 700, color: "var(--text-bright)", flexShrink: 0 },
   popBody: { padding: 10, display: "flex", flexDirection: "column", gap: 10, flex: "1 1 auto", minHeight: 0, overflowY: "auto" },
   sec: { fontSize: "var(--fs-tiny)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 },
@@ -514,7 +514,7 @@ const PortsPanel = () => {
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleTunnel(p.port); }}
                     title={t ? `Stop tunnel :${p.port}` : "Forward with Microsoft Dev Tunnels"}
-                    style={s.act(t ? "var(--teal)" : "var(--text-soft)", t ? "rgba(20,184,166,0.14)" : undefined, t ? "var(--teal)" : undefined)}
+                    style={s.act(t ? "var(--teal)" : "var(--text-soft)", t ? "var(--teal-a14)" : undefined, t ? "var(--teal)" : undefined)}
                   >
                     {busy ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : t ? <RadioTower size={11} /> : <Globe size={11} />}
                   </button>
@@ -524,7 +524,7 @@ const PortsPanel = () => {
                 </span>
               </div>
               {t && (
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", padding: "3px 10px 5px 93px", borderBottom: "var(--space-1) solid var(--border-row)", background: "rgba(20,184,166,0.07)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", padding: "3px 10px 5px 93px", borderBottom: "var(--space-1) solid var(--border-row)", background: "var(--teal-a08)" }}>
                   <RadioTower size={10} style={{ color: "var(--teal)", flexShrink: 0 }} />
                   <span
                     onClick={(e) => { e.stopPropagation(); copyText(t.url); }}

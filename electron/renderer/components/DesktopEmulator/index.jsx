@@ -15,7 +15,7 @@ const s = {
   btnGhost: { background: "var(--bg-active)", border: "1px solid var(--border-light)", color: "var(--text-bright)", borderRadius: "var(--radius-md)", padding: "var(--space-5) var(--space-10)", fontSize: "var(--fs-small-plus)", cursor: "pointer", display: "flex", alignItems: "center", gap: "var(--space-6)" },
   iconBtn: { background: "var(--bg-active)", border: "1px solid var(--border-light)", color: "var(--text-soft)", cursor: "pointer", padding: "var(--space-4) var(--space-8)", borderRadius: "var(--radius-md)", fontSize: "var(--fs-body)", lineHeight: "var(--lh-flat)" },
   input: { background: "var(--bg-vscode)", border: "1px solid var(--border-light)", color: "var(--text-input)", borderRadius: "var(--radius-md)", padding: "var(--space-6) var(--space-8)", fontSize: "var(--fs-body)", outline: "none", width: "100%", boxSizing: "border-box" },
-  select: { background: "var(--bg-vscode)", border: "1px solid var(--bord   er-light)", color: "var(--text-input)", borderRadius: "var(--radius-md)", padding: "var(--space-6) var(--space-8)", fontSize: "var(--fs-body)", outline: "none", width: "100%", boxSizing: "border-box" },
+  select: { background: "var(--bg-vscode)", border: "1px solid var(--border-light)", color: "var(--text-input)", borderRadius: "var(--radius-md)", padding: "var(--space-6) var(--space-8)", fontSize: "var(--fs-body)", outline: "none", width: "100%", boxSizing: "border-box" },
   row: { display: "flex", alignItems: "center", gap: "var(--space-10)", padding: "var(--space-8) var(--space-10)", fontSize: "var(--fs-body)", borderBottom: "var(--space-1) solid var(--border-row)" },
   label: { fontSize: "var(--fs-small)", color: "var(--text-secondary)", marginBottom: "var(--space-4)", display: "block" },
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
@@ -302,19 +302,19 @@ const DesktopEmulatorPanel = () => {
       </div>
 
       {toast && (
-        <div style={{ padding: "var(--space-6) var(--space-10)", background: toast.isError ? "var(--danger-bg, #3a1d1d)" : "var(--success-bg, #1d3a24)", fontSize: "var(--fs-small-plus)" }}>
+        <div style={{ padding: "var(--space-6) var(--space-10)", background: toast.isError ? "var(--danger-bg)" : "var(--success-bg)", fontSize: "var(--fs-small-plus)" }}>
           {toast.text}
         </div>
       )}
-      {error && <div style={{ padding: "var(--space-6) var(--space-10)", background: "var(--danger-bg, #3a1d1d)", color: "var(--danger)", fontSize: "var(--fs-small-plus)" }}>{error}</div>}
+      {error && <div style={{ padding: "var(--space-6) var(--space-10)", background: "var(--danger-bg)", color: "var(--danger)", fontSize: "var(--fs-small-plus)" }}>{error}</div>}
 
       {view ? (
         <div
           ref={viewerRef}
           onMouseMove={revealFullscreenUi}
-          style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: "#000", ...(isFullscreen ? { position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 9999, overflow: "hidden" } : {}) }}
+          style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: "var(--black)", ...(isFullscreen ? { position: "fixed", inset: 0, width: "100vw", height: "100vh", zIndex: 9999, overflow: "hidden" } : {}) }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-10)", ...(isFullscreen ? { position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, background: "linear-gradient(#000b, transparent)", opacity: fullscreenUiVisible ? 1 : 0, transform: fullscreenUiVisible ? "translateY(0)" : "translateY(-100%)", transition: "opacity 180ms ease, transform 180ms ease", pointerEvents: fullscreenUiVisible ? "auto" : "none" } : {}) }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", padding: "var(--space-6) var(--space-10)", ...(isFullscreen ? { position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, background: "linear-gradient(color-mix(in srgb, var(--black) 70%, transparent), transparent)", opacity: fullscreenUiVisible ? 1 : 0, transform: fullscreenUiVisible ? "translateY(0)" : "translateY(-100%)", transition: "opacity 180ms ease, transform 180ms ease", pointerEvents: fullscreenUiVisible ? "auto" : "none" } : {}) }}>
             <button style={s.iconBtn} title="Back to VM list" onClick={() => setView(null)}><ArrowLeft size={14} /></button>
             <strong style={{ fontSize: "var(--fs-body)" }}>{view.name}</strong>
             <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-6)" }}>
@@ -324,17 +324,17 @@ const DesktopEmulatorPanel = () => {
               <button style={s.btnGhost} onClick={() => doStop(view.name)}><Square size={13} /> Stop</button>
             </div>
           </div>
-          <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden", background: "#000", ...(isFullscreen ? { position: "absolute", inset: 0 } : {}) }}>
+          <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden", background: "var(--black)", ...(isFullscreen ? { position: "absolute", inset: 0 } : {}) }}>
             <div ref={screenRef} style={{ width: "100%", height: "100%", overflow: "hidden" }} />
             {displayStatus.state !== "connected" && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--space-10)", padding: "var(--space-20)", background: "rgba(0, 0, 0, 0.88)", textAlign: "center" }}>
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--space-10)", padding: "var(--space-20)", background: "var(--overlay-a88)", textAlign: "center" }}>
                 <Monitor size={28} />
                 <strong>{displayStatus.state === "connecting" ? "Connecting to VM display…" : "VM display disconnected"}</strong>
                 {displayStatus.error && <span style={{ maxWidth: 520, color: "var(--text-secondary)", fontSize: "var(--fs-small-plus)" }}>{displayStatus.error}</span>}
               </div>
             )}
           </div>
-          <div style={{ display: "flex", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", flexWrap: "wrap", alignItems: "center", ...(isFullscreen ? { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, background: "linear-gradient(transparent, #000b)", opacity: fullscreenUiVisible ? 1 : 0, transform: fullscreenUiVisible ? "translateY(0)" : "translateY(100%)", transition: "opacity 180ms ease, transform 180ms ease", pointerEvents: fullscreenUiVisible ? "auto" : "none" } : {}) }}>
+          <div style={{ display: "flex", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", flexWrap: "wrap", alignItems: "center", ...(isFullscreen ? { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, background: "linear-gradient(transparent, var(--overlay-a73))", opacity: fullscreenUiVisible ? 1 : 0, transform: fullscreenUiVisible ? "translateY(0)" : "translateY(100%)", transition: "opacity 180ms ease, transform 180ms ease", pointerEvents: fullscreenUiVisible ? "auto" : "none" } : {}) }}>
             <input style={{ ...s.input, flex: "1 1 160px" }} placeholder="Type text + Enter to send…" value={keyText}
               onChange={(e) => setKeyText(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") sendText(); }} />

@@ -1,0 +1,67 @@
+---
+title: "Security & privacy"
+description: "CSP, sandboxing, loopback services, and the full network inventory"
+---
+
+# Security & privacy
+
+## Renderer hardening
+
+- `contextIsolation: true`, `nodeIntegration: false`, sandboxed preload — the renderer only gets the whitelisted `window.electronAPI` surface.
+- **CSP** (`electron/main/csp.js`) applied to `file://` responses and as a meta tag:
+
+| Directive | Value |
+|---|---|
+| `default-src` | `'self' file: ibx-file:` |
+| `script-src` | `'self' file: ibx-file: blob: 'unsafe-eval' 'wasm-unsafe-eval'` |
+| `style-src` | `'self' + Google Fonts + 'unsafe-inline'` |
+| `connect-src` | https/wss + localhost http/ws |
+| `object-src` | `'none'` |
+| `frame-src` | local only |
+
+Plus `X-Content-Type-Options: nosniff`. Sandboxed preview iframes get a dedicated, more permissive `PREVIEW_IFRAME_CSP`.
+
+## Loopback services
+
+All local servers bind **127.0.0.1 only**:
+
+| Service | Port | Guard |
+|---|---|---|
+| MCP HTTP | 39271 (+20 fallback) | Host/Origin check, optional Bearer token (`IDIOT_BOX_MCP_TOKEN`), UI-channel blocklist |
+| Live server | random | Directory-traversal guard |
+| OpenCode panel | 42000–43999 | Basic-auth credentials injected for loopback session only |
+| Android emulator gRPC | random | loopback, insecure channel |
+| QEMU VNC / QMP | 5900–5999 / random | loopback only |
+
+## QEMU guest isolation
+
+VMs boot with `-net none` and no host folder/device passthrough by default — a guest cannot reach the host network unless the QEMU args are deliberately changed.
+
+## File-system safety
+
+- Zip extraction (SDK tools) is a pure-Node extractor with zip-slip protection.
+- Project storage trash keeps deleted files recoverable.
+- Native dialogs gate destructive actions; replace-in-files keeps a hash-verified undo store.
+
+## Network inventory (what the app calls)
+
+| Endpoint | Purpose | Data |
+|---|---|---|
+| `text.pollinations.ai`, OVH AI endpoints | AI chat | Your prompt text |
+| `api.github.com` / GitHub Releases | Updates, community extensions, release notes | None personal |
+| `dl.google.com` | Android SDK tools | None |
+| `api.adoptium.net` | Bundled JDK | None |
+| `aka.ms` / winget | Dev Tunnels CLI install | None |
+| `broker.emqx.io` (MQTT) | Anonymous heartbeat (opt-out) | Install id, app version |
+| `countapi.mileshilliard.com` | Public install counter | None |
+| User-configured | Chrome extensions, webviews, extensions | Whatever those pages load |
+
+## Telemetry
+
+Anonymous and **opt-out** (`settings.telemetryEnabled: false`): a random 24-hex install id, a 30-second MQTT heartbeat (retained message cleared on quit), and a one-time install-counter hit. No crash reports are uploaded (`crashReporter` is local-only). See the landing page's [privacy policy](https://thewonderlandstudio.github.io/Idiot_Box/privacy.html) and `SECURITY.md` for the reporting policy.
+
+## Updates & installer
+
+- Windows builds can be Authenticode-signed (`CSC_LINK` / `CSC_KEY_PASSWORD`); macOS uses hardened runtime + optional notarization.
+- The NSIS installer snapshots and restores file-association defaults when the user opts out of "Register as editor".
+- Report vulnerabilities privately via GitHub Security — details in the root `SECURITY.md`.

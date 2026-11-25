@@ -1,5 +1,6 @@
 export const SETTINGS_INDEX = [
   { kind: "page", page: "general",     label: "General",     desc: "Appearance, startup behaviour and general preferences.", kw: "settings preferences" },
+  { kind: "page", page: "appearance",  label: "Appearance",  desc: "Customize every color in the app and save your own theme.", kw: "settings theme colors palette customize dark light accent background text border export import css" },
   { kind: "page", page: "hub",         label: "Hub",         desc: "Project Hub, contribution heatmap and app-data management.", kw: "settings" },
   { kind: "page", page: "editor",      label: "Editor",      desc: "Font, wrapping and editing behaviour.", kw: "settings" },
   { kind: "page", page: "terminal",    label: "Terminal",    desc: "Font, cursor, scrollback and shell preferences.", kw: "settings" },
@@ -10,6 +11,11 @@ export const SETTINGS_INDEX = [
   { kind: "page", page: "extensions",  label: "Extensions",  desc: "Manage installed extensions.", kw: "settings chrome crx browser" },
 
   { kind: "row", page: "general", label: "Theme", desc: "Color theme for the workbench. Restart may be required for some elements.", kw: "appearance color dark light dark+" },
+  { kind: "row", page: "appearance", label: "Active theme", desc: "Switch the whole app between the dark and light token sets.", kw: "theme mode dark light" },
+  { kind: "row", page: "appearance", label: "Colors to edit", desc: "Pick a mode and customize any color token in the app.", kw: "palette colors tokens customize" },
+  { kind: "row", page: "appearance", label: "Reset all colors", desc: "Remove every custom color override and return to the built-in palette.", kw: "reset default restore theme" },
+  { kind: "row", page: "appearance", label: "Export", desc: "Download the current colors as a JSON theme file.", kw: "save download theme json" },
+  { kind: "row", page: "appearance", label: "Import", desc: "Load colors from a JSON theme file.", kw: "load restore theme json" },
   { kind: "row", page: "general", label: "Zoom Level", desc: "Adjust the overall UI scale. 100% is the default.", kw: "zoom ui scale interface size magnify" },
   { kind: "row", page: "general", label: "Restore Previous Session", desc: "Reopen editors and layout from the last session when the app starts.", kw: "startup session tabs reopen layout" },
   { kind: "row", page: "general", label: "Show Hidden Files", desc: "Show dotfiles and hidden folders in the Project explorer.", kw: "explorer dotfiles hidden folders visibility" },

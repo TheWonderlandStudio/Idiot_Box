@@ -1,0 +1,30 @@
+---
+title: "Project Hub"
+description: "Opening projects, recent list, pins, and the AI setup chat"
+---
+
+# Project Hub
+
+The Project Hub is the home screen shown when no project is open. It lists recent projects, pinned projects, and a chat box for AI-assisted project setup.
+
+## Recent projects
+
+- Up to 10 recent projects are tracked (in `recent-projects.json` under user data), with metadata (name, path, last opened).
+- Pin a project with the pin toggle so it stays at the top of the Hub.
+- Remove entries from the Hub or clear the whole list.
+
+## AI setup chat
+
+The Hub has a fullscreen **AI setup chat** (`AiSetupChat.jsx`) where you can describe what you want to build. The chat:
+
+- Detects repo-search and clone intents (`chat-intent.cjs`): asking for "clone a react boilerplate" resolves a repo name and offers a clone action, while general questions become a repository search.
+- Runs on the built-in AI backend (see [AI assistant](ai-assistant.mdx)).
+- Uses the AI Elements (Tailwind + shadcn) component set, scoped and injected as a JS string module for Shadow DOM isolation.
+
+## Project storage
+
+Per-project data (tabs, pins, canvas layout, drawings) lives under the user-data `projects/` folder. The **Storage** menu lets you clear per-project tabs, pins, canvas, trash — or wipe everything — directly from the UI. See [Data storage](../architecture/storage.mdx).
+
+## Close / switch projects
+
+**Ctrl+Shift+W** closes the current project and returns to the Hub. Switching projects restores that project's last tabs and layout (per-project `tabs.json` and window session).

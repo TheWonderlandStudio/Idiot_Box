@@ -1,0 +1,34 @@
+---
+title: "Ports & Dev Tunnels"
+description: "Inspect local ports and expose them publicly with Microsoft Dev Tunnels"
+---
+
+# Ports & Dev Tunnels
+
+## Ports panel
+
+The Ports panel (see [Terminal & Run](terminal-run.mdx)) lists what's listening locally, checks a port, kills processes, and forwards ports — combining the local Ports panel with **Microsoft Dev Tunnels** for public exposure.
+
+## Dev Tunnels
+
+Microsoft Dev Tunnels (`devtunnel` CLI) exposes a local port with a public HTTPS URL — useful for sharing a dev server, testing webhooks, or demoing from a phone.
+
+### Setup
+
+- **Install** — the panel installs the CLI via winget or `curl aka.ms/DevTunnelCliInstall`. The CLI is resolved from the `DEVTUNNEL_CLI` env var, `where`/`which`, or the WinGet links folder.
+- **Sign in** — device-code flow: the panel shows the code and URL (`login-prompt` / `login-done` / `login-error` events). Credentials stay in the OS keychain — Idiot Box never sees them.
+
+### Using tunnels
+
+- Start a tunnel per port (`host -p PORT`): choose **private** (requires authentication) or **public / anonymous** access.
+- The panel parses the hosted URL (`.devtunnels.ms`) and offers a copy button.
+- Stop individual tunnels, or all of them; tunnels are cleaned up on sign-out and app exit.
+- Status events stream to the panel via `devtunnels:event`.
+
+### Environment
+
+| Variable | Purpose |
+|---|---|
+| `DEVTUNNEL_CLI` | Override the `devtunnel` executable path |
+
+See [Environment variables](../reference/environment-variables.md) for the full list.

@@ -1,0 +1,42 @@
+---
+title: "AI assistant"
+description: "AI chat, streaming models, speech-to-text, and the OpenCode agent panel"
+---
+
+# AI assistant
+
+Idiot Box ships an AI assistant with three surfaces: the chat panel, the Hub's setup chat, and the OpenCode agent panel.
+
+## AI chat panel
+
+- **Ask** — one-shot completion (`ai:chat`).
+- **Stream** — SSE streaming (`ai:chat:start` → `ai:chat:chunk` / `ai:chat:done` / `ai:chat:error`).
+- **Voice input** — Windows speech-to-text via PowerShell `System.Speech` (WAV transcription, `en-IN` culture, 20-second limit).
+
+### Model backends
+
+The chat uses free tiers with an automatic fallback chain:
+
+1. OVHcloud AI Endpoints (`oai.endpoints.kepler.ai.cloud.ovh.net`) with a fallback list: Mistral-7B → gpt-oss-20b → Mistral-Small-3.2-24B → Qwen3.6-27B → Mistral-Nemo → Meta-Llama-3.3-70B → gpt-oss-120b.
+2. Pollinations legacy text API (`text.pollinations.ai`).
+3. Non-streaming fallback if both stream paths fail.
+
+No API keys are required; see [Security & privacy](../architecture/security-privacy.mdx) for what's sent where.
+
+## Hub AI setup chat
+
+The Project Hub's fullscreen chat helps you describe and scaffold a project, with repo-search / clone intent detection (see [Project Hub](project-hub.mdx)).
+
+## OpenCode agent panel
+
+The **OpenCode** panel embeds the bundled [OpenCode](https://opencode.ai) agent:
+
+- The app spawns `opencode serve` from the bundled binary (unpacked from asar) and health-polls it.
+- It listens on 127.0.0.1, port `42000 + hash(workspace) % 2000` (range 42000–43999).
+- The panel's database is separate from a user's own opencode install: `<userData>/opencode/opencode.db` (override with `OPENCODE_DB`).
+- Basic-auth panel credentials are injected for the 127.0.0.1 session only.
+- Instances are stopped on app quit; the panel is lazy-loaded (renderer chunk `ai-agent`).
+
+## MCP
+
+External AI clients can also drive the whole IDE through the built-in MCP server — see [MCP.md](../MCP.md). The `ai` MCP tool exposes the same chat backend to agents, and the app auto-writes opencode MCP config (`syncOpenCodeConfig`).

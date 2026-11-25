@@ -1,0 +1,37 @@
+---
+title: "Browser"
+description: "Embedded browser tabs, the visual design inspector, and Chrome extension support"
+---
+
+# Browser
+
+The Browser panel embeds Chromium `<webview>` guests as tabs, so you can test and inspect web projects without leaving the IDE.
+
+## Basics
+
+- Open a URL in a new browser tab (external navigation from the editor is also routed to browser tabs instead of a system browser).
+- Browser tabs have their own context menu (back/forward, reload, open in system browser).
+- Guest shortcuts are captured while the webview is focused: **F12** DevTools, **F5** reload, **Ctrl+R** reload, **Ctrl+F** find, **Ctrl+L** focus address bar, Alt+arrows history.
+
+## Design inspector
+
+The browser's visual editor includes a Cursor-style **design inspector** (v0.1.32+), driven over the Chrome DevTools Protocol:
+
+- **Select any element** in the page (CDP component picker) and edit it live.
+- Panels for **layout/flow**, **spacing**, **sizing**, **typography**, **color**, **shadow**, **border**, **position** — plus a raw **CSS tab** and a **DOM tree** with parent selection and selector copy.
+- **Inline text editing** (`browser:guestEdit`), element **move / duplicate / remove**, link and attribute editing.
+- **Undo** and keyboard hints built in.
+
+## Network, console & device
+
+The same CDP plumbing (shared with the MCP `browser` tool) can inspect network requests (list/detail/block/clear, capped at 300 entries), console logs (200 entries), cookies and local/session storage, tracing, and performance metrics, and emulate a mobile device viewport.
+
+## Live server
+
+Pair the browser with the built-in [live server](live-server.mdx) for auto-reload previews, and apply live-edit patches straight from the editor.
+
+## Chrome extensions
+
+The app embeds `electron-chrome-extensions`, so Chrome extensions can be loaded (unpacked or `.crx`), enabled/disabled, and removed — including browser-action popups anchored over the UI (`crx://` protocol). Extension tabs can create new browser tabs (`chrome:createTab`).
+
+> The webview is sandboxed by the app's CSP; the `browser:pickComponent` / `browser:guestEdit` bridges are the deliberate exceptions used by the design tools.

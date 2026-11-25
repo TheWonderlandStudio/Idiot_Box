@@ -1,0 +1,58 @@
+---
+title: "Renderer"
+description: "React UI structure, panels, and lazy chunks"
+---
+
+# Renderer
+
+The renderer is React 19 (`electron/renderer/index.jsx`) bundled by esbuild into `bundle.js` (IIFE) with lazy chunks for heavy panels. Layout is **FlexLayout** (drag, split, float tabs); the titlebar is `custom-electron-titlebar`; the CSP lives in a meta tag (see [Security & privacy](security-privacy.mdx)).
+
+## Component folders (`electron/renderer/components/`)
+
+| Folder | Contents |
+|---|---|
+| `Editor/` | CodeMirror editor, breakpoints, CSV view, preview, status bar, shared state |
+| `Project/` | Project Hub, AI setup chat, chat-intent detection |
+| `Terminal/` | xterm.js terminal tabs |
+| `GitPanel/` | Full Git UI |
+| `Browser/` | Embedded webview tabs + design inspector |
+| `Debugger/` | Debug sessions, stack/scopes/variables |
+| `TestExplorer/` | Test tree and runs |
+| `SearchPanel/` | Find/replace in files |
+| `LocalHistory/` | File snapshot browser |
+| `Output/` | Shared log output (App/Git/Updater/Live Server + extension channels) |
+| `Problems/` | Problems/diagnostics |
+| `RunPanel/` | Run/debug process control |
+| `Ports/` | Ports panel |
+| `AndroidEmulator/` | Android SDK/AVD/streaming UI |
+| `DesktopEmulator/` | QEMU VM UI (noVNC) |
+| `Notebook/` | Python notebooks |
+| `MediaViewer/` | Images/audio/video |
+| `Canvas/` | Per-project Excalidraw canvas |
+| `OpenPencil/` | Excalidraw drawing panel |
+| `CommunityPanel/` | Community extensions |
+| `OpenCodePanel/` | OpenCode agent embed |
+| `ComponentPreview/` | React component preview |
+| `Extensions/` | Extensions UI |
+| `CommandPalette/` | Palette + recent files |
+| `Settings/` | Settings window (10 pages) |
+| `UpdaterBanner/` | Update banner |
+| `Onboarding/`, `Blank/`, `WebLinux/`, `ai-elements/`, `shared/` | Onboarding flow, blank panel, web sandbox, AI chat components, shared utilities |
+
+## Lazy chunks
+
+esbuild emits on-demand IIFE chunks (`globalName __ibx_chunk_<name>`) to `electron/renderer/chunks/`, with React shared from the main bundle: `canvas`, `ai-agent` (OpenCode), `notebook`, `git`, `community`, `android`, `desktop`, `excalidraw` (OpenPencil). Panels only cost startup time when first opened.
+
+## Settings window
+
+`settings-entry.jsx` → `settings-bundle.js` (separate esbuild step) renders `SettingsWindow` with pages: General, Appearance, Editor, Terminal, Git, Hub, Preview, Canvas, Keybindings, Extensions. Appearance reads the generated theme-token registry from `theme/tokens.generated.js`.
+
+## Styling
+
+- `layout.css`, `responsive.css`, `variables.css` (the design-token sheet), `settings.css`, plus per-feature CSS files.
+- Theme tokens: CSS variables for dark/light, generated into a JS registry at build time (`npm run build:theme`) — the Settings Appearance picker edits these tokens.
+- `ai-elements/ai-tw-css.js` is generated scoped Tailwind CSS injected into Shadow DOM for the AI chat UI.
+
+## Compat shims
+
+The editor keeps legacy Monaco compatibility (`ensureMonacoReady` resolves immediately, a `monaco:ready` event fires alongside `codemirror:ready`, and `MonacoEditorPanel` is re-exported as an alias) — the actual engine is CodeMirror 6. Monaco survives only as an unused vendor bundle on the landing page.

@@ -1,0 +1,51 @@
+---
+title: "Run from source"
+description: "Clone, install, and start Idiot Box from the repository"
+---
+
+# Run from source
+
+Requirements: [Node.js](https://nodejs.org) 22+ and Git. Electron 43 is pulled in as a devDependency; no global Electron install is needed.
+
+```bash
+git clone https://github.com/TheWonderlandStudio/Idiot_Box.git
+cd Idiot_Box
+npm install
+npm start
+```
+
+`npm start` runs the full build pipeline and launches the app:
+
+1. `npm run build:theme` — regenerates the theme token registry from `electron/renderer/variables.css`
+2. `npm run build:ai-css` — builds scoped Tailwind CSS for the AI chat elements
+3. `npm run build:preload` — esbuild-bundles the preload script
+4. `npm run build:renderer` — esbuild-bundles the React renderer + lazy panel chunks
+5. `npm run build:settings` — bundles the settings window
+6. `npm run build:icons` — generates `.ico`/`.icns`/`.png` and Store tiles
+7. `npm run dev:icon` — stamps the icon into the dev `electron.exe` so the taskbar shows the logo (Windows)
+
+`postinstall` (runs automatically) generates icons and stamps the dev icon. Native modules ship N-API prebuilds, so no compiler toolchain is required — `nativeModules.npmRebuild` is intentionally disabled.
+
+## Development workflow
+
+There is **no file watcher**. After editing code:
+
+| What changed | What to re-run |
+|---|---|
+| Renderer (React/JSX/CSS) | `npm run build:renderer` (cached — only rebuilds when sources changed) |
+| Preload | `npm run build:preload` |
+| Settings window | `npm run build:settings` |
+| Main process (`electron/main/*.js`) | Restart the app |
+| `variables.css` (theme tokens) | `npm run build:theme` |
+
+`Ctrl+R` reloads the renderer in a running window; `Ctrl+Shift+I` opens DevTools.
+
+## Checks before submitting a PR
+
+```bash
+npm test                          # unit tests (node --test)
+npm run build                     # full build pipeline
+node --check electron/main/index.js
+```
+
+See [Testing](../development/testing.mdx) and the root `CONTRIBUTING.md` for the full list.

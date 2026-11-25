@@ -31,6 +31,7 @@
   --bg-hover:        #2a2a2a;
   --bg-hover-strong: #2a2d2e;   /* ex-#2a2d2e card hover */
   --bg-active:       #2d2d2d;
+  --bg-button:       #3a3a3a;
   --bg-input:        #0d0d0d;
   --bg-input-strong: #3c3c3c;   /* git commit input etc. */
   --bg-header:       #1a1a1a;
@@ -54,6 +55,7 @@
   --text-label:      #b0b0b0;
   --text-soft:       #bbbbbb;   /* ex-#bbb section titles / ghost buttons */
   --text-soft-2:     #bdbdbd;   /* ex-#bdbdbd canvas group heads */
+  --text-soft-3:     #eeeeee;   /* ex-#eee overlay menu text */
   --text-warm:       #d0d0d0;   /* ex-#d0d0d0 card titles / inputs */
   --text-nav:        #a0a0a0;
   --text-input:      #e0e0e0;
@@ -63,7 +65,10 @@
   --text-disabled:   #444;
   --paper:           #ffffff;   /* canvas / preview paper surface */
   --black:           #000000;
+  --transparent:     rgba(0,0,0,0);
   --ink-on-teal:     #0d1117;   /* dark ink on teal fills (ex-#0d1117) */
+  --ink:             #e8e8e8;   /* error-boundary button text */
+  --ink-muted:       #a3a3a3;
 
   /* ── §3 Borders ───────────────────────────────────────────────────────── */
   --border:          #333;
@@ -94,6 +99,7 @@
 
   /* ── §5 Teal (AI / live / success accent, ex-#4ec9b0 family) ───────────── */
   --teal:            #4ec9b0;
+  --teal-ink:        #06281f;   /* text on a teal fill */
   --teal-bright:     #5fd8be;   /* teal hover */
   --teal-deep:       #3da58a;   /* teal gradient end */
   --teal-dim:        #3fb49c;
@@ -113,6 +119,7 @@
   --teal-a35:        rgba(78,201,176,0.35);
   --teal-a45:        rgba(78,201,176,0.45);
   --teal-a50:        rgba(78,201,176,0.50);
+  --teal-a75:        rgba(78,201,176,0.75);
   --teal-a95:        rgba(78,201,176,0.95);
   --teal-border-soft: #4ec9b033; /* 20% teal hairline (8-digit hex) */
 
@@ -142,6 +149,10 @@
 
   /* ── §8 Danger / error ────────────────────────────────────────────────── */
   --danger:          #f44747;
+  --danger-a30:      rgba(244,71,71,0.30);
+  --danger-bg:       #3a1d1d;   /* error toast / banner fill */
+  --bg-danger-soft:  rgba(244,71,71,0.10);
+  --error:           #f44747;   /* hub path-bar delete icon */
   --error-soft:      #f48771;   /* soft error text / notebook stderr */
   --error-muted:     #e06c75;   /* settings danger button */
   --error-text:      #ff8a8a;   /* toast error text */
@@ -162,6 +173,8 @@
   --error-short:     #e55;      /* shorthand red */
   --error-tint-a07:  rgba(244,71,71,0.07);
   --error-tint-a09:  rgba(244,71,71,0.09);
+  --error-tint-a12:  rgba(244,135,113,0.12);
+  --code-tan-a12:    rgba(215,186,125,0.12);
 
   /* ── §9 Warning ───────────────────────────────────────────────────────── */
   --warning:         #e6a23c;
@@ -297,10 +310,254 @@
   --updater-track-fill: rgba(13,26,42,0.9);
   --updater-track-line: rgba(42,74,106,0.5);
 
+  /* ── §12f Overlay alpha extensions (theme-agnostic) ───────────────────── */
+  --white-a03:       rgba(255,255,255,0.03);
+  --white-a04:       rgba(255,255,255,0.04);
+  --white-a05:       rgba(255,255,255,0.05);
+  --white-a055:      rgba(255,255,255,0.055);
+  --white-a07:       rgba(255,255,255,0.07);
+  --white-a09:       rgba(255,255,255,0.09);
+  --white-a11:       rgba(255,255,255,0.11);
+  --white-a14:       rgba(255,255,255,0.14);
+  --white-a16:       rgba(255,255,255,0.16);
+  --white-a17:       rgba(255,255,255,0.17);
+  --white-a20:       rgba(255,255,255,0.20);
+  --white-a60:       rgba(255,255,255,0.60);
+  --white-a74:       rgba(255,255,255,0.74);
+  --white-a82:       rgba(255,255,255,0.82);
+  --white-a85:       rgba(255,255,255,0.85);
+  --white-a90:       rgba(255,255,255,0.90);
+  --white-a92:       rgba(255,255,255,0.92);
+
+  --overlay-a04:     rgba(0,0,0,0.04);
+  --overlay-a05:     rgba(0,0,0,0.05);
+  --overlay-a06:     rgba(0,0,0,0.06);
+  --overlay-a08:     rgba(0,0,0,0.08);
+  --overlay-a09:     rgba(0,0,0,0.09);
+  --overlay-a10:     rgba(0,0,0,0.10);
+  --overlay-a12:     rgba(0,0,0,0.12);
+  --overlay-a14:     rgba(0,0,0,0.14);
+  --overlay-a15:     rgba(0,0,0,0.15);
+  --overlay-a16:     rgba(0,0,0,0.16);
+  --overlay-a18:     rgba(0,0,0,0.18);
+  --overlay-a20:     rgba(0,0,0,0.20);
+  --overlay-a22:     rgba(0,0,0,0.22);
+  --overlay-a24:     rgba(0,0,0,0.24);
+  --overlay-a28:     rgba(0,0,0,0.28);
+  --overlay-a32:     rgba(0,0,0,0.32);
+  --overlay-a35:     rgba(0,0,0,0.35);
+  --overlay-a38:     rgba(0,0,0,0.38);
+  --overlay-a42:     rgba(0,0,0,0.42);
+  --overlay-a60:     rgba(0,0,0,0.60);
+  --overlay-a73:     rgba(0,0,0,0.73);
+  --overlay-a80:     rgba(0,0,0,0.80);
+  --overlay-a85:     rgba(0,0,0,0.85);
+  --overlay-a88:     rgba(0,0,0,0.88);
+
+  /* ── §12g Project Hub palette (dark defaults) ─────────────────────────── */
+  --hub-bg:          #0a0a0a;
+  --hub-bg-deep:     #0a0a0c;
+  --hub-bg-raised:   #101010;
+  --hub-bg-elevated: #111111;
+  --hub-bg-inset:    #121216;
+  --hub-surface:     #131316;
+  --hub-surface-2:   #16161a;
+  --hub-surface-3:   #1b1b1b;
+  --hub-surface-4:   #1b1b20;
+  --hub-surface-5:   #101013;
+  --hub-sidebar-top: #1d1d21;
+  --hub-sidebar-bottom: #18181b;
+  --hub-modal-top:   #23232c;
+  --hub-modal-mid:   #131317;
+  --hub-modal-bottom: #0e0e11;
+  --hub-overlay:     rgba(14,14,17,0.74);
+  --hub-overlay-2:   rgba(10,10,12,0.62);
+  --hub-overlay-3:   rgba(10,10,12,0.72);
+  --hub-overlay-4:   rgba(19,19,22,0.92);
+  --hub-overlay-5:   rgba(20,20,24,0.80);
+  --hub-scrim:       rgba(0,0,0,0.50);
+  --hub-paper:       #ececef;
+  --hub-paper-2:     #dcdce0;
+  --hub-paper-3:     #fff0dd;
+  --hub-ink:         #131316;
+  --hub-ink-deep:    #1a0f06;
+
+  --hub-orange:      #ff9d4d;
+  --hub-orange-bright: #ffb37a;
+  --hub-orange-pale: #ffe2c6;
+  --hub-orange-deep: #ff7a1a;
+  --hub-orange-mid:  #f4761f;
+  --hub-orange-a75:  rgba(255,157,77,0.75);
+  --hub-orange-a46:  rgba(255,150,74,0.46);
+  --hub-orange-a45:  rgba(255,150,74,0.45);
+  --hub-orange-a40:  rgba(255,150,74,0.40);
+  --hub-orange-a28:  rgba(255,150,74,0.28);
+  --hub-orange-a22:  rgba(255,150,74,0.22);
+  --hub-orange-a15:  rgba(255,150,74,0.15);
+  --hub-orange-100-a34: rgba(255,100,30,0.34);
+  --hub-orange-100-a16: rgba(255,100,30,0.16);
+  --hub-orange-70-a22: rgba(255,70,12,0.22);
+  --hub-orange-70-a10: rgba(255,70,12,0.10);
+
+  --hub-amber-deep:  #b45309;
+  --hub-amber-ink:   #6b3410;
+  --hub-amber-ink-2: #7a4a1e;
+  --hub-amber-ink-3: #b08d70;
+  --hub-amber-bg:    #2b1a0d;
+
+  --hub-blue:        #3d7dfb;
+  --hub-blue-deep:   #2f63d8;
+  --hub-blue-bright: #4a88ff;
+  --hub-blue-deep-2: #3568e0;
+  --hub-blue-soft:   #8fb2ff;
+  --hub-blue-pale:   #eef2ff;
+  --hub-blue-a32:    rgba(47,99,216,0.32);
+  --hub-blue-a14:    rgba(96,140,255,0.14);
+  --hub-blue-a12:    rgba(96,140,255,0.12);
+  --hub-blue-soft-a40: rgba(120,156,255,0.40);
+  --hub-blue-soft-a50: rgba(120,156,255,0.50);
+
+  --hub-red:         #ff6b6b;
+  --hub-red-soft:    #ff8b8b;
+  --hub-red-pale:    #ff9a9a;
+  --hub-red-bright:  #ff8080;
+  --hub-red-a16:     rgba(255,70,70,0.16);
+  --hub-red-a18:     rgba(255,70,70,0.18);
+  --hub-red-a24:     rgba(255,70,70,0.24);
+  --hub-red-a12:     rgba(255,80,80,0.12);
+  --hub-red-a50:     rgba(255,90,90,0.50);
+  --hub-red-a70:     rgba(255,110,110,0.70);
+
+  --hub-green:       #4ade80;
+  --hub-green-a14:   rgba(34,197,94,0.14);
+  --hub-green-a35:   rgba(34,197,94,0.35);
+
+  /* ── §12h Browser edit overlay + editor/misc accents ──────────────────── */
+  --edit-blue:       #3b82f6;
+  --edit-blue-hover: #2f74e8;
+  --edit-blue-deep:  #2a68d4;
+  --edit-blue-soft:  #7fb0ff;
+  --edit-blue-pale:  #dbeafe;
+  --edit-blue-a05:   rgba(59,130,246,0.05);
+  --edit-blue-a07:   rgba(59,130,246,0.07);
+  --edit-blue-a12:   rgba(59,130,246,0.12);
+  --edit-blue-a16:   rgba(59,130,246,0.16);
+  --edit-blue-a26:   rgba(59,130,246,0.26);
+  --code-sky:        #38bdf8;
+  --code-sky-a12:    rgba(56,189,248,0.12);
+  --code-sky-a30:    rgba(56,189,248,0.30);
+  --code-pink:       #f472b6;
+  --code-pink-a12:   rgba(244,114,182,0.12);
+  --code-pink-a30:   rgba(244,114,182,0.30);
+  --code-amber:      #f59e0b;
+  --code-red:        #ef4444;
+  --code-emerald:    #10b981;
+  --code-red-strong: #e51400;
+  --code-gold:       #ffd700;
+  --code-orchid:     #da70d6;
+  --code-azure:      #179fff;
+  --code-salmon:     #ff8c69;
+  --code-green-pale: #b5cea8;
+  --code-green:      #6a9955;
+  --code-purple:     #b180d7;
+  --git-added-strong: #2ea043;
+  --git-modified-strong: #316dca;
+  --git-removed-strong: #c93c37;
+  --git-added-a10-strong: rgba(46,160,67,0.10);
+  --git-modified-a10-strong: rgba(49,109,202,0.10);
+  --git-removed-a10-strong: rgba(201,60,55,0.10);
+  --teal-a12-strong: rgba(46,196,182,0.12);
+  --teal-a30-strong: rgba(46,196,182,0.30);
+  --discord:         #5865f2;
+  --discord-hover:   #4752c4;
+  --discord-a14:     rgba(88,101,242,0.14);
+  --community-bg:    #0b0b0e;
+  --panel-void:      #0e0e12;
+  --emulator-blue:   rgb(95,134,196);
+  --emulator-blue-a10: rgba(95,134,196,0.10);
+  --emulator-green:  rgb(119,166,119);
+  --emulator-green-a075: rgba(119,166,119,0.075);
+  --overlay-tint-blue: rgba(0,122,204,0.12);
+  --overlay-tint-blue-a10: rgba(0,122,204,0.10);
+  --overlay-tint-blue-a40: rgba(0,122,204,0.40);
+  --overlay-tint-blue-a45: rgba(0,122,204,0.45);
+  --editor-grid-a60: rgba(128,128,128,0.60);
+  --editor-grid-a55: rgba(150,150,150,0.55);
+  --search-hit-a28: rgba(64,132,214,0.28);
+  --composer-veil:  rgba(10,10,12,0.55);
+  --window-close:   rgb(232,17,35);
+  --window-close-a90: rgba(232,17,35,0.90);
+
+  /* ── §12i Run / stop toolbar ──────────────────────────────────────────── */
+  --run-green-1:     #43c35b;
+  --run-green-2:     #2fa349;
+  --run-green-3:     #3cb454;
+  --run-green-4:     #2f9e44;
+  --run-green-a40:   rgba(47,158,68,0.40);
+  --run-red-1:       #ef5f57;
+  --run-red-2:       #cf3535;
+  --run-red-3:       #e5534b;
+  --run-red-4:       #c92a2a;
+  --run-red-a42:     rgba(201,42,42,0.42);
+
+  /* ── §12j Brand marks (constant — framework logos are content) ────────── */
+  --brand-react:     #61dafb;
+  --brand-next:      #000000;
+  --brand-vue:       #42b883;
+  --brand-svelte:    #ff3e00;
+  --brand-angular:   #dd0031;
+  --brand-astro:     #ff5a03;
+  --brand-html:      #e34c26;
+  --brand-nuxt:      #00dc82;
+  --brand-express:   #68a063;
+  --brand-nest:      #ea2845;
+  --brand-fastify:   #202020;
+  --brand-hono:      #ff6a00;
+  --brand-flask:     #3b9c7d;
+  --brand-django:    #092e20;
+  --brand-fastapi:   #009688;
+  --brand-streamlit: #ff4b4b;
+  --brand-gradio:    #f97316;
+  --brand-go:        #00add8;
+  --brand-rust:      #dea584;
+  --brand-java:      #007396;
+  --brand-php:       #777bb4;
+  --brand-expo:      #4630eb;
+  --brand-flutter:   #02569b;
+  --brand-electron:  #47848f;
+  --brand-tauri:     #24c8db;
+  --brand-discord:   #5865f2;
+  --brand-discord-py: #3572a5;
+  --brand-python:    #3572a5;
+  --brand-telegram:  #26a5e4;
+  --brand-slack:     #e01e5a;
+  --brand-whatsapp:  #25d366;
+  --brand-twitter:   #1da1f2;
+  --brand-chrome:    #4285f4;
+  --brand-cli:       #333333;
+
+  /* ── §12k Color-picker swatches (fixed palette for editing user pages) ── */
+  --swatch-black:    #000000;
+  --swatch-white:    #ffffff;
+  --swatch-red:      #ef4444;
+  --swatch-orange:   #f97316;
+  --swatch-yellow:   #eab308;
+  --swatch-green:    #22c55e;
+  --swatch-teal:     #14b8a6;
+  --swatch-blue:     #3b82f6;
+  --swatch-purple:   #a855f7;
+  --swatch-gray:     #6b7280;
+
+  /* ── §12l Onboarding illustration ─────────────────────────────────────── */
+  --onboarding-blue: #1e88e5;
+  --onboarding-blue-pale: #bbdefb;
+  --onboarding-yellow: #a4b100;
+
   /* ── §13 Typography ───────────────────────────────────────────────────── */
   --font-ui:     Consolas, "Courier New", monospace;
   --font-system: Consolas, "Courier New", monospace;
   --font-code:   Consolas, "Courier New", monospace;
+  --font-mono:   Consolas, "Courier New", monospace;
   --fs-micro:    9px;
   --fs-tiny:     10px;
   --fs-mini:     10.5px;
@@ -319,6 +576,7 @@
   --fs-22:       22px;
   --fs-28:       28px;
   --fw-regular:  400;
+  --fw-normal:   400;
   --fw-medium:   500;
   --fw-semibold: 600;
   --fw-bold:     700;
@@ -350,6 +608,7 @@
   --space-4:     4px;
   --space-5:     5px;
   --space-6:     6px;
+  --space-7:     7px;
   --space-8:     8px;
   --space-10:    10px;
   --space-12:    12px;
@@ -358,6 +617,8 @@
   --space-18:    18px;
   --space-20:    20px;
   --space-24:    24px;
+  --space-28:    28px;
+  --space-30:    30px;
   --shadow-pop:  0 8px 24px var(--overlay);
   --shadow-modal: 0 8px 32px var(--overlay-dark);
   --shadow-toast: 0 6px 18px var(--overlay-a40);
@@ -410,6 +671,7 @@
   --bg-hover:        #e5e5e5;
   --bg-hover-strong: #e0e0e0;
   --bg-active:       #d4d4d4;
+  --bg-button:       #e4e4e4;
   --bg-input:        #ffffff;
   --bg-input-strong: #e8e8e8;
   --bg-header:       #f3f3f3;
@@ -439,6 +701,8 @@
   --paper:           #ffffff;
   --black:           #000000;
   --ink-on-teal:     #0d1117;
+  --ink:             #1f1f1f;
+  --ink-muted:       #5c5c5c;
 
   --border:          #e0e0e0;
   --border-row:      #e8e8e8;
@@ -482,6 +746,32 @@
 :root[data-theme="light"] .sw-content__title { color: #1a1a1a; }
 :root[data-theme="light"] html, :root[data-theme="light"] body, :root[data-theme="light"] #settings-root { background: #f3f3f3; color: #1a1a1a; }
 
+/* Project Hub surfaces for the light theme (brand hues stay the same). */
+:root[data-theme="light"] {
+  --hub-bg:          #f3f3f3;
+  --hub-bg-deep:     #ffffff;
+  --hub-bg-raised:   #ffffff;
+  --hub-bg-elevated: #ffffff;
+  --hub-bg-inset:    #f7f7f7;
+  --hub-surface:     #ffffff;
+  --hub-surface-2:   #ffffff;
+  --hub-surface-3:   #f3f3f3;
+  --hub-surface-4:   #f0f0f0;
+  --hub-surface-5:   #fafafa;
+  --hub-sidebar-top: #ffffff;
+  --hub-sidebar-bottom: #ececec;
+  --hub-modal-top:   #e8e8e8;
+  --hub-modal-mid:   #f3f3f3;
+  --hub-modal-bottom: #ffffff;
+  --hub-overlay:     rgba(255,255,255,0.74);
+  --hub-overlay-2:   rgba(255,255,255,0.62);
+  --hub-overlay-3:   rgba(255,255,255,0.72);
+  --hub-overlay-4:   rgba(255,255,255,0.92);
+  --hub-overlay-5:   rgba(255,255,255,0.80);
+  --hub-scrim:       rgba(0,0,0,0.20);
+  --hub-paper:       #ffffff;
+}
+
 /* ===========================================================================
    Astryx neutral theme bridge (app-wide)
    ---------------------------------------------------------------------------
@@ -496,6 +786,7 @@
   --font-ui:     Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-system: Figtree, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-code:   ui-monospace, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono:   ui-monospace, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Surfaces - Astryx neutral (dark) */
   --bg-app:          #1b1b1b;

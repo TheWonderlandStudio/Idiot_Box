@@ -46,7 +46,7 @@
   padding: var(--space-8) var(--space-8);
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-light);
-  background: linear-gradient(180deg, rgba(88, 101, 242, 0.14), transparent);
+  background: linear-gradient(180deg, var(--discord-a14), transparent);
 }
 .cp-discord-logo {
   display: flex;
@@ -56,8 +56,8 @@
   height: 36px;
   flex-shrink: 0;
   border-radius: 10px;
-  background: #5865f2;
-  color: #fff;
+  background: var(--discord);
+  color: var(--text-inverse);
 }
 .cp-discord-meta {
   display: flex;
@@ -84,10 +84,10 @@
 .cp-join-btn {
   flex-shrink: 0;
   padding: 7px 14px;
-  background: linear-gradient(180deg, #5865f2, #4752c4);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, var(--discord), var(--discord-hover));
+  border: 1px solid var(--white-a14);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text-inverse);
   font-size: 12px;
   font-weight: var(--fw-semibold);
   cursor: pointer;
@@ -128,7 +128,7 @@
   width: 100%;
   height: 100%;
   border: none;
-  background: #0b0b0e;
+  background: var(--community-bg);
 }
 
 .cp-progress {
@@ -145,7 +145,7 @@
   position: absolute;
   height: 100%;
   width: 40%;
-  background: linear-gradient(90deg, transparent, #4a88ff, transparent);
+  background: linear-gradient(90deg, transparent, var(--hub-blue-bright), transparent);
   animation: cp-load 1.1s ease-in-out infinite;
 }
 @keyframes cp-load {
@@ -181,15 +181,15 @@
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
-  background: linear-gradient(180deg, #3d7dfb, #2f63d8);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, var(--hub-blue), var(--hub-blue-deep));
+  border: 1px solid var(--white-a14);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text-inverse);
   font-size: 12px;
   font-weight: var(--fw-semibold);
   cursor: pointer;
   transition: background 140ms ease;
 }
 .cp-fail__btn:hover {
-  background: linear-gradient(180deg, #4a88ff, #3568e0);
+  background: linear-gradient(180deg, var(--hub-blue-bright), var(--hub-blue-deep-2));
 }

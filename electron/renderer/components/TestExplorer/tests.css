@@ -183,7 +183,7 @@
 }
 .ibx-test-dot[data-status="passed"] { background: var(--success); opacity: 1; }
 .ibx-test-dot[data-status="failed"] { background: var(--danger); opacity: 1; }
-.ibx-test-dot[data-status="skipped"] { background: var(--warn-gold, #d7ba7d); opacity: 1; }
+.ibx-test-dot[data-status="skipped"] { background: var(--warn-gold, var(--code-tan)); opacity: 1; }
 .ibx-test-dot[data-status="running"] { background: var(--accent); opacity: 1; animation: pulse 1.2s infinite; }
 
 .ibx-tests-empty {
@@ -226,7 +226,7 @@
 .ibx-tests-output-head strong { color: var(--text-soft); font-weight: 600; }
 .ibx-tests-summary-pass { color: var(--success); }
 .ibx-tests-summary-fail { color: var(--danger); }
-.ibx-tests-summary-skip { color: var(--warn-gold, #d7ba7d); }
+.ibx-tests-summary-skip { color: var(--warn-gold, var(--code-tan)); }
 .ibx-tests-output-body {
   flex: 1;
   overflow: auto;

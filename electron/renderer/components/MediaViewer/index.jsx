@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { IMAGE_EXTS, VIDEO_EXTS_SUPPORTED, PDF_EXTS, AUDIO_EXTS } from "./mediaTypes.js";
+import { cssVar } from "../shared/theme.js";
 
 const TEXT_EXTS  = [".txt", ".md", ".json", ".js", ".jsx", ".ts", ".tsx", ".html", ".htm", ".css", ".scss", ".less", ".py", ".xml", ".yaml", ".yml", ".ini", ".cfg", ".conf", ".env", ".log", ".sh", ".bash", ".bat", ".ps1", ".sql", ".rb", ".php", ".c", ".cpp", ".h", ".hpp", ".java", ".rs", ".go", ".toml", ".csv", ".tsv", ".properties", ".gradle", ".gitignore", ".dockerfile", ".makefile"];
 const VIDEO_EXTS_UNSUPPORTED = [".avi", ".mov", ".mkv", ".wmv", ".flv", ".m4v", ".3gp"];
@@ -271,7 +272,7 @@ const MediaViewer = () => {
   const [tolerance,    setTolerance]    = useState(32);
   // BG remover modes: edge (border flood) | color (picked color-key) | brush (magic brush stamps)
   const [bgMode,       setBgMode]       = useState("edge");
-  const [bgColor,      setBgColor]      = useState("#ffffff");
+  const [bgColor,      setBgColor]      = useState(() => cssVar("--paper"));
   const [brushSize,    setBrushSize]    = useState(32); // display-px ring
   const brushSeedsRef    = useRef([]);   // canvas-px seed points (current stroke session)
   const brushPaintingRef = useRef(false);
@@ -331,7 +332,7 @@ const MediaViewer = () => {
     setBusy(null);
     setTolerance(32);
     setBgMode("edge");
-    setBgColor("#ffffff");
+    setBgColor(cssVar("--paper"));
     setBrushSize(32);
     brushSeedsRef.current = [];
     brushPaintingRef.current = false;
@@ -391,7 +392,7 @@ const MediaViewer = () => {
       setEditTool(null);
       setDirty(false);
       setBgMode("edge");
-      setBgColor("#ffffff");
+      setBgColor(cssVar("--paper"));
       setBrushSize(32);
       brushSeedsRef.current = [];
       brushPaintingRef.current = false;
@@ -421,7 +422,7 @@ const MediaViewer = () => {
     setCropRect(null);
     setTolerance(32);
     setBgMode("edge");
-    setBgColor("#ffffff");
+    setBgColor(cssVar("--paper"));
     setBrushSize(32);
     brushSeedsRef.current = [];
     brushPaintingRef.current = false;
@@ -683,7 +684,7 @@ const MediaViewer = () => {
       if (hasAlphaRef.current && jpgTarget) {
         const flat = makeCanvas(workRef.current.width, workRef.current.height);
         const fctx = flat.getContext("2d");
-        fctx.fillStyle = "#ffffff";
+        fctx.fillStyle = cssVar("--paper");
         fctx.fillRect(0, 0, flat.width, flat.height);
         fctx.drawImage(workRef.current, 0, 0);
         url = flat.toDataURL("image/jpeg", 0.92);
@@ -1726,7 +1727,7 @@ const MediaViewer = () => {
                   title="Drag to resize selection"
                   style={{
                     position: "absolute", left: hx, top: hy, width: 14, height: 14,
-                    background: "var(--teal)", border: "2px solid #fff", borderRadius: 3,
+                    background: "var(--teal)", border: "2px solid var(--text-inverse)", borderRadius: 3,
                     cursor, zIndex: 1,
                   }}
                 />
@@ -1765,7 +1766,7 @@ const MediaViewer = () => {
                 position: "absolute", left: -100, top: -100,
                 width: brushSize, height: brushSize,
                 border: "2px solid var(--teal)", borderRadius: "50%",
-                boxShadow: "0 0 0 1px rgba(0,0,0,0.45)",
+                boxShadow: "0 0 0 1px var(--overlay-a45)",
                 pointerEvents: "none", transform: "translate(-50%,-50%)",
                 display: "none",
               }}
@@ -1792,7 +1793,7 @@ const MediaViewer = () => {
               left: rsGeom.x + rsGeom.w - 10,
               top: rsGeom.y + rsGeom.h - 10,
               width: 20, height: 20,
-              background: "var(--teal)", border: "2px solid #fff", borderRadius: 5,
+              background: "var(--teal)", border: "2px solid var(--text-inverse)", borderRadius: 5,
               cursor: "nwse-resize", zIndex: "var(--z-popover)",
             }}
           />

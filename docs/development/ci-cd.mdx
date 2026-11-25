@@ -1,0 +1,49 @@
+---
+title: "CI/CD"
+description: "GitHub Actions workflows: build checks, releases, security scans, CLA"
+---
+
+# CI/CD
+
+Workflows live in `.github/workflows/`.
+
+## Build check — `ci.yml`
+
+On PRs, pushes to `main`, and manual dispatch (Ubuntu, Node 22, 20-min timeout, concurrency group per ref):
+
+1. `npm ci`
+2. `npm test` — the 9 unit test files
+3. `npm run build` — full pipeline
+4. `node --check electron/main/index.js` — main-process syntax gate
+
+## Release — `release.yml`
+
+Triggers: tag push `v*` or manual dispatch.
+
+1. **Guard job** — the tag must equal `package.json`'s version.
+2. **Matrix** (fail-fast off):
+   - `windows-latest` → `--win nsis msi msix`
+   - `ubuntu-latest` → `--linux AppImage deb rpm pacman` (installs `libarchive-tools` for the pacman/bsdtar step)
+   - `macos-latest` → `--mac dmg zip`
+   - Each: `npm ci` → `npm run build:icons` (icons are gitignored) → `npm run build && npx electron-builder … --publish never` with `GH_TOKEN`, `CSC_IDENTITY_AUTO_DISCOVERY: false` (unsigned; Store signs the msixupload), optional Apple notarization secrets. Uploads installers + `latest*.yml` + blockmaps.
+3. **Release job** (tag pushes): downloads artifacts, builds the release body with `.github/scripts/build-release-notes.cjs` (CHANGELOG section + GitHub-generated contributor notes + sponsors from `docs/SPONSORS.md`), creates the GitHub Release with the explicit file list.
+
+## Security — `security.yml`
+
+- **Gitleaks**: installs Gitleaks 8.30.1 from upstream (checksum-verified) and runs `gitleaks git --config .gitleaks.toml`.
+- **Dependency review** (PRs): `npm audit --json` on head vs base, diffed by `.github/scripts/dependency-review.cjs` — fails only when the PR *introduces* high/critical advisories.
+
+## CLA — `cla.yml`
+
+CLA Assistant on `pull_request_target` + issue comments ("recheck" / exact sign phrase). Signatures go to `signatures/version1/cla.json` on the unprotected `cla-signatures` branch; document = `CLA.md`; bots and the maintainer are allowlisted.
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `build-release-notes.cjs` | Release body from CHANGELOG + contributors + sponsors (`GITHUB_REF_NAME`, `GITHUB_TOKEN`, `RELEASE_NOTES_FILE`) |
+| `dependency-review.cjs` | Diff two audit reports; exit 1 on new high/critical |
+
+## Templates & config
+
+PR template (what/why + checklist + CLA block), issue forms for bugs (what/reproduce/version) and features (idea/why/area), blank issues disabled (Discussions instead), `FUNDING.yml` (GitHub sponsors), `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`.

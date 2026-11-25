@@ -143,7 +143,7 @@
 .nb-out--iframe { width: 100%; min-height: 300px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--paper); }
 
 /* ── Image zoom overlay ── */
-.nb-zoom-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: zoom-out; animation: nb-zoom-in 0.2s ease; backdrop-filter: blur(4px); }
+.nb-zoom-overlay { position: fixed; inset: 0; background: var(--overlay-a80); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: zoom-out; animation: nb-zoom-in 0.2s ease; backdrop-filter: blur(4px); }
 @keyframes nb-zoom-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 .nb-zoom-content { position: relative; max-width: 90vw; max-height: 90vh; }
 .nb-zoom-close { position: absolute; top: -36px; right: 0; background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-highlight); border-radius: var(--radius-sm); width: 28px; height: 28px; cursor: pointer; font-size: var(--fs-body); display: flex; align-items: center; justify-content: center; transition: all 0.12s ease; }

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Idiot Box Documentation — Setup, Features &amp; Reference</title>
+  <meta name="description" content="Full Idiot Box documentation: install and run it, learn every feature (editor, terminal, git, AI assistant, browser, debugger) and dig into the architecture and reference." />
+  <meta name="keywords" content="Idiot Box docs, Idiot Box documentation, Idiot Box install, Idiot Box user guide, Idiot Box reference, desktop IDE docs, open-source IDE guide" />
+  <meta name="author" content="The Wonderland Studio" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#1e1e1e" />
+  <link rel="canonical" href="https://thewonderlandstudio.github.io/Idiot_Box/docs.html" />
+  <link rel="icon" type="image/png" href="./logo.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Idiot Box" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:title" content="Idiot Box Documentation — Setup, Features &amp; Reference" />
+  <meta property="og:description" content="Full Idiot Box documentation: install and run it, learn every feature (editor, terminal, git, AI assistant, browser, debugger) and dig into the architecture and reference." />
+  <meta property="og:url" content="https://thewonderlandstudio.github.io/Idiot_Box/docs.html" />
+  <meta property="og:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
+  <meta property="og:image:alt" content="Idiot Box logo" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Idiot Box Documentation — Setup, Features &amp; Reference" />
+  <meta name="twitter:description" content="Full Idiot Box documentation: install and run it, learn every feature (editor, terminal, git, AI assistant, browser, debugger) and dig into the architecture and reference." />
+  <meta name="twitter:image" content="https://thewonderlandstudio.github.io/Idiot_Box/logo.png" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Idiot Box Documentation",
+    "description": "Full Idiot Box documentation: install and run it, learn every feature, and dig into the architecture and reference.",
+    "url": "https://thewonderlandstudio.github.io/Idiot_Box/docs.html",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "Idiot Box",
+      "url": "https://thewonderlandstudio.github.io/Idiot_Box/"
+    },
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://thewonderlandstudio.github.io/Idiot_Box/index.html" },
+        { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://thewonderlandstudio.github.io/Idiot_Box/docs.html" }
+      ]
+    }
+  }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="docs.css" />
+  <link rel="stylesheet" href="page-transition.css" />
+</head>
+
+<body class="is-entering" data-bgm="docs">
+  <div class="wipe" aria-hidden="true"><span>Idiot Box</span></div>
+
+  <div class="background">
+    <div class="bg-video-wrap" aria-hidden="true">
+      <video id="docs-bg" src="https://files.catbox.moe/7tjhav.mp4" muted autoplay loop playsinline preload="auto"></video>
+    </div>
+    <a class="card" href="index.html">Docs</a>
+    <nav class="nav-card">
+      <div class="nav-links">
+        <a href="chatlog.html">Chatlog</a>
+        <a href="features.html">Features</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="credits.html">Credits</a>
+        <a href="docs.html" aria-current="page">Docs</a>
+        <a href="https://discord.gg/Z9DynuSxRY" target="_blank" rel="noopener">Discord</a>
+        <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+        <a href="download.html" data-download-latest>Download</a>
+      </div>
+      <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="menu-panel">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </nav>
+    <div class="menu-panel" id="menu-panel">
+      <a href="chatlog.html">Chatlog</a>
+      <a href="features.html">Features</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="credits.html">Credits</a>
+      <a href="docs.html" aria-current="page">Docs</a>
+      <a href="https://discord.gg/Z9DynuSxRY" target="_blank" rel="noopener">Discord</a>
+      <a href="https://github.com/TheWonderlandStudio/Idiot_Box" target="_blank" rel="noopener">Github</a>
+      <a href="download.html" data-download-latest>Download</a>
+    </div>
+
+    <div class="docs-shell">
+      <button class="docs-menu-btn" aria-label="Docs menu" aria-expanded="false" aria-controls="docs-tree">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <aside class="docs-side" aria-label="Documentation tree">
+        <div class="docs-side-head">docs/</div>
+        <nav class="docs-tree" id="docs-tree">
+          <div class="doc-loading">Loading tree…</div>
+        </nav>
+      </aside>
+      <main class="docs-main">
+        <article class="doc-card">
+          <div class="doc-path" id="doc-path" aria-hidden="true"></div>
+          <div class="doc-body" id="doc-body">
+            <div class="doc-loading">Loading…</div>
+          </div>
+        </article>
+      </main>
+      <div class="docs-backdrop" aria-hidden="true"></div>
+    </div>
+
+    <noscript>
+      <div class="docs-noscript">
+        <p>Idiot Box docs live in the repository. Browse them on GitHub:</p>
+        <a class="doc-btn" href="https://github.com/TheWonderlandStudio/Idiot_Box/tree/main/docs" target="_blank" rel="noopener">Open docs on GitHub</a>
+      </div>
+    </noscript>
+  </div>
+
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <script src="audio.js"></script>
+  <script src="page-transition.js"></script>
+  <script src="docs.js"></script>
+</body>
+
+</html>

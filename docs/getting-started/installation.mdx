@@ -1,0 +1,63 @@
+---
+title: "Installation"
+description: "How to download and install Idiot Box on Windows, macOS, and Linux"
+---
+
+# Installation
+
+Idiot Box ships native installers for Windows, macOS, and Linux. The latest release is always on the [download page](https://thewonderlandstudio.github.io/Idiot_Box/download.html) and on [GitHub Releases](https://github.com/TheWonderlandStudio/Idiot_Box/releases).
+
+## Windows
+
+| Format | File | Notes |
+|---|---|---|
+| NSIS installer | `Idiot-Box-Setup-<version>.exe` | Assisted installer: choose directory, elevation, desktop/start-menu shortcuts. Recommended. |
+| MSI | `Idiot-Box-Setup-<version>.msi` | Per-user install, silent-install friendly. |
+| MSIX | `.msix` / `.msixupload` | Also published on the Microsoft Store (signed by the Store). |
+
+### Silent install (NSIS/MSI)
+
+The NSIS installer supports the standard silent flag plus two custom flags:
+
+| Flag | Meaning |
+|---|---|
+| `/S` | Silent install (NSIS) |
+| `/NOASSOCIATIONS` | Do not register Idiot Box as the editor for its 29 file types |
+| `/REGISTEREDITOR=0` | Same as `/NOASSOCIATIONS`, explicit form |
+
+The installer shows a consent page ("Register Idiot Box as editor?") and remembers the choice across updates. If the user opts out, previously backed-up file association defaults are restored. See [installer-exit-codes.md](../installer-exit-codes.md) for the full reference.
+
+### File associations
+
+The installer registers Idiot Box as the editor for 29 file types: `js` `mjs` `cjs` `jsx` `ts` `tsx` `html` `htm` `css` `scss` `less` `json` `jsonc` `md` `markdown` `py` `pyw` `c` `h` `cpp` `cc` `cxx` `hpp` `hh` `hxx` `java` `rs` `go` `rb` `php` `sh` `bash` `zsh` `sql` `yml` `yaml` `xml` `vue` `svelte` `toml` `txt` `log` — each with its own icon and MIME type.
+
+## macOS
+
+- **DMG** — `Idiot-Box-<version>.dmg` (x64 and arm64). Drag to Applications as usual.
+- **ZIP** — for CI and advanced users.
+
+Builds are signed with a hardened runtime and can be notarized when the maintainer's Apple credentials are set (see [Packaging](../development/packaging.mdx)).
+
+## Linux
+
+| Format | Command line hint |
+|---|---|
+| AppImage | `chmod +x Idiot-Box-<version>.AppImage && ./Idiot-Box-<version>.AppImage` |
+| deb | `sudo apt install ./Idiot-Box-<version>.deb` |
+| rpm | `sudo dnf install ./Idiot-Box-<version>.rpm` |
+| pacman | `sudo pacman -U ./Idiot-Box-<version>.pkg.tar.zst` |
+
+## Updates
+
+The app checks for updates automatically (electron-updater against GitHub Releases) and notifies through the in-app updater banner. Check manually from **Help → Check for Updates**.
+
+The `idiotbox://` deep link protocol is registered on install:
+
+- `idiotbox://update` — opens the app's updater (used by the landing page's "Update my app" button, v0.1.20+)
+- `idiotbox://extensions` — opens the Extensions page
+
+## System requirements
+
+- Windows 10+ (MSIX requires 10.0.17763+), macOS, or a mainstream Linux distro
+- ~1 GB disk for the app; Android emulator and QEMU VMs use additional user-data space (see [Android emulator](../user-guide/android-emulator.mdx) and [Desktop VMs](../user-guide/desktop-vms.mdx))
+- QEMU VMs require QEMU installed separately; the app finds it automatically or via a custom binary path

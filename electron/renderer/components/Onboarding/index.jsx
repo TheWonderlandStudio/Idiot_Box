@@ -12,7 +12,7 @@ const ONBOARD_CSS = `
 @keyframes ob-brand-in { from { opacity:0; letter-spacing:0.1em; } to { opacity:1; } }
 .ob-brand { font-size:34px; font-weight:800; color:var(--text-highlight); letter-spacing:0.28em; text-indent:0.28em; }
 .ob-logo { width:96px; height:96px; border-radius:22px; object-fit:cover; margin-bottom:18px;
-  box-shadow:0 8px 32px rgba(0,0,0,0.45); }
+  box-shadow:0 8px 32px var(--overlay-a45); }
 .ob-hint { margin-top:14px; font-size:12px; color:var(--text-placeholder); }
 .ob-label { font-size:13px; color:var(--text-secondary); }
 .ob-input { width:220px; height:34px; margin-top:12px; background:transparent; border:1px solid var(--border-strong);

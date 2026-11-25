@@ -10,11 +10,15 @@
 // Always write DOUBLE backslashes (\\s \\d \\n \\. \\\\ for a backslash).
 //
 // NOTE: this CSS/DOM runs inside the *outer website* — the app's var(--tokens)
-// do NOT resolve there, so keep everything as literals.
+// do NOT resolve there, so literals are emitted. Every color is written as an
+// __IBX_*__ placeholder and resolved from the central token sheet by
+// buildEditHelperSource() (see the PALETTE map at the bottom of this file).
 //
 // Test: import the source from node, evaluate it in a headless page
 // (window globals are not shared in the eval context — assert via the DOM bridge).
-export const EDIT_HELPER_SOURCE = `(() => {
+import { cssVar } from "../shared/theme.js"
+
+const SOURCE = `(() => {
       try {
         if (window.__ibxEditHelpersInstalled) return true;
         window.__ibxEditHelpersInstalled = true;
@@ -97,34 +101,33 @@ export const EDIT_HELPER_SOURCE = `(() => {
           styleEl = document.createElement('style');
           styleEl.id = '__ibx-edit-style';
           // NOTE: this CSS is injected into the *outer website* — the app's
-          // var(--tokens) do NOT resolve there, so literals are used.
-          // Values match the CENTRAL sheet: --teal (#4ec9b0),
-          // --teal-a08, --teal-a14. If tokens change, update them here too.
+          // var(--tokens) do NOT resolve there, so the __IBX_*__ placeholders
+          // are resolved from the central sheet at injection time.
           styleEl.textContent = \`
-            .__ibx-edit-hover { outline: 1px solid #3b82f6 !important; outline-offset: 0px !important; background: rgba(59,130,246,0.05) !important; cursor: default !important; }
-            .__ibx-edit-selected { outline: 1.5px solid #3b82f6 !important; outline-offset: 0px !important; cursor: default !important; }
-            .__ibx-edit-active { outline: 2px solid #3b82f6 !important; outline-offset: 1px !important; background: rgba(59,130,246,0.07) !important; cursor: text !important; }
-            .__ibx-hint { position: fixed !important; z-index: 2147483647 !important; background: #3b82f6 !important; color: #ffffff !important; border: none !important; font: 10px/17px ui-monospace, SFMono-Regular, Menlo, monospace !important; padding: 0 6px !important; border-radius: 3px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.3) !important; pointer-events: none !important; white-space: nowrap !important; max-width: 340px !important; overflow: hidden !important; text-overflow: ellipsis !important; }
-            .__ibx-chip { position: fixed !important; z-index: 2147483647 !important; background: #3b82f6 !important; color: #ffffff !important; border: none !important; border-radius: 3px !important; padding: 0 1px 0 6px !important; display: flex !important; align-items: center !important; gap: 1px !important; box-shadow: 0 1px 4px rgba(0,0,0,0.35) !important; font: 10px/18px ui-monospace, SFMono-Regular, Menlo, monospace !important; white-space: nowrap !important; max-width: 320px !important; }
+            .__ibx-edit-hover { outline: 1px solid __IBX_EDIT_BLUE__ !important; outline-offset: 0px !important; background: __IBX_EDIT_BLUE_A05__ !important; cursor: default !important; }
+            .__ibx-edit-selected { outline: 1.5px solid __IBX_EDIT_BLUE__ !important; outline-offset: 0px !important; cursor: default !important; }
+            .__ibx-edit-active { outline: 2px solid __IBX_EDIT_BLUE__ !important; outline-offset: 1px !important; background: __IBX_EDIT_BLUE_A07__ !important; cursor: text !important; }
+            .__ibx-hint { position: fixed !important; z-index: 2147483647 !important; background: __IBX_EDIT_BLUE__ !important; color: __IBX_PAPER__ !important; border: none !important; font: 10px/17px ui-monospace, SFMono-Regular, Menlo, monospace !important; padding: 0 6px !important; border-radius: 3px !important; box-shadow: 0 1px 4px __IBX_OVERLAY_A30__ !important; pointer-events: none !important; white-space: nowrap !important; max-width: 340px !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+            .__ibx-chip { position: fixed !important; z-index: 2147483647 !important; background: __IBX_EDIT_BLUE__ !important; color: __IBX_PAPER__ !important; border: none !important; border-radius: 3px !important; padding: 0 1px 0 6px !important; display: flex !important; align-items: center !important; gap: 1px !important; box-shadow: 0 1px 4px __IBX_OVERLAY_A35__ !important; font: 10px/18px ui-monospace, SFMono-Regular, Menlo, monospace !important; white-space: nowrap !important; max-width: 320px !important; }
             .__ibx-chip-label { max-width: 280px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
-            .__ibx-chip-more { border: none !important; background: transparent !important; color: #dbeafe !important; font: 12px/1 system-ui, sans-serif !important; padding: 2px 4px !important; border-radius: 2px !important; cursor: pointer !important; }
-            .__ibx-chip-more:hover { background: rgba(255,255,255,0.22) !important; color: #ffffff !important; }
-            .__ibx-menu { position: fixed !important; z-index: 2147483647 !important; background: #1c1c1c !important; border: 1px solid #3a3a3a !important; border-radius: 6px !important; padding: 3px !important; display: flex !important; flex-direction: column !important; gap: 1px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.45) !important; font: 11px/1.4 system-ui, sans-serif !important; min-width: 100px !important; }
-            .__ibx-menu button { text-align: left !important; background: transparent !important; border: none !important; color: #dddddd !important; padding: 4px 18px 4px 9px !important; border-radius: 4px !important; font: 11px/1.4 system-ui, sans-serif !important; cursor: pointer !important; white-space: nowrap !important; }
-            .__ibx-menu button:hover { background: #2a2a2a !important; color: #ffffff !important; }
-            .__ibx-popup { position: fixed !important; z-index: 2147483647 !important; background: #ffffff !important; color: #111111 !important; font: 13px/1.5 system-ui, sans-serif !important; border: 1px solid #999999 !important; border-radius: 8px !important; box-shadow: 0 8px 28px rgba(0,0,0,0.35) !important; padding: 10px 12px !important; width: 290px !important; }
-            .__ibx-popup label { display: block !important; font-weight: bold !important; font-size: 11px !important; color: #555555 !important; margin: 6px 0 1px !important; }
-            .__ibx-popup input { width: 100% !important; box-sizing: border-box !important; padding: 4px 6px !important; border: 1px solid #bbbbbb !important; border-radius: 4px !important; font: inherit !important; color: #111111 !important; background: #ffffff !important; }
-            .__ibx-popup button { font: inherit !important; padding: 3px 12px !important; margin: 8px 6px 0 0 !important; border-radius: 4px !important; border: 1px solid #999999 !important; background: #f0f0f0 !important; color: #111111 !important; cursor: pointer !important; }
-            .__ibx-popup button.__ibx-primary { background: #4ec9b0 !important; border-color: #4ec9b0 !important; color: #06281f !important; font-weight: bold !important; }
-            .__ibx-stylebar { position: fixed !important; z-index: 2147483647 !important; background: #111111 !important; border-radius: 6px !important; padding: 3px 5px !important; display: flex !important; gap: 3px !important; align-items: center !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; flex-wrap: nowrap !important; white-space: nowrap !important; max-width: none !important; }
+            .__ibx-chip-more { border: none !important; background: transparent !important; color: __IBX_EDIT_BLUE_PALE__ !important; font: 12px/1 system-ui, sans-serif !important; padding: 2px 4px !important; border-radius: 2px !important; cursor: pointer !important; }
+            .__ibx-chip-more:hover { background: __IBX_WHITE_A22__ !important; color: __IBX_PAPER__ !important; }
+            .__ibx-menu { position: fixed !important; z-index: 2147483647 !important; background: __IBX_MENU_BG__ !important; border: 1px solid __IBX_BORDER_LIGHT__ !important; border-radius: 6px !important; padding: 3px !important; display: flex !important; flex-direction: column !important; gap: 1px !important; box-shadow: 0 8px 24px __IBX_OVERLAY_A45__ !important; font: 11px/1.4 system-ui, sans-serif !important; min-width: 100px !important; }
+            .__ibx-menu button { text-align: left !important; background: transparent !important; border: none !important; color: __IBX_TEXT_HOVER__ !important; padding: 4px 18px 4px 9px !important; border-radius: 4px !important; font: 11px/1.4 system-ui, sans-serif !important; cursor: pointer !important; white-space: nowrap !important; }
+            .__ibx-menu button:hover { background: __IBX_BG_HOVER__ !important; color: __IBX_PAPER__ !important; }
+            .__ibx-popup { position: fixed !important; z-index: 2147483647 !important; background: __IBX_PAPER__ !important; color: __IBX_BG_PANEL__ !important; font: 13px/1.5 system-ui, sans-serif !important; border: 1px solid __IBX_TEXT_SECONDARY__ !important; border-radius: 8px !important; box-shadow: 0 8px 28px __IBX_OVERLAY_A35__ !important; padding: 10px 12px !important; width: 290px !important; }
+            .__ibx-popup label { display: block !important; font-weight: bold !important; font-size: 11px !important; color: __IBX_TEXT_PLACEHOLDER__ !important; margin: 6px 0 1px !important; }
+            .__ibx-popup input { width: 100% !important; box-sizing: border-box !important; padding: 4px 6px !important; border: 1px solid __IBX_TEXT_SOFT__ !important; border-radius: 4px !important; font: inherit !important; color: __IBX_BG_PANEL__ !important; background: __IBX_PAPER__ !important; }
+            .__ibx-popup button { font: inherit !important; padding: 3px 12px !important; margin: 8px 6px 0 0 !important; border-radius: 4px !important; border: 1px solid __IBX_TEXT_SECONDARY__ !important; background: __IBX_PAPER_DIM__ !important; color: __IBX_BG_PANEL__ !important; cursor: pointer !important; }
+            .__ibx-popup button.__ibx-primary { background: __IBX_TEAL__ !important; border-color: __IBX_TEAL__ !important; color: __IBX_TEAL_INK__ !important; font-weight: bold !important; }
+            .__ibx-stylebar { position: fixed !important; z-index: 2147483647 !important; background: __IBX_BG_PANEL__ !important; border-radius: 6px !important; padding: 3px 5px !important; display: flex !important; gap: 3px !important; align-items: center !important; box-shadow: 0 4px 14px __IBX_OVERLAY_A40__ !important; flex-wrap: nowrap !important; white-space: nowrap !important; max-width: none !important; }
             body { cursor: default !important; }
-            .__ibx-stylebar button { background: transparent !important; color: #eeeeee !important; border: 1px solid transparent !important; border-radius: 4px !important; font: 12px/1.5 system-ui, sans-serif !important; padding: 2px 7px !important; cursor: pointer !important; min-width: 24px !important; }
-            .__ibx-stylebar button:hover { background: #333333 !important; }
+            .__ibx-stylebar button { background: transparent !important; color: __IBX_TEXT_SOFT_3__ !important; border: 1px solid transparent !important; border-radius: 4px !important; font: 12px/1.5 system-ui, sans-serif !important; padding: 2px 7px !important; cursor: pointer !important; min-width: 24px !important; }
+            .__ibx-stylebar button:hover { background: __IBX_BG_THUMB__ !important; }
             .__ibx-stylebar input[type=color] { width: 26px !important; height: 20px !important; border: none !important; background: none !important; padding: 0 !important; cursor: pointer !important; }
-            .__ibx-popup textarea { display:block !important; width:100% !important; box-sizing:border-box !important; min-height:170px !important; max-height:340px !important; margin-top:2px !important; padding:6px !important; border:1px solid #bbbbbb !important; border-radius:4px !important; font:12px/1.45 Consolas,'Courier New',monospace !important; color:#111111 !important; background:#ffffff !important; resize:vertical !important; }
-            .__ibx-popup .__ibx-note { font-size:11px !important; color:#666666 !important; margin-top:6px !important; }
-            .__ibx-moveflash { outline: 2px solid #4ec9b0 !important; outline-offset: 2px !important; }
+            .__ibx-popup textarea { display:block !important; width:100% !important; box-sizing:border-box !important; min-height:170px !important; max-height:340px !important; margin-top:2px !important; padding:6px !important; border:1px solid __IBX_TEXT_SOFT__ !important; border-radius:4px !important; font:12px/1.45 Consolas,'Courier New',monospace !important; color:__IBX_BG_PANEL__ !important; background:__IBX_PAPER__ !important; resize:vertical !important; }
+            .__ibx-popup .__ibx-note { font-size:11px !important; color:__IBX_TEXT_MUTED__ !important; margin-top:6px !important; }
+            .__ibx-moveflash { outline: 2px solid __IBX_TEAL__ !important; outline-offset: 2px !important; }
           \`;
           (document.head||document.documentElement).appendChild(styleEl);
         }
@@ -895,7 +898,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           box.setAttribute('data-ibx-ui','1');
           box.className='__ibx-popup';
           let html='<div style="font-weight:bold;margin-bottom:2px;">Attributes &lt;'+t+'&gt;</div>';
-          if(!rows.length) html+='<div style="color:#666;font-size:12px;">No editable attributes on this element.</div>';
+          if(!rows.length) html+='<div style="color:__IBX_TEXT_MUTED__;font-size:12px;">No editable attributes on this element.</div>';
           for(let i=0;i<rows.length;i++){
             let v='';
             try{ v=target.getAttribute(rows[i].k)||''; }catch{}
@@ -1057,7 +1060,7 @@ export const EDIT_HELPER_SOURCE = `(() => {
           const col=document.createElement('input');
           col.type='color'; col.title='Text color';
           try{
-            let c='#000000';
+            let c='__IBX_BLACK__';
             try{ c=window.getComputedStyle(el).color||c; }catch{}
             col.value=rgbToHex(c);
           }catch{}
@@ -1125,9 +1128,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
           try{
             let c='';
             try{ c=String(window.getComputedStyle(el).backgroundColor||''); }catch{}
-            if(!c || c==='transparent' || c==='rgba(0, 0, 0, 0)' || c==='rgba(0,0,0,0)') bg.value='#ffffff';
+            if(!c || c==='transparent' || c==='__IBX_TRANSPARENT__' || c==='__IBX_TRANSPARENT__') bg.value='__IBX_PAPER__';
             else bg.value=rgbToHex(c);
-          }catch{ bg.value='#ffffff'; }
+          }catch{ bg.value='__IBX_PAPER__'; }
           bg.addEventListener('input', function(){ try{ el.style.backgroundColor=bg.value; el.__ibxDirtyHTML=true; }catch{} });
           bg.addEventListener('click', function(e){ try{ e.stopPropagation(); }catch{} });
           bar.appendChild(bg);
@@ -1142,10 +1145,10 @@ export const EDIT_HELPER_SOURCE = `(() => {
             // NOTE: this is inside a template literal — write regex backslashes DOUBLE
             // (a single \s becomes 's' as soon as the outer literal is parsed).
             const m=String(c||'').match(/rgba?\\s*\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)/i);
-            if(!m) return '#000000';
+            if(!m) return '__IBX_BLACK__';
             const h=function(n){ n=Math.max(0, Math.min(255, parseInt(n,10)||0)); const s=n.toString(16); return s.length===1?'0'+s:s; };
             return '#'+h(m[1])+h(m[2])+h(m[3]);
-          }catch{ return '#000000'; }
+          }catch{ return '__IBX_BLACK__'; }
         }
         // ── v3: delete / duplicate / wrap-link + inspector ──────────────
         // Delete/duplicate/wrap mutates the element itself — persistence happens
@@ -1338,11 +1341,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
               const swatch=function(col){ return '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+escAttr(String(col||''))+';vertical-align:-1px;"></span> '; };
               rows.push(['Color', swatch(cs.color)+escAttr(String(cs.color||''))]);
               const bgc=String(cs.backgroundColor||'');
-              if(bgc && bgc!=='rgba(0, 0, 0, 0)' && bgc!=='transparent') rows.push(['BG', swatch(bgc)+escAttr(bgc)]);
+              if(bgc && bgc!=='__IBX_TRANSPARENT__' && bgc!=='transparent') rows.push(['BG', swatch(bgc)+escAttr(bgc)]);
             }
             let html='<div style="font-weight:bold;margin-bottom:4px;">Inspector</div>';
             for(let i=0;i<rows.length;i++){
-              html+='<div style="display:flex;gap:8px;font-size:12px;padding:1px 0;"><span style="color:#555555;min-width:64px;flex-shrink:0;">'+rows[i][0]+'</span><span style="word-break:break-all;">'+rows[i][1]+'</span></div>';
+              html+='<div style="display:flex;gap:8px;font-size:12px;padding:1px 0;"><span style="color:__IBX_TEXT_PLACEHOLDER__;min-width:64px;flex-shrink:0;">'+rows[i][0]+'</span><span style="word-break:break-all;">'+rows[i][1]+'</span></div>';
             }
             html+='<div><button data-act="copy">Copy HTML</button><button data-act="edit">Edit HTML</button><button data-act="attrs">Attributes</button><button data-act="close">Close</button></div>';
             box.innerHTML=html;
@@ -1765,13 +1768,13 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(!dragGhost){
               dragGhost=document.createElement('div');
               dragGhost.setAttribute('data-ibx-ui','1');
-              dragGhost.style.cssText='position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;background:#111111 !important;color:#4ec9b0 !important;font:11px/1.4 system-ui,sans-serif !important;padding:2px 8px !important;border-radius:4px !important;box-shadow:0 4px 14px rgba(0,0,0,0.4) !important;display:none !important;';
+              dragGhost.style.cssText='position:fixed !important;z-index:2147483647 !important;pointer-events:none !important;background:__IBX_BG_PANEL__ !important;color:__IBX_TEAL__ !important;font:11px/1.4 system-ui,sans-serif !important;padding:2px 8px !important;border-radius:4px !important;box-shadow:0 4px 14px __IBX_OVERLAY_A40__ !important;display:none !important;';
               document.body.appendChild(dragGhost);
             }
             if(!dragLine){
               dragLine=document.createElement('div');
               dragLine.setAttribute('data-ibx-ui','1');
-              dragLine.style.cssText='position:fixed !important;z-index:2147483646 !important;background:#4ec9b0 !important;pointer-events:none !important;display:none !important;';
+              dragLine.style.cssText='position:fixed !important;z-index:2147483646 !important;background:__IBX_TEAL__ !important;pointer-events:none !important;display:none !important;';
               document.body.appendChild(dragLine);
             }
           }catch{}
@@ -2097,9 +2100,9 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(name==='shadow'){
               if(!val || val==='off'){ try{ el.style.removeProperty('box-shadow'); }catch{} return true; }
               const shadows={
-                sm:'0 1px 2px rgba(0,0,0,0.24)',
-                md:'0 4px 12px rgba(0,0,0,0.32)',
-                lg:'0 12px 32px rgba(0,0,0,0.42)'
+                sm:'0 1px 2px __IBX_OVERLAY_A24__',
+                md:'0 4px 12px __IBX_OVERLAY_A32__',
+                lg:'0 12px 32px __IBX_OVERLAY_A42__'
               };
               const v=shadows[String(val)];
               if(!v) return false;
@@ -2233,11 +2236,11 @@ export const EDIT_HELPER_SOURCE = `(() => {
             if(!el || !document.contains(el)) return { active:false, drag: dragMode };
             const is=window.getComputedStyle(el);
             const deco=String(el.style.textDecorationLine||'');
-            let color='#000000', bg='';
+            let color='__IBX_BLACK__', bg='';
             try{ color=rgbToHex(is.color||''); }catch{}
             try{
               const b=String(is.backgroundColor||'');
-              if(b && b!=='rgba(0, 0, 0, 0)' && b!=='rgba(0,0,0,0)' && b!=='transparent') bg=rgbToHex(b);
+              if(b && b!=='__IBX_TRANSPARENT__' && b!=='__IBX_TRANSPARENT__' && b!=='transparent') bg=rgbToHex(b);
             }catch{}
             // ── visual controls readback (numeric fields / selects) ──
             let fs=16, fw=400, lh=1.2, ls=0;
@@ -2663,3 +2666,45 @@ export const EDIT_HELPER_SOURCE = `(() => {
         return true;
       } catch(e){ return false; }
    })()`;
+
+// The overlay runs inside the *remote* page, where the app's :root tokens do
+// not exist. Resolve every token to a concrete value in the app renderer and
+// splice it into the guest source right before injection.
+const PALETTE = {
+  __IBX_EDIT_BLUE__: "--edit-blue",
+  __IBX_EDIT_BLUE_A05__: "--edit-blue-a05",
+  __IBX_EDIT_BLUE_A07__: "--edit-blue-a07",
+  __IBX_EDIT_BLUE_PALE__: "--edit-blue-pale",
+  __IBX_TEAL__: "--teal",
+  __IBX_TEAL_INK__: "--teal-ink",
+  __IBX_MENU_BG__: "--bg-header",
+  __IBX_BORDER_LIGHT__: "--border-light",
+  __IBX_BG_HOVER__: "--bg-hover",
+  __IBX_BG_PANEL__: "--bg-panel",
+  __IBX_TEXT_HOVER__: "--text-hover",
+  __IBX_TEXT_SOFT_3__: "--text-soft-3",
+  __IBX_BG_THUMB__: "--bg-thumb",
+  __IBX_TEXT_MUTED__: "--text-muted",
+  __IBX_TEXT_PLACEHOLDER__: "--text-placeholder",
+  __IBX_TEXT_SECONDARY__: "--text-secondary",
+  __IBX_TEXT_SOFT__: "--text-soft",
+  __IBX_PAPER_DIM__: "--paper-dim",
+  __IBX_PAPER__: "--paper",
+  __IBX_BLACK__: "--black",
+  __IBX_TEXT_INVERSE__: "--text-inverse",
+  __IBX_TRANSPARENT__: "--transparent",
+  __IBX_WHITE_A22__: "--white-a22",
+  __IBX_OVERLAY_A24__: "--overlay-a24",
+  __IBX_OVERLAY_A30__: "--overlay-a30",
+  __IBX_OVERLAY_A32__: "--overlay-a32",
+  __IBX_OVERLAY_A35__: "--overlay-a35",
+  __IBX_OVERLAY_A40__: "--overlay-a40",
+  __IBX_OVERLAY_A42__: "--overlay-a42",
+  __IBX_OVERLAY_A45__: "--overlay-a45",
+}
+
+export const buildEditHelperSource = () => {
+  const values = {}
+  for (const [key, token] of Object.entries(PALETTE)) values[key] = cssVar(token)
+  return SOURCE.replace(/__IBX_[A-Z0-9_]+__/g, (key) => values[key] || key)
+}

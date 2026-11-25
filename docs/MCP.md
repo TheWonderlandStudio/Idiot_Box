@@ -3,7 +3,8 @@
 Idiot Box runs a built-in **MCP (Model Context Protocol) server** so external AI clients
 (Claude Desktop, Cursor, opencode, or anything that speaks MCP) can inspect and control the IDE:
 read/write files, run git, execute shell commands, open tabs, scan the project, drive the
-Android emulator, and more.
+Android emulator, inspect browser network traffic and console logs, call any panel's internals
+over IPC, and more.
 
 ## Endpoint
 
@@ -95,7 +96,7 @@ Any other client: point a **Streamable HTTP** MCP transport at that URL.
 
 Tool list and tool output dominate LLM context cost. This server is deliberately lean:
 
-- **13 grouped tools** (was 66): cost is paid once per tool definition, so 66 verbose
+- **15 grouped tools** (was 66): cost is paid once per tool definition, so 66 verbose
   schemas plus per-field descriptions would be re-charged on every turn. Groups share
   one schema and one `action` enum instead of repeating field descriptions per tool.
 - No `title` fields and no per-field `.describe()` text — the field name plus the
@@ -118,6 +119,7 @@ Most tools take an `action` enum. Full parameter lists are in `electron/main/mcp
 | `git` | `status`, `diff`, `log`, `branches`, `stage`, `unstage`, `commit`, `push`, `pull`, `fetch`, `init`, `branch_create`, `branch_switch` |
 | `tabs` | `list`, `open`, `close`, `select`, `edit` (open file in editor) |
 | `shell` | `command` (+ `cwd`, `timeoutMs`) — real PTY, capped output |
+| `terminal` | `open`, `write`, `read`, `chdir`, `close` (tabId optional; `read` returns the buffered panel output) |
 | `servers` | `list` (ports), `start` (live preview server) |
 | `extensions` | `list`, `commands`, `invoke` (commandId+args), `views`, `status` |
 | `notebook` | `execute` (code), `restart` |
@@ -125,7 +127,31 @@ Most tools take an `action` enum. Full parameter lists are in `electron/main/mcp
 | `ai` | `prompt` (+ optional `system`) |
 | `opencode` | `start`, `stop` (leaseId) |
 | `runtime` | install the mise runtime |
-| `browser` | `open`, `tabs`, `navigate`, `read`, `snapshot`, `click`, `type`, `press`, `scroll`, `screenshot`, `eval`, `wait`, `back`, `forward`, `reload` |
+| `invoke` | `channels` (list all IPC channels, optional `filter`), `call` (channel + JSON `args` array) |
+| `browser` | `open`, `tabs`, `navigate`, `read`, `snapshot`, `click`, `type`, `press`, `scroll`, `screenshot`, `eval`, `wait`, `back`, `forward`, `reload`, `network`, `console`, `cookies`, `storage`, `trace`, `metrics`, `device` |
+
+### invoke — every panel, one tool
+
+`invoke call` runs **any registered Idiot Box IPC channel** with a JSON `args` array,
+through the exact same handler the renderer uses. That unlocks every panel and
+subsystem that has no dedicated MCP tool: debugger sessions (`debug:*`), canvas
+(`canvas:*`), search/replace (`search:*`), local history (`history:*`), ports
+(`ports:*`), settings (`settings:read`/`write`), storage, updater, test runner,
+qemu VMs, dev tunnels and more. `invoke channels` lists them all (add `filter` to
+narrow the list, e.g. `filter: "debug"`).
+
+Channels that open a user dialog/menu (e.g. `dialog:*`, `menu:*`, `contextMenu:show`)
+are blocked — they would hang the request waiting for a click. Anything else the IDE
+can do over IPC, MCP can do too. Same trust rules as `shell`: this is full-power
+access to your machine's IDE state.
+
+### Terminal
+
+`terminal` drives the real terminal panel. Omit `tabId` (or pass `mcp`) for a private
+PTY that is not shown on screen — open once, then `write` commands (end with `\r` to
+run) and `read` the output back. Pass the `tabId` of a visible terminal tab (see
+`tabs list`) to type into and read the panel the user is watching. Output is buffered
+in the main process (64 KB rolling buffer, ANSI stripped by default in `read`).
 
 ### Browser
 
@@ -138,6 +164,26 @@ Workflow: `browser open` → `browser snapshot` (returns `e1`, `e2`, … refs) �
 expire after navigation or a new snapshot. If DevTools is open for the browser
 panel, close it before using these actions — Electron allows only one debugger
 attachment per `webContents`.
+
+DevTools-style inspection (the panel keeps a rolling buffer of the last 300 network
+requests and 200 console entries while the MCP debugger is attached):
+
+- `browser network list` — compact request log (method, url, status, type, bytes).
+  `network detail` + `reqId` returns headers and the response body (capped 4000 chars;
+  binary bodies come back base64). `network block`/`unblock` with a `urlPattern`
+  (e.g. `https://example.com/ads/*`) toggles URL blocking; `network clear` empties the log.
+- `browser console logs`/`clear` — console messages and Log-domain entries
+  (levels, sources, capped text).
+- `browser cookies list|set|clear` — the panel's real cookie jar (list optionally
+  scoped to a `url`; set needs `name`+`value`+`url`). `cookies list` without a url
+  returns every cookie in the panel — treat it as sensitive.
+- `browser storage` with `op keys|get|set|clear` and `type local|session` — reads
+  and writes the page's own localStorage/sessionStorage.
+- `browser trace start|stop` — records a DevTools performance trace; `stop` saves
+  the JSON to the temp dir and returns the path. `browser metrics` returns quick
+  `Performance.getMetrics` numbers.
+- `browser device` with `op set` (width, height, deviceScaleFactor, mobile) emulates
+  a phone viewport; `op clear` resets it.
 
 ### Files
 

@@ -43,9 +43,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ibx-debug-status[data-state="paused"] { color: var(--warn-gold, #d7ba7d); background: rgba(215, 186, 125, .12); }
-.ibx-debug-status[data-state="running"] { color: var(--success); background: rgba(78, 201, 176, .12); }
-.ibx-debug-status[data-state="terminated"] { color: var(--danger); background: rgba(244, 135, 113, .12); }
+.ibx-debug-status[data-state="paused"] { color: var(--warn-gold, var(--code-tan)); background: var(--code-tan-a12); }
+.ibx-debug-status[data-state="running"] { color: var(--success); background: var(--teal-a12); }
+.ibx-debug-status[data-state="terminated"] { color: var(--danger); background: var(--error-tint-a12); }
 
 .ibx-debug-btn {
   display: inline-flex;
@@ -67,7 +67,7 @@
 .ibx-debug-btn:disabled { opacity: .4; cursor: default; }
 .ibx-debug-btn[data-tone="accent"] { background: var(--editor-blue); border-color: var(--editor-blue); color: var(--text-inverse); }
 .ibx-debug-btn[data-tone="danger"] { color: var(--danger); border-color: var(--danger-a30, var(--danger)); }
-.ibx-debug-btn[data-tone="danger"]:not(:disabled):hover { background: rgba(244, 135, 113, .12); }
+.ibx-debug-btn[data-tone="danger"]:not(:disabled):hover { background: var(--error-tint-a12); }
 
 .ibx-debug-config {
   display: flex;
@@ -115,7 +115,7 @@
 }
 .ibx-debug-hint[data-kind="error"] { color: var(--danger); }
 .ibx-debug-hint[data-kind="ok"] { color: var(--success); }
-.ibx-debug-hint[data-kind="warn"] { color: var(--warn-gold, #d7ba7d); }
+.ibx-debug-hint[data-kind="warn"] { color: var(--warn-gold, var(--code-tan)); }
 
 .ibx-debug-notice {
   display: flex;
@@ -128,7 +128,7 @@
   background: var(--bg-surface);
 }
 .ibx-debug-notice[data-kind="error"] { color: var(--danger); }
-.ibx-debug-notice[data-kind="warn"] { color: var(--warn-gold, #d7ba7d); }
+.ibx-debug-notice[data-kind="warn"] { color: var(--warn-gold, var(--code-tan)); }
 .ibx-debug-notice[data-kind="ok"] { color: var(--success); }
 .ibx-debug-notice-text { flex: 1; min-width: 0; line-height: 1.45; }
 .ibx-debug-notice-x {
@@ -255,7 +255,7 @@
 .ibx-debug-bp-dot[data-verified="false"] { background: transparent; border: 1px solid var(--text-placeholder); }
 .ibx-debug-bp-dot[data-enabled="false"] { background: transparent; border: 1px solid var(--danger); opacity: .55; }
 .ibx-debug-bp-line { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ibx-debug-bp-cond { color: var(--warn-gold, #d7ba7d); font-size: var(--fs-tiny); }
+.ibx-debug-bp-cond { color: var(--warn-gold, var(--code-tan)); font-size: var(--fs-tiny); }
 .ibx-debug-bp-x {
   display: inline-flex;
   border: 0;
@@ -320,17 +320,17 @@
 .ibx-debug-var[data-expandable="true"] { cursor: pointer; }
 .ibx-debug-var:hover { background: var(--bg-hover); }
 .ibx-debug-var-caret { flex-shrink: 0; width: 10px; color: var(--text-placeholder); font-size: 9px; }
-.ibx-debug-var-name { color: var(--code-blue, #9cdcfe); flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.ibx-debug-var-name { color: var(--code-blue, var(--code-cyan)); flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
 .ibx-debug-var-eq { color: var(--text-placeholder); flex-shrink: 0; }
 .ibx-debug-var-value {
-  color: var(--code-orange, #ce9178);
+  color: var(--code-orange, var(--code-orange));
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ibx-debug-var-value[data-type="number"], .ibx-debug-var-value[data-type="int"], .ibx-debug-var-value[data-type="float"] { color: var(--code-green, #b5cea8); }
-.ibx-debug-var-value[data-type="boolean"], .ibx-debug-var-value[data-type="bool"] { color: var(--code-blue, #569cd6); }
+.ibx-debug-var-value[data-type="number"], .ibx-debug-var-value[data-type="int"], .ibx-debug-var-value[data-type="float"] { color: var(--code-green, var(--code-green-pale)); }
+.ibx-debug-var-value[data-type="boolean"], .ibx-debug-var-value[data-type="bool"] { color: var(--code-blue, var(--code-blue)); }
 .ibx-debug-var-value[data-type="undefined"], .ibx-debug-var-value[data-type="null"] { color: var(--text-muted); }
 
 .ibx-debug-watch-input {

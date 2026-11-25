@@ -1,0 +1,55 @@
+---
+title: "Editor"
+description: "The CodeMirror editor, tabs, splits, and special file views"
+---
+
+# Editor
+
+The editor is built on **CodeMirror 6** (React wrapper `@uiw/react-codemirror`) inside a draggable FlexLayout panel.
+
+## Languages
+
+Syntax highlighting and language features ship for: JavaScript/JSX, TypeScript/TSX, HTML, CSS, SCSS/Less, JSON, Markdown, Python, C/C++, Java, Rust, Go, PHP, SQL, YAML, XML, Vue, Svelte. File icons come from `vscode-icons-js`.
+
+## Editor features
+
+- **Indentation markers** (`@replit/codemirror-indentation-markers`) and a **minimap** (`@replit/codemirror-minimap`).
+- **Vim mode** (`@replit/codemirror-vim`).
+- **Emmet** abbreviations (`@emmetio/codemirror6-plugin`).
+- **Lint** diagnostics and **diff/merge view** (`@codemirror/merge`) for file comparisons.
+- Word wrap, auto save, line numbers, and language picker (keyboard-navigable).
+- Multi-cursor: **Ctrl+Alt+Up/Down** add cursors; **Alt+Up/Down** move lines; **Shift+Alt+Down** duplicate line.
+- **F9** toggles a breakpoint on the current line.
+
+## Editor shortcuts
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+S / Ctrl+Shift+S / Ctrl+Alt+S | Save / Save As / Save All |
+| Ctrl+F / Ctrl+H / F3 / Shift+F3 | Find / Replace / next / previous |
+| Ctrl+G | Go to line |
+| Ctrl+/ | Toggle line comment |
+| Shift+Alt+F | Format document (via extension formatters, e.g. built-in Prettier) |
+| Ctrl+Shift+K | Delete line |
+
+All editor shortcuts are remappable in Settings → Keybindings.
+
+## Special file views
+
+Beyond plain text, the editor panel renders dedicated views:
+
+- **Markdown** — rendered preview alongside source.
+- **CSV** — tabular view.
+- **Database** (`.db`, `.sqlite`, …) — opens the SQLite inspector instead of raw bytes (see [Database manager](database-manager.mdx)).
+- **Media** — images, audio, and video in the Media Viewer (save, copy, save-as from the toolbar).
+- **Component preview** — for React component files, a live-rendered preview pane.
+- **Canvas** — an Excalidraw-based canvas per project (layout + drawing persisted as `canvas-layout.json` / `drawing.excalidraw`).
+- **OpenPencil** — an Excalidraw-powered drawing panel.
+
+## Live editing previews
+
+The live server + live-edit bridge lets you patch a running preview: text and HTML changes applied from the editor update the served page, and edits can be reverted (`liveEdit:*` channels). See [Live server](live-server.mdx).
+
+## Tabs
+
+Tab context menus offer: close others, close to the right, reopen closed, pin, copy relative path, reveal in explorer. Closed-editor history is per project, capped, and restored with **Ctrl+Shift+T**.

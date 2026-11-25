@@ -1,0 +1,33 @@
+---
+title: "Extensions manager"
+description: "Install, scaffold, and manage extensions from the Extensions page"
+---
+
+# Extensions manager
+
+The Extensions page (`idiotbox://extensions/`, served by the internal protocol handler) manages the app's extension ecosystem. Extensions run on a native Node.js host in the main process and are **never bundled into the app** — they live in `<userData>/vsx-extensions/`.
+
+## Installing
+
+- **Load Unpacked** — point at any folder containing an extension `package.json` (e.g. `extensions/sample-extension`).
+- **Community** — browse and install extensions listed on GitHub (`extensions/<publisher>.<name>` layout), with readmes fetched on demand.
+- **Create** — scaffold a new extension (manifest, `extension.js`, README) from the built-in template: hello command, optional panel, status bar item, context menus.
+- **Open folder** reveals an extension's directory in Explorer.
+
+## Managing
+
+- Enable / disable any extension at runtime — no restart needed.
+- **Reload** all extensions instantly (`Ctrl+Shift+P` → `Idiot Box: Reload extensions`).
+- Uninstall removes the folder; state and memento storage persist in `extensions-state.json` / `extensions-storage.json`.
+- The panel lists each extension's commands and contributed views; status bar items appear in the bottom bar.
+
+## Formatting
+
+Extensions can register document formatting providers. The built-in **Prettier** extension formats any file (`Shift+Alt+F`), honoring `.editorconfig` and Prettier configs. See [docs/extensions/formatters.mdx](../extensions/formatters.mdx).
+
+## API & guides
+
+- [EXTENSIONS_GUIDE.md](../EXTENSIONS_GUIDE.md) — overview and quickstart
+- [docs/extensions/](../extensions/overview.mdx) — full API reference: manifest, commands, menus, panels, status bar, storage, workspace FS, lifecycle
+
+The built-in commands `ibox:reload-extensions`, `ibox:toggle-devtools`, `ibox:show-notification`, and `ibox:copy-to-clipboard` are always available.

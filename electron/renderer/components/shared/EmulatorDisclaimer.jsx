@@ -17,45 +17,45 @@ import { Info, X } from "lucide-react";
 const s = {
   overlay: {
     position: "fixed", inset: 0, zIndex: "var(--z-dialog, 10000)",
-    background: "var(--overlay, rgba(0,0,0,.6))",
+    background: "var(--overlay)",
     display: "flex", alignItems: "center", justifyContent: "center",
     padding: "var(--space-20, 20px)",
   },
   box: {
-    background: "var(--bg-raised, #252525)",
-    border: "1px solid var(--border-light, #3a3a3a)",
+    background: "var(--bg-raised)",
+    border: "1px solid var(--border-light)",
     borderRadius: "var(--radius-lg, 8px)",
-    boxShadow: "var(--shadow-modal, 0 20px 60px rgba(0,0,0,.55))",
+    boxShadow: "var(--shadow-modal)",
     width: "100%", maxWidth: 600, maxHeight: "84vh",
     display: "flex", flexDirection: "column", overflow: "hidden",
-    fontFamily: "var(--font-system)", color: "var(--text-bright, #ccc)",
+    fontFamily: "var(--font-system)", color: "var(--text-bright)",
   },
   head: {
     display: "flex", alignItems: "center", gap: "var(--space-8)",
     padding: "var(--space-14, 14px) var(--space-16, 16px)",
-    borderBottom: "1px solid var(--border-row, #232323)", flexShrink: 0,
+    borderBottom: "1px solid var(--border-row)", flexShrink: 0,
   },
-  title: { flex: 1, minWidth: 0, fontSize: "var(--fs-body-plus, 14px)", fontWeight: "var(--fw-bold, 700)", color: "var(--text-input, #e0e0e0)" },
-  iconBtn: { background: "none", border: "none", color: "var(--text-secondary, #999)", cursor: "pointer", padding: 2, display: "flex" },
+  title: { flex: 1, minWidth: 0, fontSize: "var(--fs-body-plus, 14px)", fontWeight: "var(--fw-bold, 700)", color: "var(--text-input)" },
+  iconBtn: { background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", padding: 2, display: "flex" },
   body: {
     flex: 1, minHeight: 0, overflowY: "auto",
     padding: "var(--space-14, 14px) var(--space-16, 16px)",
     fontSize: "var(--fs-small-plus, 13px)", lineHeight: 1.65,
-    color: "var(--text-secondary, #999)",
+    color: "var(--text-secondary)",
   },
-  summary: { marginBottom: "var(--space-10, 10px)", color: "var(--text-primary, #c8c8c8)", fontSize: "var(--fs-body, 13px)", lineHeight: 1.6 },
+  summary: { marginBottom: "var(--space-10, 10px)", color: "var(--text-primary)", fontSize: "var(--fs-body, 13px)", lineHeight: 1.6 },
   list: { margin: 0, paddingLeft: 18 },
   item: { marginBottom: "var(--space-6, 6px)" },
-  note: { marginTop: "var(--space-10, 10px)", color: "var(--text-muted, #666)", fontSize: "var(--fs-mini, 11px)", lineHeight: 1.5 },
+  note: { marginTop: "var(--space-10, 10px)", color: "var(--text-muted)", fontSize: "var(--fs-mini, 11px)", lineHeight: 1.5 },
   foot: {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-10, 10px)",
     padding: "var(--space-10, 10px) var(--space-16, 16px)",
-    borderTop: "1px solid var(--border-row, #232323)", flexShrink: 0,
+    borderTop: "1px solid var(--border-row)", flexShrink: 0,
   },
-  check: { display: "flex", alignItems: "center", gap: "var(--space-6, 6px)", fontSize: "var(--fs-small, 12px)", color: "var(--text-secondary, #999)", cursor: "pointer", userSelect: "none" },
+  check: { display: "flex", alignItems: "center", gap: "var(--space-6, 6px)", fontSize: "var(--fs-small, 12px)", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" },
   ack: {
-    background: "var(--editor-blue, #0e639c)", border: "1px solid var(--editor-blue, #0e639c)",
-    color: "var(--text-inverse, #fff)", borderRadius: "var(--radius-md, 6px)",
+    background: "var(--editor-blue)", border: "1px solid var(--editor-blue)",
+    color: "var(--text-inverse)", borderRadius: "var(--radius-md, 6px)",
     padding: "var(--space-6, 6px) var(--space-16, 16px)", fontSize: "var(--fs-small-plus, 13px)",
     fontWeight: "var(--fw-bold, 700)", cursor: "pointer", flexShrink: 0,
   },
@@ -102,7 +102,7 @@ const EmulatorDisclaimer = ({ storageKey, title = "Disclaimer", summary, items =
     <div style={s.overlay} role="presentation">
       <div style={s.box} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
         <div style={s.head}>
-          <Info size={15} style={{ flexShrink: 0, color: "var(--warn-gold, #d7ba7d)" }} />
+          <Info size={15} style={{ flexShrink: 0, color: "var(--warn-gold)" }} />
           <div style={s.title}>{title}</div>
           <button type="button" style={s.iconBtn} title="Close" aria-label="Close disclaimer" onClick={close}><X size={15} /></button>
         </div>

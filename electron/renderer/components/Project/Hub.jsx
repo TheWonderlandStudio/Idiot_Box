@@ -16,6 +16,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import "./hub.css";
 import CustomCursor from "../shared/CustomCursor.jsx";
+import { cssVar } from "../shared/theme.js";
 // ── Astryx design system (Meta) — scoped to the Hub via data-astryx-theme ──
 // Pre-built CSS (no StyleX build step needed) + neutral theme, forced dark.
 // The theme is scoped to the Hub root element only (see `phub` div below);
@@ -36,45 +37,45 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 // Real icons via devicons + simpleicons CDN (no local assets needed)
 const FRAMEWORKS = [
   // Frontend
-  { id: "react", name: "React", desc: "Vite + React starter", category: "Frontend", icon: Atom, color: "#61dafb", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/react/react-original.svg", languages: ["JavaScript", "TypeScript"], variants: ["Tailwind"] },
-  { id: "nextjs", name: "Next.js", desc: "React SSR framework", category: "Frontend", icon: Globe, color: "#000", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/nextjs/nextjs-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "vue", name: "Vue", desc: "Vite + Vue 3", category: "Frontend", icon: Palette, color: "#42b883", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vuejs/vuejs-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "svelte", name: "Svelte", desc: "Svelte + Vite", category: "Frontend", icon: Zap, color: "#ff3e00", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/svelte/svelte-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "angular", name: "Angular", desc: "Angular CLI starter", category: "Frontend", icon: Boxes, color: "#dd0031", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/angularjs/angularjs-original.svg", languages: ["TypeScript"] },
-  { id: "astro", name: "Astro", desc: "Static site builder", category: "Frontend", icon: Globe, color: "#ff5a03", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/astro/astro-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "html", name: "HTML/CSS/JS", desc: "Blank static template", category: "Frontend", icon: Code2, color: "#e34c26", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/html5/html5-original.svg" },
-  { id: "nuxt", name: "Nuxt", desc: "Vue SSR framework", category: "Frontend", icon: Layers, color: "#00dc82", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/nuxtjs/nuxtjs-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "react", name: "React", desc: "Vite + React starter", category: "Frontend", icon: Atom, color: "var(--brand-react)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/react/react-original.svg", languages: ["JavaScript", "TypeScript"], variants: ["Tailwind"] },
+  { id: "nextjs", name: "Next.js", desc: "React SSR framework", category: "Frontend", icon: Globe, color: "var(--brand-next)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/nextjs/nextjs-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "vue", name: "Vue", desc: "Vite + Vue 3", category: "Frontend", icon: Palette, color: "var(--brand-vue)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vuejs/vuejs-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "svelte", name: "Svelte", desc: "Svelte + Vite", category: "Frontend", icon: Zap, color: "var(--brand-svelte)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/svelte/svelte-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "angular", name: "Angular", desc: "Angular CLI starter", category: "Frontend", icon: Boxes, color: "var(--brand-angular)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/angularjs/angularjs-original.svg", languages: ["TypeScript"] },
+  { id: "astro", name: "Astro", desc: "Static site builder", category: "Frontend", icon: Globe, color: "var(--brand-astro)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/astro/astro-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "html", name: "HTML/CSS/JS", desc: "Blank static template", category: "Frontend", icon: Code2, color: "var(--brand-html)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/html5/html5-original.svg" },
+  { id: "nuxt", name: "Nuxt", desc: "Vue SSR framework", category: "Frontend", icon: Layers, color: "var(--brand-nuxt)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/nuxtjs/nuxtjs-original.svg", languages: ["JavaScript", "TypeScript"] },
   // Backend JS
-  { id: "express", name: "Express", desc: "Node.js web framework", category: "Backend", icon: Server, color: "#68a063", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/express/express-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "nestjs", name: "NestJS", desc: "TypeScript backend", category: "Backend", icon: Server, color: "#ea2845", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/nestjs/nestjs-original.svg", languages: ["TypeScript"] },
-  { id: "fastify", name: "Fastify", desc: "Fast Node.js server", category: "Backend", icon: Zap, color: "#202020", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/fastify/fastify-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "hono", name: "Hono", desc: "Ultrafast web framework", category: "Backend", icon: Box, color: "#ff6a00", iconUrl: "https://cdn.simpleicons.org/hono/FF6A00", languages: ["JavaScript", "TypeScript"] },
+  { id: "express", name: "Express", desc: "Node.js web framework", category: "Backend", icon: Server, color: "var(--brand-express)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/express/express-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "nestjs", name: "NestJS", desc: "TypeScript backend", category: "Backend", icon: Server, color: "var(--brand-nest)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/nestjs/nestjs-original.svg", languages: ["TypeScript"] },
+  { id: "fastify", name: "Fastify", desc: "Fast Node.js server", category: "Backend", icon: Zap, color: "var(--brand-fastify)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/fastify/fastify-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "hono", name: "Hono", desc: "Ultrafast web framework", category: "Backend", icon: Box, color: "var(--brand-hono)", iconUrl: "https://cdn.simpleicons.org/hono/FF6A00", languages: ["JavaScript", "TypeScript"] },
   // Python
-  { id: "flask", name: "Flask", desc: "Python micro web framework", category: "Python", icon: Leaf, color: "#3b9c7d", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/flask/flask-original.svg" },
-  { id: "django", name: "Django", desc: "Python full-stack", category: "Python", icon: Server, color: "#092e20", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/django/django-plain.svg" },
-  { id: "fastapi", name: "FastAPI", desc: "Python API framework", category: "Python", icon: Zap, color: "#009688", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/fastapi/fastapi-original.svg" },
-  { id: "streamlit", name: "Streamlit", desc: "Python data apps", category: "Python", icon: Palette, color: "#ff4b4b", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/streamlit/streamlit-original.svg" },
-  { id: "gradio", name: "Gradio", desc: "Python AI UI", category: "Python", icon: Cpu, color: "#f97316", iconUrl: "https://cdn.simpleicons.org/gradio/F97316" },
+  { id: "flask", name: "Flask", desc: "Python micro web framework", category: "Python", icon: Leaf, color: "var(--brand-flask)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/flask/flask-original.svg" },
+  { id: "django", name: "Django", desc: "Python full-stack", category: "Python", icon: Server, color: "var(--brand-django)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/django/django-plain.svg" },
+  { id: "fastapi", name: "FastAPI", desc: "Python API framework", category: "Python", icon: Zap, color: "var(--brand-fastapi)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/fastapi/fastapi-original.svg" },
+  { id: "streamlit", name: "Streamlit", desc: "Python data apps", category: "Python", icon: Palette, color: "var(--brand-streamlit)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/streamlit/streamlit-original.svg" },
+  { id: "gradio", name: "Gradio", desc: "Python AI UI", category: "Python", icon: Cpu, color: "var(--brand-gradio)", iconUrl: "https://cdn.simpleicons.org/gradio/F97316" },
   // Go / Rust / Others
-  { id: "go", name: "Go", desc: "Go starter", category: "Others", icon: Code2, color: "#00ADD8", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/go/go-original.svg" },
-  { id: "rust", name: "Rust", desc: "Cargo starter", category: "Others", icon: Box, color: "#dea584", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/rust/rust-original.svg" },
-  { id: "java", name: "Java", desc: "Spring Boot starter", category: "Others", icon: Code2, color: "#007396", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/java/java-original.svg" },
-  { id: "php", name: "PHP", desc: "Laravel starter", category: "Others", icon: Code2, color: "#777bb4", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/php/php-original.svg" },
+  { id: "go", name: "Go", desc: "Go starter", category: "Others", icon: Code2, color: "var(--brand-go)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/go/go-original.svg" },
+  { id: "rust", name: "Rust", desc: "Cargo starter", category: "Others", icon: Box, color: "var(--brand-rust)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/rust/rust-original.svg" },
+  { id: "java", name: "Java", desc: "Spring Boot starter", category: "Others", icon: Code2, color: "var(--brand-java)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/java/java-original.svg" },
+  { id: "php", name: "PHP", desc: "Laravel starter", category: "Others", icon: Code2, color: "var(--brand-php)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/php/php-original.svg" },
   // Mobile / Desktop
-  { id: "expo", name: "Expo", desc: "React Native + Expo", category: "Mobile", icon: Smartphone, color: "#4630eb", iconUrl: "https://cdn.simpleicons.org/expo/4630EB", languages: ["JavaScript", "TypeScript"] },
-  { id: "flutter", name: "Flutter", desc: "Dart + Flutter", category: "Mobile", icon: Smartphone, color: "#02569b", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/flutter/flutter-original.svg" },
-  { id: "electron", name: "Electron", desc: "Desktop app starter", category: "Mobile", icon: Box, color: "#47848f", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/electron/electron-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "tauri", name: "Tauri", desc: "Rust desktop app", category: "Mobile", icon: Box, color: "#24c8db", iconUrl: "https://cdn.simpleicons.org/tauri/24C8DB", languages: ["JavaScript", "TypeScript"] },
+  { id: "expo", name: "Expo", desc: "React Native + Expo", category: "Mobile", icon: Smartphone, color: "var(--brand-expo)", iconUrl: "https://cdn.simpleicons.org/expo/4630EB", languages: ["JavaScript", "TypeScript"] },
+  { id: "flutter", name: "Flutter", desc: "Dart + Flutter", category: "Mobile", icon: Smartphone, color: "var(--brand-flutter)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/flutter/flutter-original.svg" },
+  { id: "electron", name: "Electron", desc: "Desktop app starter", category: "Mobile", icon: Box, color: "var(--brand-electron)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/electron/electron-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "tauri", name: "Tauri", desc: "Rust desktop app", category: "Mobile", icon: Box, color: "var(--brand-tauri)", iconUrl: "https://cdn.simpleicons.org/tauri/24C8DB", languages: ["JavaScript", "TypeScript"] },
   // Bots
-  { id: "discord-node", name: "Discord Bot (Node)", desc: "discord.js starter", category: "Bots", icon: Bot, color: "#5865f2", iconUrl: "https://cdn.simpleicons.org/discord/5865F2", languages: ["JavaScript", "TypeScript"] },
-  { id: "discord-py", name: "Discord Bot (Python)", desc: "discord.py starter", category: "Bots", icon: Bot, color: "#3572A5", iconUrl: "https://cdn.simpleicons.org/discord/3572A5" },
-  { id: "telegram-node", name: "Telegram Bot (Node)", desc: "Telegraf starter", category: "Bots", icon: Send, color: "#26a5e4", iconUrl: "https://cdn.simpleicons.org/telegram/26A5E4", languages: ["JavaScript", "TypeScript"] },
-  { id: "telegram-py", name: "Telegram Bot (Python)", desc: "python-telegram-bot", category: "Bots", icon: Send, color: "#3572A5", iconUrl: "https://cdn.simpleicons.org/telegram/3572A5" },
-  { id: "slack", name: "Slack Bot", desc: "Bolt framework", category: "Bots", icon: Send, color: "#e01e5a", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/slack/slack-original.svg", languages: ["JavaScript", "TypeScript"] },
-  { id: "whatsapp", name: "WhatsApp Bot", desc: "whatsapp-web.js", category: "Bots", icon: Smartphone, color: "#25d366", iconUrl: "https://cdn.simpleicons.org/whatsapp/25D366", languages: ["JavaScript"] },
-  { id: "twitter", name: "Twitter Bot", desc: "Twitter API starter", category: "Bots", icon: Send, color: "#1da1f2", iconUrl: "https://cdn.simpleicons.org/x/1DA1F2", languages: ["JavaScript", "TypeScript"] },
-  { id: "chrome-ext", name: "Chrome Extension", desc: "Manifest v3 starter", category: "Tools", icon: Boxes, color: "#4285f4", iconUrl: "https://cdn.simpleicons.org/googlechrome/4285F4", languages: ["JavaScript", "TypeScript"] },
-  { id: "cli", name: "CLI Tool", desc: "Node CLI starter", category: "Tools", icon: TerminalIcon, color: "#333", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/bash/bash-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "discord-node", name: "Discord Bot (Node)", desc: "discord.js starter", category: "Bots", icon: Bot, color: "var(--brand-discord)", iconUrl: "https://cdn.simpleicons.org/discord/5865F2", languages: ["JavaScript", "TypeScript"] },
+  { id: "discord-py", name: "Discord Bot (Python)", desc: "discord.py starter", category: "Bots", icon: Bot, color: "var(--brand-python)", iconUrl: "https://cdn.simpleicons.org/discord/3572A5" },
+  { id: "telegram-node", name: "Telegram Bot (Node)", desc: "Telegraf starter", category: "Bots", icon: Send, color: "var(--brand-telegram)", iconUrl: "https://cdn.simpleicons.org/telegram/26A5E4", languages: ["JavaScript", "TypeScript"] },
+  { id: "telegram-py", name: "Telegram Bot (Python)", desc: "python-telegram-bot", category: "Bots", icon: Send, color: "var(--brand-python)", iconUrl: "https://cdn.simpleicons.org/telegram/3572A5" },
+  { id: "slack", name: "Slack Bot", desc: "Bolt framework", category: "Bots", icon: Send, color: "var(--brand-slack)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/slack/slack-original.svg", languages: ["JavaScript", "TypeScript"] },
+  { id: "whatsapp", name: "WhatsApp Bot", desc: "whatsapp-web.js", category: "Bots", icon: Smartphone, color: "var(--brand-whatsapp)", iconUrl: "https://cdn.simpleicons.org/whatsapp/25D366", languages: ["JavaScript"] },
+  { id: "twitter", name: "Twitter Bot", desc: "Twitter API starter", category: "Bots", icon: Send, color: "var(--brand-twitter)", iconUrl: "https://cdn.simpleicons.org/x/1DA1F2", languages: ["JavaScript", "TypeScript"] },
+  { id: "chrome-ext", name: "Chrome Extension", desc: "Manifest v3 starter", category: "Tools", icon: Boxes, color: "var(--brand-chrome)", iconUrl: "https://cdn.simpleicons.org/googlechrome/4285F4", languages: ["JavaScript", "TypeScript"] },
+  { id: "cli", name: "CLI Tool", desc: "Node CLI starter", category: "Tools", icon: TerminalIcon, color: "var(--brand-cli)", iconUrl: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/bash/bash-original.svg", languages: ["JavaScript", "TypeScript"] },
 ];
 
 // ─── Bundled wallpapers — always offered in the Hub wallpaper picker ──────
@@ -515,7 +516,7 @@ const getFrameworkFiles = (id, projectName, lang = "TypeScript") => {
     case "html":
       return {
         "index.html": `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${name}</title><link rel="stylesheet" href="style.css"/></head><body><h1>${name} — HTML/CSS/JS</h1><script src="script.js"></script></body></html>`,
-        "style.css": `body{font-family:system-ui;padding:24px}h1{color:#333}\n`,
+        "style.css": `body{font-family:system-ui;padding:24px}h1{color:CanvasText}\n`,
         "script.js": `console.log('${name} ready');\n`,
         "README.md": `# ${name} — HTML\n`,
       };
@@ -2216,12 +2217,12 @@ const ProjectHub = () => {
       fontSize: 12,
       lineHeight: 1.2,
       theme: {
-        background: "#0a0a0a",
-        foreground: "#cccccc",
-        cursor: "#cccccc",
-        selectionBackground: "#264f78",
-        black: "#0a0a0a",
-        white: "#cccccc",
+        background: cssVar("--hub-bg"),
+        foreground: cssVar("--text-bright"),
+        cursor: cssVar("--text-bright"),
+        selectionBackground: cssVar("--selection"),
+        black: cssVar("--hub-bg"),
+        white: cssVar("--text-bright"),
       },
       scrollback: 5000,
     });
@@ -2301,12 +2302,12 @@ const ProjectHub = () => {
         fontSize: 12,
         lineHeight: 1.2,
         theme: {
-          background: "#0a0a0a",
-          foreground: "#cccccc",
-          cursor: "#4ec9b0",
-          selectionBackground: "#264f78",
-          black: "#0a0a0a",
-          white: "#cccccc",
+          background: cssVar("--hub-bg"),
+          foreground: cssVar("--text-bright"),
+          cursor: cssVar("--teal"),
+          selectionBackground: cssVar("--selection"),
+          black: cssVar("--hub-bg"),
+          white: cssVar("--text-bright"),
         },
         scrollback: 5000,
       });
@@ -3170,7 +3171,7 @@ const ProjectHub = () => {
                   {selectedFramework && (
                     <div className="phub__dialog-field">
                       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--bg-subtle)", border: "1px solid var(--border)", borderRadius: 6 }}>
-                        <span style={{ width: 24, height: 24, borderRadius: 4, background: "#fff", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                        <span style={{ width: 24, height: 24, borderRadius: 4, background: "var(--paper)", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
                           {selectedFramework.iconUrl ? (
                             <img src={selectedFramework.iconUrl} alt={selectedFramework.name} style={{ width: 16, height: 16, objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; const sib = e.currentTarget.nextElementSibling; if (sib) sib.style.display = "inline-flex"; }} />
                           ) : null}
@@ -3349,8 +3350,8 @@ const ProjectHub = () => {
                 <div className="phub__clone-logs-header">
                   Setup Terminal
                   {scaffolding && <Loader2 size={12} className="phub__spin" />}
-                  {!scaffolding && scafStatus === "done" && <span style={{ color: "#4ec9b0" }}> — done</span>}
-                  {!scaffolding && scafStatus === "error" && <span style={{ color: "#f44747" }}> — failed</span>}
+                  {!scaffolding && scafStatus === "done" && <span style={{ color: "var(--teal)" }}> - done</span>}
+                  {!scaffolding && scafStatus === "error" && <span style={{ color: "var(--danger)" }}> - failed</span>}
                   {scaffolding && (
                     <button className="phub__btn--tiny" style={{ marginLeft: "auto" }} onClick={stopScaffold}>Stop</button>
                   )}
@@ -3531,7 +3532,7 @@ const ProjectHub = () => {
                     <Card key={fw.id} className="phub__dialog-result--card phub__fw-card" padding={3} elevation="low">
                       <div onClick={() => handleFrameworkSelect(fw)} style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
                       <div className="phub__dialog-result-main">
-                        <span style={{ width: 28, height: 28, borderRadius: 6, background: "#fff", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                        <span style={{ width: 28, height: 28, borderRadius: 6, background: "var(--paper)", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
                           {fw.iconUrl ? (
                             <img src={fw.iconUrl} alt={fw.name} style={{ width: 18, height: 18, objectFit: "contain" }} loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; const sib = e.currentTarget.nextElementSibling; if (sib) sib.style.display = "inline-flex"; }} />
                           ) : null}

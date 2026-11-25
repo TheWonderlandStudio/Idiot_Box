@@ -13,8 +13,8 @@ const ROW_H = 27;
 const NODE_R = 4;
 
 const PALETTE = [
-  "#4ec9b0", "#569cd6", "#dcdcaa", "#c586c0",
-  "#9cdcfe", "#6a9955", "#ce9178", "#b180d7",
+  "var(--teal)", "var(--code-blue)", "var(--code-yellow)", "var(--code-magenta)",
+  "var(--code-cyan)", "var(--code-green)", "var(--code-orange)", "var(--code-purple)",
 ];
 
 const laneColor = (lane) => PALETTE[((lane % PALETTE.length) + PALETTE.length) % PALETTE.length];

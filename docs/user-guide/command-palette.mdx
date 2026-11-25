@@ -1,0 +1,28 @@
+---
+title: "Command palette"
+description: "Commands, quick open, and recent files"
+---
+
+# Command palette
+
+The command palette is the fastest way to reach anything.
+
+## Command Palette — Ctrl+Shift+P
+
+Every app command, including extension-contributed commands:
+
+- File/tab/project actions, Git actions, terminal splits, panels (Ports, Extensions, Android, Desktop, Local History, Test Explorer, Debugger), layout reset, DevTools, settings.
+- Extension commands appear automatically (e.g. `Idiot Box: Reload extensions`, formatter commands).
+- Keyboard-navigable results with a visible search box; one-character queries require Enter before firing.
+
+## Quick Open — Ctrl+P
+
+Jump to a file or command: type a filename to open it, or keep typing command names. Stale responses from earlier queries are discarded — only the latest query's results apply.
+
+## Recent files
+
+Recent files (max 20, per project scope) surface in the palette, deduplicated, with missing files removed automatically and corrupt storage tolerated (`recentFiles.cjs`).
+
+## Menus & focus
+
+Escape closes and returns focus to where it came from; Tab is trapped while open. A second palette invocation replaces the first instead of stacking.
