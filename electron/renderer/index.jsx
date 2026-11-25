@@ -3462,6 +3462,13 @@ const App = () => {
       <div className="app-shell">
         <UpdaterBanner />
         <TitlebarLogoMenu hasProject={false} />
+        {titlebarHost && createPortal(
+          <>
+            <RunStatusButton />
+            <LayoutsMenu hasProject={false} getSnapshot={getLayoutSnapshot} onApply={applyLayoutPreset} />
+          </>,
+          titlebarHost
+        )}
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <ProjectHub />
         </div>

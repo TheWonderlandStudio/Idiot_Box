@@ -2678,7 +2678,7 @@
   border-color: var(--accent);
 }
 .phub__wallbtn--on {
-  color: var(--accent);
+  color: #ffffff;
   border-color: var(--accent);
   opacity: 1;
 }
