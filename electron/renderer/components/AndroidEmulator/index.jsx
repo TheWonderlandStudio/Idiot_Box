@@ -3,7 +3,7 @@
 // Create (device + Android version → sdkmanager image → avdmanager),
 // Delete, plus first-run Setup SDK (cmdline-tools download → sdkmanager).
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, Download, ArrowLeft, Home, LayoutGrid, X, Monitor, RotateCw, Camera, Power, Volume1, Volume2, PictureInPicture2, Maximize2, Minimize2, ZoomIn, ZoomOut, Terminal, Info } from "lucide-react";
+import { Play, Square, RefreshCw, Plus, Trash2, FolderOpen, Download, ArrowLeft, Home, LayoutGrid, X, Monitor, RotateCw, Camera, Power, Volume1, Volume2, PictureInPicture2, Maximize2, Minimize2, ZoomIn, ZoomOut, Terminal, Info, Settings } from "lucide-react";
 import EmulatorDisclaimer from "../shared/EmulatorDisclaimer.jsx";
 
 const FALLBACK_APIS = [
@@ -56,6 +56,9 @@ const AndroidEmulatorPanel = () => {
   const [task, setTask] = useState(null); // active download/install: {op,message,percent,done,total}
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "Pixel_8", device: "pixel_8", api: 35, variant: "google_apis" });
+  // Per-AVD config editor: { name, running, form:{ramMb,cores,width,height,density,gpu,keyboard} }
+  const [configEdit, setConfigEdit] = useState(null);
+  const [configBusy, setConfigBusy] = useState(false);
   // Embedded screen viewer: { avd, serial|null, booted } — headless emulator streamed here
   const [view, setView] = useState(null);
   const [full, setFull] = useState(false); // in-panel fullscreen: only screen + controls
@@ -68,8 +71,6 @@ const AndroidEmulatorPanel = () => {
   const screenBoxRef = useRef(null);
   const keyBufRef = useRef("");
   const keyTimerRef = useRef(null);
-  const frameBusyRef = useRef(false);
-  const frameFailRef = useRef(0);
   const downPosRef = useRef(null);
   const diagDoneRef = useRef(null);
 
@@ -122,7 +123,6 @@ const AndroidEmulatorPanel = () => {
     setGotFrame(false);
     setDevSize(null);
     setZoomIdx(0);
-    frameFailRef.current = 0;
   }, []);
 
   // Resolve adb serial for an AVD (waits while it boots), then show its screen here
@@ -133,7 +133,6 @@ const AndroidEmulatorPanel = () => {
     setGotFrame(false);
     setDevSize(null);
     setZoomIdx(0);
-    frameFailRef.current = 0;
     try {
       const r = await window.electronAPI?.androidWaitSerial?.(avdName, 150000);
       if (r?.ok && r.serial) {
@@ -221,15 +220,19 @@ const AndroidEmulatorPanel = () => {
     try { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; } catch {}
   }, [log]);
 
-  // Live screen: chained raw-framebuffer loop drawn straight to canvas
-  // (no PNG encode/decode — the main cost of the old path). Identical frames
-  // skip re-draw via main-side memcmp.
+  // Live screen: the emulator streams frames over gRPC (Android Studio's
+  // embedded-emulator recipe) and main forwards each one as it arrives. We
+  // paint the newest on the next animation frame — no polling, no timer.
   useEffect(() => {
     const serial = view?.serial;
     if (!serial) return () => {};
     let dead = false;
     let animId = null;
     let cachedImgData = null;
+    let latest = null;        // newest frame pushed by main
+    let fails = 0;
+    let warned = false;
+    let pullTimer = null;
 
     const draw = (w, h, pixels) => {
       const canvas = canvasRef.current;
@@ -253,36 +256,78 @@ const AndroidEmulatorPanel = () => {
       } catch { return false; }
     };
 
-    const tick = async () => {
-      if (dead) return;
-      if (!document.hidden && !frameBusyRef.current) {
-        frameBusyRef.current = true;
+    // Fallback for older preload / push unavailable: low-rate pull.
+    const startPull = () => {
+      if (pullTimer || dead) return;
+      const pull = async () => {
+        if (dead) return;
         try {
           const r = await window.electronAPI?.androidFrame?.(serial);
-          if (dead) return;
-          if (r?.ok) {
-            frameFailRef.current = 0;
-            if (!r.unchanged && r.pixels) {
-              if (draw(r.w, r.h, r.pixels)) setGotFrame(true);
-            }
-          } else {
-            frameFailRef.current += 1;
-          }
-        } catch { frameFailRef.current += 1; }
-        finally { frameBusyRef.current = false; }
-        if (frameFailRef.current >= 8 && !dead) {
-          showToast(`Lost connection to ${view.avd} — emulator may have stopped`, true);
-          closeViewer();
-          return;
-        }
-      }
-      if (!dead) animId = requestAnimationFrame(tick);
+          if (r?.ok && !r.unchanged && r.pixels) latest = { w: r.w, h: r.h, pixels: r.pixels, seq: 0 };
+          else if (!r?.ok) fails += 1;
+        } catch { fails += 1; }
+        if (!dead) pullTimer = setTimeout(pull, 16);
+      };
+      pull();
     };
 
-    animId = requestAnimationFrame(tick);
+    const onFrame = (msg) => {
+      if (dead || !msg) return;
+      if (msg.error) {
+        // Main only reports genuinely dead sources (AVD stopped, capture lost).
+        if (warned) return;
+        warned = true;
+        showToast(msg.error, true);
+        closeViewer();
+        return;
+      }
+      if (msg.w && msg.pixels) { fails = 0; latest = msg; }
+    };
+
+    const loop = () => {
+      if (dead) return;
+      if (!document.hidden && latest) {
+        const f = latest;
+        latest = null;
+        if (draw(f.w, f.h, f.pixels)) setGotFrame(true);
+      }
+      if (fails >= 8 && !warned) {
+        warned = true;
+        showToast(`Lost connection to ${view.avd} — emulator may have stopped`, true);
+        closeViewer();
+        return;
+      }
+      animId = requestAnimationFrame(loop);
+    };
+
+    let unsub = () => {};
+    try { unsub = window.electronAPI?.onAndroidFrame?.(onFrame) || (() => {}); } catch {}
+
+    // Start the push stream; if the main process can't give us one, pull.
+    (async () => {
+      try {
+        const r = await window.electronAPI?.androidFrameAttach?.(serial);
+        if (dead) return;
+        if (!r?.ok) startPull();
+      } catch { if (!dead) startPull(); }
+    })();
+
+    // Hidden panel: stop the stream instead of receiving 2.6MB frames nobody sees.
+    const onVis = () => {
+      if (dead) return;
+      if (document.hidden) { try { window.electronAPI?.androidFrameDetach?.(); } catch {} }
+      else { try { window.electronAPI?.androidFrameAttach?.(serial); } catch {} }
+    };
+    document.addEventListener("visibilitychange", onVis);
+
+    animId = requestAnimationFrame(loop);
     return () => {
       dead = true;
       if (animId) cancelAnimationFrame(animId);
+      if (pullTimer) clearTimeout(pullTimer);
+      document.removeEventListener("visibilitychange", onVis);
+      try { unsub(); } catch {}
+      try { window.electronAPI?.androidFrameDetach?.(); } catch {}
       // release the persistent shell session / grpc stream for this serial
       try { window.electronAPI?.androidFrameStop?.(serial); } catch {}
     };
@@ -535,6 +580,52 @@ const AndroidEmulatorPanel = () => {
     finally { setBusy(null); }
   }, [fetchState, showToast]);
 
+  // ── AVD config editor (RAM/CPU/resolution/DPI/GPU/keyboard) ──
+  const openConfig = useCallback(async (avd) => {
+    try {
+      const r = await window.electronAPI?.androidGetAvdConfig?.(avd.name);
+      if (!r?.ok) { showToast(r?.error || "Could not read config", true); return; }
+      setShowCreate(false);
+      setConfigEdit({ name: avd.name, running: !!avd.running, form: r.config });
+    } catch (e) { showToast(e?.message || String(e), true); }
+  }, [showToast]);
+
+  const setConfigField = useCallback((key, value) => {
+    setConfigEdit((c) => (c ? { ...c, form: { ...c.form, [key]: value } } : c));
+  }, []);
+
+  const saveConfig = useCallback(async () => {
+    if (!configEdit) return;
+    const f = configEdit.form;
+    const num = (v) => Math.round(Number(v));
+    const bad = [];
+    if (!(num(f.ramMb) >= 512 && num(f.ramMb) <= 16384)) bad.push("RAM 512–16384 MB");
+    if (!(num(f.cores) >= 1 && num(f.cores) <= 16)) bad.push("CPU 1–16 cores");
+    if (!(num(f.width) >= 320 && num(f.width) <= 4096)) bad.push("width 320–4096");
+    if (!(num(f.height) >= 320 && num(f.height) <= 4096)) bad.push("height 320–4096");
+    if (!(num(f.density) >= 120 && num(f.density) <= 640)) bad.push("DPI 120–640");
+    if (bad.length) { showToast(`Check: ${bad.join(", ")}`, true); return; }
+    setConfigBusy(true);
+    try {
+      const r = await window.electronAPI?.androidUpdateAvdConfig?.(configEdit.name, {
+        "hw.ramSize": `${num(f.ramMb)}M`,
+        "hw.cpu.ncore": String(num(f.cores)),
+        "hw.lcd.width": String(num(f.width)),
+        "hw.lcd.height": String(num(f.height)),
+        "hw.lcd.density": String(num(f.density)),
+        "hw.gpu.mode": String(f.gpu || "auto"),
+        "hw.keyboard": f.keyboard ? "yes" : "no",
+      });
+      if (r?.ok) {
+        showToast(configEdit.running ? "Config saved — restart the emulator to apply" : "Config saved");
+        pushLog(`[config] ${configEdit.name} updated${configEdit.running ? " (restart to apply)" : ""}.`);
+        setConfigEdit(null);
+        fetchState(true);
+      } else showToast(r?.error || "Save failed", true);
+    } catch (e) { showToast(e?.message || String(e), true); }
+    finally { setConfigBusy(false); }
+  }, [configEdit, showToast, pushLog, fetchState]);
+
   const apis = state?.apiLevels?.length ? state.apiLevels : FALLBACK_APIS;
   const variants = state?.imageVariants?.length ? state.imageVariants : FALLBACK_VARIANTS;
   const devices = state?.devices?.length ? state.devices : FALLBACK_DEVICES;
@@ -567,7 +658,7 @@ const AndroidEmulatorPanel = () => {
 
   return (
     <div style={s.wrap}>
-      {!(view && full) && (
+      {!view && (
       <div style={s.header}>
         <div style={s.title}>Android Emulator <span style={s.badge}>{avds.length}</span></div>
         <div style={{ display: "flex", gap: "var(--space-6)", alignItems: "center" }}>
@@ -598,24 +689,25 @@ const AndroidEmulatorPanel = () => {
       {/* Device fullscreen in-panel — while a screen is open the rest of the UI hides */}
       {view ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: "var(--black)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", background: "var(--bg-surface)", flexShrink: 0 }}>
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-small-plus)", fontWeight: "var(--fw-bold)", color: "var(--text-input)" }}>{view.avd.replace(/_/g, " ")}</span>
-            {!view.serial && <span style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)" }}>Waiting for device…</span>}
-            {view.serial && !view.booted && <span style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)" }}>Booting…</span>}
-            {!full && <button onClick={() => setFull(true)} title="Fullscreen — only emulator + controls" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Maximize2 size={12} /></button>}
-            <button onClick={closeViewer} title="Back to emulator list" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><X size={12} /></button>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", background: "var(--bg-surface)", borderTop: "var(--space-1) solid var(--bg-active)", flexShrink: 0, overflowX: "auto" }}>
-            <button onClick={() => sendInput(view.serial, { type: "key", code: 4 })} disabled={!view.serial} title="Back" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><ArrowLeft size={12} /></button>
-            <button onClick={() => sendInput(view.serial, { type: "key", code: 3 })} disabled={!view.serial} title="Home" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Home size={12} /></button>
-            <button onClick={() => sendInput(view.serial, { type: "key", code: 187 })} disabled={!view.serial} title="Recents" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><LayoutGrid size={12} /></button>
-            <button onClick={handleRotate} disabled={!view.serial} title="Rotate portrait / landscape" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><RotateCw size={12} /></button>
-            <button onClick={() => sendInput(view.serial, { type: "key", code: 25 })} disabled={!view.serial} title="Volume down" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Volume1 size={12} /></button>
-            <button onClick={() => sendInput(view.serial, { type: "key", code: 24 })} disabled={!view.serial} title="Volume up" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Volume2 size={12} /></button>
-            <button onClick={() => sendInput(view.serial, { type: "key", code: 26 })} disabled={!view.serial} title="Power" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Power size={12} /></button>
-            <button onClick={takeScreenshot} disabled={!view.serial} title="Take screenshot (saved to .appdata/android/downloads)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Camera size={12} /></button>
-            <button onClick={() => handleStop({ name: view.avd })} title="Stop emulator" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: "var(--error-soft)" }}><Square size={12} /></button>
-            <span style={{ flex: 1, minWidth: 60, textAlign: "right", fontSize: "var(--fs-mini)", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Click the screen, type with your keyboard</span>
+          {/* One compact toolbar: AVD name + device controls + window controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", padding: "var(--space-6) var(--space-10)", background: "var(--bg-surface)", borderBottom: "var(--space-1) solid var(--bg-active)", flexShrink: 0, overflowX: "auto" }}>
+            <span style={{ minWidth: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-small-plus)", fontWeight: "var(--fw-bold)", color: "var(--text-input)", flexShrink: 1 }}>{view.avd.replace(/_/g, " ")}</span>
+            {!view.serial && <span style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)", flexShrink: 0 }}>Waiting…</span>}
+            {view.serial && !view.booted && <span style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)", flexShrink: 0 }}>Booting…</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-6)", flexShrink: 0 }}>
+              <button onClick={() => sendInput(view.serial, { type: "key", code: 4 })} disabled={!view.serial} title="Back" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><ArrowLeft size={12} /></button>
+              <button onClick={() => sendInput(view.serial, { type: "key", code: 3 })} disabled={!view.serial} title="Home" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Home size={12} /></button>
+              <button onClick={() => sendInput(view.serial, { type: "key", code: 187 })} disabled={!view.serial} title="Recents" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><LayoutGrid size={12} /></button>
+              <button onClick={handleRotate} disabled={!view.serial} title="Rotate portrait / landscape" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><RotateCw size={12} /></button>
+              <button onClick={() => sendInput(view.serial, { type: "key", code: 25 })} disabled={!view.serial} title="Volume down" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Volume1 size={12} /></button>
+              <button onClick={() => sendInput(view.serial, { type: "key", code: 24 })} disabled={!view.serial} title="Volume up" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Volume2 size={12} /></button>
+              <button onClick={() => sendInput(view.serial, { type: "key", code: 26 })} disabled={!view.serial} title="Power" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Power size={12} /></button>
+              <button onClick={takeScreenshot} disabled={!view.serial} title="Take screenshot (saved to .appdata/android/downloads)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Camera size={12} /></button>
+              <button onClick={() => handleStop({ name: view.avd })} title="Stop emulator" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: "var(--error-soft)" }}><Square size={12} /></button>
+            </div>
+            <span style={{ flex: 1, minWidth: 8 }} />
+            {!full && <button onClick={() => setFull(true)} title="Fullscreen — only emulator + controls" style={{ ...s.iconBtn, display: "flex", alignItems: "center", flexShrink: 0 }}><Maximize2 size={12} /></button>}
+            <button onClick={closeViewer} title="Back to emulator list" style={{ ...s.iconBtn, display: "flex", alignItems: "center", flexShrink: 0 }}><X size={12} /></button>
           </div>
           <div ref={screenBoxRef} tabIndex={0} autoFocus
             onKeyDown={onScreenKey} onPaste={onScreenPaste} onCompositionEnd={onScreenIme}
@@ -673,6 +765,7 @@ const AndroidEmulatorPanel = () => {
               ? <button onClick={() => handleStop(avd)} disabled={busy === avd.name} title="Stop emulator" style={{ ...s.btnGhost, color: "var(--error-soft)" }}><Square size={12} /> Stop</button>
               : <button onClick={() => handleStart(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Start in separate window (default)" style={s.btn}><Play size={12} /> {busy === avd.name ? "…" : "Start"}</button>}
             {avd.running && <button onClick={() => handleStartWindowed(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Restart in separate window (pop-up)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><PictureInPicture2 size={12} /></button>}
+            <button onClick={() => openConfig(avd)} title="Config — RAM, CPU, resolution, DPI, GPU, keyboard" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: configEdit?.name === avd.name ? "var(--teal)" : undefined }}><Settings size={12} /></button>
             <button onClick={() => handleDelete(avd)} disabled={busy === avd.name} title="Delete emulator" style={{ ...s.iconBtn, color: "var(--error-soft)", display: "flex", alignItems: "center" }}><Trash2 size={12} /></button>
           </div>
         ))}
@@ -680,7 +773,7 @@ const AndroidEmulatorPanel = () => {
 
       {/* Actions */}
       <div style={{ padding: "var(--space-8)", borderTop: "var(--space-1) solid var(--bg-active)", display: "flex", gap: "var(--space-6)", background: "var(--bg-vscode)", flexShrink: 0 }}>
-        <button onClick={() => setShowCreate((v) => !v)} disabled={!state?.sdkInstalled} title={state?.sdkInstalled ? "Create emulator (device + Android version)" : "Run Setup SDK first"} style={s.btnGhost}><Plus size={12} /> Create Emulator</button>
+        <button onClick={() => { setConfigEdit(null); setShowCreate((v) => !v); }} disabled={!state?.sdkInstalled} title={state?.sdkInstalled ? "Create emulator (device + Android version)" : "Run Setup SDK first"} style={s.btnGhost}><Plus size={12} /> Create Emulator</button>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: "var(--fs-mini)", color: "var(--text-muted)", alignSelf: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }} title={state?.sdkRoot || ""}>{state?.sdkRoot ? ".appdata/android/sdk" : ""}</span>
       </div>
@@ -720,6 +813,64 @@ const AndroidEmulatorPanel = () => {
           <div style={{ display: "flex", gap: "var(--space-6)" }}>
             <button onClick={handleCreate} disabled={busy === "create"} style={{ ...s.btn, opacity: busy === "create" ? 0.6 : 1 }}><Plus size={12} /> {busy === "create" ? "Creating… (downloads image)" : "Create"}</button>
             <button onClick={() => setShowCreate(false)} style={s.btnGhost}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {configEdit && (
+        <div style={{ padding: "var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", display: "flex", flexDirection: "column", gap: "var(--space-8)", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-8)" }}>
+            <div style={{ fontSize: "var(--fs-body-plus)", fontWeight: "var(--fw-bold)", color: "var(--text-input)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Config — {configEdit.name.replace(/_/g, " ")}</div>
+            <button onClick={() => setConfigEdit(null)} title="Close config" style={{ ...s.iconBtn, display: "flex", alignItems: "center", flexShrink: 0 }}><X size={12} /></button>
+          </div>
+          {configEdit.running && (
+            <div style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)" }}>Emulator is running — saved changes apply on the next start/restart.</div>
+          )}
+          <div style={{ display: "flex", gap: "var(--space-8)" }}>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>RAM (MB)</label>
+              <input type="number" min={512} max={16384} step={256} value={configEdit.form.ramMb} onChange={(e) => setConfigField("ramMb", e.target.value)} style={s.input} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>CPU cores</label>
+              <input type="number" min={1} max={16} value={configEdit.form.cores} onChange={(e) => setConfigField("cores", e.target.value)} style={s.input} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-8)" }}>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>Width</label>
+              <input type="number" min={320} max={4096} step={10} value={configEdit.form.width} onChange={(e) => setConfigField("width", e.target.value)} style={s.input} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>Height</label>
+              <input type="number" min={320} max={4096} step={10} value={configEdit.form.height} onChange={(e) => setConfigField("height", e.target.value)} style={s.input} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>DPI</label>
+              <input type="number" min={120} max={640} step={10} value={configEdit.form.density} onChange={(e) => setConfigField("density", e.target.value)} style={s.input} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-8)" }}>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>GPU mode</label>
+              <select value={configEdit.form.gpu} onChange={(e) => setConfigField("gpu", e.target.value)} style={s.select}>
+                <option value="auto">Auto (recommended)</option>
+                <option value="host">Host GPU</option>
+                <option value="swiftshader_indirect">SwiftShader (software)</option>
+                <option value="angle_indirect">ANGLE</option>
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={s.label}>Keyboard</label>
+              <select value={configEdit.form.keyboard ? "yes" : "no"} onChange={(e) => setConfigField("keyboard", e.target.value === "yes")} style={s.select}>
+                <option value="yes">Enabled</option>
+                <option value="no">Disabled</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "var(--space-6)" }}>
+            <button onClick={saveConfig} disabled={configBusy} style={{ ...s.btn, opacity: configBusy ? 0.6 : 1 }}><Settings size={12} /> {configBusy ? "Saving…" : "Save config"}</button>
+            <button onClick={() => setConfigEdit(null)} style={s.btnGhost}>Cancel</button>
           </div>
         </div>
       )}
