@@ -9,7 +9,7 @@ import {
 } from "./chat-intent.cjs";
 import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, ArrowRight, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical, Copy, Check, MousePointer2, Sparkles } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
-import { playClick, setClickEnabled } from "../shared/clickSound.js";
+
 import GitGraph from "../GitPanel/GitGraph.jsx";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -461,7 +461,7 @@ const getFrameworkFiles = (id, projectName, lang = "TypeScript") => {
       if (isTS) {
         return {
           "package.json": pkg({ scripts: { dev: "next dev", build: "next build", start: "next start" }, dependencies: { next: "^14.2.5", react: "^18.3.1", "react-dom": "^18.3.1" }, devDependencies: { typescript: "^5.5.2", "@types/node": "^20.14.2", "@types/react": "^18.3.3" } }),
-          "tsconfig.json": JSON.stringify({ compilerOptions: { target: "ES2017", lib: ["dom","dom.iterable","esnext"], jsx: "preserve", module: "esnext", moduleResolution: "bundler", strict: true } }, null, 2),
+          "tsconfig.json": JSON.stringify({ compilerOptions: { target: "ES2017", lib: ["dom", "dom.iterable", "esnext"], jsx: "preserve", module: "esnext", moduleResolution: "bundler", strict: true } }, null, 2),
           "app/page.tsx": `export default function Page(){ return <div style={{padding:24}}><h1>${name} — Next.js + TS</h1></div> }\n`,
           "app/layout.tsx": `export default function RootLayout({children}:{children:React.ReactNode}){ return <html><body>{children}</body></html> }\n`,
           "next.config.mjs": `/** @type {import('next').NextConfig} */\nconst nextConfig={}; export default nextConfig;\n`,
@@ -797,7 +797,7 @@ if (typeof Image !== "undefined") {
     const img = new Image();
     img.decoding = "async";
     img.src = src;
-    img.decode?.().catch(() => {});
+    img.decode?.().catch(() => { });
   }
 }
 
@@ -1019,7 +1019,7 @@ const ProjectHub = () => {
       try {
         if (compMenu && compMenuRef.current && !compMenuRef.current.contains(e.target)) setCompMenu(null);
         if (cardMenu && !e.target.closest?.(".phub__card-menu, .phub__card-kebab")) setCardMenu(null);
-      } catch {}
+      } catch { }
     };
     const onKey = (e) => { if (e.key === "Escape") { setCompMenu(null); setCardMenu(null); } };
     document.addEventListener("mousedown", onDoc);
@@ -1033,7 +1033,7 @@ const ProjectHub = () => {
   // Close the filter menu on outside click
   useEffect(() => {
     if (!recentFilterOpen) return;
-    const onDoc = (e) => { try { if (recentFilterRef.current && !recentFilterRef.current.contains(e.target)) setRecentFilterOpen(false); } catch {} };
+    const onDoc = (e) => { try { if (recentFilterRef.current && !recentFilterRef.current.contains(e.target)) setRecentFilterOpen(false); } catch { } };
     const onKey = (e) => { if (e.key === "Escape") setRecentFilterOpen(false); };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -1065,7 +1065,7 @@ const ProjectHub = () => {
         tabs: Array.isArray(cur.tabs) ? cur.tabs : [],
         layout: "blank",
       });
-    } catch {}
+    } catch { }
   }, []);
 
   // ── GitHub heatmap (note panel) ────────────────────────────────────────
@@ -1133,7 +1133,7 @@ const ProjectHub = () => {
       sidebarSettingsRef.current = data;
       const w = Number(data.hubSidebarWidth);
       if (Number.isFinite(w)) setSidebarWidth(clampSidebarWidth(w));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
   const onSidebarResizeStart = useCallback((e) => {
     if (sidebarCollapsed) return;
@@ -1155,7 +1155,7 @@ const ProjectHub = () => {
       const w = sidebarWidthRef.current;
       const next = { ...sidebarSettingsRef.current, hubSidebarWidth: w };
       sidebarSettingsRef.current = next;
-      try { window.electronAPI?.writeSettings?.(next); } catch {}
+      try { window.electronAPI?.writeSettings?.(next); } catch { }
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -1164,7 +1164,7 @@ const ProjectHub = () => {
     setSidebarWidth(HUB_SIDEBAR_DEFAULT);
     const next = { ...sidebarSettingsRef.current, hubSidebarWidth: HUB_SIDEBAR_DEFAULT };
     sidebarSettingsRef.current = next;
-    try { window.electronAPI?.writeSettings?.(next); } catch {}
+    try { window.electronAPI?.writeSettings?.(next); } catch { }
   }, []);
 
   // ── Hub view history (Back/Forward + mouse side buttons) ──
@@ -1227,7 +1227,7 @@ const ProjectHub = () => {
           e.preventDefault();
           goFwd();
         }
-      } catch {}
+      } catch { }
     };
     window.addEventListener("mousedown", onMouse);
     return () => window.removeEventListener("mousedown", onMouse);
@@ -1240,23 +1240,22 @@ const ProjectHub = () => {
     const d = { ...lastHubUiRef.current, ...(s || {}) };
     lastHubUiRef.current = d;
     setNativeCursor(d.hubCustomCursor === false);
-    try { setClickEnabled(d.hubClickSound !== false); } catch {}
     const o = Number(d.hubWallpaperOpacity);
     setWallOpacity(Number.isFinite(o) ? Math.min(100, Math.max(20, o)) : 94);
   }, []);
   useEffect(() => {
-    window.electronAPI?.readSettings?.().then((s) => applyHubUiSettings(s || {})).catch(() => {});
+    window.electronAPI?.readSettings?.().then((s) => applyHubUiSettings(s || {})).catch(() => { });
     let bc = null;
     try {
       bc = new BroadcastChannel("app-settings");
       bc.onmessage = (e) => { if (e.data && typeof e.data === "object") applyHubUiSettings(e.data); };
-    } catch {}
+    } catch { }
     const unsub = window.electronAPI?.onSettingsUpdated
       ? window.electronAPI.onSettingsUpdated((p) => { if (p && typeof p === "object") applyHubUiSettings(p); })
-      : () => {};
+      : () => { };
     return () => {
-      try { bc?.close(); } catch {}
-      try { unsub?.(); } catch {}
+      try { bc?.close(); } catch { }
+      try { unsub?.(); } catch { }
     };
   }, [applyHubUiSettings]);
 
@@ -1278,7 +1277,7 @@ const ProjectHub = () => {
   const dropMsgTimerRef = useRef(null);
   const flashDropMsg = useCallback((t) => {
     setDropMsg(t);
-    try { clearTimeout(dropMsgTimerRef.current); } catch {}
+    try { clearTimeout(dropMsgTimerRef.current); } catch { }
     dropMsgTimerRef.current = setTimeout(() => setDropMsg(null), 4000);
   }, []);
 
@@ -1365,7 +1364,7 @@ const ProjectHub = () => {
     await new Promise((resolve) => {
       let unsub = null;
       const finish = () => {
-        try { unsub && unsub(); } catch {}
+        try { unsub && unsub(); } catch { }
         setChatBusy(false);
         resolve();
       };
@@ -1533,8 +1532,8 @@ const ProjectHub = () => {
         const exactMatches = username
           ? [await getGitHubRepository(username, repoName)].filter(Boolean)
           : (await searchGitHubRepositories(`${repoName} in:name`)).items.filter(
-              (repo) => repo.name?.toLowerCase() === repoName.toLowerCase(),
-            );
+            (repo) => repo.name?.toLowerCase() === repoName.toLowerCase(),
+          );
         if (exactMatches.length === 1) {
           updateCloneMessage(`Cloning ${exactMatches[0].full_name}…`);
           const cloned = await handleClone(exactMatches[0].clone_url);
@@ -1587,22 +1586,22 @@ const ProjectHub = () => {
         const results = await searchGitHubRepositories(query);
         const updated = chatMsgsRef.current.map((message) => message.id === searchMessageId
           ? {
-              ...message,
-              content: results.items.length
-                ? `GitHub repositories matching “${query}”:`
-                : `No public repositories found for “${query}”. Try adding a framework or language.`,
-              repositories: results.items.slice(0, 5),
-            }
+            ...message,
+            content: results.items.length
+              ? `GitHub repositories matching “${query}”:`
+              : `No public repositories found for “${query}”. Try adding a framework or language.`,
+            repositories: results.items.slice(0, 5),
+          }
           : message);
         chatMsgsRef.current = updated;
         setChatMsgs(updated);
       } catch (error) {
         const updated = chatMsgsRef.current.map((message) => message.id === searchMessageId
           ? {
-              ...message,
-              content: `Could not search GitHub for “${query}”.`,
-              repoSearchError: error?.message || String(error),
-            }
+            ...message,
+            content: `Could not search GitHub for “${query}”.`,
+            repoSearchError: error?.message || String(error),
+          }
           : message);
         chatMsgsRef.current = updated;
         setChatMsgs(updated);
@@ -1682,7 +1681,7 @@ const ProjectHub = () => {
     try {
       if (window.electronAPI?.clipboardWrite) await window.electronAPI.clipboardWrite(h);
       else await navigator.clipboard.writeText(h);
-    } catch {}
+    } catch { }
   }, []);
 
   // ── Hub wallpaper (path persisted, image URL/dataURL in memory) ──
@@ -1705,11 +1704,11 @@ const ProjectHub = () => {
             r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
           }
           if (n > 0) setWallTint(`rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`);
-        } catch {}
+        } catch { }
       };
-      img.onerror = () => {};
+      img.onerror = () => { };
       img.src = url;
-    } catch {}
+    } catch { }
   }, []);
   const resolveRandomWallpaper = useCallback(async () => {
     try {
@@ -1722,7 +1721,7 @@ const ProjectHub = () => {
         const fp = assetPathFromUrl(url);
         const dataUrl = fp ? await window.electronAPI?.readFileAsDataUrl?.(fp) : null;
         if (dataUrl) url = dataUrl;
-      } catch {}
+      } catch { }
       return url;
     }
   }, [flashDropMsg]);
@@ -1732,7 +1731,7 @@ const ProjectHub = () => {
       try {
         const p = localStorage.getItem("ibx:hubWallpaper");
         let saved = [];
-        try { saved = JSON.parse(localStorage.getItem("ibx:hubWallpapers") || "[]") || []; } catch {}
+        try { saved = JSON.parse(localStorage.getItem("ibx:hubWallpapers") || "[]") || []; } catch { }
         if (!Array.isArray(saved)) saved = [];
         // Resolve saved local wallpapers for the picker without treating them as the active choice.
         const ordered = [p, ...saved]
@@ -1750,14 +1749,14 @@ const ProjectHub = () => {
               const fp = assetPathFromUrl(u);
               const d = fp ? await window.electronAPI?.readFileAsDataUrl?.(fp) : null;
               if (d) u = d;
-            } catch {}
+            } catch { }
             resolved.push({ path: rp, url: u });
             continue;
           }
           try {
             const u = await window.electronAPI?.readFileAsDataUrl?.(rp);
             if (u) resolved.push({ path: rp, url: u });
-          } catch {}
+          } catch { }
         }
         if (dead) return;
         setRecentWalls(resolved.filter((w) => !String(w.path).startsWith("asset:")));
@@ -1803,7 +1802,7 @@ const ProjectHub = () => {
     try {
       const paths = (list || []).map((w) => w && w.path).filter(Boolean).slice(0, 6);
       localStorage.setItem("ibx:hubWallpapers", JSON.stringify(paths));
-    } catch {}
+    } catch { }
   }, []);
   // Custom right-click menu (not native) — for cell options
   const [wallCtx, setWallCtx] = useState(null); // { x, y, path }
@@ -1811,7 +1810,7 @@ const ProjectHub = () => {
     setWallpaper(url);
     setWallpaperKey(p);
     tintFromDataUrl(url);
-    try { localStorage.setItem("ibx:hubWallpaper", p); } catch {}
+    try { localStorage.setItem("ibx:hubWallpaper", p); } catch { }
     // to the top of recents (cap 6) + persist
     setRecentWalls((prev) => {
       const rest = (prev || []).filter((w) => w && w.path !== p);
@@ -1847,14 +1846,14 @@ const ProjectHub = () => {
     setWallpaper(null);
     setWallpaperKey("");
     setWallTint("");
-    try { localStorage.setItem("ibx:hubWallpaper", NO_WALLPAPER_KEY); } catch {}
+    try { localStorage.setItem("ibx:hubWallpaper", NO_WALLPAPER_KEY); } catch { }
   }, []);
   const applyRandomWallpaper = useCallback(async () => {
     const url = await resolveRandomWallpaper();
     setWallpaper(url);
     setWallpaperKey(RANDOM_WALLPAPER_KEY);
     tintFromDataUrl(url);
-    try { localStorage.setItem("ibx:hubWallpaper", RANDOM_WALLPAPER_KEY); } catch {}
+    try { localStorage.setItem("ibx:hubWallpaper", RANDOM_WALLPAPER_KEY); } catch { }
     setWallMenuOpen(false);
   }, [resolveRandomWallpaper, tintFromDataUrl]);
   // Bundled defaults are applied straight from the app assets — not added to
@@ -1865,11 +1864,11 @@ const ProjectHub = () => {
       const fp = assetPathFromUrl(url);
       const d = fp ? await window.electronAPI?.readFileAsDataUrl?.(fp) : null;
       if (d) url = d;
-    } catch {}
+    } catch { }
     setWallpaper(url);
     setWallpaperKey(defaultWallpaperKey(w.file));
     tintFromDataUrl(url);
-    try { localStorage.setItem("ibx:hubWallpaper", defaultWallpaperKey(w.file)); } catch {}
+    try { localStorage.setItem("ibx:hubWallpaper", defaultWallpaperKey(w.file)); } catch { }
     setWallMenuOpen(false);
   }, [tintFromDataUrl]);
 
@@ -1885,10 +1884,10 @@ const ProjectHub = () => {
       try {
         const items = Array.from(e?.dataTransfer?.items || []);
         if (items.some((it) => it.kind === "file")) return true;
-      } catch {}
+      } catch { }
       // If types is empty and this is an external drag (from the OS side), count it
       if (types.length === 0 || types.includes("application/x-moz-file")) return true;
-    } catch {}
+    } catch { }
     return false;
   };
   const onHubDragEnter = useCallback((e) => {
@@ -1902,7 +1901,7 @@ const ProjectHub = () => {
   }, []);
   const onHubDragOver = useCallback((e) => {
     e.preventDefault();
-    try { e.dataTransfer.dropEffect = "copy"; } catch {}
+    try { e.dataTransfer.dropEffect = "copy"; } catch { }
   }, []);
   const onHubDragLeave = useCallback((e) => {
     e.preventDefault();
@@ -1922,7 +1921,7 @@ const ProjectHub = () => {
         try {
           const items = Array.from(e?.dataTransfer?.items || []);
           files = items.map((it) => { try { return it.getAsFile(); } catch { return null; } }).filter(Boolean);
-        } catch {}
+        } catch { }
       }
       if (!files.length) {
         flashDropMsg("Nothing dropped — try again");
@@ -1934,10 +1933,10 @@ const ProjectHub = () => {
       for (const f of files) {
         try {
           let p = null;
-          try { p = await window.electronAPI?.getPathForFile?.(f); } catch {}
-          if (!p) { try { p = f?.path; } catch {} }
+          try { p = await window.electronAPI?.getPathForFile?.(f); } catch { }
+          if (!p) { try { p = f?.path; } catch { } }
           if (p && !paths.includes(p)) paths.push(p);
-        } catch {}
+        } catch { }
       }
       // Fallback: directory check via webkitGetAsEntry
       if (!paths.length) {
@@ -1952,15 +1951,15 @@ const ProjectHub = () => {
                   const file = it.getAsFile();
                   if (file) {
                     let p = null;
-                    try { p = await window.electronAPI?.getPathForFile?.(file); } catch {}
-                    if (!p) { try { p = file?.path; } catch {} }
+                    try { p = await window.electronAPI?.getPathForFile?.(file); } catch { }
+                    if (!p) { try { p = file?.path; } catch { } }
                     if (p && !paths.includes(p)) paths.push(p);
                   }
                 }
               }
-            } catch {}
+            } catch { }
           }
-        } catch {}
+        } catch { }
       }
       if (!paths.length) {
         flashDropMsg("No paths found — drag the folder from Explorer");
@@ -1971,7 +1970,7 @@ const ProjectHub = () => {
         try {
           const st = await window.electronAPI?.stat?.(p);
           if (st?.exists && st?.isDir && !dirs.includes(p)) dirs.push(p);
-        } catch {}
+        } catch { }
       }
       if (!dirs.length) {
         // DIAG: show the first path's stat so the exact cause is visible
@@ -1986,7 +1985,7 @@ const ProjectHub = () => {
         return;
       }
       for (const d of dirs) {
-        try { window.electronAPI.projectAddRecent(d); } catch {}
+        try { window.electronAPI.projectAddRecent(d); } catch { }
       }
       // Shared direct-open like the Open button (same code path as dialog:openFolder —
       // no dialog at all; the dropped path opens directly).
@@ -2001,18 +2000,18 @@ const ProjectHub = () => {
         return;
       }
       flashDropMsg(`Imported: ${String(dirs[0]).split(/[\\/]/).pop() || dirs[0]}${dirs.length > 1 ? ` +${dirs.length - 1} added to recents` : ""}`);
-    } catch {}
+    } catch { }
   }, []);
 
   const resolveGhUser = useCallback(async () => {
     let user = null;
-    try { user = window.__githubUsername || null; } catch {}
+    try { user = window.__githubUsername || null; } catch { }
     if (!user) {
       try {
         const s = await window.electronAPI.readSettings().catch(() => ({}));
         user = s?.githubUsername || null;
-        try { window.__githubUsername = user; } catch {}
-      } catch {}
+        try { window.__githubUsername = user; } catch { }
+      } catch { }
     }
     if (user) setGhUser(user);
     return user;
@@ -2041,7 +2040,7 @@ const ProjectHub = () => {
     if (!showCloneDialog) return;
     (async () => {
       let user = null;
-      try { user = window.__githubUsername || null; } catch {}
+      try { user = window.__githubUsername || null; } catch { }
       if (!user) user = await resolveGhUser();
       else setGhUser(user);
       if (user) loadUserRepos(user);
@@ -2058,7 +2057,7 @@ const ProjectHub = () => {
           return;
         }
         setShowHeat(true);
-      } catch {}
+      } catch { }
       const user = await resolveGhUser();
       if (user) loadHeatmap(user);
     })();
@@ -2073,19 +2072,19 @@ const ProjectHub = () => {
           if (!on) { setGhUser(null); setGhWeeks([]); }
           else {
             let u = null;
-            try { u = window.__githubUsername || null; } catch {}
+            try { u = window.__githubUsername || null; } catch { }
             if (u) loadHeatmap(u);
           }
         }
         if ("githubUsername" in patch) {
           const u = patch.githubUsername || null;
-          try { window.__githubUsername = u; } catch {}
+          try { window.__githubUsername = u; } catch { }
           if (u) loadHeatmap(u);
           else { setGhUser(null); setGhWeeks([]); }
         }
       });
-    } catch {}
-    return () => { try { unsub?.(); } catch {} };
+    } catch { }
+    return () => { try { unsub?.(); } catch { } };
   }, [loadHeatmap]);
 
   const saveGhUser = useCallback(async () => {
@@ -2096,8 +2095,8 @@ const ProjectHub = () => {
       const next = { ...(s || {}), githubUsername: user };
       delete next.githubOnboardingDismissed;
       await window.electronAPI.writeSettings(next);
-      try { window.__githubUsername = user; } catch {}
-    } catch {}
+      try { window.__githubUsername = user; } catch { }
+    } catch { }
     setGhInput("");
     loadHeatmap(user);
   }, [ghInput, loadHeatmap]);
@@ -2229,7 +2228,7 @@ const ProjectHub = () => {
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(el);
-    try { fit.fit(); } catch {}
+    try { fit.fit(); } catch { }
     cloneTermRef.current = term;
     cloneFitRef.current = fit;
     // write existing logs
@@ -2237,13 +2236,13 @@ const ProjectHub = () => {
       term.write(cloneLogs.join(""));
       clonePrevLenRef.current = cloneLogs.length;
     }
-    const ro = new ResizeObserver(() => { try { fit.fit(); } catch {} });
+    const ro = new ResizeObserver(() => { try { fit.fit(); } catch { } });
     ro.observe(el);
-    const onResize = () => { try { fit.fit(); } catch {} };
+    const onResize = () => { try { fit.fit(); } catch { } };
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
-      try { ro.disconnect(); } catch {}
+      try { ro.disconnect(); } catch { }
       // keep term alive while dialog open — dispose only on dialog close
     };
   }, [showCloneDialog, cloning, cloneLogs.length]);
@@ -2251,7 +2250,7 @@ const ProjectHub = () => {
   // dispose xterm when dialog closes
   useEffect(() => {
     if (!showCloneDialog) {
-      if (cloneTermRef.current) { try { cloneTermRef.current.dispose(); } catch {} cloneTermRef.current = null; cloneFitRef.current = null; }
+      if (cloneTermRef.current) { try { cloneTermRef.current.dispose(); } catch { } cloneTermRef.current = null; cloneFitRef.current = null; }
       clonePrevLenRef.current = 0;
     }
   }, [showCloneDialog]);
@@ -2261,18 +2260,18 @@ const ProjectHub = () => {
     const term = cloneTermRef.current;
     if (!term) { clonePrevLenRef.current = cloneLogs.length; return; }
     if (cloneLogs.length === 0) {
-      try { term.clear(); } catch {}
+      try { term.clear(); } catch { }
       clonePrevLenRef.current = 0;
       return;
     }
     if (cloneLogs.length < clonePrevLenRef.current) {
-      try { term.clear(); term.write(cloneLogs.join("")); } catch {}
+      try { term.clear(); term.write(cloneLogs.join("")); } catch { }
       clonePrevLenRef.current = cloneLogs.length;
       return;
     }
     const newChunks = cloneLogs.slice(clonePrevLenRef.current);
     for (const chunk of newChunks) {
-      try { term.write(String(chunk)); } catch {}
+      try { term.write(String(chunk)); } catch { }
     }
     clonePrevLenRef.current = cloneLogs.length;
   }, [cloneLogs]);
@@ -2313,16 +2312,16 @@ const ProjectHub = () => {
       });
     } catch { return undefined; }
     const fit = new FitAddon();
-    try { term.loadAddon(fit); } catch {}
+    try { term.loadAddon(fit); } catch { }
     try { term.open(el); } catch { return undefined; }
     scafTermRef.current = term;
     scafFitRef.current = fit;
-    const doFit = () => { try { fit.fit(); } catch {} };
+    const doFit = () => { try { fit.fit(); } catch { } };
     // fit after the browser settles the freshly inserted flex row
     const raf = requestAnimationFrame(doFit);
     // flush anything written before the term existed — verbatim, no rewriting
     if (scafPendingRef.current.length) {
-      try { term.write(scafPendingRef.current.join("")); } catch {}
+      try { term.write(scafPendingRef.current.join("")); } catch { }
       scafPendingRef.current = [];
     }
     // type answers straight into prompts (create-next-app etc.)
@@ -2331,31 +2330,31 @@ const ProjectHub = () => {
         try {
           const id = scafRunIdRef.current;
           if (id && scaffoldingRef.current) window.electronAPI.runWrite(id, d);
-        } catch {}
+        } catch { }
       });
-    } catch {}
+    } catch { }
     // ResizeObserver must outlive log chunks — it is the only thing that keeps
     // columns correct when the panel reflows while the CLI is still running.
     const ro = new ResizeObserver(() => doFit());
-    try { ro.observe(el); } catch {}
+    try { ro.observe(el); } catch { }
     window.addEventListener("resize", doFit);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", doFit);
-      try { ro.disconnect(); } catch {}
+      try { ro.disconnect(); } catch { }
     };
   }, [showNewProjectDialog, scafVisible]);
 
   useEffect(() => {
     if (!showNewProjectDialog) {
-      if (scafTermRef.current) { try { scafTermRef.current.dispose(); } catch {} scafTermRef.current = null; scafFitRef.current = null; }
+      if (scafTermRef.current) { try { scafTermRef.current.dispose(); } catch { } scafTermRef.current = null; scafFitRef.current = null; }
       scafPendingRef.current = [];
     }
   }, [showNewProjectDialog]);
 
   // hub unmounts the moment the project opens — never leak the term
   useEffect(() => () => {
-    if (scafTermRef.current) { try { scafTermRef.current.dispose(); } catch {} scafTermRef.current = null; scafFitRef.current = null; }
+    if (scafTermRef.current) { try { scafTermRef.current.dispose(); } catch { } scafTermRef.current = null; scafFitRef.current = null; }
   }, []);
 
   // ── Scaffold engine: sequential CLI steps over the run engine ──────────
@@ -2364,7 +2363,7 @@ const ProjectHub = () => {
     const text = String(chunk ?? "");
     if (!text) return;
     const term = scafTermRef.current;
-    if (term) { try { term.write(text); } catch {} return; }
+    if (term) { try { term.write(text); } catch { } return; }
     // terminal not mounted yet — hold it, flushed verbatim on open
     if (scafPendingRef.current.length < 400) scafPendingRef.current.push(text);
     setScafVisible(true);
@@ -2458,7 +2457,7 @@ const ProjectHub = () => {
         return;
       }
       if (plan.spec.write === "after") {
-        try { await writeTemplateFiles(plan.fwId, plan.name, plan.lang, plan.projDir, plan.spec.skipFiles || []); } catch {}
+        try { await writeTemplateFiles(plan.fwId, plan.name, plan.lang, plan.projDir, plan.spec.skipFiles || []); } catch { }
       }
       scafPush("\r\nSetup complete — opening project…\r\n");
       try {
@@ -2487,26 +2486,26 @@ const ProjectHub = () => {
           if (!text) return;
           const term = scafTermRef.current;
           // straight to the canvas — the PTY stream must stay a byte stream
-          if (term) { try { term.write(text); } catch {} }
+          if (term) { try { term.write(text); } catch { } }
           else scafPush(text);
-        } catch {}
+        } catch { }
       });
-    } catch {}
+    } catch { }
     try {
       u2 = window.electronAPI?.onRunExit?.((info) => {
         try {
           const rid = info?.runId;
           if (rid && rid === scafRunIdRef.current && scafExitRef.current) scafExitRef.current(info?.code);
-        } catch {}
+        } catch { }
       });
-    } catch {}
-    return () => { try { u1?.(); } catch {} try { u2?.(); } catch {} };
+    } catch { }
+    return () => { try { u1?.(); } catch { } try { u2?.(); } catch { } };
   }, [scafPush]);
 
   const stopScaffold = useCallback(() => {
     const id = scafRunIdRef.current;
     scafCancelledRef.current = true;
-    if (id) { try { window.electronAPI.runStop(id); } catch {} }
+    if (id) { try { window.electronAPI.runStop(id); } catch { } }
     else { setScaffolding(false); }
   }, []);
 
@@ -2517,7 +2516,7 @@ const ProjectHub = () => {
     const unsubDone = window.electronAPI.onCloneDone?.(() => {
       // keep logs, just stop spinning via cloning state
     });
-    return () => { try { unsubLog?.(); } catch {} try { unsubDone?.(); } catch {} };
+    return () => { try { unsubLog?.(); } catch { } try { unsubDone?.(); } catch { } };
   }, []);
 
   // Default location for new project (Documents etc.)
@@ -2527,7 +2526,7 @@ const ProjectHub = () => {
       let def = null;
       try {
         def = await window.electronAPI.getDefaultLocation?.();
-      } catch {}
+      } catch { }
       if (def) {
         setNewProjectLocation(def);
         return;
@@ -2572,7 +2571,7 @@ const ProjectHub = () => {
         try {
           const cur = await window.electronAPI.getProjectPath();
           if (cur) setProjectPath(cur);
-        } catch {}
+        } catch { }
       } catch (err) {
         console.warn("Failed to load recent projects:", err);
       }
@@ -2586,7 +2585,7 @@ const ProjectHub = () => {
         setRecentProjects(normalizeRecent(recent));
         setPinnedProjects(pinned);
       });
-    } catch {}
+    } catch { }
     try {
       unsubPin = window.electronAPI.onProjectPinUpdated(() => {
         window.electronAPI.projectLoadRecent().then((r) => {
@@ -2596,11 +2595,11 @@ const ProjectHub = () => {
           }
         });
       });
-    } catch {}
+    } catch { }
 
     return () => {
-      try { unsubRecent?.(); } catch {}
-      try { unsubPin?.(); } catch {}
+      try { unsubRecent?.(); } catch { }
+      try { unsubPin?.(); } catch { }
     };
   }, []);
 
@@ -2630,7 +2629,7 @@ const ProjectHub = () => {
           </span>
         );
       }
-    } catch {}
+    } catch { }
     // Fallback to vscode-icons mapping
     if (lower.includes("react") || lower.includes("next")) {
       return <VscodeIcon name="App.jsx" isDir={false} size={16} />;
@@ -2741,7 +2740,7 @@ const ProjectHub = () => {
           tabs: Array.isArray(cur.tabs) ? cur.tabs : [],
           panels: ov.panels,
         });
-      } catch {}
+      } catch { }
     };
     if (!spec) {
       try {
@@ -2752,8 +2751,8 @@ const ProjectHub = () => {
         if (fw) {
           await writeTemplateFiles(fw.id, name, lang, target, []);
           // reopen to refresh file tree
-          try { await window.electronAPI.menuOpenProject(target); } catch {}
-          try { window.dispatchEvent(new CustomEvent("focus-terminal-tab")); } catch {}
+          try { await window.electronAPI.menuOpenProject(target); } catch { }
+          try { window.dispatchEvent(new CustomEvent("focus-terminal-tab")); } catch { }
         }
         closeCreateDialog();
       } catch (err) {
@@ -2785,7 +2784,7 @@ const ProjectHub = () => {
       }
     } catch (err) {
       console.error("Create failed:", err);
-      try { await window.electronAPI.showAlert?.(`Create failed: ${err?.message || err}`); } catch {}
+      try { await window.electronAPI.showAlert?.(`Create failed: ${err?.message || err}`); } catch { }
     }
   }, [newProjectPath, getFullProjectPath, selectedFramework, newProjectName, newProjectLocation, frameworkLang, editedSteps, editedProjName, writeTemplateFiles, closeCreateDialog]);
 
@@ -2859,7 +2858,7 @@ const ProjectHub = () => {
       });
     } catch (err) {
       console.error("AI create failed", err);
-      try { await window.electronAPI.showAlert?.(`Create failed: ${err?.message || err}`); } catch {}
+      try { await window.electronAPI.showAlert?.(`Create failed: ${err?.message || err}`); } catch { }
     } finally {
       setChatBusy(false);
     }
@@ -2915,9 +2914,9 @@ const ProjectHub = () => {
     try {
       const picked = await window.electronAPI.browseFolder();
       if (picked) destParent = picked;
-    } catch {}
+    } catch { }
     if (!destParent) {
-      try { destParent = await window.electronAPI.getDefaultLocation?.(); } catch {}
+      try { destParent = await window.electronAPI.getDefaultLocation?.(); } catch { }
     }
     if (!destParent) return false;
     const repoName = targetUrl.split("/").pop()?.replace(/\.git$/, "").replace(/\/$/, "") || "repo";
@@ -2948,9 +2947,9 @@ const ProjectHub = () => {
 
   return (
     <div
-        data-astryx-theme="neutral"
-        data-theme="dark"
-        className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}${sidebarCollapsed ? " phub--sb-collapsed" : ""}${sidebarResizing ? " phub--sb-resizing" : ""}`}
+      data-astryx-theme="neutral"
+      data-theme="dark"
+      className={`phub${wallpaper ? " phub--wallpaper" : ""}${nativeCursor ? " phub--native-cursor" : ""}${chatOpen ? " phub--chatfs-open" : ""}${sidebarCollapsed ? " phub--sb-collapsed" : ""}${sidebarResizing ? " phub--sb-resizing" : ""}`}
       style={{
         ...(wallpaper ? { backgroundImage: `url("${wallpaper}")`, "--wall-tint": wallTint || undefined } : {}),
         "--wall-opacity": `${wallOpacity}%`,
@@ -2960,12 +2959,6 @@ const ProjectHub = () => {
       onDragOver={onHubDragOver}
       onDragLeave={onHubDragLeave}
       onDrop={onHubDrop}
-      onClick={(e) => {
-        // Click sound only on interactive things (not on empty space)
-        try {
-          if (e.target && e.target.closest && e.target.closest('button, a, input, select, [role="button"]')) playClick();
-        } catch {}
-      }}
     >
       {!nativeCursor && <CustomCursor />}
 
@@ -3051,7 +3044,7 @@ const ProjectHub = () => {
             collapsed={sidebarCollapsed}
             label="Open Folder"
             icon={<FolderOpen size={14} />}
-            onClick={async () => { try { await window.electronAPI.openFolder(); } catch {} }}
+            onClick={async () => { try { await window.electronAPI.openFolder(); } catch { } }}
           />
         </nav>
         <div className="phub__sidebar-label phub__sidebar-label--gap">Explore</div>
@@ -3295,49 +3288,49 @@ const ProjectHub = () => {
                       </div>
                     )}
                     {(!createSpec || createSpec.write !== false) && (
-                    <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-surface)", padding: 4, minHeight: 180 }}>
-                      {(() => {
-                        const files = getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang);
-                        const tree = {};
-                        for (const p of Object.keys(files)) {
-                          const parts = p.split("/");
-                          let node = tree;
-                          for (let i = 0; i < parts.length; i++) {
-                            const part = parts[i];
-                            const isFile = i === parts.length - 1;
-                            if (isFile) node[part] = null;
-                            else {
-                              if (!node[part]) node[part] = {};
-                              node = node[part];
+                      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg-surface)", padding: 4, minHeight: 180 }}>
+                        {(() => {
+                          const files = getFrameworkFiles(selectedFramework.id, newProjectName.trim() || selectedFramework.name, frameworkLang);
+                          const tree = {};
+                          for (const p of Object.keys(files)) {
+                            const parts = p.split("/");
+                            let node = tree;
+                            for (let i = 0; i < parts.length; i++) {
+                              const part = parts[i];
+                              const isFile = i === parts.length - 1;
+                              if (isFile) node[part] = null;
+                              else {
+                                if (!node[part]) node[part] = {};
+                                node = node[part];
+                              }
                             }
                           }
-                        }
-                        const renderNode = (obj, depth = 0, prefix = "") => {
-                          return Object.entries(obj).map(([name, val]) => {
-                            const isFolder = val !== null;
-                            const fullPath = prefix ? `${prefix}/${name}` : name;
-                            if (isFolder) {
-                              return (
-                                <div key={fullPath}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", paddingLeft: 6 + depth * 12, fontSize: "11px", color: "var(--text-soft)", background: "var(--bg-surface)", fontWeight: 500 }}>
-                                    <VscodeIcon name={name} isDir={true} size={14} />
-                                    <span>{name}</span>
+                          const renderNode = (obj, depth = 0, prefix = "") => {
+                            return Object.entries(obj).map(([name, val]) => {
+                              const isFolder = val !== null;
+                              const fullPath = prefix ? `${prefix}/${name}` : name;
+                              if (isFolder) {
+                                return (
+                                  <div key={fullPath}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", paddingLeft: 6 + depth * 12, fontSize: "11px", color: "var(--text-soft)", background: "var(--bg-surface)", fontWeight: 500 }}>
+                                      <VscodeIcon name={name} isDir={true} size={14} />
+                                      <span>{name}</span>
+                                    </div>
+                                    <div>{renderNode(val, depth + 1, fullPath)}</div>
                                   </div>
-                                  <div>{renderNode(val, depth + 1, fullPath)}</div>
+                                );
+                              }
+                              return (
+                                <div key={fullPath} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", paddingLeft: 6 + depth * 12 + 8, fontSize: "11px", borderBottom: "1px solid var(--border-row)", background: "var(--bg-surface)" }}>
+                                  <VscodeIcon name={name} isDir={false} size={14} />
+                                  <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0, textAlign: "left" }}>{name}</span>
                                 </div>
                               );
-                            }
-                            return (
-                              <div key={fullPath} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", paddingLeft: 6 + depth * 12 + 8, fontSize: "11px", borderBottom: "1px solid var(--border-row)", background: "var(--bg-surface)" }}>
-                                <VscodeIcon name={name} isDir={false} size={14} />
-                                <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0, textAlign: "left" }}>{name}</span>
-                              </div>
-                            );
-                          });
-                        };
-                        return <>{renderNode(tree)}</>;
-                      })()}
-                    </div>)}
+                            });
+                          };
+                          return <>{renderNode(tree)}</>;
+                        })()}
+                      </div>)}
                   </div>
                 )}
               </div>
@@ -3365,7 +3358,7 @@ const ProjectHub = () => {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  try { const id = scafRunIdRef.current; if (id) window.electronAPI.runStop(id); } catch {}
+                  try { const id = scafRunIdRef.current; if (id) window.electronAPI.runStop(id); } catch { }
                   scafRunIdRef.current = null;
                   scafPlanRef.current = null;
                   scafCancelledRef.current = false;
@@ -3531,36 +3524,36 @@ const ProjectHub = () => {
                   return (
                     <Card key={fw.id} className="phub__dialog-result--card phub__fw-card" padding={3} elevation="low">
                       <div onClick={() => handleFrameworkSelect(fw)} style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-                      <div className="phub__dialog-result-main">
-                        <span style={{ width: 28, height: 28, borderRadius: 6, background: "var(--paper)", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
-                          {fw.iconUrl ? (
-                            <img src={fw.iconUrl} alt={fw.name} style={{ width: 18, height: 18, objectFit: "contain" }} loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; const sib = e.currentTarget.nextElementSibling; if (sib) sib.style.display = "inline-flex"; }} />
-                          ) : null}
-                          <span style={{ display: fw.iconUrl ? "none" : "inline-flex", color: fw.color }}>
-                            <Icon size={16} />
+                        <div className="phub__dialog-result-main">
+                          <span style={{ width: 28, height: 28, borderRadius: 6, background: "var(--paper)", border: "1px solid var(--border)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                            {fw.iconUrl ? (
+                              <img src={fw.iconUrl} alt={fw.name} style={{ width: 18, height: 18, objectFit: "contain" }} loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; const sib = e.currentTarget.nextElementSibling; if (sib) sib.style.display = "inline-flex"; }} />
+                            ) : null}
+                            <span style={{ display: fw.iconUrl ? "none" : "inline-flex", color: fw.color }}>
+                              <Icon size={16} />
+                            </span>
                           </span>
-                        </span>
-                        <span className="phub__dialog-result-name" title={fw.name}>{fw.name}</span>
-                        <Badge variant="neutral" label={fw.category} />
-                      </div>
-                      <div className="phub__dialog-result-desc" title={fw.desc}>{fw.desc}</div>
-                      <div className="phub__dialog-result-foot">
-                        <span className="phub__dialog-result-url" title={fw.id}>{fw.id}</span>
-                        <Button label="Use" variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); handleFrameworkSelect(fw); }} />
-                      </div>
+                          <span className="phub__dialog-result-name" title={fw.name}>{fw.name}</span>
+                          <Badge variant="neutral" label={fw.category} />
+                        </div>
+                        <div className="phub__dialog-result-desc" title={fw.desc}>{fw.desc}</div>
+                        <div className="phub__dialog-result-foot">
+                          <span className="phub__dialog-result-url" title={fw.id}>{fw.id}</span>
+                          <Button label="Use" variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); handleFrameworkSelect(fw); }} />
+                        </div>
                       </div>
                     </Card>
                   );
-                  })}
-                </div>
+                })}
+              </div>
               {FRAMEWORKS.filter(fw => {
                 const q = frameworkSearch.trim().toLowerCase();
                 if (frameworkCategory !== "All" && fw.category !== frameworkCategory) return false;
                 if (!q) return true;
                 return fw.name.toLowerCase().includes(q) || fw.desc.toLowerCase().includes(q) || fw.id.toLowerCase().includes(q);
               }).length === 0 && (
-                <EmptyState title="No frameworks found" description="Try a different search or category." icon={<Layers size={20} />} isCompact />
-              )}
+                  <EmptyState title="No frameworks found" description="Try a different search or category." icon={<Layers size={20} />} isCompact />
+                )}
             </div>
           </div>
         ) : homeOverlay === "heat" ? (
@@ -3576,167 +3569,167 @@ const ProjectHub = () => {
               <span className="phub__panel-title">Contribution heatmap</span>
             </div>
             <div className="phub__panel-body phub__note-body phub__heat">
-                <div className="phub__heat-head">
-                  {ghUser ? (
-                    <>
-                      <span className="phub__heat-user" title={ghUser}>@{ghUser}</span>
-                      <Badge variant="teal" label={`${ghTotal} contributions this year`} />
-                      <IconButton
-                        label="Refresh heatmap"
-                        variant="ghost"
-                        size="sm"
-                        icon={<RefreshCw size={12} />}
-                        onClick={() => loadHeatmap(ghUser)}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <span className="phub__heat-stat">github heatmap</span>
-                      <TextInput
-                        label="GitHub username"
-                        isLabelHidden
-                        placeholder="username + Enter"
-                        value={ghInput}
-                        onChange={(v) => setGhInput(v)}
-                        onEnter={() => saveGhUser()}
-                        autoComplete="off"
-                      />
-                    </>
-                  )}
+              <div className="phub__heat-head">
+                {ghUser ? (
+                  <>
+                    <span className="phub__heat-user" title={ghUser}>@{ghUser}</span>
+                    <Badge variant="teal" label={`${ghTotal} contributions this year`} />
+                    <IconButton
+                      label="Refresh heatmap"
+                      variant="ghost"
+                      size="sm"
+                      icon={<RefreshCw size={12} />}
+                      onClick={() => loadHeatmap(ghUser)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <span className="phub__heat-stat">github heatmap</span>
+                    <TextInput
+                      label="GitHub username"
+                      isLabelHidden
+                      placeholder="username + Enter"
+                      value={ghInput}
+                      onChange={(v) => setGhInput(v)}
+                      onEnter={() => saveGhUser()}
+                      autoComplete="off"
+                    />
+                  </>
+                )}
 
-                </div>
-                <div className="phub__heat-scroll">
-                  {ghLoading && (
-                    <div className="phub__heat-skel">
-                      {Array.from({ length: 24 }).map((_, wi) => (
+              </div>
+              <div className="phub__heat-scroll">
+                {ghLoading && (
+                  <div className="phub__heat-skel">
+                    {Array.from({ length: 24 }).map((_, wi) => (
+                      <div key={wi} className="phub__heat-week">
+                        {Array.from({ length: 7 }).map((_, di) => (
+                          <span key={di} className="phub__heat-cell phub__heat-skel-cell" style={{ animationDelay: `${(wi + di) * 40}ms` }} />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!ghLoading && ghError && <span className="phub__heat-stat">⚠ {ghError}</span>}
+                {!ghLoading && !ghError && ghWeeks.length > 0 && (
+                  <div className="phub__heat-table" key={`${ghUser}:${ghTotal}`}>
+                    <div className="phub__heat-months">
+                      <span className="phub__heat-daygutter" />
+                      {(() => {
+                        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                        let prev = -1;
+                        return ghWeeks.map((week, wi) => {
+                          const first = week.find((d) => d);
+                          const m = first ? new Date(first.date + "T00:00:00").getMonth() : -1;
+                          const show = m !== -1 && m !== prev;
+                          prev = m;
+                          return <span key={wi} className="phub__heat-month">{show ? months[m] : ""}</span>;
+                        });
+                      })()}
+                    </div>
+                    <div className="phub__heat-grid">
+                      <div className="phub__heat-days">
+                        {["", "Mon", "", "Wed", "", "Fri", ""].map((d, i) => (
+                          <span key={i} className="phub__heat-day">{d}</span>
+                        ))}
+                      </div>
+                      {ghWeeks.map((week, wi) => (
                         <div key={wi} className="phub__heat-week">
-                          {Array.from({ length: 7 }).map((_, di) => (
-                            <span key={di} className="phub__heat-cell phub__heat-skel-cell" style={{ animationDelay: `${(wi + di) * 40}ms` }} />
+                          {week.map((d, di) => d ? (
+                            <span
+                              key={di}
+                              className="phub__heat-cell phub__heat-cell--enter"
+                              title={`${d.date}: ${d.count} contribution${d.count === 1 ? "" : "s"}`}
+                              style={{ background: ghColor(d.count), animationDelay: `${Math.min((wi * 7 + di) * 4, 1200)}ms` }}
+                            />
+                          ) : (
+                            <span key={di} className="phub__heat-cell" style={{ background: "transparent", border: "none" }} />
                           ))}
                         </div>
                       ))}
                     </div>
-                  )}
-                  {!ghLoading && ghError && <span className="phub__heat-stat">⚠ {ghError}</span>}
-                  {!ghLoading && !ghError && ghWeeks.length > 0 && (
-                    <div className="phub__heat-table" key={`${ghUser}:${ghTotal}`}>
-                      <div className="phub__heat-months">
-                        <span className="phub__heat-daygutter" />
-                        {(() => {
-                          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                          let prev = -1;
-                          return ghWeeks.map((week, wi) => {
-                            const first = week.find((d) => d);
-                            const m = first ? new Date(first.date + "T00:00:00").getMonth() : -1;
-                            const show = m !== -1 && m !== prev;
-                            prev = m;
-                            return <span key={wi} className="phub__heat-month">{show ? months[m] : ""}</span>;
-                          });
-                        })()}
-                      </div>
-                      <div className="phub__heat-grid">
-                        <div className="phub__heat-days">
-                          {["", "Mon", "", "Wed", "", "Fri", ""].map((d, i) => (
-                            <span key={i} className="phub__heat-day">{d}</span>
-                          ))}
-                        </div>
-                        {ghWeeks.map((week, wi) => (
-                          <div key={wi} className="phub__heat-week">
-                            {week.map((d, di) => d ? (
-                              <span
-                                key={di}
-                                className="phub__heat-cell phub__heat-cell--enter"
-                                title={`${d.date}: ${d.count} contribution${d.count === 1 ? "" : "s"}`}
-                                style={{ background: ghColor(d.count), animationDelay: `${Math.min((wi * 7 + di) * 4, 1200)}ms` }}
-                              />
-                            ) : (
-                              <span key={di} className="phub__heat-cell" style={{ background: "transparent", border: "none" }} />
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="phub__heat-foot">
-                        <span className="phub__heat-stat">Less</span>
-                        {[0, 1, 4, 7, 10].map((c) => (
-                          <span key={c} className="phub__heat-cell" style={{ background: ghColor(c) }} />
-                        ))}
-                        <span className="phub__heat-stat">More</span>
-                      </div>
+                    <div className="phub__heat-foot">
+                      <span className="phub__heat-stat">Less</span>
+                      {[0, 1, 4, 7, 10].map((c) => (
+                        <span key={c} className="phub__heat-cell" style={{ background: ghColor(c) }} />
+                      ))}
+                      <span className="phub__heat-stat">More</span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
+          </div>
         ) : homeOverlay === "recents" ? (
           <div className="phub__panel phub__panel--recents">
-              <div className="phub__panel-header">
-                <span className="phub__panel-title">Recents</span>
-                <span className="phub__panel-count">{recentProjects.length}</span>
-                <div className="phub__panel-search">
-                  <TextInput
-                    label="Search recents"
-                    isLabelHidden
-                    placeholder="Search…"
-                    value={recentSearch}
-                    onChange={(v) => setRecentSearch(v)}
-                    autoComplete="off"
-                    hasClear
-                  />
-                </div>
-                <div className="phub__filterwrap" ref={recentFilterRef}>
-                  <button
-                    className={`phub__btn--tiny${recentFilter !== "all" ? " phub__filterbtn--on" : ""}`}
-                    onClick={() => setRecentFilterOpen((v) => !v)}
-                    title={`Filter: ${recentFilter === "all" ? "All" : "Pinned"}`}
-                    aria-label="Filter recents"
-                  >
-                    <ListFilter size={12} />
-                  </button>
-                  {recentFilterOpen && (
-                    <div className="phub__filtermenu">
-                      {[["all", "All"], ["pinned", "Pinned"]].map(([v, label]) => (
-                        <button
-                          key={v}
-                          className={`phub__filtermenu-item${recentFilter === v ? " phub__filtermenu-item--on" : ""}`}
-                          onClick={() => { setRecentFilter(v); setRecentFilterOpen(false); }}
-                        >
-                          {recentFilter === v ? "● " : "○ "}{label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button
-                  className="phub__panel-refresh phub__btn--tiny"
-                  onClick={() => window.electronAPI.projectRefreshRecent()}
-                  title="Refresh"
-                >
-                  <Clock size={12} />
-                </button>
-              </div>
-              {recentProjects.length === 0 && (
-                <EmptyState
-                  title="No recent projects"
-                  description="Create your first project to get started."
-                  icon={<FolderOpen size={20} />}
-                  isCompact
-                  actions={<Button label="Create first project" variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowNewProjectDialog(true)} />}
+            <div className="phub__panel-header">
+              <span className="phub__panel-title">Recents</span>
+              <span className="phub__panel-count">{recentProjects.length}</span>
+              <div className="phub__panel-search">
+                <TextInput
+                  label="Search recents"
+                  isLabelHidden
+                  placeholder="Search…"
+                  value={recentSearch}
+                  onChange={(v) => setRecentSearch(v)}
+                  autoComplete="off"
+                  hasClear
                 />
-              )}
-              <div className="phub__panel-list">
-                {(() => {
-                  const pinnedSet = new Set((pinnedProjects || []).map((p) => (typeof p === "string" ? p : p?.path)).filter(Boolean));
-                  const q = recentSearch.trim().toLowerCase();
-                  const list = recentProjects.filter((entry) => {
-                    if (recentFilter === "pinned" && !pinnedSet.has(entry.path)) return false;
-                    if (!q) return true;
-                    const name = (entry.path.split(/[\\/]/).pop() || "").toLowerCase();
-                    return name.includes(q) || entry.path.toLowerCase().includes(q);
-                  });
-                  if (!list.length && recentProjects.length > 0) {
-                    return <div className="phub__panel-empty" style={{ padding: "var(--space-16)" }}>No matches</div>;
-                  }
-                  return list.map((entry) => {
+              </div>
+              <div className="phub__filterwrap" ref={recentFilterRef}>
+                <button
+                  className={`phub__btn--tiny${recentFilter !== "all" ? " phub__filterbtn--on" : ""}`}
+                  onClick={() => setRecentFilterOpen((v) => !v)}
+                  title={`Filter: ${recentFilter === "all" ? "All" : "Pinned"}`}
+                  aria-label="Filter recents"
+                >
+                  <ListFilter size={12} />
+                </button>
+                {recentFilterOpen && (
+                  <div className="phub__filtermenu">
+                    {[["all", "All"], ["pinned", "Pinned"]].map(([v, label]) => (
+                      <button
+                        key={v}
+                        className={`phub__filtermenu-item${recentFilter === v ? " phub__filtermenu-item--on" : ""}`}
+                        onClick={() => { setRecentFilter(v); setRecentFilterOpen(false); }}
+                      >
+                        {recentFilter === v ? "● " : "○ "}{label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                className="phub__panel-refresh phub__btn--tiny"
+                onClick={() => window.electronAPI.projectRefreshRecent()}
+                title="Refresh"
+              >
+                <Clock size={12} />
+              </button>
+            </div>
+            {recentProjects.length === 0 && (
+              <EmptyState
+                title="No recent projects"
+                description="Create your first project to get started."
+                icon={<FolderOpen size={20} />}
+                isCompact
+                actions={<Button label="Create first project" variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowNewProjectDialog(true)} />}
+              />
+            )}
+            <div className="phub__panel-list">
+              {(() => {
+                const pinnedSet = new Set((pinnedProjects || []).map((p) => (typeof p === "string" ? p : p?.path)).filter(Boolean));
+                const q = recentSearch.trim().toLowerCase();
+                const list = recentProjects.filter((entry) => {
+                  if (recentFilter === "pinned" && !pinnedSet.has(entry.path)) return false;
+                  if (!q) return true;
+                  const name = (entry.path.split(/[\\/]/).pop() || "").toLowerCase();
+                  return name.includes(q) || entry.path.toLowerCase().includes(q);
+                });
+                if (!list.length && recentProjects.length > 0) {
+                  return <div className="phub__panel-empty" style={{ padding: "var(--space-16)" }}>No matches</div>;
+                }
+                return list.map((entry) => {
                   const path = entry.path;
                   const name = path.split(/[\\/]/).pop() || path;
                   const isPinned = pinnedSet.has(path);
@@ -3763,7 +3756,7 @@ const ProjectHub = () => {
                             const i = items.indexOf(e.currentTarget);
                             const next = e.key === "ArrowDown" ? items[i + 1] : items[i - 1];
                             if (next) next.focus();
-                          } catch {}
+                          } catch { }
                         }
                       }}
                       onContextMenu={(e) => {
@@ -3807,10 +3800,10 @@ const ProjectHub = () => {
                       </div>
                     </div>
                   );
-                  });
-                })()}
-              </div>
+                });
+              })()}
             </div>
+          </div>
         ) : homeOverlay === "spark" ? (
           <div className="phub__panel phub__panel--spark">
             <div className="phub__panel-header">
@@ -3829,13 +3822,13 @@ const ProjectHub = () => {
               </div>
               <div className="phub__cap-grid">
                 {[
-                  { icon: Bot, name: "AI Chat & Repo Search", desc: "Ask the AI, find GitHub repos, and scaffold a project from a single prompt.", act: () => { setHomeOverlay(null); setTimeout(() => { try { composerRef.current?.focus(); } catch {} }, 60); } },
+                  { icon: Bot, name: "AI Chat & Repo Search", desc: "Ask the AI, find GitHub repos, and scaffold a project from a single prompt.", act: () => { setHomeOverlay(null); setTimeout(() => { try { composerRef.current?.focus(); } catch { } }, 60); } },
                   { icon: Layers, name: "Frameworks & Templates", desc: "30+ real starters — React, Next.js, Vue, Flask, FastAPI, bots, desktop & more.", act: () => { setHomeOverlay(null); setShowFrameworks(true); } },
                   { icon: CloudDownload, name: "Clone & Live Setup", desc: "Clone any GitHub repo and watch its real setup commands run live.", act: () => { setHomeOverlay(null); setShowCloneDialog(true); } },
                   { icon: Plus, name: "Create Project", desc: "Scaffold a new project with default panels or a clean blank workspace.", act: () => { setHomeOverlay(null); setShowNewProjectDialog(true); } },
                   { icon: Activity, name: "GitHub Insights", desc: "Your contribution graph, yearly totals and streaks, right on the hub.", act: () => setHomeOverlay("heat") },
                   { icon: Clock, name: "Recent Projects", desc: "Pin, search and jump back into everything you've opened.", act: () => setHomeOverlay("recents") },
-                  { icon: Mic, name: "Voice Input", desc: "Dictate prompts hands-free with the mic built into the composer.", act: () => { setHomeOverlay(null); setTimeout(() => { try { composerRef.current?.focus(); } catch {} }, 60); } },
+                  { icon: Mic, name: "Voice Input", desc: "Dictate prompts hands-free with the mic built into the composer.", act: () => { setHomeOverlay(null); setTimeout(() => { try { composerRef.current?.focus(); } catch { } }, 60); } },
                   { icon: ImageIcon, name: "Wallpaper Themes", desc: "Nine bundled wallpapers, a random pick, or any image of your own.", act: () => { setHomeOverlay(null); setWallMenuOpen(true); } },
                 ].map((c) => (
                   <button key={c.name} className="phub__cap" onClick={c.act}>
@@ -3932,164 +3925,164 @@ const ProjectHub = () => {
               </div>
             ) : (
               <>
-            <div className="phub__hero">
-              <span className="phub__hero-eyebrow">Beyond Coding</span>
-              <h1 className="phub__hero-title">What Can Idiot Box Help You Build?</h1>
-            </div>
-            <button className="phub__spark" onClick={() => setHomeOverlay("spark")} title="See everything Idiot Box can help you build">
-              <Sparkles size={14} className="phub__spark-ico" aria-hidden="true" />
-              <span className="phub__spark-title">The Spark Under the Apple Tree</span>
-              <ArrowRight size={13} className="phub__spark-arrow" aria-hidden="true" />
-            </button>
-            <AppleTreeDoodle onActivate={() => setHomeOverlay("spark")} />
-            <div className="phub__home-cards">
-              {recentProjects.slice(0, 3).map((entry) => {
-                const path = entry.path;
-                const name = path.split(/[\\/]/).pop() || path;
-                return (
-                  <Card
-                    key={path}
-                    className="phub__card"
-                    padding={0}
-                    elevation="low"
-                    role="button"
-                    tabIndex={0}
-                    title={path}
-                    onClick={() => openProject(path)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        openProject(path);
-                      }
-                    }}
-                  >
-                    <div className="phub__card-foot">
-                      <span className="phub__card-ico">{getProjectIcon(path)}</span>
-                      <span className="phub__card-meta">
-                        <span className="phub__card-name">{name}</span>
-                        <span className="phub__card-time">{formatLastOpened(entry.lastOpened)}</span>
-                      </span>
-                      <button
-                        className="phub__card-kebab"
-                        aria-label="Project actions"
-                        title="Project actions"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setCardMenu({ path, x: r.left, y: r.bottom + 6 });
+                <div className="phub__hero">
+                  <span className="phub__hero-eyebrow">Beyond Coding</span>
+                  <h1 className="phub__hero-title">What Can Idiot Box Help You Build?</h1>
+                </div>
+                <button className="phub__spark" onClick={() => setHomeOverlay("spark")} title="See everything Idiot Box can help you build">
+                  <Sparkles size={14} className="phub__spark-ico" aria-hidden="true" />
+                  <span className="phub__spark-title">The Spark Under the Apple Tree</span>
+                  <ArrowRight size={13} className="phub__spark-arrow" aria-hidden="true" />
+                </button>
+                <AppleTreeDoodle onActivate={() => setHomeOverlay("spark")} />
+                <div className="phub__home-cards">
+                  {recentProjects.slice(0, 3).map((entry) => {
+                    const path = entry.path;
+                    const name = path.split(/[\\/]/).pop() || path;
+                    return (
+                      <Card
+                        key={path}
+                        className="phub__card"
+                        padding={0}
+                        elevation="low"
+                        role="button"
+                        tabIndex={0}
+                        title={path}
+                        onClick={() => openProject(path)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            openProject(path);
+                          }
                         }}
                       >
-                        <MoreVertical size={14} />
-                      </button>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-            {recentProjects.length === 0 && (
-              <EmptyState
-                title="No projects yet"
-                description="Create your first project, clone a repo, or open an existing folder."
-                icon={<FolderOpen size={24} />}
-                actions={
-                  <>
-                    <Button label="Create Project" variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowNewProjectDialog(true)} />
-                    <Button label="Clone Repo" variant="secondary" size="sm" icon={<CloudDownload size={13} />} onClick={() => setShowCloneDialog(true)} />
-                  </>
-                }
-              />
-            )}
-            {recentProjects.length > 3 && (
-              <button className="phub__viewall" onClick={() => setHomeOverlay("recents")}>
-                View all {recentProjects.length} projects <ArrowRight size={13} />
-              </button>
-            )}
-            {showHeat && (
-              <div className="phub__contrib">
-                <div className="phub__contrib-head">
-                  {ghUser ? (
-                    <>
-                      <span className="phub__contrib-user" title={ghUser}>@{ghUser}</span>
-                      <span className="phub__contrib-total">{ghTotal} contributions in the last year</span>
-                      <button
-                        className="phub__contrib-refresh"
-                        title="Refresh contribution graph"
-                        aria-label="Refresh contribution graph"
-                        onClick={() => loadHeatmap(ghUser)}
-                      >
-                        <RefreshCw size={12} className={ghLoading ? "phub__spin" : ""} />
-                      </button>
-                    </>
-                  ) : (
-                    <button className="phub__contrib-connect" onClick={() => setHomeOverlay("heat")}>
-                      <Activity size={13} /> Connect GitHub to see your contribution graph
-                    </button>
-                  )}
+                        <div className="phub__card-foot">
+                          <span className="phub__card-ico">{getProjectIcon(path)}</span>
+                          <span className="phub__card-meta">
+                            <span className="phub__card-name">{name}</span>
+                            <span className="phub__card-time">{formatLastOpened(entry.lastOpened)}</span>
+                          </span>
+                          <button
+                            className="phub__card-kebab"
+                            aria-label="Project actions"
+                            title="Project actions"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setCardMenu({ path, x: r.left, y: r.bottom + 6 });
+                            }}
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
-                <div className="phub__contrib-scroll">
-                  {ghLoading && (
-                    <div className="phub__heat-skel">
-                      {Array.from({ length: 53 }).map((_, wi) => (
-                        <div key={wi} className="phub__heat-week">
-                          {Array.from({ length: 7 }).map((_, di) => (
-                            <span key={di} className="phub__heat-cell phub__heat-skel-cell" style={{ animationDelay: `${(wi + di) * 30}ms` }} />
-                          ))}
-                        </div>
-                      ))}
+                {recentProjects.length === 0 && (
+                  <EmptyState
+                    title="No projects yet"
+                    description="Create your first project, clone a repo, or open an existing folder."
+                    icon={<FolderOpen size={24} />}
+                    actions={
+                      <>
+                        <Button label="Create Project" variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowNewProjectDialog(true)} />
+                        <Button label="Clone Repo" variant="secondary" size="sm" icon={<CloudDownload size={13} />} onClick={() => setShowCloneDialog(true)} />
+                      </>
+                    }
+                  />
+                )}
+                {recentProjects.length > 3 && (
+                  <button className="phub__viewall" onClick={() => setHomeOverlay("recents")}>
+                    View all {recentProjects.length} projects <ArrowRight size={13} />
+                  </button>
+                )}
+                {showHeat && (
+                  <div className="phub__contrib">
+                    <div className="phub__contrib-head">
+                      {ghUser ? (
+                        <>
+                          <span className="phub__contrib-user" title={ghUser}>@{ghUser}</span>
+                          <span className="phub__contrib-total">{ghTotal} contributions in the last year</span>
+                          <button
+                            className="phub__contrib-refresh"
+                            title="Refresh contribution graph"
+                            aria-label="Refresh contribution graph"
+                            onClick={() => loadHeatmap(ghUser)}
+                          >
+                            <RefreshCw size={12} className={ghLoading ? "phub__spin" : ""} />
+                          </button>
+                        </>
+                      ) : (
+                        <button className="phub__contrib-connect" onClick={() => setHomeOverlay("heat")}>
+                          <Activity size={13} /> Connect GitHub to see your contribution graph
+                        </button>
+                      )}
                     </div>
-                  )}
-                  {!ghLoading && ghError && ghUser && (
-                    <span className="phub__contrib-err">⚠ {ghError}</span>
-                  )}
-                  {!ghLoading && !ghError && ghWeeks.length > 0 && (
-                    <div className="phub__heat-table" key={`${ghUser}:${ghTotal}`}>
-                      <div className="phub__heat-months">
-                        <span className="phub__heat-daygutter" />
-                        {(() => {
-                          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                          let prev = -1;
-                          return ghWeeks.map((week, wi) => {
-                            const first = week.find((d) => d);
-                            const m = first ? new Date(first.date + "T00:00:00").getMonth() : -1;
-                            const show = m !== -1 && m !== prev;
-                            prev = m;
-                            return <span key={wi} className="phub__heat-month">{show ? months[m] : ""}</span>;
-                          });
-                        })()}
-                      </div>
-                      <div className="phub__heat-grid">
-                        <div className="phub__heat-days">
-                          {["", "Mon", "", "Wed", "", "Fri", ""].map((d, i) => (
-                            <span key={i} className="phub__heat-day">{d}</span>
+                    <div className="phub__contrib-scroll">
+                      {ghLoading && (
+                        <div className="phub__heat-skel">
+                          {Array.from({ length: 53 }).map((_, wi) => (
+                            <div key={wi} className="phub__heat-week">
+                              {Array.from({ length: 7 }).map((_, di) => (
+                                <span key={di} className="phub__heat-cell phub__heat-skel-cell" style={{ animationDelay: `${(wi + di) * 30}ms` }} />
+                              ))}
+                            </div>
                           ))}
                         </div>
-                        {ghWeeks.map((week, wi) => (
-                          <div key={wi} className="phub__heat-week">
-                            {week.map((d, di) => d ? (
-                              <span
-                                key={di}
-                                className="phub__heat-cell phub__heat-cell--enter"
-                                title={`${d.date}: ${d.count} contribution${d.count === 1 ? "" : "s"}`}
-                                style={{ background: ghColor(d.count), animationDelay: `${Math.min((wi * 7 + di) * 3, 1200)}ms` }}
-                              />
-                            ) : (
-                              <span key={di} className="phub__heat-cell" style={{ background: "transparent", border: "none" }} />
+                      )}
+                      {!ghLoading && ghError && ghUser && (
+                        <span className="phub__contrib-err">⚠ {ghError}</span>
+                      )}
+                      {!ghLoading && !ghError && ghWeeks.length > 0 && (
+                        <div className="phub__heat-table" key={`${ghUser}:${ghTotal}`}>
+                          <div className="phub__heat-months">
+                            <span className="phub__heat-daygutter" />
+                            {(() => {
+                              const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                              let prev = -1;
+                              return ghWeeks.map((week, wi) => {
+                                const first = week.find((d) => d);
+                                const m = first ? new Date(first.date + "T00:00:00").getMonth() : -1;
+                                const show = m !== -1 && m !== prev;
+                                prev = m;
+                                return <span key={wi} className="phub__heat-month">{show ? months[m] : ""}</span>;
+                              });
+                            })()}
+                          </div>
+                          <div className="phub__heat-grid">
+                            <div className="phub__heat-days">
+                              {["", "Mon", "", "Wed", "", "Fri", ""].map((d, i) => (
+                                <span key={i} className="phub__heat-day">{d}</span>
+                              ))}
+                            </div>
+                            {ghWeeks.map((week, wi) => (
+                              <div key={wi} className="phub__heat-week">
+                                {week.map((d, di) => d ? (
+                                  <span
+                                    key={di}
+                                    className="phub__heat-cell phub__heat-cell--enter"
+                                    title={`${d.date}: ${d.count} contribution${d.count === 1 ? "" : "s"}`}
+                                    style={{ background: ghColor(d.count), animationDelay: `${Math.min((wi * 7 + di) * 3, 1200)}ms` }}
+                                  />
+                                ) : (
+                                  <span key={di} className="phub__heat-cell" style={{ background: "transparent", border: "none" }} />
+                                ))}
+                              </div>
                             ))}
                           </div>
-                        ))}
-                      </div>
-                      <div className="phub__heat-foot">
-                        <span className="phub__heat-stat">Less</span>
-                        {[0, 1, 4, 7, 10].map((c) => (
-                          <span key={c} className="phub__heat-cell" style={{ background: ghColor(c) }} />
-                        ))}
-                        <span className="phub__heat-stat">More</span>
-                      </div>
+                          <div className="phub__heat-foot">
+                            <span className="phub__heat-stat">Less</span>
+                            {[0, 1, 4, 7, 10].map((c) => (
+                              <span key={c} className="phub__heat-cell" style={{ background: ghColor(c) }} />
+                            ))}
+                            <span className="phub__heat-stat">More</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            )}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -4337,18 +4330,18 @@ const ProjectHub = () => {
                 const name = String(w.path).split(/[\\/]/).pop() || w.path;
                 const isOn = w.path === wallpaperKey;
                 return (
-                    <button
-                      key={w.path}
-                      className={`phub__wallmenu-cell${isOn ? " phub__wallmenu-cell--on" : ""}`}
-                      onClick={() => { if (isOn) { clearWallpaper(); setWallMenuOpen(false); } else applyWallpaper(w.path, w.url); }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setWallCtx({ x: e.clientX, y: e.clientY, path: w.path });
-                      }}
-                      role="menuitem"
-                      title={isOn ? `${name} — click again to remove` : name}
-                    >
+                  <button
+                    key={w.path}
+                    className={`phub__wallmenu-cell${isOn ? " phub__wallmenu-cell--on" : ""}`}
+                    onClick={() => { if (isOn) { clearWallpaper(); setWallMenuOpen(false); } else applyWallpaper(w.path, w.url); }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setWallCtx({ x: e.clientX, y: e.clientY, path: w.path });
+                    }}
+                    role="menuitem"
+                    title={isOn ? `${name} — click again to remove` : name}
+                  >
                     {w.url ? <img src={w.url} alt={name} draggable={false} /> : <ImageIcon size={16} />}
                     <span>{name}</span>
                   </button>
