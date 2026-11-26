@@ -559,6 +559,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   androidFrameAttach: (serial) => ipcRenderer.invoke("android:frameAttach", { serial }),
   androidFrameDetach: () => ipcRenderer.invoke("android:frameDetach"),
   androidFrameStop:   (serial) => ipcRenderer.invoke("android:frameStop", { serial }),
+  androidFrameAck:    () => ipcRenderer.send("android:frameAck"),
   onAndroidFrame: (callback) => {
     const handler = (_e, payload) => callback(payload);
     ipcRenderer.on("android:frameData", handler);

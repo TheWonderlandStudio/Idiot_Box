@@ -64,6 +64,7 @@ const AndroidEmulatorPanel = () => {
   const [full, setFull] = useState(false); // in-panel fullscreen: only screen + controls
   const [gotFrame, setGotFrame] = useState(false);
   const [devSize, setDevSize] = useState(null); // {w,h} device px of current stream
+  const [boxSize, setBoxSize] = useState(null); // {w,h} container px for exact aspect-fit
   const [zoomIdx, setZoomIdx] = useState(0); // 0=Fit, 1=1:1, 2=2:1
   const busyRef = useRef(false);
   const logRef = useRef(null);
@@ -107,14 +108,14 @@ const AndroidEmulatorPanel = () => {
         try {
           const b = await window.electronAPI?.androidBootState?.(w.serial);
           if (b?.ok && b.booted) break;
-        } catch {}
+        } catch { }
         await new Promise((r) => setTimeout(r, 2500));
       }
       const key = `${avdName}:diag`;
       if (diagDoneRef.current === key) return;
       diagDoneRef.current = key;
       pushDiag(w.serial, avdName);
-    } catch {}
+    } catch { }
   }, [pushLog, pushDiag]);
 
   const closeViewer = useCallback(() => {
@@ -139,7 +140,7 @@ const AndroidEmulatorPanel = () => {
         setView((v) => (v && v.avd === avdName ? { ...v, serial: r.serial } : v));
         if (stream) {
           // stream mode: smaller virtual display → much faster frames
-          try { await window.electronAPI?.androidDisplay?.(r.serial, "stream"); } catch {}
+          try { await window.electronAPI?.androidDisplay?.(r.serial, "stream"); } catch { }
         } else {
           pushLog(`[view] ${avdName} runs windowed — full-resolution screen, stream shrink skipped.`);
         }
@@ -150,7 +151,7 @@ const AndroidEmulatorPanel = () => {
 
   const sendInput = useCallback(async (serial, action) => {
     if (!serial) return;
-    try { await window.electronAPI?.androidInput?.(serial, action); } catch {}
+    try { await window.electronAPI?.androidInput?.(serial, action); } catch { }
   }, []);
 
   const takeScreenshot = useCallback(async () => {
@@ -198,7 +199,7 @@ const AndroidEmulatorPanel = () => {
   }, [fetchState, showCreate]);
 
   useEffect(() => {
-    if (!window.electronAPI?.onAndroidProgress) return () => {};
+    if (!window.electronAPI?.onAndroidProgress) return () => { };
     const unsub = window.electronAPI.onAndroidProgress((p) => {
       if (!p) return;
       // Percent-carrying events drive the download card; everything else goes to the log.
@@ -213,23 +214,40 @@ const AndroidEmulatorPanel = () => {
         setTimeout(() => { fetchState(true); }, 800);
       }
     });
-    return () => { try { unsub(); } catch {} };
+    return () => { try { unsub(); } catch { } };
   }, [fetchState, pushLog]);
 
   useEffect(() => {
-    try { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; } catch {}
+    try { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; } catch { }
   }, [log]);
 
+  // Measure the screen container so Fit mode preserves exact aspect ratio
+  useEffect(() => {
+    const el = screenBoxRef.current;
+    if (!view || !el) { setBoxSize(null); return () => { }; }
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) setBoxSize({ w: r.width, h: r.height });
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") return () => { };
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { try { ro.disconnect(); } catch { } };
+  }, [view?.serial, view?.avd, full]);
+
   // Live screen: the emulator streams frames over gRPC (Android Studio's
-  // embedded-emulator recipe) and main forwards each one as it arrives. We
-  // paint the newest on the next animation frame — no polling, no timer.
+  // embedded-emulator recipe) and main forwards each one with 1-in-flight
+  // backpressure. We paint the newest on the next animation frame and ack.
   useEffect(() => {
     const serial = view?.serial;
-    if (!serial) return () => {};
+    if (!serial) return () => { };
     let dead = false;
     let animId = null;
+    let cachedCtx = null;
     let cachedImgData = null;
     let latest = null;        // newest frame pushed by main
+    let hasShownFrame = false;
     let fails = 0;
     let warned = false;
     let pullTimer = null;
@@ -241,10 +259,15 @@ const AndroidEmulatorPanel = () => {
         canvas.width = w;
         canvas.height = h;
         cachedImgData = null;
+        cachedCtx = null;
         setDevSize({ w, h });
       }
       try {
-        const ctx = canvas.getContext("2d");
+        if (!cachedCtx) {
+          cachedCtx = canvas.getContext("2d", { alpha: false, desynchronized: true }) || canvas.getContext("2d");
+        }
+        const ctx = cachedCtx;
+        if (!ctx) return false;
         const len = w * h * 4;
         const src = pixels instanceof Uint8Array || pixels instanceof Uint8ClampedArray ? pixels : new Uint8Array(pixels);
         if (!cachedImgData || cachedImgData.width !== w || cachedImgData.height !== h) {
@@ -281,7 +304,14 @@ const AndroidEmulatorPanel = () => {
         closeViewer();
         return;
       }
-      if (msg.w && msg.pixels) { fails = 0; latest = msg; }
+      if (msg.w && msg.pixels) {
+        fails = 0;
+        if (document.hidden) {
+          try { window.electronAPI?.androidFrameAck?.(); } catch { }
+          return;
+        }
+        latest = msg;
+      }
     };
 
     const loop = () => {
@@ -289,7 +319,12 @@ const AndroidEmulatorPanel = () => {
       if (!document.hidden && latest) {
         const f = latest;
         latest = null;
-        if (draw(f.w, f.h, f.pixels)) setGotFrame(true);
+        const ok = draw(f.w, f.h, f.pixels);
+        try { window.electronAPI?.androidFrameAck?.(); } catch { }
+        if (ok && !hasShownFrame) {
+          hasShownFrame = true;
+          setGotFrame(true);
+        }
       }
       if (fails >= 8 && !warned) {
         warned = true;
@@ -300,8 +335,8 @@ const AndroidEmulatorPanel = () => {
       animId = requestAnimationFrame(loop);
     };
 
-    let unsub = () => {};
-    try { unsub = window.electronAPI?.onAndroidFrame?.(onFrame) || (() => {}); } catch {}
+    let unsub = () => { };
+    try { unsub = window.electronAPI?.onAndroidFrame?.(onFrame) || (() => { }); } catch { }
 
     // Start the push stream; if the main process can't give us one, pull.
     (async () => {
@@ -315,8 +350,8 @@ const AndroidEmulatorPanel = () => {
     // Hidden panel: stop the stream instead of receiving 2.6MB frames nobody sees.
     const onVis = () => {
       if (dead) return;
-      if (document.hidden) { try { window.electronAPI?.androidFrameDetach?.(); } catch {} }
-      else { try { window.electronAPI?.androidFrameAttach?.(serial); } catch {} }
+      if (document.hidden) { try { window.electronAPI?.androidFrameDetach?.(); } catch { } }
+      else { try { window.electronAPI?.androidFrameAttach?.(serial); } catch { } }
     };
     document.addEventListener("visibilitychange", onVis);
 
@@ -326,35 +361,35 @@ const AndroidEmulatorPanel = () => {
       if (animId) cancelAnimationFrame(animId);
       if (pullTimer) clearTimeout(pullTimer);
       document.removeEventListener("visibilitychange", onVis);
-      try { unsub(); } catch {}
-      try { window.electronAPI?.androidFrameDetach?.(); } catch {}
+      try { unsub(); } catch { }
+      try { window.electronAPI?.androidFrameDetach?.(); } catch { }
       // release the persistent shell session / grpc stream for this serial
-      try { window.electronAPI?.androidFrameStop?.(serial); } catch {}
+      try { window.electronAPI?.androidFrameStop?.(serial); } catch { }
     };
   }, [view?.serial, view?.avd, showToast, closeViewer]);
 
   // Keyboard diagnostics once per connected+booted viewer device → setup log
   useEffect(() => {
     const serial = view?.serial;
-    if (!serial || !view?.booted || !view?.avd) return () => {};
+    if (!serial || !view?.booted || !view?.avd) return () => { };
     const key = `${view.avd}:${serial}`;
-    if (diagDoneRef.current === key) return () => {};
+    if (diagDoneRef.current === key) return () => { };
     diagDoneRef.current = key;
     pushDiag(serial, view.avd);
-    return () => {};
+    return () => { };
   }, [view?.serial, view?.booted, view?.avd, pushDiag]);
 
   // Boot probe: show "Booting…" until sys.boot_completed = 1
   useEffect(() => {
     const serial = view?.serial;
-    if (!serial || view?.booted) return () => {};
+    if (!serial || view?.booted) return () => { };
     let dead = false;
     const probe = async () => {
       if (dead || document.hidden) return;
       try {
         const r = await window.electronAPI?.androidBootState?.(serial);
         if (!dead && r?.ok && r.booted) setView((v) => (v && v.serial === serial ? { ...v, booted: true } : v));
-      } catch {}
+      } catch { }
     };
     probe();
     const iv = setInterval(probe, 2500);
@@ -494,7 +529,7 @@ const AndroidEmulatorPanel = () => {
   }, []);
 
   const onScreenDown = useCallback((e) => {
-    try { screenBoxRef.current?.focus(); } catch {}
+    try { screenBoxRef.current?.focus(); } catch { }
     const p = screenPos(e);
     if (p) downPosRef.current = p;
   }, [screenPos]);
@@ -553,7 +588,7 @@ const AndroidEmulatorPanel = () => {
   const onScreenPaste = useCallback((e) => {
     const serial = view?.serial;
     if (!serial) return;
-    try { e.preventDefault(); } catch {}
+    try { e.preventDefault(); } catch { }
     const pasted = String(e.clipboardData?.getData("text") || "");
     if (!pasted) return;
     flushKeyBuf();
@@ -659,15 +694,15 @@ const AndroidEmulatorPanel = () => {
   return (
     <div style={s.wrap}>
       {!view && (
-      <div style={s.header}>
-        <div style={s.title}>Android Emulator <span style={s.badge}>{avds.length}</span></div>
-        <div style={{ display: "flex", gap: "var(--space-6)", alignItems: "center" }}>
-          <button onClick={() => window.dispatchEvent(new CustomEvent("show-emulator-disclaimer", { detail: { key: "idiotbox.disclaimer.android" } }))} title="Disclaimer" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Info size={12} /></button>
-          <button onClick={() => fetchState(false)} title="Refresh" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><RefreshCw size={12} /></button>
-          <button onClick={() => window.dispatchEvent(new CustomEvent("add-emulator-log-panel"))} title="Open emulator output in Terminal" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Terminal size={12} /></button>
-          <button onClick={() => window.electronAPI?.androidRevealFolder?.()} title="Open .appdata/android folder" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><FolderOpen size={12} /></button>
+        <div style={s.header}>
+          <div style={s.title}>Android Emulator <span style={s.badge}>{avds.length}</span></div>
+          <div style={{ display: "flex", gap: "var(--space-6)", alignItems: "center" }}>
+            <button onClick={() => window.dispatchEvent(new CustomEvent("show-emulator-disclaimer", { detail: { key: "idiotbox.disclaimer.android" } }))} title="Disclaimer" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Info size={12} /></button>
+            <button onClick={() => fetchState(false)} title="Refresh" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><RefreshCw size={12} /></button>
+            <button onClick={() => window.dispatchEvent(new CustomEvent("add-emulator-log-panel"))} title="Open emulator output in Terminal" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Terminal size={12} /></button>
+            <button onClick={() => window.electronAPI?.androidRevealFolder?.()} title="Open .appdata/android folder" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><FolderOpen size={12} /></button>
+          </div>
         </div>
-      </div>
       )}
 
       {error && <div style={{ margin: "var(--space-8)", padding: "var(--space-8) var(--space-10)", background: "var(--error-bg-solid)", border: "var(--space-1) solid var(--error-border-3)", borderRadius: "var(--radius-md)", color: "var(--error-text-soft)", fontSize: "var(--fs-small)", whiteSpace: "pre-wrap" }}>{error}</div>}
@@ -724,8 +759,21 @@ const AndroidEmulatorPanel = () => {
                 display: gotFrame ? "block" : "none", flexShrink: 0, margin: zoomIdx === 0 ? 0 : "auto",
                 cursor: "default", userSelect: "none",
                 ...(zoomIdx === 0
-                  ? { maxWidth: "100%", maxHeight: "100%" }
-                  : { width: devSize ? Math.round(devSize.w * (zoomIdx === 1 ? 1 : 2)) : undefined }),
+                  ? (devSize && boxSize && boxSize.w > 0 && boxSize.h > 0
+                  ? (() => {
+                    const scale = Math.min(boxSize.w / devSize.w, boxSize.h / devSize.h);
+                    return {
+                      width: Math.max(1, Math.floor(devSize.w * scale)),
+                      height: Math.max(1, Math.floor(devSize.h * scale)),
+                    };
+                  })()
+                  : { maxWidth: "100%", maxHeight: "100%", objectFit: "contain" })
+                : (devSize
+                  ? {
+                    width: Math.round(devSize.w * (zoomIdx === 1 ? 1 : 2)),
+                    height: Math.round(devSize.h * (zoomIdx === 1 ? 1 : 2)),
+                  }
+                  : {})),
               }} />
             {!gotFrame && <div style={{ margin: "auto", color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>{view.serial ? "First frame…" : "Connecting over adb…"}</div>}
             {full && <button onClick={() => setFull(false)} title="Exit fullscreen (Esc)" style={{ ...s.iconBtn, position: "absolute", top: 8, right: 8, display: "flex", alignItems: "center", background: "var(--emu-veil)" }}><Minimize2 size={12} /></button>}
@@ -739,172 +787,172 @@ const AndroidEmulatorPanel = () => {
           </div>
         </div>
       ) : (
-      <>
+        <>
 
-      {/* AVD list (§8) */}
-      <div style={{ flex: 1, overflowY: "auto", minHeight: 80 }}>
-        {loading && avds.length === 0 && !sdkMissing && <div style={{ padding: "var(--space-20)", color: "var(--text-muted)", fontSize: "var(--fs-body)", textAlign: "center" }}>Loading emulators…</div>}
-        {!loading && avds.length === 0 && !sdkMissing && (
-          <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
-            <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-secondary)", marginBottom: "var(--space-6)" }}>No emulators yet</div>
-            <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-small)", marginBottom: "var(--space-12)" }}>Create one — pick a device + Android version.</div>
-            <button onClick={() => setShowCreate(true)} style={s.btn}><Plus size={13} /> Create Emulator</button>
-          </div>
-        )}
-        {avds.map((avd) => (
-          <div key={avd.name} style={s.row}>
-            <span style={{ width: 8, height: 8, borderRadius: "var(--radius-round)", background: avd.running ? "var(--teal)" : "var(--text-placeholder)", flexShrink: 0 }} title={avd.running ? "Running" : "Stopped"} />
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-input)", fontSize: "var(--fs-body-plus)", overflow: "hidden", textOverflow: "ellipsis" }}>{(avd.device ? avd.device.replace(/\b\w/g, (c) => c.toUpperCase()) + " " : "") || ""}{avd.name.replace(/_/g, " ")}</div>
-              <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>{avd.android || "Android"}{(avd.playStore || String(avd.image || "").includes("playstore")) && <span style={{ color: "var(--teal)" }}> • Play Store</span>} {avd.running ? <span style={{ color: "var(--teal)" }}>• running</span> : ""}</div>
-            </span>
-            {avd.running
-              ? <button onClick={() => { const t = state?.tracked?.find((x) => x.avd === avd.name); openViewer(avd.name, { stream: !t || t.headless !== false }); }} title="Show screen in panel" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: view?.avd === avd.name ? "var(--teal)" : undefined }}><Monitor size={12} /></button>
-              : <button onClick={() => handleStartEmbedded(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Start in panel (embedded screen)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Monitor size={12} /></button>}
-            {avd.running
-              ? <button onClick={() => handleStop(avd)} disabled={busy === avd.name} title="Stop emulator" style={{ ...s.btnGhost, color: "var(--error-soft)" }}><Square size={12} /> Stop</button>
-              : <button onClick={() => handleStart(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Start in separate window (default)" style={s.btn}><Play size={12} /> {busy === avd.name ? "…" : "Start"}</button>}
-            {avd.running && <button onClick={() => handleStartWindowed(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Restart in separate window (pop-up)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><PictureInPicture2 size={12} /></button>}
-            <button onClick={() => openConfig(avd)} title="Config — RAM, CPU, resolution, DPI, GPU, keyboard" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: configEdit?.name === avd.name ? "var(--teal)" : undefined }}><Settings size={12} /></button>
-            <button onClick={() => handleDelete(avd)} disabled={busy === avd.name} title="Delete emulator" style={{ ...s.iconBtn, color: "var(--error-soft)", display: "flex", alignItems: "center" }}><Trash2 size={12} /></button>
-          </div>
-        ))}
-      </div>
-
-      {/* Actions */}
-      <div style={{ padding: "var(--space-8)", borderTop: "var(--space-1) solid var(--bg-active)", display: "flex", gap: "var(--space-6)", background: "var(--bg-vscode)", flexShrink: 0 }}>
-        <button onClick={() => { setConfigEdit(null); setShowCreate((v) => !v); }} disabled={!state?.sdkInstalled} title={state?.sdkInstalled ? "Create emulator (device + Android version)" : "Run Setup SDK first"} style={s.btnGhost}><Plus size={12} /> Create Emulator</button>
-        <span style={{ flex: 1 }} />
-        <span style={{ fontSize: "var(--fs-mini)", color: "var(--text-muted)", alignSelf: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }} title={state?.sdkRoot || ""}>{state?.sdkRoot ? ".appdata/android/sdk" : ""}</span>
-      </div>
-
-      {/* Create form (§9) */}
-      {showCreate && (
-        <div style={{ padding: "var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-          <div>
-            <label style={s.label}>Name</label>
-            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Pixel_8" style={s.input} />
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-8)" }}>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Device</label>
-              <select value={form.device} onChange={(e) => setForm((f) => ({ ...f, device: e.target.value }))} style={s.select}>
-                {devices.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Android version</label>
-              <select value={form.api} onChange={(e) => setForm((f) => ({ ...f, api: parseInt(e.target.value, 10) }))} style={s.select}>
-                {apis.map((a) => <option key={a.api} value={a.api}>{a.android} (API {a.api})</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label style={s.label}>System image</label>
-            <select value={form.variant} onChange={(e) => setForm((f) => ({ ...f, variant: e.target.value }))} style={s.select}>
-              {variants.map((v) => <option key={v.id} value={v.id} title={v.desc || v.label}>{v.label}</option>)}
-            </select>
-            {form.variant === "google_apis_playstore" && (
-              <div style={{ fontSize: "var(--fs-mini)", color: "var(--text-muted)", marginTop: "var(--space-4)" }}>
-                Play Store images are user builds — Store app included, but no root access.
+          {/* AVD list (§8) */}
+          <div style={{ flex: 1, overflowY: "auto", minHeight: 80 }}>
+            {loading && avds.length === 0 && !sdkMissing && <div style={{ padding: "var(--space-20)", color: "var(--text-muted)", fontSize: "var(--fs-body)", textAlign: "center" }}>Loading emulators…</div>}
+            {!loading && avds.length === 0 && !sdkMissing && (
+              <div style={{ textAlign: "center", padding: 30, color: "var(--text-muted)", fontSize: "var(--fs-body)" }}>
+                <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-secondary)", marginBottom: "var(--space-6)" }}>No emulators yet</div>
+                <div style={{ color: "var(--text-placeholder)", fontSize: "var(--fs-small)", marginBottom: "var(--space-12)" }}>Create one — pick a device + Android version.</div>
+                <button onClick={() => setShowCreate(true)} style={s.btn}><Plus size={13} /> Create Emulator</button>
               </div>
             )}
+            {avds.map((avd) => (
+              <div key={avd.name} style={s.row}>
+                <span style={{ width: 8, height: 8, borderRadius: "var(--radius-round)", background: avd.running ? "var(--teal)" : "var(--text-placeholder)", flexShrink: 0 }} title={avd.running ? "Running" : "Stopped"} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: "var(--fw-bold)", color: "var(--text-input)", fontSize: "var(--fs-body-plus)", overflow: "hidden", textOverflow: "ellipsis" }}>{(avd.device ? avd.device.replace(/\b\w/g, (c) => c.toUpperCase()) + " " : "") || ""}{avd.name.replace(/_/g, " ")}</div>
+                  <div style={{ fontSize: "var(--fs-small)", color: "var(--icon)" }}>{avd.android || "Android"}{(avd.playStore || String(avd.image || "").includes("playstore")) && <span style={{ color: "var(--teal)" }}> • Play Store</span>} {avd.running ? <span style={{ color: "var(--teal)" }}>• running</span> : ""}</div>
+                </span>
+                {avd.running
+                  ? <button onClick={() => { const t = state?.tracked?.find((x) => x.avd === avd.name); openViewer(avd.name, { stream: !t || t.headless !== false }); }} title="Show screen in panel" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: view?.avd === avd.name ? "var(--teal)" : undefined }}><Monitor size={12} /></button>
+                  : <button onClick={() => handleStartEmbedded(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Start in panel (embedded screen)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><Monitor size={12} /></button>}
+                {avd.running
+                  ? <button onClick={() => handleStop(avd)} disabled={busy === avd.name} title="Stop emulator" style={{ ...s.btnGhost, color: "var(--error-soft)" }}><Square size={12} /> Stop</button>
+                  : <button onClick={() => handleStart(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Start in separate window (default)" style={s.btn}><Play size={12} /> {busy === avd.name ? "…" : "Start"}</button>}
+                {avd.running && <button onClick={() => handleStartWindowed(avd)} disabled={busy === avd.name || !state?.sdkInstalled} title="Restart in separate window (pop-up)" style={{ ...s.iconBtn, display: "flex", alignItems: "center" }}><PictureInPicture2 size={12} /></button>}
+                <button onClick={() => openConfig(avd)} title="Config — RAM, CPU, resolution, DPI, GPU, keyboard" style={{ ...s.iconBtn, display: "flex", alignItems: "center", color: configEdit?.name === avd.name ? "var(--teal)" : undefined }}><Settings size={12} /></button>
+                <button onClick={() => handleDelete(avd)} disabled={busy === avd.name} title="Delete emulator" style={{ ...s.iconBtn, color: "var(--error-soft)", display: "flex", alignItems: "center" }}><Trash2 size={12} /></button>
+              </div>
+            ))}
           </div>
-          <div style={{ display: "flex", gap: "var(--space-6)" }}>
-            <button onClick={handleCreate} disabled={busy === "create"} style={{ ...s.btn, opacity: busy === "create" ? 0.6 : 1 }}><Plus size={12} /> {busy === "create" ? "Creating… (downloads image)" : "Create"}</button>
-            <button onClick={() => setShowCreate(false)} style={s.btnGhost}>Cancel</button>
-          </div>
-        </div>
-      )}
 
-      {configEdit && (
-        <div style={{ padding: "var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", display: "flex", flexDirection: "column", gap: "var(--space-8)", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-8)" }}>
-            <div style={{ fontSize: "var(--fs-body-plus)", fontWeight: "var(--fw-bold)", color: "var(--text-input)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Config — {configEdit.name.replace(/_/g, " ")}</div>
-            <button onClick={() => setConfigEdit(null)} title="Close config" style={{ ...s.iconBtn, display: "flex", alignItems: "center", flexShrink: 0 }}><X size={12} /></button>
+          {/* Actions */}
+          <div style={{ padding: "var(--space-8)", borderTop: "var(--space-1) solid var(--bg-active)", display: "flex", gap: "var(--space-6)", background: "var(--bg-vscode)", flexShrink: 0 }}>
+            <button onClick={() => { setConfigEdit(null); setShowCreate((v) => !v); }} disabled={!state?.sdkInstalled} title={state?.sdkInstalled ? "Create emulator (device + Android version)" : "Run Setup SDK first"} style={s.btnGhost}><Plus size={12} /> Create Emulator</button>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: "var(--fs-mini)", color: "var(--text-muted)", alignSelf: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }} title={state?.sdkRoot || ""}>{state?.sdkRoot ? ".appdata/android/sdk" : ""}</span>
           </div>
-          {configEdit.running && (
-            <div style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)" }}>Emulator is running — saved changes apply on the next start/restart.</div>
+
+          {/* Create form (§9) */}
+          {showCreate && (
+            <div style={{ padding: "var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+              <div>
+                <label style={s.label}>Name</label>
+                <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Pixel_8" style={s.input} />
+              </div>
+              <div style={{ display: "flex", gap: "var(--space-8)" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>Device</label>
+                  <select value={form.device} onChange={(e) => setForm((f) => ({ ...f, device: e.target.value }))} style={s.select}>
+                    {devices.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>Android version</label>
+                  <select value={form.api} onChange={(e) => setForm((f) => ({ ...f, api: parseInt(e.target.value, 10) }))} style={s.select}>
+                    {apis.map((a) => <option key={a.api} value={a.api}>{a.android} (API {a.api})</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={s.label}>System image</label>
+                <select value={form.variant} onChange={(e) => setForm((f) => ({ ...f, variant: e.target.value }))} style={s.select}>
+                  {variants.map((v) => <option key={v.id} value={v.id} title={v.desc || v.label}>{v.label}</option>)}
+                </select>
+                {form.variant === "google_apis_playstore" && (
+                  <div style={{ fontSize: "var(--fs-mini)", color: "var(--text-muted)", marginTop: "var(--space-4)" }}>
+                    Play Store images are user builds — Store app included, but no root access.
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "var(--space-6)" }}>
+                <button onClick={handleCreate} disabled={busy === "create"} style={{ ...s.btn, opacity: busy === "create" ? 0.6 : 1 }}><Plus size={12} /> {busy === "create" ? "Creating… (downloads image)" : "Create"}</button>
+                <button onClick={() => setShowCreate(false)} style={s.btnGhost}>Cancel</button>
+              </div>
+            </div>
           )}
-          <div style={{ display: "flex", gap: "var(--space-8)" }}>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>RAM (MB)</label>
-              <input type="number" min={512} max={16384} step={256} value={configEdit.form.ramMb} onChange={(e) => setConfigField("ramMb", e.target.value)} style={s.input} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>CPU cores</label>
-              <input type="number" min={1} max={16} value={configEdit.form.cores} onChange={(e) => setConfigField("cores", e.target.value)} style={s.input} />
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-8)" }}>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Width</label>
-              <input type="number" min={320} max={4096} step={10} value={configEdit.form.width} onChange={(e) => setConfigField("width", e.target.value)} style={s.input} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Height</label>
-              <input type="number" min={320} max={4096} step={10} value={configEdit.form.height} onChange={(e) => setConfigField("height", e.target.value)} style={s.input} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>DPI</label>
-              <input type="number" min={120} max={640} step={10} value={configEdit.form.density} onChange={(e) => setConfigField("density", e.target.value)} style={s.input} />
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-8)" }}>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>GPU mode</label>
-              <select value={configEdit.form.gpu} onChange={(e) => setConfigField("gpu", e.target.value)} style={s.select}>
-                <option value="auto">Auto (recommended)</option>
-                <option value="host">Host GPU</option>
-                <option value="swiftshader_indirect">SwiftShader (software)</option>
-                <option value="angle_indirect">ANGLE</option>
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={s.label}>Keyboard</label>
-              <select value={configEdit.form.keyboard ? "yes" : "no"} onChange={(e) => setConfigField("keyboard", e.target.value === "yes")} style={s.select}>
-                <option value="yes">Enabled</option>
-                <option value="no">Disabled</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-6)" }}>
-            <button onClick={saveConfig} disabled={configBusy} style={{ ...s.btn, opacity: configBusy ? 0.6 : 1 }}><Settings size={12} /> {configBusy ? "Saving…" : "Save config"}</button>
-            <button onClick={() => setConfigEdit(null)} style={s.btnGhost}>Cancel</button>
-          </div>
-        </div>
-      )}
 
-      {/* Active download / install — one slim card, no log spam */}
-      {task && (
-        <div style={{ padding: "var(--space-8) var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-8)" }}>
-            <Download size={12} style={{ color: "var(--teal)", flexShrink: 0, alignSelf: "center" }} />
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-small-plus)", color: "var(--text-bright)" }} title={task.message}>{task.message}</span>
-            <span style={{ fontSize: "var(--fs-small-plus)", fontWeight: "var(--fw-bold)", color: "var(--teal)", flexShrink: 0 }}>{Math.round(task.percent)}%</span>
-          </div>
-          <div style={{ height: 5, background: "var(--bg-panel)", borderRadius: "var(--radius-sm)", marginTop: "var(--space-6)", overflow: "hidden" }}>
-            <div style={{ width: `${Math.min(100, Math.max(0, task.percent))}%`, height: "100%", background: "var(--editor-blue)", transition: "width 0.25s" }} />
-          </div>
-          {typeof task.done === "number" && task.total > 0 && (
-            <div style={{ fontSize: "var(--fs-mini)", color: "var(--icon-muted)", marginTop: "var(--space-4)" }}>{(task.done / 1048576).toFixed(1)} / {(task.total / 1048576).toFixed(1)} MB</div>
+          {configEdit && (
+            <div style={{ padding: "var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", display: "flex", flexDirection: "column", gap: "var(--space-8)", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-8)" }}>
+                <div style={{ fontSize: "var(--fs-body-plus)", fontWeight: "var(--fw-bold)", color: "var(--text-input)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Config — {configEdit.name.replace(/_/g, " ")}</div>
+                <button onClick={() => setConfigEdit(null)} title="Close config" style={{ ...s.iconBtn, display: "flex", alignItems: "center", flexShrink: 0 }}><X size={12} /></button>
+              </div>
+              {configEdit.running && (
+                <div style={{ fontSize: "var(--fs-mini)", color: "var(--code-tan)" }}>Emulator is running — saved changes apply on the next start/restart.</div>
+              )}
+              <div style={{ display: "flex", gap: "var(--space-8)" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>RAM (MB)</label>
+                  <input type="number" min={512} max={16384} step={256} value={configEdit.form.ramMb} onChange={(e) => setConfigField("ramMb", e.target.value)} style={s.input} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>CPU cores</label>
+                  <input type="number" min={1} max={16} value={configEdit.form.cores} onChange={(e) => setConfigField("cores", e.target.value)} style={s.input} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "var(--space-8)" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>Width</label>
+                  <input type="number" min={320} max={4096} step={10} value={configEdit.form.width} onChange={(e) => setConfigField("width", e.target.value)} style={s.input} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>Height</label>
+                  <input type="number" min={320} max={4096} step={10} value={configEdit.form.height} onChange={(e) => setConfigField("height", e.target.value)} style={s.input} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>DPI</label>
+                  <input type="number" min={120} max={640} step={10} value={configEdit.form.density} onChange={(e) => setConfigField("density", e.target.value)} style={s.input} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "var(--space-8)" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>GPU mode</label>
+                  <select value={configEdit.form.gpu} onChange={(e) => setConfigField("gpu", e.target.value)} style={s.select}>
+                    <option value="auto">Auto (recommended)</option>
+                    <option value="host">Host GPU</option>
+                    <option value="swiftshader_indirect">SwiftShader (software)</option>
+                    <option value="angle_indirect">ANGLE</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={s.label}>Keyboard</label>
+                  <select value={configEdit.form.keyboard ? "yes" : "no"} onChange={(e) => setConfigField("keyboard", e.target.value === "yes")} style={s.select}>
+                    <option value="yes">Enabled</option>
+                    <option value="no">Disabled</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "var(--space-6)" }}>
+                <button onClick={saveConfig} disabled={configBusy} style={{ ...s.btn, opacity: configBusy ? 0.6 : 1 }}><Settings size={12} /> {configBusy ? "Saving…" : "Save config"}</button>
+                <button onClick={() => setConfigEdit(null)} style={s.btnGhost}>Cancel</button>
+              </div>
+            </div>
           )}
-        </div>
-      )}
 
-      {/* Progress log */}
-      {log.length > 0 && (
-        <div style={{ borderTop: "1px solid var(--bg-active)", background: "var(--bg-panel)", maxHeight: 130, minHeight: 44, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon-muted)", padding: "var(--space-4) var(--space-10)", textTransform: "uppercase", letterSpacing: 0.4, display: "flex", justifyContent: "space-between" }}>
-            <span>Setup log</span>
-            <button onClick={() => setLog([])} style={{ background: "none", border: "none", color: "var(--icon-muted)", cursor: "pointer", fontSize: "var(--fs-tiny)" }}>clear</button>
-          </div>
-          <div ref={logRef} style={{ flex: 1, overflowY: "auto", padding: "0 var(--space-10) var(--space-8)", fontFamily: "var(--font-code)", fontSize: "var(--fs-mini)", color: "var(--code-cyan)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {log.map((l, i) => <div key={i}>{l}</div>)}
-          </div>
-        </div>
-      )}
-      </>
+          {/* Active download / install — one slim card, no log spam */}
+          {task && (
+            <div style={{ padding: "var(--space-8) var(--space-10)", borderTop: "var(--space-1) solid var(--bg-active)", background: "var(--bg-surface)", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-8)" }}>
+                <Download size={12} style={{ color: "var(--teal)", flexShrink: 0, alignSelf: "center" }} />
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--fs-small-plus)", color: "var(--text-bright)" }} title={task.message}>{task.message}</span>
+                <span style={{ fontSize: "var(--fs-small-plus)", fontWeight: "var(--fw-bold)", color: "var(--teal)", flexShrink: 0 }}>{Math.round(task.percent)}%</span>
+              </div>
+              <div style={{ height: 5, background: "var(--bg-panel)", borderRadius: "var(--radius-sm)", marginTop: "var(--space-6)", overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, Math.max(0, task.percent))}%`, height: "100%", background: "var(--editor-blue)", transition: "width 0.25s" }} />
+              </div>
+              {typeof task.done === "number" && task.total > 0 && (
+                <div style={{ fontSize: "var(--fs-mini)", color: "var(--icon-muted)", marginTop: "var(--space-4)" }}>{(task.done / 1048576).toFixed(1)} / {(task.total / 1048576).toFixed(1)} MB</div>
+              )}
+            </div>
+          )}
+
+          {/* Progress log */}
+          {log.length > 0 && (
+            <div style={{ borderTop: "1px solid var(--bg-active)", background: "var(--bg-panel)", maxHeight: 130, minHeight: 44, display: "flex", flexDirection: "column" }}>
+              <div style={{ fontSize: "var(--fs-tiny)", color: "var(--icon-muted)", padding: "var(--space-4) var(--space-10)", textTransform: "uppercase", letterSpacing: 0.4, display: "flex", justifyContent: "space-between" }}>
+                <span>Setup log</span>
+                <button onClick={() => setLog([])} style={{ background: "none", border: "none", color: "var(--icon-muted)", cursor: "pointer", fontSize: "var(--fs-tiny)" }}>clear</button>
+              </div>
+              <div ref={logRef} style={{ flex: 1, overflowY: "auto", padding: "0 var(--space-10) var(--space-8)", fontFamily: "var(--font-code)", fontSize: "var(--fs-mini)", color: "var(--code-cyan)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                {log.map((l, i) => <div key={i}>{l}</div>)}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <EmulatorDisclaimer
