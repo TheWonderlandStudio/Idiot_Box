@@ -543,6 +543,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   androidSetupSdk:      () => ipcRenderer.invoke("android:setupSdk"),
   androidListAvds:      () => ipcRenderer.invoke("android:listAvds"),
   androidCreateAvd:     (payload) => ipcRenderer.invoke("android:createAvd", payload),
+  androidGetAvdConfig:  (name) => ipcRenderer.invoke("android:getAvdConfig", { name }),
+  androidUpdateAvdConfig:(name, config) => ipcRenderer.invoke("android:updateAvdConfig", { name, config }),
   androidDeleteAvd:     (name) => ipcRenderer.invoke("android:deleteAvd", { name }),
   androidStartAvd:      (name, opts) => ipcRenderer.invoke("android:startAvd", { name, ...(opts || {}) }),
   androidStopAvd:       (name) => ipcRenderer.invoke("android:stopAvd", { name }),
@@ -554,7 +556,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   androidDiagKeyboard:(serial, name) => ipcRenderer.invoke("android:diagKeyboard", { serial, name }),
   androidScreencap:   (serial) => ipcRenderer.invoke("android:screencap", { serial }),
   androidFrame:       (serial) => ipcRenderer.invoke("android:frame", { serial }),
+  androidFrameAttach: (serial) => ipcRenderer.invoke("android:frameAttach", { serial }),
+  androidFrameDetach: () => ipcRenderer.invoke("android:frameDetach"),
   androidFrameStop:   (serial) => ipcRenderer.invoke("android:frameStop", { serial }),
+  onAndroidFrame: (callback) => {
+    const handler = (_e, payload) => callback(payload);
+    ipcRenderer.on("android:frameData", handler);
+    return () => ipcRenderer.removeListener("android:frameData", handler);
+  },
   androidInput:       (serial, action) => ipcRenderer.invoke("android:input", { serial, action }),
   androidDisplay:     (serial, mode) => ipcRenderer.invoke("android:display", { serial, mode }),
   androidScreenshot:  (serial, name) => ipcRenderer.invoke("android:screenshot", { serial, name }),

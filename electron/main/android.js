@@ -771,7 +771,155 @@ try { emuGrpc = require("./emulatorGrpc"); } catch (e) { /* gRPC frame source un
 const grpcPorts = new Map(); // avdName -> grpc port
 const grpcAuthFailed = new Set(); // avdName — server demanded auth; don't retry spammy
 const grpcOkLogged = new Set(); // avdName — one-time "frames via gRPC" note
+const grpcFailLogged = new Set(); // avdName — one-time non-auth failure note (was silent → hid the bug)
 const grpcStreams = new Map(); // avdName -> { stream, latestFrame, lastError, seq }
+
+// The gRPC port is picked when the emulator starts and otherwise only lives in
+// memory. If the app restarts while the emulator keeps running, read it back
+// from the emulator's own log ("Started GRPC server at 127.0.0.1:PORT") — without
+// this the panel would silently fall back to the slow adb path even though the
+// gRPC server is right there.
+function discoverGrpcPort(avdName) {
+  if (!avdName || !emuGrpc) return null;
+  const known = grpcPorts.get(avdName);
+  if (known) return known;
+  try {
+    const logFile = path.join(getDownloadsDir(), `emulator-${avdName}.log`);
+    if (!fs.existsSync(logFile)) return null;
+    const size = fs.statSync(logFile).size;
+    const len = Math.min(size, 512 * 1024);
+    if (len <= 0) return null;
+    const buf = Buffer.alloc(len);
+    const fd = fs.openSync(logFile, "r");
+    try { fs.readSync(fd, buf, 0, len, size - len); } finally { try { fs.closeSync(fd); } catch {} }
+    const text = buf.toString("utf8").replace(/\x1b\[[0-9;]*m/g, "");
+    const matches = [...text.matchAll(/Started GRPC server at [^\s:]+:(\d+)/g)];
+    if (!matches.length) return null;
+    const port = parseInt(matches[matches.length - 1][1], 10);
+    if (!(port > 0 && port < 65536)) return null;
+    grpcPorts.set(avdName, port);
+    return port;
+  } catch { return null; }
+}
+
+// ─── Frame push (the Android Studio embedding recipe) ───────────────────────
+// Studio runs the emulator with `-qt-hide-window` and paints every frame that
+// `streamScreenshot` delivers. Same here: what the emulator produces is
+// forwarded as-is — no polling timer, no fps cap, no coalescing. The renderer
+// paints the newest frame on its next animation frame (a window can't paint
+// faster than vsync anyway); anything that arrives in between is superseded.
+const frameSinks = new Map(); // webContents.id -> sink
+
+function framesForAvd(avdName) {
+  const out = [];
+  for (const sink of frameSinks.values()) {
+    if (sink.avd === avdName && !sink.wc.isDestroyed()) out.push(sink);
+  }
+  return out;
+}
+
+function sendSinkFrame(sink, frame) {
+  if (!sink || sink.wc.isDestroyed()) return;
+  try {
+    sink.wc.send("android:frameData", { w: frame.w, h: frame.h, seq: frame.seq || 0, pixels: frame.pixels });
+  } catch {}
+}
+
+function sendSinkError(sink, message) {
+  if (!sink || sink.wc.isDestroyed()) return;
+  try { sink.wc.send("android:frameData", { error: message }); } catch {}
+}
+
+// adb fallback (only when the emulator has no gRPC port): captures back to
+// back — the screencap itself sets the pace.
+function startAdbFramePump(sink) {
+  if (!sink || sink.adbTimer || sink.wc.isDestroyed()) return;
+  const alive = () => frameSinks.get(sink.id) === sink && !sink.wc.isDestroyed();
+  const pump = async () => {
+    if (!alive() || sink.busy) return;
+    sink.busy = true;
+    try {
+      let framed;
+      try {
+        framed = await captureFrameSession(sink.serial);
+      } catch {
+        frameSessionDestroy(sink.serial);
+        framed = parseRawFrame(await captureRawFrame(sink.serial));
+      }
+      if (!alive()) return;
+      sink.fails = 0;
+      const px = Buffer.isBuffer(framed.pixels) ? framed.pixels : Buffer.from(framed.pixels);
+      // Static screens are the common case — skip identical frames entirely.
+      if (sink.lastPixels && sink.lastPixels.length === px.length && sink.lastPixels.equals(px)) return;
+      sink.lastPixels = px;
+      sendSinkFrame(sink, { w: framed.w, h: framed.h, pixels: px, seq: 0 });
+    } catch (e) {
+      sink.fails = (sink.fails || 0) + 1;
+      if (sink.fails >= 8) sendSinkError(sink, `Lost connection to emulator (${e?.message || e}).`);
+    } finally {
+      sink.busy = false;
+      if (alive()) sink.adbTimer = setTimeout(pump, 0);
+    }
+  };
+  sink.adbTimer = setTimeout(pump, 0);
+}
+
+function detachFrameSink(id) {
+  const sink = frameSinks.get(id);
+  if (!sink) return;
+  frameSinks.delete(id);
+  if (sink.adbTimer) { try { clearTimeout(sink.adbTimer); } catch {} }
+  if (sink.watchdog) { try { clearTimeout(sink.watchdog); } catch {} }
+  sink.lastPixels = null;
+  // Nobody is watching this AVD any more — tear the stream down so the
+  // emulator isn't producing/parsing multi-MB frames for a hidden panel.
+  if (sink.avd && framesForAvd(sink.avd).length === 0) stopGrpcStream(sink.avd);
+}
+
+function attachFrameSink(wc, serial, avd) {
+  detachFrameSink(wc.id);
+  const sink = {
+    id: wc.id, wc, serial, avd,
+    busy: false, adbTimer: null, fails: 0, lastPixels: null, gotFrame: false, watchdog: null,
+  };
+  frameSinks.set(wc.id, sink);
+  if (!wc.__iboxFrameSinkHook) {
+    wc.__iboxFrameSinkHook = true;
+    try {
+      wc.once("destroyed", () => detachFrameSink(wc.id));
+      // A reload kills the renderer's cleanup path — drop the sink so we don't
+      // keep screencapping for a page that no longer draws. `did-navigate` is
+      // main-frame only, so iframe navigation (browser panel) can't trip it.
+      wc.on("did-navigate", () => detachFrameSink(wc.id));
+    } catch {}
+  }
+  const port = avd ? discoverGrpcPort(avd) : null;
+  if (emuGrpc && avd && port && !grpcAuthFailed.has(avd)) {
+    const entry = getOrStartGrpcStream(avd, port);
+    if (entry && !entry.dead) {
+      // The stream sends a frame whenever the display changes. If nothing has
+      // arrived shortly after connecting (display asleep, stream not warmed
+      // up), ask for one unary screenshot — and only fall back to adb if even
+      // that fails. A static screen is not a failure.
+      sink.watchdog = setTimeout(async () => {
+        sink.watchdog = null;
+        if (frameSinks.get(sink.id) !== sink || sink.gotFrame) return;
+        try {
+          const f = await emuGrpc.getScreenshot(port, { timeoutMs: 3000 });
+          if (frameSinks.get(sink.id) !== sink) return;
+          sink.gotFrame = true;
+          sendSinkFrame(sink, f);
+          return;
+        } catch {}
+        if (frameSinks.get(sink.id) === sink) startAdbFramePump(sink);
+      }, 2500);
+      return sink;
+    }
+  }
+  startAdbFramePump(sink);
+  return sink;
+}
+
 
 function stopGrpcStream(avdName) {
   const entry = grpcStreams.get(avdName);
@@ -785,13 +933,28 @@ function getOrStartGrpcStream(avdName, port) {
   if (entry && !entry.dead) return entry;
   if (!emuGrpc) return null;
   try {
-    const stream = emuGrpc.streamScreenshot(port, { width: emuGrpc.STREAM_WIDTH });
-    entry = { stream, latestFrame: null, lastError: null, dead: false, seq: 0 };
+    const stream = emuGrpc.streamScreenshot(port);
+    entry = { stream, latestFrame: null, lastError: null, dead: false, seq: 0, scratch: null };
     stream.on("data", (res) => {
       try {
-        const parsed = emuGrpc.parseImageResponse(res);
-        entry.latestFrame = parsed;
+        const sinks = framesForAvd(avdName);
+        // Push path reuses one scratch buffer (no per-frame alloc); when
+        // nobody is pushing, keep a standalone frame for the pull path.
+        const parsed = emuGrpc.parseImageResponse(res, sinks.length ? entry : null);
         entry.seq++;
+        if (sinks.length) {
+          if (!grpcOkLogged.has(avdName)) {
+            grpcOkLogged.add(avdName);
+            broadcast({ op: "frame", phase: "grpc", message: `${avdName}: frames via gRPC stream (${parsed.w}x${parsed.h}).`, avd: avdName, at: Date.now() });
+          }
+          for (const sink of sinks) {
+            if (sink.watchdog) { try { clearTimeout(sink.watchdog); } catch {} sink.watchdog = null; }
+            sink.gotFrame = true;
+            sendSinkFrame(sink, parsed);
+          }
+        } else {
+          entry.latestFrame = parsed;
+        }
       } catch (e) {
         entry.lastError = e;
       }
@@ -802,12 +965,25 @@ function getOrStartGrpcStream(avdName, port) {
       if (emuGrpc.isAuthError(err)) {
         grpcAuthFailed.add(avdName);
         broadcast({ op: "frame", phase: "auth", message: `${avdName}: emulator wants gRPC auth — using adb frames instead.`, avd: avdName, at: Date.now() });
+      } else if (!grpcFailLogged.has(avdName)) {
+        // Never fall back to adb silently: a gRPC failure is the difference
+        // between 60 fps and a laggy screencap loop, so surface it once.
+        grpcFailLogged.add(avdName);
+        broadcast({ op: "frame", phase: "error", message: `${avdName}: gRPC stream failed (${String(err?.details || err?.message || err).slice(0, 180)}) — using adb frames instead.`, avd: avdName, at: Date.now() });
       }
       stopGrpcStream(avdName);
+      for (const sink of framesForAvd(avdName)) {
+        if (sink.watchdog) { try { clearTimeout(sink.watchdog); } catch {} sink.watchdog = null; }
+        startAdbFramePump(sink);
+      }
     });
     stream.on("end", () => {
       entry.dead = true;
       stopGrpcStream(avdName);
+      for (const sink of framesForAvd(avdName)) {
+        if (sink.watchdog) { try { clearTimeout(sink.watchdog); } catch {} sink.watchdog = null; }
+        startAdbFramePump(sink);
+      }
     });
     grpcStreams.set(avdName, entry);
     return entry;
@@ -853,6 +1029,55 @@ function readAvdKey(avdName, key) {
   } catch { return null; }
 }
 
+// ─── AVD config editor ──────────────────────────────────────────────────────
+// Only these keys may be changed from the panel — never rewrite the whole file,
+// so the dozens of other hardware flags avdmanager wrote stay untouched.
+const EDITABLE_AVD_KEYS = new Set([
+  "hw.ramSize", "hw.cpu.ncore",
+  "hw.lcd.width", "hw.lcd.height", "hw.lcd.density",
+  "hw.gpu.mode", "hw.keyboard",
+]);
+
+function configInt(value, fallback) {
+  const m = String(value ?? "").match(/\d+/);
+  return m ? parseInt(m[0], 10) : fallback;
+}
+
+// Normalized view of the editable settings, for the panel form.
+function summaryAvdConfig(avdName) {
+  const c = readAvdConfig(avdName);
+  return {
+    ramMb: configInt(c["hw.ramSize"], 2048),
+    cores: configInt(c["hw.cpu.ncore"], 4),
+    width: configInt(c["hw.lcd.width"], 1080),
+    height: configInt(c["hw.lcd.height"], 2400),
+    density: configInt(c["hw.lcd.density"], 420),
+    gpu: String(c["hw.gpu.mode"] || "auto"),
+    keyboard: String(c["hw.keyboard"] || "yes").toLowerCase() === "yes",
+  };
+}
+
+// Update specific keys in config.ini in place. Takes effect on the next start.
+function writeAvdConfig(avdName, patch = {}) {
+  const ini = avdConfigPath(avdName);
+  if (!fs.existsSync(ini)) throw new Error("AVD config.ini not found.");
+  let text = fs.readFileSync(ini, "utf8");
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  let changed = 0;
+  for (const [key, raw] of Object.entries(patch)) {
+    if (!EDITABLE_AVD_KEYS.has(key)) continue;
+    const value = String(raw ?? "").trim();
+    if (!value || /[\r\n]/.test(value)) continue;
+    const re = new RegExp("^\\s*" + key.replace(/\./g, "\\.") + "\\s*=.*$", "m");
+    if (re.test(text)) text = text.replace(re, `${key} = ${value}`);
+    else text = text.replace(/\s*$/, "") + eol + `${key} = ${value}` + eol;
+    changed++;
+  }
+  if (!changed) throw new Error("Nothing to update.");
+  fs.writeFileSync(ini, text);
+  return { path: ini };
+}
+
 // Physical keyboard in the emulator's own window needs hw.keyboard=yes in the
 // AVD's config.ini — avdmanager-created AVDs often lack it. Patch on every
 // start (takes effect on boot); returns true when it changed something.
@@ -870,6 +1095,23 @@ function ensureAvdKeyboard(avdName, iniPath = null) {
     fs.writeFileSync(ini, next);
     return true;
   } catch { return false; }
+}
+
+// Android Studio's embedded-emulator recipe: the window is created but hidden
+// (`-qt-hide-window`), so the normal Qt render loop keeps feeding the gRPC
+// screenshot stream. `-no-window` tears that machinery down instead. Probe the
+// flag once — older emulator builds don't have it.
+let _qtHideSupported = null;
+async function emulatorSupportsQtHideWindow() {
+  if (_qtHideSupported !== null) return _qtHideSupported;
+  const probe = (out) => /-qt-hide-window/.test(String(out || ""));
+  try {
+    const { stdout, stderr } = await execOut(emulatorBin(), ["-help"], { env: androidEnv(), timeout: 20000 });
+    _qtHideSupported = probe(`${stdout}\n${stderr}`);
+  } catch (e) {
+    _qtHideSupported = probe(`${e?.stdout || ""}\n${e?.stderr || ""}`);
+  }
+  return _qtHideSupported;
 }
 
 async function startEmulatorProcess(avdName, extraArgs = [], { headless = true } = {}) {
@@ -895,10 +1137,12 @@ async function startEmulatorProcess(avdName, extraArgs = [], { headless = true }
     catch { grpcPort = null; }
   }
   const logFile = path.join(getDownloadsDir(), `emulator-${avdName}.log`);
-  // Headless (default): no OS pop-up — the screen is streamed into the IDE panel via adb.
-  // Windowed: classic separate emulator window (user choice via pop-out button).
+  // Headless (default): no visible OS window — the screen is streamed into the
+  // IDE panel with the same recipe Android Studio uses (`-qt-hide-window` +
+  // gRPC stream). Windowed: classic separate emulator window (user choice).
+  const hideWindow = headless ? await emulatorSupportsQtHideWindow() : false;
   const args = headless
-    ? ["-avd", avdName, "-no-window", "-no-audio", "-no-boot-anim", ...extraArgs]
+    ? ["-avd", avdName, hideWindow ? "-qt-hide-window" : "-no-window", "-no-audio", "-no-boot-anim", ...extraArgs]
     : ["-avd", avdName, "-no-boot-anim", ...extraArgs];
   if (grpcPort) args.push("-grpc", `localhost:${grpcPort}`);
   // Console strategy: ConPTY (node-pty) hosts the whole process tree on an
@@ -939,11 +1183,21 @@ async function startEmulatorProcess(avdName, extraArgs = [], { headless = true }
     pid = c.pid;
   }
   // Mirror stdout/stderr into the in-app Terminal ("Emulator" tab) + log file
+  let warnedGpu = false;
   const forwardEmuOut = (chunk) => {
     try {
       let text = String(chunk.toString("utf8") || "");
       if (!text) return;
       try { fs.appendFileSync(logFile, text); } catch {}
+      // Software GPU is the #1 reason the embedded panel feels sluggish and is
+      // easy to miss — say it out loud once instead of leaving it in the log.
+      if (!warnedGpu && /swiftshader|software (gpu|renderer|rendering)/i.test(text)) {
+        warnedGpu = true;
+        broadcast({
+          op: "start", phase: "config", avd: avdName, at: Date.now(),
+          message: `${avdName}: emulator is on SwiftShader (software GPU) — the panel will lag. Install a GPU driver / enable host GPU (-gpu host) and restart.`,
+        });
+      }
       text = text.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
       if (text.length > 32768) text = text.slice(0, 32768) + "\r\n[…truncated]\r\n";
       const { BrowserWindow } = deps();
@@ -986,7 +1240,7 @@ async function startEmulatorProcess(avdName, extraArgs = [], { headless = true }
   broadcast({
     op: "start", phase: "started", avd: avdName, at: Date.now(),
     message: headless
-      ? `${avdName} starting headless (pid ${pid}) — screen appears in the panel…`
+      ? `${avdName} starting with a hidden window (pid ${pid}) — screen streams into the panel…`
       : `${avdName} starting in a separate window (pid ${pid})…`,
   });
   return entry;
@@ -1014,9 +1268,19 @@ function evictAvdCaches(avdName) {
       if (avd === avdName) serialAvdCache.delete(serial);
     }
   } catch {}
+  // Panels viewing this AVD: stop their pumps and tell them, rather than
+  // leaving a frozen last frame on screen.
+  try {
+    for (const sink of framesForAvd(avdName)) {
+      sendSinkError(sink, `${avdName} stopped.`);
+      detachFrameSink(sink.id);
+    }
+  } catch {}
   stopGrpcStream(avdName);
   grpcPorts.delete(avdName);
   grpcAuthFailed.delete(avdName);
+  grpcOkLogged.delete(avdName);
+  grpcFailLogged.delete(avdName);
 }
 
 async function waitForSerial(avdName, timeoutMs = 150000) {
@@ -1497,6 +1761,25 @@ function setupAndroidIpc() {
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
   });
 
+  ipcMain.handle("android:getAvdConfig", async (_e, { name } = {}) => {
+    try {
+      const avdName = String(name || "").trim();
+      if (!avdName) return { ok: false, error: "Missing AVD name." };
+      if (!fs.existsSync(avdConfigPath(avdName))) return { ok: false, error: "AVD config.ini not found." };
+      return { ok: true, config: summaryAvdConfig(avdName) };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("android:updateAvdConfig", async (_e, { name, config } = {}) => {
+    try {
+      const avdName = String(name || "").trim();
+      if (!avdName) return { ok: false, error: "Missing AVD name." };
+      if (!config || typeof config !== "object") return { ok: false, error: "Missing config." };
+      const r = writeAvdConfig(avdName, config);
+      return { ok: true, path: r.path };
+    } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
+  });
+
   ipcMain.handle("android:deleteAvd", async (_e, { name } = {}) => {
     try {
       const avdName = String(name || "").trim();
@@ -1509,7 +1792,7 @@ function setupAndroidIpc() {
         }
       } catch {}
       try {
-        const gp = grpcPorts.get(avdName);
+        const gp = discoverGrpcPort(avdName);
         if (gp && emuGrpc) emuGrpc.closeClient(gp);
       } catch {}
       evictAvdCaches(avdName);
@@ -1557,7 +1840,7 @@ function setupAndroidIpc() {
         }
       } catch {}
       try {
-        const gp = grpcPorts.get(avdName);
+        const gp = discoverGrpcPort(avdName);
         if (gp && emuGrpc) emuGrpc.closeClient(gp);
       } catch {}
       evictAvdCaches(avdName);
@@ -1567,8 +1850,9 @@ function setupAndroidIpc() {
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 1200) }; }
   });
 
-  ipcMain.handle("android:frameStop", async (_e, { serial } = {}) => {
+  ipcMain.handle("android:frameStop", async (e, { serial } = {}) => {
     try {
+      try { detachFrameSink(e.sender.id); } catch {}
       if (validSerial(serial)) {
         frameSessionDestroy(serial);
         const avd = serialAvdCache.get(serial);
@@ -1686,6 +1970,26 @@ function setupAndroidIpc() {
     } catch (e) { return { ok: false, error: (e?.message || String(e)).slice(0, 300) }; }
   });
 
+  // Push-based stream attach: main pushes `android:frameData` from here on.
+  ipcMain.handle("android:frameAttach", async (e, { serial } = {}) => {
+    try {
+      if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
+      if (!fs.existsSync(adbBin())) return { ok: false, error: "adb not installed." };
+      let avd = serialAvdCache.get(serial) || null;
+      if (!avd) {
+        try { avd = await emulatorSerialToAvd(serial); } catch {}
+        if (avd) cacheSerialAvd(serial, avd);
+      }
+      attachFrameSink(e.sender, serial, avd);
+      return { ok: true, avd, width: emuGrpc ? emuGrpc.STREAM_WIDTH : 0 };
+    } catch (e2) { return { ok: false, error: (e2?.message || String(e2)).slice(0, 300) }; }
+  });
+
+  ipcMain.handle("android:frameDetach", async (e) => {
+    try { detachFrameSink(e.sender.id); } catch {}
+    return { ok: true };
+  });
+
   ipcMain.handle("android:frame", async (_e, { serial } = {}) => {
     try {
       if (!validSerial(serial)) return { ok: false, error: "Bad emulator serial." };
@@ -1694,7 +1998,7 @@ function setupAndroidIpc() {
       let framed = null;
       // 1) gRPC video/screenshot stream or unary screenshot
       const avd = serialAvdCache.get(serial) || null;
-      const port = avd ? grpcPorts.get(avd) : null;
+      const port = avd ? discoverGrpcPort(avd) : null;
       if (emuGrpc && port && avd && !grpcAuthFailed.has(avd)) {
         try {
           const entry = getOrStartGrpcStream(avd, port);
@@ -1705,7 +2009,7 @@ function setupAndroidIpc() {
               broadcast({ op: "frame", phase: "grpc", message: `${avd}: frames via gRPC stream (${framed.w}x${framed.h}).`, avd, at: Date.now() });
             }
           } else {
-            framed = await emuGrpc.getScreenshot(port, { width: emuGrpc.STREAM_WIDTH });
+            framed = await emuGrpc.getScreenshot(port);
             if (!grpcOkLogged.has(avd)) {
               grpcOkLogged.add(avd);
               broadcast({ op: "frame", phase: "grpc", message: `${avd}: frames via gRPC (${framed.w}x${framed.h}).`, avd, at: Date.now() });
