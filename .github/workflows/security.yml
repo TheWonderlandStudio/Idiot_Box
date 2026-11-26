@@ -3,7 +3,8 @@ name: Security checks (PR)
 # Fast + effective PR gate:
 #  1. Gitleaks       -> blocks tokens/keys/secrets (.env.signing, GH tokens, etc.)
 #  2. Dependency review -> blocks PRs adding new HIGH/CRITICAL advisories
-# No CodeQL, so this finishes in under a minute.
+#
+# CodeQL runs separately in codeql.yml on the same triggers plus a schedule.
 #
 # Gitleaks is installed from the upstream release instead of using
 # gitleaks/gitleaks-action: the action now requires a paid license for
@@ -33,9 +34,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install Gitleaks
         env:
@@ -64,13 +66,14 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # The base commit is needed to build the comparison audit.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm

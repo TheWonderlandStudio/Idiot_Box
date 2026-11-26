@@ -17,10 +17,7 @@ We ship fast and small, so only the newest release gets security fixes.
 
 Instead, use **private vulnerability reporting**:
 
-1. Open this repository on GitHub.
-2. Go to the **Security** tab.
-3. Click **Report a vulnerability**.
-4. Tell us what you found, which version you tested, and step-by-step instructions to reproduce it. Screenshots or a short video help a lot.
+Open [Report a vulnerability](https://github.com/TheWonderlandStudio/Idiot_Box/security/advisories/new) in this repository. Tell us what you found, which version you tested, and clear steps to reproduce it. Screenshots or a short video help a lot.
 
 ## What happens next
 
@@ -33,7 +30,7 @@ We will keep you posted along the way. Please give us a fair chance to fix thing
 
 ## What counts
 
-Idiot Box is a local-first desktop app. Your code, settings, API keys and chat history stay on your machine, so the interesting reports are the ones that break that promise. For example:
+Idiot Box is a local first desktop app. Your code, settings, API keys and chat history are stored on your machine. When you use an online AI provider, the prompts and context you send are processed by that provider under its own policies. Security reports are especially important when untrusted content or a bridge between processes can break those boundaries. For example:
 
 - The app sending your data somewhere it should not
 - Untrusted content (a web page, a preview, a project file) escaping into the app or your system
@@ -53,4 +50,4 @@ This is an independent project with no budget for bounties. What we can offer is
 
 ## Contact
 
-Security tab private reporting is the fastest route. For anything else, open a regular issue at https://github.com/TheWonderlandStudio/Idiot_Box.
+Private vulnerability reporting is the fastest route. If that feature is unavailable, contact a maintainer privately using the email listed in `package.json` and ask for a secure channel. Please do not put vulnerability details in a public issue.
