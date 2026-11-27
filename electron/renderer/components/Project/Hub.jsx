@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, useId } from "react";
-import { createPortal } from "react-dom";
-import { appleTreeIllustration, appleTreeIllustrationColor, appleTreeStampGray } from "./appleTreeAssets.js";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   getRepoNameFromChat,
   getRepoSearchQuery,
   hasCloneIntent,
   hasRepoSearchIntent,
 } from "./chat-intent.cjs";
-import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, ArrowRight, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical, Copy, Check, MousePointer2, Sparkles } from "lucide-react";
+import { FolderOpen, CloudDownload, Pin, Plus, RefreshCw, Trash2, Clock, Search, Link2, Star, Loader2, ArrowLeft, ArrowRight, Layers, Bot, Send, Smartphone, Globe, Server, Code2, Box, Zap, Palette, Atom, Boxes, Terminal as TerminalIcon, Cpu, Leaf, Bird, ListFilter, PanelLeftClose, PanelLeftOpen, User, Image as ImageIcon, X, MessageSquare, Activity, Mic, Grid3x3, ChevronDown, ArrowUp, MoreVertical, Copy, Check, MousePointer2, ExternalLink, BookOpen } from "lucide-react";
 import VscodeIcon from "../shared/VscodeIcon.jsx";
 
 import GitGraph from "../GitPanel/GitGraph.jsx";
@@ -778,204 +776,23 @@ const SidebarAction = ({ collapsed, label, icon, variant = "secondary", onClick 
   </button>
 );
 
-// Apple tree doodle greeting mark for the forest theme.
-// A gray tree on a small card that crossfades to full color (red
-// apples) on hover, with a tilting tooltip whose story alternates between
-// Newton and Eve on each hover. Clicking opens the Functions panel,
-// an Idiot Box addition on top of the hover behavior.
-const DOODLE_FRAME_WIDTH = 174;
-const DOODLE_FRAME_HEIGHT = 100;
-const APPLE_TREE_CARD_SHADOW_S2 = "var(--q9a0431)";
-const APPLE_TREE_TITLE = "A spark under the apple tree";
-const APPLE_TREE_DESCRIPTIONS = {
-  newton: "In 1666, a falling apple set Newton thinking about gravity. What will inspire you today?",
-  eve: "Long ago, Eve picked an apple and a story began with curiosity. What idea will you bring to life today?",
-};
-
-if (typeof Image !== "undefined") {
-  for (const src of [appleTreeIllustration, appleTreeIllustrationColor, appleTreeStampGray]) {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = src;
-    img.decode?.().catch(() => { });
-  }
-}
-
-const usePrefersReducedMotion = () => {
-  const [reduced, setReduced] = useState(
-    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return reduced;
-};
-
-// Spring used for the tooltip tilt (stiffness 120, damping 16).
-const useTiltSpring = (target, reduced) => {
-  const [value, setValue] = useState(0);
-  const s = useRef({ x: 0, v: 0, raf: 0 });
-  useEffect(() => {
-    const st = s.current;
-    cancelAnimationFrame(st.raf);
-    if (reduced) { st.x = 0; st.v = 0; setValue(0); return; }
-    let last = performance.now();
-    const tick = (now) => {
-      const dt = Math.min((now - last) / 1000, 0.064);
-      last = now;
-      st.v += (-120 * (st.x - target) - 16 * st.v) * dt;
-      st.x += st.v * dt;
-      setValue(st.x);
-      if (Math.abs(st.x - target) > 0.001 || Math.abs(st.v) > 0.001) st.raf = requestAnimationFrame(tick);
-    };
-    st.raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(st.raf);
-  }, [target, reduced]);
-  return reduced ? 0 : value;
-};
-
-const GreetingDoodleHoverCard = ({ title, description, cursor, onPointerActivate, onActivate, children }) => {
-  const anchorRef = useRef(null);
-  const tipRef = useRef(null);
-  const tipId = useId();
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ left: 16, top: 16 });
-  const [tiltTarget, setTiltTarget] = useState(0);
-  const reduced = usePrefersReducedMotion();
-  const tilt = useTiltSpring(tiltTarget, reduced);
-
-  const place = useCallback(() => {
-    const anchor = anchorRef.current, tip = tipRef.current;
-    if (!anchor || !tip) return;
-    const r = anchor.getBoundingClientRect();
-    const w = tip.offsetWidth, h = tip.offsetHeight;
-    const above = r.top - h - 12;
-    const top = above >= 16 ? above : Math.min(r.bottom + 12, window.innerHeight - h - 16);
-    const left = Math.min(Math.max(r.left + r.width / 2 - w / 2, 28), window.innerWidth - w - 28);
-    setPos({ left: Math.max(16, left), top: Math.max(16, top) });
-  }, []);
-
-  useLayoutEffect(() => { if (open) place(); }, [open, title, description, place]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onVis = () => { if (document.hidden) setOpen(false); };
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [open, place]);
-
-  const close = useCallback(() => { setTiltTarget(0); setOpen(false); }, []);
-
-  return (
-    <>
-      {open && createPortal(
-        <span
-          ref={tipRef}
-          id={tipId}
-          role="tooltip"
-          className="phub__atree-tip"
-          style={{
-            left: pos.left,
-            top: pos.top,
-            width: 288,
-            maxWidth: "calc(100vw - 56px)",
-            transform: reduced ? undefined : `translateX(${tilt * 12}px) rotate(${tilt * 8}deg)`,
-          }}
-        >
-          <span className="phub__atree-tip-title">{title}</span>
-          <span className="phub__atree-tip-desc">{description}</span>
-        </span>,
-        document.body
-      )}
-      <span
-        ref={anchorRef}
-        role="button"
-        tabIndex={0}
-        aria-label={title}
-        aria-description={description}
-        aria-describedby={open ? tipId : undefined}
-        className="phub__atree-hit"
-        style={{ cursor }}
-        onFocus={() => setOpen(true)}
-        onMouseEnter={() => { setOpen(true); onPointerActivate?.(); }}
-        onMouseMove={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          setTiltTarget(Math.max(-60, Math.min(60, e.clientX - r.left - r.width / 2)) / 60);
-          place();
-        }}
-        onMouseLeave={close}
-        onBlur={close}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") close();
-          else if ((e.key === "Enter" || e.key === " ") && onActivate) { e.preventDefault(); onActivate(); }
-        }}
-        onClick={onActivate}
-      >
-        {children}
-      </span>
-    </>
-  );
-};
-
-const AppleTreeDoodle = ({ onActivate }) => {
-  const [figure, setFigure] = useState("newton");
-  const [cursor, setCursor] = useState("pointer");
-
-  useEffect(() => {
-    const c = document.createElement("canvas");
-    c.width = 32; c.height = 32;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    ctx.font = "24px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("🍎", 16, 17);
-    setCursor(`url(${c.toDataURL("image/png")}) 16 16, pointer`);
-  }, []);
-
-  return (
-    <div className="phub__doodle">
-      <GreetingDoodleHoverCard
-        title={APPLE_TREE_TITLE}
-        description={APPLE_TREE_DESCRIPTIONS[figure]}
-        cursor={cursor}
-        onPointerActivate={() => setFigure(Math.random() < 0.5 ? "newton" : "eve")}
-        onActivate={onActivate}
-      >
-        <span
-          className="phub__atree"
-          style={{ width: DOODLE_FRAME_WIDTH, height: DOODLE_FRAME_HEIGHT }}
-          aria-hidden="true"
-        >
-          <span className="phub__atree-card" style={{ boxShadow: APPLE_TREE_CARD_SHADOW_S2 }} />
-          <span className="phub__atree-imgframe">
-            <img src={appleTreeIllustration} alt="" className="phub__atree-img phub__atree-img--gray" decoding="sync" loading="eager" draggable={false} />
-            <img src={appleTreeIllustrationColor} alt="" className="phub__atree-img phub__atree-img--color" decoding="async" loading="eager" draggable={false} />
-          </span>
-          <span className="phub__atree-year">1666</span>
-          <span className="phub__atree-note phub__atree-note--a">The Apple</span>
-          <span className="phub__atree-note phub__atree-note--b">Gravity · 1666</span>
-          <span className="phub__atree-stamp">
-            <img src={appleTreeStampGray} alt="" className="phub__atree-stamp-img" decoding="sync" loading="eager" draggable={false} />
-          </span>
-        </span>
-      </GreetingDoodleHoverCard>
-    </div>
-  );
-};
-
 const HUB_SIDEBAR_MIN = 160;
 const HUB_SIDEBAR_MAX = 460;
 const HUB_SIDEBAR_DEFAULT = 260;
+const HUB_RELEASES_URL = "https://api.github.com/repos/TheWonderlandStudio/Idiot_Box/releases?per_page=3";
+const HUB_RELEASES_PAGE_URL = "https://github.com/TheWonderlandStudio/Idiot_Box/releases";
+const HUB_CHATLOG_URL = "https://thewonderlandstudio.github.io/Idiot_Box/chatlog.html";
+const HUB_CHANGELOG_URL = "https://github.com/TheWonderlandStudio/Idiot_Box/blob/main/CHANGELOG.md";
+const HUB_REPOSITORY_URL = "https://github.com/TheWonderlandStudio/Idiot_Box";
+
+const openHubExternal = (url) => {
+  try {
+    const result = window.electronAPI?.openExternal?.(url);
+    result?.catch?.((error) => console.error("[Hub] Could not open external link:", error));
+  } catch (error) {
+    console.error("[Hub] Could not open external link:", error);
+  }
+};
 
 const ProjectHub = () => {
   const [recentProjects, setRecentProjects] = useState([]);
@@ -1005,6 +822,16 @@ const ProjectHub = () => {
   const [recentFilter, setRecentFilter] = useState("all"); // all | pinned
   const [recentFilterOpen, setRecentFilterOpen] = useState(false);
   const recentFilterRef = useRef(null);
+  const [releases, setReleases] = useState([]);
+  const [releasesLoading, setReleasesLoading] = useState(true);
+  const [releasesError, setReleasesError] = useState("");
+  const [showProfileCard, setShowProfileCard] = useState(false);
+  const [githubProfile, setGithubProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profilePosition, setProfilePosition] = useState(null);
+  const profileTriggerRef = useRef(null);
+  const profileCardRef = useRef(null);
   // ── Redesign: home overlays (recents/heat) + composer menus + card kebab ──
   const [homeOverlay, setHomeOverlay] = useState(null); // "recents" | "heat"
   const [compMenu, setCompMenu] = useState(null); // "plus" | "more"
@@ -1076,6 +903,87 @@ const ProjectHub = () => {
   const [ghLoading, setGhLoading] = useState(false);
   const [ghError, setGhError] = useState(null);
   const [ghInput, setGhInput] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadReleases = async () => {
+      setReleasesLoading(true);
+      setReleasesError("");
+      try {
+        const response = await fetch(HUB_RELEASES_URL, { signal: controller.signal });
+        if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error("GitHub returned an unexpected release list");
+        setReleases(data.slice(0, 3));
+      } catch (error) {
+        if (error?.name !== "AbortError") setReleasesError(error?.message || "Could not load releases");
+      } finally {
+        if (!controller.signal.aborted) setReleasesLoading(false);
+      }
+    };
+    loadReleases();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!showProfileCard || !ghUser) {
+      setGithubProfile(null);
+      setProfileError("");
+      return;
+    }
+    const controller = new AbortController();
+    const loadProfile = async () => {
+      setProfileLoading(true);
+      setProfileError("");
+      try {
+        const response = await fetch(`https://api.github.com/users/${encodeURIComponent(ghUser)}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(response.status === 404 ? "GitHub user not found" : `GitHub returned HTTP ${response.status}`);
+        const profile = await response.json();
+        setGithubProfile(profile);
+      } catch (error) {
+        if (error?.name !== "AbortError") setProfileError(error?.message || "Could not load GitHub profile");
+      } finally {
+        if (!controller.signal.aborted) setProfileLoading(false);
+      }
+    };
+    loadProfile();
+    return () => controller.abort();
+  }, [showProfileCard, ghUser]);
+
+  const positionProfileCard = useCallback(() => {
+    const trigger = profileTriggerRef.current;
+    const card = profileCardRef.current;
+    if (!trigger || !card) return;
+    const rect = trigger.getBoundingClientRect();
+    const width = card.offsetWidth || 300;
+    const height = card.offsetHeight || 280;
+    const left = Math.max(12, Math.min(rect.right + 10, window.innerWidth - width - 12));
+    const top = Math.max(12, Math.min(rect.top + rect.height / 2 - height / 2, window.innerHeight - height - 12));
+    setProfilePosition((current) => current?.left === left && current?.top === top ? current : { left, top });
+  }, []);
+
+  useEffect(() => {
+    if (!showProfileCard) return;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setShowProfileCard(false);
+    };
+    const onPointerDown = (event) => {
+      if (!profileCardRef.current?.contains(event.target) && !profileTriggerRef.current?.contains(event.target)) {
+        setShowProfileCard(false);
+      }
+    };
+    positionProfileCard();
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("resize", positionProfileCard);
+    window.addEventListener("scroll", positionProfileCard, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("resize", positionProfileCard);
+      window.removeEventListener("scroll", positionProfileCard, true);
+    };
+  }, [showProfileCard, githubProfile, profileLoading, positionProfileCard]);
 
   const loadHeatmap = useCallback(async (username) => {
     const user = String(username || "").trim();
@@ -3025,6 +2933,84 @@ const ProjectHub = () => {
         </div>
       )}
 
+      {showProfileCard && (
+          <section
+            ref={profileCardRef}
+            className="phub__profile-card"
+            style={profilePosition ? { left: profilePosition.left, top: profilePosition.top } : { visibility: "hidden" }}
+            role="dialog"
+            aria-labelledby="phub-profile-title"
+          >
+            <button
+              type="button"
+              className="phub__profile-close"
+              onClick={() => setShowProfileCard(false)}
+              aria-label="Close GitHub profile"
+              autoFocus
+            >
+              <X size={16} />
+            </button>
+            {ghUser ? (
+              <>
+                <div className="phub__profile-heading">
+                  <img
+                    className="phub__profile-avatar"
+                    src={githubProfile?.avatar_url || `https://github.com/${encodeURIComponent(ghUser)}.png`}
+                    alt=""
+                  />
+                  <div className="phub__profile-heading-text">
+                    <h2 id="phub-profile-title">{githubProfile?.name || `@${ghUser}`}</h2>
+                    <span>@{githubProfile?.login || ghUser}</span>
+                  </div>
+                </div>
+                {profileLoading && <div className="phub__profile-state">Loading GitHub profile…</div>}
+                {profileError && <div className="phub__profile-error" role="alert">{profileError}</div>}
+                {githubProfile && (
+                  <>
+                    {githubProfile.bio && <p className="phub__profile-bio">{githubProfile.bio}</p>}
+                    <div className="phub__profile-stats">
+                      <span><b>{githubProfile.public_repos ?? 0}</b> repositories</span>
+                      <span><b>{githubProfile.followers ?? 0}</b> followers</span>
+                      <span><b>{githubProfile.following ?? 0}</b> following</span>
+                    </div>
+                    {(githubProfile.location || githubProfile.company) && (
+                      <div className="phub__profile-details">
+                        {githubProfile.location && <span>{githubProfile.location}</span>}
+                        {githubProfile.company && <span>{githubProfile.company}</span>}
+                      </div>
+                    )}
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="phub__profile-link"
+                  onClick={() => openHubExternal(`https://github.com/${encodeURIComponent(ghUser)}`)}
+                >
+                  <ExternalLink size={14} /> Open GitHub profile
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="phub__profile-heading">
+                  <span className="phub__profile-avatar phub__profile-avatar--empty"><User size={22} /></span>
+                  <div className="phub__profile-heading-text">
+                    <h2 id="phub-profile-title">GitHub profile</h2>
+                    <span>Not connected</span>
+                  </div>
+                </div>
+                <p className="phub__profile-bio">Add a GitHub username to see your profile and contribution graph here.</p>
+                <button
+                  type="button"
+                  className="phub__profile-link"
+                  onClick={() => { setShowProfileCard(false); setHomeOverlay("heat"); }}
+                >
+                  <ExternalLink size={14} /> Connect GitHub
+                </button>
+              </>
+            )}
+          </section>
+      )}
+
       <div className={`phub__sidebar${sidebarCollapsed ? " phub__sidebar--collapsed" : ""}`}>
         <nav className="phub__sidebar-nav" aria-label="Start">
           <SidebarAction
@@ -3083,6 +3069,14 @@ const ProjectHub = () => {
           </div>
         </div>
         <div className="phub__sidebar-user">
+          <button
+            ref={profileTriggerRef}
+            type="button"
+            className="phub__sidebar-profile"
+            onClick={() => { setProfilePosition(null); setShowProfileCard(true); }}
+            aria-label={ghUser ? `Show GitHub profile for ${ghUser}` : "Set up GitHub profile"}
+            title={ghUser ? `GitHub profile: @${ghUser}` : "Set up GitHub profile"}
+          >
           {ghUser ? (
             <>
               <img
@@ -3101,6 +3095,7 @@ const ProjectHub = () => {
               <span className="phub__sidebar-username phub__sidebar-username--muted">Local user</span>
             </>
           )}
+          </button>
           <button
             type="button"
             className="phub__sidebar-gear"
@@ -3804,45 +3799,6 @@ const ProjectHub = () => {
               })()}
             </div>
           </div>
-        ) : homeOverlay === "spark" ? (
-          <div className="phub__panel phub__panel--spark">
-            <div className="phub__panel-header">
-              <button className="phub__panel-back" onClick={() => setHomeOverlay(null)} aria-label="Back">
-                <ArrowLeft size={16} />
-              </button>
-              <span className="phub__panel-title">The Functions This Includes</span>
-            </div>
-            <div className="phub__panel-body phub__spark-body">
-              <div className="phub__spark-intro">
-                <span className="phub__spark-intro-ico"><Sparkles size={20} /></span>
-                <div>
-                  <div className="phub__spark-intro-title">The Spark Under the Apple Tree</div>
-                  <div className="phub__spark-intro-sub">Everything Idiot Box can help you build — pick one to jump straight in.</div>
-                </div>
-              </div>
-              <div className="phub__cap-grid">
-                {[
-                  { icon: Bot, name: "AI Chat & Repo Search", desc: "Ask the AI, find GitHub repos, and scaffold a project from a single prompt.", act: () => { setHomeOverlay(null); setTimeout(() => { try { composerRef.current?.focus(); } catch { } }, 60); } },
-                  { icon: Layers, name: "Frameworks & Templates", desc: "30+ real starters — React, Next.js, Vue, Flask, FastAPI, bots, desktop & more.", act: () => { setHomeOverlay(null); setShowFrameworks(true); } },
-                  { icon: CloudDownload, name: "Clone & Live Setup", desc: "Clone any GitHub repo and watch its real setup commands run live.", act: () => { setHomeOverlay(null); setShowCloneDialog(true); } },
-                  { icon: Plus, name: "Create Project", desc: "Scaffold a new project with default panels or a clean blank workspace.", act: () => { setHomeOverlay(null); setShowNewProjectDialog(true); } },
-                  { icon: Activity, name: "GitHub Insights", desc: "Your contribution graph, yearly totals and streaks, right on the hub.", act: () => setHomeOverlay("heat") },
-                  { icon: Clock, name: "Recent Projects", desc: "Pin, search and jump back into everything you've opened.", act: () => setHomeOverlay("recents") },
-                  { icon: Mic, name: "Voice Input", desc: "Dictate prompts hands-free with the mic built into the composer.", act: () => { setHomeOverlay(null); setTimeout(() => { try { composerRef.current?.focus(); } catch { } }, 60); } },
-                  { icon: ImageIcon, name: "Wallpaper Themes", desc: "Nine bundled wallpapers, a random pick, or any image of your own.", act: () => { setHomeOverlay(null); setWallMenuOpen(true); } },
-                ].map((c) => (
-                  <button key={c.name} className="phub__cap" onClick={c.act}>
-                    <span className="phub__cap-ico"><c.icon size={18} /></span>
-                    <span className="phub__cap-text">
-                      <span className="phub__cap-name">{c.name}</span>
-                      <span className="phub__cap-desc">{c.desc}</span>
-                    </span>
-                    <ArrowRight size={15} className="phub__cap-arrow" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
         ) : (
           <div className="phub__home">
             {chatOpen ? (
@@ -3929,12 +3885,52 @@ const ProjectHub = () => {
                   <span className="phub__hero-eyebrow">Beyond Coding</span>
                   <h1 className="phub__hero-title">What Can Idiot Box Help You Build?</h1>
                 </div>
-                <button className="phub__spark" onClick={() => setHomeOverlay("spark")} title="See everything Idiot Box can help you build">
-                  <Sparkles size={14} className="phub__spark-ico" aria-hidden="true" />
-                  <span className="phub__spark-title">The Spark Under the Apple Tree</span>
-                  <ArrowRight size={13} className="phub__spark-arrow" aria-hidden="true" />
-                </button>
-                <AppleTreeDoodle onActivate={() => setHomeOverlay("spark")} />
+                <section className="phub__updates" aria-labelledby="phub-updates-title">
+                  <div className="phub__updates-header">
+                    <div>
+                      <h2 id="phub-updates-title">What’s new</h2>
+                      <p>Releases, notes, and project updates</p>
+                    </div>
+                    <button type="button" className="phub__updates-all" onClick={() => openHubExternal(HUB_RELEASES_PAGE_URL)}>
+                      All releases <ArrowRight size={13} />
+                    </button>
+                  </div>
+                  {releasesLoading ? (
+                    <div className="phub__updates-state">Loading latest releases…</div>
+                  ) : releasesError ? (
+                    <div className="phub__updates-state phub__updates-state--error" role="status">
+                      Could not load releases. Use the links below to see the latest updates.
+                    </div>
+                  ) : releases.length ? (
+                    <div className="phub__release-list">
+                      {releases.map((release) => (
+                        <button
+                          key={release.id || release.tag_name}
+                          type="button"
+                          className="phub__release"
+                          onClick={() => openHubExternal(release.html_url || HUB_CHANGELOG_URL)}
+                        >
+                          <span className="phub__release-meta">
+                            <span className="phub__release-tag">{release.tag_name || "Release"}</span>
+                            {release.prerelease && <span className="phub__release-prerelease">Pre-release</span>}
+                            <span className="phub__release-date">
+                              {release.published_at ? new Date(release.published_at).toLocaleDateString() : ""}
+                            </span>
+                          </span>
+                          <span className="phub__release-name">{release.name || release.tag_name || "Untitled release"}</span>
+                          {release.body && <span className="phub__release-summary">{release.body.trim().slice(0, 180)}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="phub__updates-state">No published releases yet.</div>
+                  )}
+                  <div className="phub__updates-links" aria-label="Project update links">
+                    <button type="button" onClick={() => openHubExternal(HUB_CHATLOG_URL)}><MessageSquare size={13} /> Chat log</button>
+                    <button type="button" onClick={() => openHubExternal(HUB_CHANGELOG_URL)}><BookOpen size={13} /> Changelog</button>
+                    <button type="button" onClick={() => openHubExternal(HUB_REPOSITORY_URL)}><Globe size={13} /> GitHub</button>
+                  </div>
+                </section>
                 <div className="phub__home-cards">
                   {recentProjects.slice(0, 3).map((entry) => {
                     const path = entry.path;
