@@ -166,6 +166,21 @@ const ISO_CATALOG = [
     iso: null,
     page: "https://reactos.org/download/",
   },
+  {
+    id: "android-x86", name: "Android-x86 9.0 (Pie)", arch: "x86_64", note: "~800 MB · Android for PC",
+    iso: "https://osdn.net/projects/android-x86/downloads/73230/android-x86_64-9.0-r2.iso",
+    page: "https://www.android-x86.org/",
+  },
+  {
+    id: "android-x86-64", name: "Android-x86 8.1 (Oreo)", arch: "x86_64", note: "~700 MB · Android for PC",
+    iso: "https://osdn.net/projects/android-x86/downloads/68079/android-x86_64-8.1-r2.iso",
+    page: "https://www.android-x86.org/",
+  },
+  {
+    id: "android-x86-32", name: "Android-x86 8.1 (Oreo, 32-bit)", arch: "i386", note: "~650 MB · Android for PC (32-bit)",
+    iso: "https://osdn.net/projects/android-x86/downloads/68078/android-x86-8.1-r2.iso",
+    page: "https://www.android-x86.org/",
+  },
 ];
 // Per-arch machine/cpu defaults (x86 uses the QEMU default "pc").
 const ARCH_MACHINE = {
